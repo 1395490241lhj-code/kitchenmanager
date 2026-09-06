@@ -3,14 +3,15 @@
 **Editorial Structure + Tactile Utility + Semantic Restraint**
 
 Status: canonical production design language, visually approved.
-Scope: native iOS Home, Inventory and Recipes. Other destinations retain their existing
+Scope: native iOS Home, Inventory, Recipes and Shopping. Other destinations retain their existing
 semantics and presentation until deliberately brought into this language. The next adoption
-boundary is Shopping, followed by Meal Plan / Planner and Profile / Settings. No recipe media dependency.
+boundary is Meal Plan / Planner, followed by Profile / Settings. No recipe media dependency.
 
 Implementation owners: `KitchenTheme.swift` (geometry/material/color),
 `KitchenControls.swift` (controls, labels, metadata and marks), `HomeMealHero.swift`
-(meal composition), `InventoryControlStrip.swift` (interactive console), and
-`RecipeViews.swift` / `RecipeCookingModeView.swift` (recipe reading and cooking).
+(meal composition), `InventoryControlStrip.swift` (interactive console),
+`RecipeViews.swift` / `RecipeCookingModeView.swift` (recipe reading and cooking), and
+`MainFeatureViews.swift` (Shopping list and native entry).
 
 ## Roles
 
@@ -154,3 +155,37 @@ Use the existing roles and controls; Recipes does not introduce a new design-sys
   Capture actual normal production rendering with only data/appearance fixtures.
 
 No runtime design selection, production experiment route or persistence is needed.
+
+## Shopping application
+
+Shopping is execution/completion-led: identify the grocery item, read its amount and
+complete it with a whole-row action. It generally does not require a Hero.
+
+- Open rows are canonical. Names dominate; precise quantity/unit text is subordinate
+  and right-aligned at normal sizes. Preserve the complete formatted amount rather than
+  splitting or reinterpreting it. Long Chinese names wrap; accessibility sizes stack
+  name, amount and source while preserving minimum interaction targets.
+- Stored source/context is tertiary. Do not invent richer provenance, show ordinary
+  generated items as AI states, or introduce decorative food icons.
+- Category and purchased-group headings use contextual horizontal marks. Keep the
+  existing grouping, ordering, collapse behavior and truthful whole-list counts;
+  each category does not need a large card. No decorative vertical shopping rails.
+- Summary, category marks and open rows share the 20pt content coordinate. The native
+  List keeps bottom clearance so the final item can scroll above the floating tab bar.
+- Keep the native navigation background visible over scrolling content. Category
+  headers must not compete with the title or search controls; preserve native search
+  geometry rather than adding a compensating top inset.
+- Completion uses a clear control state and readable secondary text. Do not stack
+  strike-through, low opacity, gray text and a green row fill. Completed rows remain
+  actionable so users can restore the pending state.
+- Shopping uses less semantic color than Inventory. Forest/sage belongs to completion,
+  neutral to ordinary content, and management blue remains the existing toolbar utility
+  role. Indigo is reserved for actual AI utility; destructive actions retain their native
+  destructive role. Inventory expiry colors do not belong here.
+- Search, menus and destructive confirmations stay native. The add sheet retains its
+  native Form and existing fields; populated name, quantity and unit keep understandable
+  field identity. Native Form containment is appropriate, with its group edges inset
+  20pt from the sheet's content area.
+
+Shopping introduces no new canonical role and does not redefine generation, stock-in,
+duplicate merging, classification or persistence semantics.

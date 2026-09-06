@@ -27,8 +27,9 @@ struct KitchenManagerApp: App {
 
     init() {
         #if DEBUG
-        let persistence = RecipeRegressionFixture.isEnabled ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
-        let recipeTestDefaults = RecipeRegressionFixture.isEnabled ? UserDefaults(suiteName: "recipe-regression-\(UUID().uuidString)")! : .standard
+        let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
+        let persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
+        let recipeTestDefaults = isolatedFixture ? UserDefaults(suiteName: "ui-regression-\(UUID().uuidString)")! : .standard
         #else
         let persistence = KitchenPersistenceFactory.application()
         let recipeTestDefaults = UserDefaults.standard
@@ -44,7 +45,7 @@ struct KitchenManagerApp: App {
         // by one is how `preparedComponents` was left out and prepared batches
         // ended up in an isolated in-memory container that dies with the app.
         #if DEBUG
-        let kitchenStoreInstance = RecipeRegressionFixture.isEnabled
+        let kitchenStoreInstance = isolatedFixture
             ? KitchenStore(userDefaults: recipeTestDefaults, persistence: persistence)
             : KitchenStore(persistence: persistence)
         #else
@@ -70,7 +71,7 @@ struct KitchenManagerApp: App {
         }
         #endif
         #if DEBUG
-        let authStoreInstance = RecipeRegressionFixture.isEnabled ? AuthStore.guestPreview() : AuthenticationAssembly.make()
+        let authStoreInstance = isolatedFixture ? AuthStore.guestPreview() : AuthenticationAssembly.make()
         #else
         let authStoreInstance = AuthenticationAssembly.make()
         #endif
@@ -476,7 +477,7 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
             #if DEBUG
-            guard !RecipeRegressionFixture.isEnabled else { return }
+            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled else { return }
             #endif
             await authStore.start()
         }
@@ -488,7 +489,7 @@ struct ContentView: View {
         // Both run concurrently now; neither reads the other's state.
         .task {
             #if DEBUG
-            guard !RecipeRegressionFixture.isEnabled, !RecipeUITestSeed.isolatesRecipeStore else { return }
+            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled, !RecipeUITestSeed.isolatesRecipeStore else { return }
             #endif
             if recipeStore.remoteRecipes.isEmpty {
                 await recipeStore.loadRecipes()
@@ -499,18 +500,23 @@ struct ContentView: View {
             // concurrently above and never blocks this; a pending shared
             // import is a purely local, guest-safe read.
             #if DEBUG
-            guard !RecipeRegressionFixture.isEnabled else { return }
+            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled else { return }
             #endif
             sharedImportCoordinator.refresh(isAnotherImportFlowPresented: false)
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             #if DEBUG
-            guard !RecipeRegressionFixture.isEnabled else { return }
+            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled else { return }
             #endif
             sharedImportCoordinator.refresh(isAnotherImportFlowPresented: false)
         }
         #if DEBUG
+        .task {
+            guard ShoppingRegressionFixture.isEnabled else { return }
+            kitchenStore.shoppingItems = ShoppingRegressionFixture.items
+            navigationStore.selectedTab = .shopping
+        }
         .task {
             guard RecipeRegressionFixture.isEnabled else { return }
             for recipe in RecipeRegressionFixture.recipes.reversed() { recipeStore.add(recipe) }

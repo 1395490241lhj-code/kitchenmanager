@@ -732,7 +732,13 @@ struct ShoppingView: View {
             if !hasSearchQuery && !store.shoppingItems.isEmpty {
                 Section {
                     ShoppingSummaryRow(summary: summary)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 10, leading: KitchenTheme.pageGutter,
+                                                 bottom: 10, trailing: KitchenTheme.pageGutter))
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                                 bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                        .listRowSeparator(.hidden)
+                        .listSectionSeparator(.hidden)
                 }
             }
 
@@ -751,6 +757,11 @@ struct ShoppingView: View {
                     .frame(minHeight: AppTheme.minimumHitTarget)
                     .accessibilityIdentifier("shopping.empty.add.button")
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                         bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             } else if hasSearchQuery && !hasSearchResults {
                 Section {
                     ContentUnavailableView {
@@ -768,6 +779,11 @@ struct ShoppingView: View {
                         .accessibilityIdentifier("shopping.search.clear")
                     }
                 }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                         bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                .listRowSeparator(.hidden)
+                .listSectionSeparator(.hidden)
             } else {
                 ForEach(pendingSections, id: \.0) { category, items in
                     Section {
@@ -779,9 +795,14 @@ struct ShoppingView: View {
                             .accessibilityIdentifier("shopping.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: false))
                             .accessibilityHint("双击标记为已购买")
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                                     bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                            .listRowSeparator(.hidden)
+                            .listSectionSeparator(.hidden)
                         }
                     } header: {
-                        ListSectionHeader(title: category.rawValue, count: items.count)
+                        categoryHeader(category, count: items.count)
                     }
                     .accessibilityIdentifier("shopping.section.\(category.id)")
                 }
@@ -793,8 +814,7 @@ struct ShoppingView: View {
                         isPurchasedExpanded.toggle()
                     } label: {
                         HStack {
-                            Label("已购买", systemImage: "checkmark.circle")
-                                .font(.body.weight(.medium))
+                            KitchenContextualLabel(text: "已购买", tint: KitchenTheme.textSecondary)
                             Spacer()
                             Text("\(summary.purchasedCount) 项")
                                 .foregroundStyle(.secondary)
@@ -809,6 +829,11 @@ struct ShoppingView: View {
                         "已购买，\(summary.purchasedCount) 项，\(shouldShowPurchasedItems ? "已展开" : "已折叠")"
                     )
                     .accessibilityHint("双击以\(shouldShowPurchasedItems ? "折叠" : "展开")已购买项目")
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                             bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                    .listRowSeparator(.hidden)
+                    .listSectionSeparator(.hidden)
 
                     if shouldShowPurchasedItems {
                         ForEach(purchasedItems) { item in
@@ -819,12 +844,21 @@ struct ShoppingView: View {
                             .accessibilityIdentifier("shopping.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
                             .accessibilityHint("双击取消已购买状态")
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                                     bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                            .listRowSeparator(.hidden)
+                            .listSectionSeparator(.hidden)
                         }
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(KitchenTheme.canvas)
+        .environment(\.defaultMinListHeaderHeight, 0)
+        .listSectionSpacing(0)
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: ChromeMetrics.bottomClearance)
@@ -837,6 +871,11 @@ struct ShoppingView: View {
         List {
             Section {
                 ShoppingModeHeader(presentation: shoppingMode)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                             bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                    .listRowSeparator(.hidden)
+                    .listSectionSeparator(.hidden)
             }
 
             if shoppingMode.isEmpty {
@@ -868,9 +907,14 @@ struct ShoppingView: View {
                             .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: false))
                             .accessibilityHint("双击标记为已购买")
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                                     bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                            .listRowSeparator(.hidden)
+                            .listSectionSeparator(.hidden)
                         }
                     } header: {
-                        ListSectionHeader(title: category.rawValue, count: items.count)
+                        categoryHeader(category, count: items.count)
                     }
                 }
             }
@@ -882,8 +926,7 @@ struct ShoppingView: View {
                         isShoppingModePurchasedExpanded.toggle()
                     } label: {
                         HStack {
-                            Label("已购买", systemImage: "checkmark.circle")
-                                .font(.body.weight(.medium))
+                            KitchenContextualLabel(text: "已购买", tint: KitchenTheme.textSecondary)
                             Spacer()
                             Text("\(completed.count) 项")
                                 .foregroundStyle(.secondary)
@@ -896,6 +939,11 @@ struct ShoppingView: View {
                     .accessibilityIdentifier("shopping.mode.purchased.toggle")
                     .accessibilityLabel("已购买，\(completed.count) 项，\(isShoppingModePurchasedExpanded ? "已展开" : "已折叠")")
                     .accessibilityHint("双击以\(isShoppingModePurchasedExpanded ? "折叠" : "展开")已购买项目")
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                             bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                    .listRowSeparator(.hidden)
+                    .listSectionSeparator(.hidden)
 
                     if isShoppingModePurchasedExpanded {
                         ForEach(completed) { item in
@@ -906,12 +954,21 @@ struct ShoppingView: View {
                             .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
                             .accessibilityHint("双击取消购买状态")
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                                     bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+                            .listRowSeparator(.hidden)
+                            .listSectionSeparator(.hidden)
                         }
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(KitchenTheme.canvas)
+        .environment(\.defaultMinListHeaderHeight, 0)
+        .listSectionSpacing(0)
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: ChromeMetrics.bottomClearance)
@@ -930,6 +987,8 @@ struct ShoppingView: View {
         }
         .navigationTitle(isShoppingMode ? "购物模式" : "买菜")
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
+        .toolbarBackground(KitchenTheme.canvas, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         // One searchable for both modes, so Shopping Mode reuses the exact
         // normal-mode search semantics (`ShoppingListPresentation`) instead of a
         // mode-specific duplicate. Searching in the aisle is the point.
@@ -1055,6 +1114,7 @@ struct ShoppingView: View {
         } message: {
             Text(store.shoppingNotice ?? "")
         }
+        .tint(KitchenTheme.managementBlue)
     }
 
     private func presentRequestedStockInIfNeeded() {
@@ -1067,6 +1127,14 @@ struct ShoppingView: View {
     private func itemAccessibilityLabel(_ item: KitchenShoppingItem, isPurchased: Bool) -> String {
         let source = item.source == "手动添加" ? "" : "，\(item.source)"
         return "\(item.name)，\(item.quantity.formatted()) \(item.unit)\(source)，\(isPurchased ? "已购买" : "未购买")"
+    }
+
+    @ViewBuilder
+    private func categoryHeader(_ category: ShoppingCategory, count: Int) -> some View {
+        KitchenSectionLabel(title: category.rawValue, count: count, tint: KitchenTheme.textSecondary)
+            .foregroundStyle(KitchenTheme.textSecondary)
+            .listRowInsets(EdgeInsets(top: 14, leading: KitchenTheme.pageGutter, bottom: 4, trailing: KitchenTheme.pageGutter))
+            .listSectionSeparator(.hidden)
     }
 }
 
@@ -1094,7 +1162,9 @@ private struct ShoppingSummaryRow: View {
     }
 
     private var pendingSummary: some View {
-        Label("\(summary.pendingCount) 项待购买", systemImage: "cart")
+        Group {
+            Text("\(summary.pendingCount) 项待购买")
+        }
             .font(.headline)
             .accessibilityIdentifier("shopping.summary.pending")
             .accessibilityLabel("待购买 \(summary.pendingCount) 项")
@@ -1126,7 +1196,7 @@ private struct ShoppingItemRow: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: isPurchased ? "checkmark.circle.fill" : "circle")
                 .font(.title3)
-                .foregroundStyle(isPurchased ? Color.secondary : AppTheme.primary)
+                .foregroundStyle(isPurchased ? KitchenTheme.cookingGreen : KitchenTheme.textSecondary)
                 .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
@@ -1155,8 +1225,7 @@ private struct ShoppingItemRow: View {
     private var name: some View {
         Text(item.name)
             .font(isEmphasized ? .title3.weight(.semibold) : .body.weight(.medium))
-            .foregroundStyle(isPurchased ? .secondary : .primary)
-            .strikethrough(isPurchased)
+            .foregroundStyle(isPurchased ? KitchenTheme.textSecondary : KitchenTheme.textPrimary)
             .multilineTextAlignment(.leading)
             .accessibilityHidden(true)
     }
@@ -1164,8 +1233,8 @@ private struct ShoppingItemRow: View {
     private var quantity: some View {
         Text("\(item.quantity.formatted()) \(item.unit)")
             .font(isEmphasized ? .body.weight(.medium) : .subheadline)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
+            .foregroundStyle(KitchenTheme.textSecondary)
+            .layoutPriority(1)
             .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
             .accessibilityHidden(true)
     }
@@ -1175,7 +1244,7 @@ private struct ShoppingItemRow: View {
         if !isPurchased, item.source != "手动添加" {
             Text(item.source)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(KitchenTheme.textSecondary)
                 .multilineTextAlignment(.leading)
                 .accessibilityHidden(true)
         }
@@ -1312,9 +1381,18 @@ private struct AddShoppingItemView: View {
         NavigationStack {
             Form {
                 Section("买什么") {
-                    TextField("名称", text: $name).focused($isNameFocused)
-                    TextField("数量", value: $quantity, format: .number).keyboardType(.decimalPad)
-                    TextField("单位", text: $unit)
+                    LabeledContent("名称") {
+                        TextField("名称", text: $name).focused($isNameFocused)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("数量") {
+                        TextField("数量", value: $quantity, format: .number)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("单位") {
+                        TextField("单位", text: $unit).multilineTextAlignment(.trailing)
+                    }
                 }
                 Section("补充信息") {
                     Picker("来源", selection: $source) {
@@ -1326,6 +1404,9 @@ private struct AddShoppingItemView: View {
                 }
             }
             .navigationTitle("添加买菜项目")
+            .contentMargins(.horizontal, KitchenTheme.pageGutter, for: .scrollContent)
+            .scrollContentBackground(.hidden)
+            .background(KitchenTheme.canvas)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
@@ -1336,6 +1417,7 @@ private struct AddShoppingItemView: View {
                 Button("好", role: .cancel) {}
             } message: { Text(errorMessage ?? "请检查输入。") }
         }
+        .tint(KitchenTheme.managementBlue)
     }
 
     private func save() {
