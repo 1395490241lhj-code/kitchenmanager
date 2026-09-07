@@ -36,18 +36,18 @@ private struct PlannerRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(AppTheme.brand)
-                .frame(width: 32, alignment: .center)
-                .accessibilityHidden(true)
+            if case .specialPlan = entry {
+                KitchenIconBadge(systemImage: icon, tint: KitchenTheme.sage)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.headline)
+                    .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
-                Text(detail)
+                if !detail.isEmpty {
+                    Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -222,8 +222,8 @@ struct PlannerView: View {
             Section {
                 HStack {
                     Text(PlannerDateText.weekRange(start: weekStart, calendar: calendar))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(KitchenTheme.textPrimary)
                     Spacer()
                     if weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) {
                         Text("本周")
@@ -231,6 +231,7 @@ struct PlannerView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .plannerRow()
             }
 
             let groups = PlannerProjection.dayGroups(
@@ -262,25 +263,37 @@ struct PlannerView: View {
                     }
                 }
                 .listRowBackground(Color.clear)
+                .plannerRow()
             } else {
                 ForEach(groups) { group in
-                    Section(PlannerDateText.day(group.day, calendar: calendar)) {
+                    Section {
                         if group.entries.isEmpty {
                             Text("暂无安排")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                                .plannerRow()
                         } else {
                             ForEach(group.entries) { entry in
                                 row(for: entry)
+                                    .plannerRow()
                             }
                         }
+                    } header: {
+                        let today = calendar.isDate(group.day, inSameDayAs: now)
+                        HStack(spacing: KitchenTheme.railTextGap) {
+                            KitchenStatusRail(color: today ? KitchenTheme.sage : KitchenTheme.textSecondary)
+                            Text(PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : ""))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(today ? KitchenTheme.textPrimary : KitchenTheme.textSecondary)
+                                .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
+                        }
+                        .accessibilityAddTraits(.isHeader)
+                        .plannerSectionHeader()
                     }
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(Color(.systemGroupedBackground))
+        .plannerList()
     }
 
     @ViewBuilder

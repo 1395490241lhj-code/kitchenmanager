@@ -27,7 +27,7 @@ struct KitchenManagerApp: App {
 
     init() {
         #if DEBUG
-        let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
+        let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled || PlannerRegressionFixture.isEnabled
         let persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
         let recipeTestDefaults = isolatedFixture ? UserDefaults(suiteName: "ui-regression-\(UUID().uuidString)")! : .standard
         #else
@@ -165,7 +165,17 @@ struct KitchenManagerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            Group {
+                #if DEBUG
+                if PlannerRegressionFixture.isEnabled {
+                    PlannerRegressionHost()
+                } else {
+                    ContentView()
+                }
+                #else
+                ContentView()
+                #endif
+            }
                 .environmentObject(recipeStore)
                 .environmentObject(kitchenStore)
                 .environmentObject(navigationStore)

@@ -215,58 +215,91 @@ final class SpecialPlanMenuUITests: XCTestCase {
         XCTAssertEqual(draftRows(in: app).count, 0, "a failed generation must not leave a draft")
     }
 
-    /// The contract the live E2E depends on, pinned against the deterministic
-    /// stub so it never has to be proven by a provider: replacing a dish that
-    /// is *off screen* is observed through that row's own id, promptly, and
-    /// not by waiting for the set of mounted rows to differ.
-    ///
-    /// The seven-person seed asks for six dishes and the stub's sixth, 白灼菜心,
-    /// sits below the fold. The test scrolls to it, fires the replacement,
-    /// scrolls back to the top so the row unmounts, and then asks the shared
-    /// helper what happened — which must be "清蒸鲈鱼 is in that slot" within a
-    /// few seconds, because the stub answers in 1.5 s. The old approach could
-    /// only time out here.
+    /// A mounted title can be partly visible while its separate action is
+    /// off screen. Protect viewport reachability and stable slot replacement,
+    /// not SwiftUI's incidental decision to keep an AX node mounted.
     func testReplacingAnOffScreenDishIsObservedByItsOwnRow() {
-        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")
+        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge")
         openSeededPlanDetail(from: app)
         app.buttons["planner.menu.generate"].tap()
         XCTAssertEqual(SpecialPlanDraftObservation.waitForGeneration(in: app, timeout: 15), .accepted)
-
-        // Locate the last dish by scrolling to it, and take its stable id.
         let last = app.staticTexts["白灼菜心"]
-        XCTAssertTrue(SpecialPlanDraftObservation.scroll(to: last, in: app), "sixth dish must be reachable by bounded scrolling")
+        XCTAssertTrue(last.waitForExistence(timeout: 5))
         let identifier = last.identifier
-        XCTAssertTrue(identifier.hasPrefix(SpecialPlanDraftObservation.dishPrefix), "dish title carries its slot id, got: \(identifier)")
-        let target = SpecialPlanDraftObservation.Row(
-            id: String(identifier.dropFirst(SpecialPlanDraftObservation.dishPrefix.count)),
-            title: "白灼菜心"
-        )
-
-        // Fire the replacement, then push the row off screen before looking.
-        let replaceButton = SpecialPlanDraftObservation.replaceButton(for: target.id, in: app)
-        XCTAssertTrue(replaceButton.isHittable)
-        replaceButton.tap()
-        for _ in 0..<4 { app.swipeDown() }
-        XCTAssertFalse(
-            SpecialPlanDraftObservation.titleElement(for: target.id, in: app).exists,
-            "precondition: the target row must be unmounted while the reply is pending"
-        )
-
-        // The observation must find the row again and read the new title,
-        // well inside the budget the live test allows.
-        let started = Date()
-        let deadline = started.addingTimeInterval(20)
-        var observed: String?
-        while Date() < deadline, observed == nil {
-            if let title = SpecialPlanDraftObservation.locateTitle(for: target.id, in: app), title.label != target.title {
-                observed = title.label
-            }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertTrue(identifier.hasPrefix(SpecialPlanDraftObservation.dishPrefix))
+        let slot = String(identifier.dropFirst(SpecialPlanDraftObservation.dishPrefix.count))
+        let key = SpecialPlanDraftObservation.replacePrefix + slot
+        let others = SpecialPlanDraftObservation.mountedRows(in: app).filter { $0.id != slot }
+        XCTAssertTrue(others.contains { $0.title == "红烧牛腩" })
+        var trace: [String] = []
+        defer {
+            let attachment = XCTAttachment(string: trace.joined(separator: "\n"))
+            attachment.name = "offscreen-slot-geometry"; attachment.lifetime = .keepAlways; add(attachment)
         }
-        let elapsed = Date().timeIntervalSince(started)
-        XCTAssertEqual(observed, "清蒸鲈鱼", "the off-screen slot must show the replacement dish")
-        XCTAssertLessThan(elapsed, 20, "an off-screen replacement must be observed promptly, took \(elapsed)s")
-        // Untargeted dishes are untouched — checked by their own rows.
-        XCTAssertTrue(SpecialPlanDraftObservation.scroll(to: app.staticTexts["红烧牛腩"], in: app, direction: .up))
+        func viewport() -> CGRect {
+            let frame = app.collectionViews.firstMatch.frame.intersection(app.windows.firstMatch.frame)
+            let top = max(frame.minY, app.navigationBars["朋友聚餐"].frame.maxY)
+            return CGRect(x: frame.minX, y: top, width: frame.width, height: frame.maxY - top)
+        }
+        func record(_ stage: String) {
+            let row = app.collectionViews.firstMatch.cells.containing(.button, identifier: key).firstMatch
+            let button = app.buttons[key]
+            trace.append("\(stage) id=\(key) cell=\(row.frame) button=\(button.frame) hittable=\(button.isHittable) viewport=\(viewport())")
+        }
+        record("initial")
+        let initialFrame = app.buttons[key].frame
+        XCTAssertFalse(initialFrame.isEmpty)
+        let offscreen = !initialFrame.intersects(viewport())
+        trace.append("initialActionOffscreen=\(offscreen)")
+        guard offscreen else { XCTFail("fixture's replace action must start outside viewport"); return }
+
+        // Fresh queries and measured direction after every List-contained drag.
+        // No assumption about AX unmounting, safe-area insets or fixed swipes.
+        var seen = Set<String>()
+        let revealDeadline = Date().addingTimeInterval(20)
+        while true {
+            guard app.navigationBars["朋友聚餐"].exists else { XCTFail("detail sheet lost"); return }
+            let list = app.collectionViews.firstMatch
+            let button = app.buttons[key]
+            let frame = button.frame
+            let visible = viewport()
+            guard button.exists, !frame.isEmpty else { XCTFail("slot control lost"); return }
+            if visible.contains(frame), button.isHittable, button.isEnabled { break }
+            let signature = "\(Int(frame.minY))|\(Int(frame.maxY))"
+            guard seen.insert(signature).inserted, Date() < revealDeadline else {
+                XCTFail("reveal made no progress or exceeded 20s"); return
+            }
+            let margin = min(80, visible.height / 4)
+            let limit = visible.height - 2 * margin
+            let delta = max(-limit, min(limit, frame.midY - visible.midY))
+            let y = delta > 0 ? visible.maxY - margin : visible.minY + margin
+            let origin = list.coordinate(withNormalizedOffset: .zero)
+            let x = visible.midX - list.frame.minX
+            origin.withOffset(CGVector(dx: x, dy: y - list.frame.minY)).press(forDuration: 0.1,
+                thenDragTo: origin.withOffset(CGVector(dx: x, dy: y - list.frame.minY - delta)),
+                withVelocity: .slow, thenHoldForDuration: 0.1)
+            record("after drag")
+        }
+        record("revealed")
+        let button = app.buttons[key]
+        XCTAssertTrue(viewport().contains(CGPoint(x: button.frame.midX, y: button.frame.midY)))
+        XCTAssertEqual(app.staticTexts[identifier].label, "白灼菜心")
+        let started = Date()
+        button.tap()
+        let title = app.staticTexts[identifier]
+        let remaining = max(0, 20 - Date().timeIntervalSince(started))
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", "清蒸鲈鱼"), object: title)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: remaining), .completed)
+        let duration = Date().timeIntervalSince(started)
+        trace.append("result=\(title.label) identifier=\(title.identifier) observationSeconds=\(duration)")
+        XCTAssertEqual(title.identifier, identifier)
+        XCTAssertEqual(title.label, "清蒸鲈鱼")
+        XCTAssertLessThan(duration, 20)
+        XCTAssertTrue(app.navigationBars["朋友聚餐"].exists, "detail sheet must survive replacement")
+        for other in others {
+            XCTAssertEqual(SpecialPlanDraftObservation.titleElement(for: other.id, in: app).label, other.title,
+                           "untargeted slot must remain unchanged")
+        }
     }
 }

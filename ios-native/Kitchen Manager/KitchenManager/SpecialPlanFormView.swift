@@ -42,7 +42,9 @@ struct RecipePickerView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .plannerRow()
         }
+        .plannerList()
         .navigationTitle("添加菜品")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "搜索菜名或食材")
@@ -135,7 +137,7 @@ struct SpecialPlanComposerSheet: View {
                 .padding(.bottom, 24)
             }
             .scrollDismissesKeyboard(.interactively)
-            .background(Color(.systemGroupedBackground))
+            .background(KitchenTheme.canvas)
             .safeAreaInset(edge: .bottom) { generateBar }
             .navigationTitle(mode.isEdit ? "重新描述这次做饭" : "这次想怎么做饭？")
             .navigationBarTitleDisplayMode(.inline)
@@ -157,7 +159,7 @@ struct SpecialPlanComposerSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("用一句话描述这次做饭", systemImage: "sparkles")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(AppTheme.aiAccentForeground)
+                .foregroundStyle(KitchenTheme.aiIndigo)
             TextField(Self.placeholder, text: $requestText, axis: .vertical)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3...8 : 4...10)
                 .font(.body)
@@ -165,7 +167,7 @@ struct SpecialPlanComposerSheet: View {
                 .focused($isEditing)
                 .disabled(draft.isBusy)
                 .padding(14)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .accessibilityIdentifier("planner.compose.request")
         }
     }
@@ -185,7 +187,7 @@ struct SpecialPlanComposerSheet: View {
         }
         .disabled(draft.isBusy)
         .padding(14)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityIdentifier("planner.compose.inventory")
     }
 
@@ -209,7 +211,7 @@ struct SpecialPlanComposerSheet: View {
                         .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.aiAccentForeground)
+                .tint(KitchenTheme.aiIndigo)
                 .disabled(!canGenerate)
                 .accessibilityIdentifier("planner.compose.generate")
             }

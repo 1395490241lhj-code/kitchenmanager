@@ -1069,7 +1069,7 @@ struct WeeklyMenuPlannerView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(AppTheme.managementActionFill)
+                .tint(KitchenTheme.aiIndigo)
                 .foregroundStyle(AppTheme.onManagementAction)
                 .disabled(store.isGenerating)
 
@@ -1084,6 +1084,9 @@ struct WeeklyMenuPlannerView: View {
         // Matches the row that opens it. 本周 is deliberately not used here: it
         // is the planner's old word, and this screen is a separate generator.
         .navigationTitle("生成一周菜单")
+        .scrollContentBackground(.hidden).background(KitchenTheme.canvas)
+        .contentMargins(.horizontal, KitchenTheme.pageGutter, for: .scrollContent)
+        .tint(KitchenTheme.cookingGreen)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isShowingResult) {
             WeeklyMenuResultView(store: store)
@@ -1160,10 +1163,13 @@ struct WeeklyMenuResultView: View {
             if let plan = store.generatedPlan {
                 overviewSection(plan)
                 ForEach(plan.days) { day in
-                    Section(dayTitle(day, startDate: plan.startDate)) {
+                    Section {
                         ForEach(day.meals) { meal in
                             mealSection(meal, dayIndex: day.dayIndex, mealsPerDay: mealsPerDay(plan))
+                                .plannerRow()
                         }
+                    } header: {
+                        Text(dayTitle(day, startDate: plan.startDate)).plannerSectionTitle()
                     }
                 }
                 if !plan.shoppingItems.isEmpty {
@@ -1174,6 +1180,7 @@ struct WeeklyMenuResultView: View {
             }
         }
         .navigationTitle("本周菜单")
+        .plannerList()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -1265,7 +1272,7 @@ struct WeeklyMenuResultView: View {
     }
 
     private func overviewSection(_ plan: WeeklyMealPlan) -> some View {
-        Section("本周概览") {
+        Section {
             LabeledContent("共计", value: "\(totalMeals(plan)) 顿")
             LabeledContent("菜品", value: "\(totalDishes(plan)) 道")
             LabeledContent("预计新增采购", value: "\(plan.shoppingItems.count) 项")
@@ -1277,7 +1284,12 @@ struct WeeklyMenuResultView: View {
                 }
                 .tint(AppTheme.brand)
             }
+        } header: {
+            Text("本周概览").plannerSectionTitle()
         }
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                 bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
     }
 
     private func mealSection(_ meal: WeeklyMealPlanMeal, dayIndex: Int, mealsPerDay: Int) -> some View {
@@ -1386,7 +1398,7 @@ struct WeeklyMenuResultView: View {
     }
 
     private func shoppingSection(_ plan: WeeklyMealPlan) -> some View {
-        Section("需要购买") {
+        Section {
             ForEach(plan.shoppingItems) { item in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
@@ -1412,8 +1424,12 @@ struct WeeklyMenuResultView: View {
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.managementActionFill)
             .foregroundStyle(AppTheme.onManagementAction)
+        } header: {
+            Text("需要购买").plannerSectionTitle()
         }
-
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                 bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
     }
 
 

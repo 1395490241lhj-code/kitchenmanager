@@ -61,32 +61,11 @@ struct SpecialPlanDetailView: View {
     private func content(_ plan: SpecialPlan) -> some View {
         List {
             Section {
-                if !plan.requestText.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("需求")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(plan.requestText)
-                            .font(.subheadline)
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("planner.special.request")
-                }
-                LabeledContent("时间", value: Self.detailDateText(plan.scheduledAt))
-                LabeledContent("人数", value: "\(plan.peopleCount) 人")
-                    .accessibilityIdentifier("planner.special.peopleCount")
-                if !plan.constraintNotes.isEmpty {
-                    ForEach(plan.constraintNotes, id: \.self) { note in
-                        LabeledContent("要求", value: note)
-                    }
-                }
-                if !plan.notes.isEmpty {
-                    LabeledContent("说明", value: plan.notes)
-                }
-                LabeledContent("食材", value: plan.usesHomeInventory ? "参考家中库存" : "不参考家中库存")
-                    .accessibilityIdentifier("planner.special.inventory")
+                planSummary(plan)
+                    .plannerRow()
             } footer: {
                 Text("时间、人数和要求由 AI 从你的描述里读出，没写到的会按常见情况补上；想改就重新描述一次。")
+                    .plannerFootnote()
             }
 
             if let message = menuDraft.errorMessage {
@@ -108,6 +87,7 @@ struct SpecialPlanDetailView: View {
                 shoppingSection(plan)
             }
         }
+        .plannerList()
         .navigationTitle(plan.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -170,6 +150,35 @@ struct SpecialPlanDetailView: View {
 
     // MARK: - Canonical menu
 
+    private func planSummary(_ plan: SpecialPlan) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !plan.requestText.isEmpty {
+                Text(plan.requestText)
+                    .font(.body)
+                    .accessibilityIdentifier("planner.special.request")
+            }
+            HStack(alignment: .firstTextBaseline) {
+                Text(Self.detailDateText(plan.scheduledAt))
+                Spacer(minLength: 8)
+                Text("\(plan.peopleCount) 人")
+                    .accessibilityIdentifier("planner.special.peopleCount")
+            }
+            .font(.subheadline)
+            .foregroundStyle(KitchenTheme.textSecondary)
+            if !plan.constraintNotes.isEmpty {
+                Text(plan.constraintNotes.joined(separator: " · "))
+                    .font(.subheadline).foregroundStyle(KitchenTheme.textSecondary)
+            }
+            if !plan.notes.isEmpty { Text(plan.notes).font(.subheadline) }
+            Text(plan.usesHomeInventory ? "参考家中库存" : "不参考家中库存")
+                .font(.caption).foregroundStyle(KitchenTheme.textSecondary)
+                .accessibilityIdentifier("planner.special.inventory")
+        }
+        .padding(KitchenTheme.modulePadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(KitchenTheme.elevatedSurface, in: .rect(cornerRadius: KitchenTheme.functionalRadius))
+    }
+
     @ViewBuilder
     private func menuSection(_ plan: SpecialPlan) -> some View {
         Section {
@@ -180,6 +189,7 @@ struct SpecialPlanDetailView: View {
             } else {
                 ForEach(indexedDishes(plan), id: \.element.id) { _, dish in
                     dishRow(dish, plan: plan)
+                        .plannerRow()
                 }
             }
 
@@ -198,13 +208,15 @@ struct SpecialPlanDetailView: View {
                 )
                 .frame(minHeight: AppTheme.minimumHitTarget)
             }
-            .foregroundStyle(AppTheme.aiAccentForeground)
+            .foregroundStyle(KitchenTheme.aiIndigo)
             .disabled(menuDraft.isBusy)
             .accessibilityIdentifier("planner.menu.generate")
+            .plannerRow()
         } header: {
-            Text("菜单")
+            KitchenSectionLabel(title: "菜单", count: plan.dishes.count, tint: KitchenTheme.textSecondary).plannerSectionHeader()
         } footer: {
             Text("菜品引用菜谱库，删除计划不会删除菜谱。")
+                .plannerFootnote()
         }
     }
 
@@ -225,6 +237,7 @@ struct SpecialPlanDetailView: View {
             } else {
                 ForEach(menuDraft.dishes) { dish in
                     draftRow(dish, plan: plan)
+                        .plannerRow()
                 }
 
                 Button {
@@ -239,6 +252,8 @@ struct SpecialPlanDetailView: View {
                 }
                 .disabled(menuDraft.isBusy)
                 .accessibilityIdentifier("planner.menu.save")
+                .buttonStyle(KitchenButtonStyle(role: .primary))
+                .plannerRow()
 
                 Button("放弃这份草稿") {
                     menuDraft.discard()
@@ -246,11 +261,13 @@ struct SpecialPlanDetailView: View {
                 .foregroundStyle(.secondary)
                 .frame(minHeight: AppTheme.minimumHitTarget)
                 .accessibilityIdentifier("planner.menu.discard")
+                .plannerRow()
             }
         } header: {
-            Text("AI 菜单草稿")
+            KitchenSectionLabel(title: "AI 菜单草稿", count: menuDraft.dishes.count, tint: KitchenTheme.aiIndigo).plannerSectionHeader()
         } footer: {
             Text("保存前这些菜谱不会进入菜谱库。")
+                .plannerFootnote()
         }
     }
 
@@ -322,13 +339,15 @@ struct SpecialPlanDetailView: View {
             }
             .disabled(resolvedRecipes(plan).isEmpty)
             .accessibilityIdentifier("planner.shopping.open")
+            .plannerRow()
         } header: {
-            Text("购物需求")
+            Text("购物需求").plannerSectionTitle()
         } footer: {
             Text(plan.usesHomeInventory
                  ? "购物需求已结合家中现有库存计算。"
                  : "未参考家中库存，按菜谱所需用量列出。")
                 .accessibilityIdentifier("planner.shopping.footer")
+                .plannerFootnote()
         }
     }
 
@@ -350,7 +369,7 @@ struct SpecialPlanDetailView: View {
             } label: {
                 Image(systemName: dish.isCooked ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
-                    .foregroundStyle(dish.isCooked ? AppTheme.success : AppTheme.textSecondary)
+                    .foregroundStyle(dish.isCooked ? KitchenTheme.cookingGreen : AppTheme.textSecondary)
                     .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
                     .contentShape(Rectangle())
             }

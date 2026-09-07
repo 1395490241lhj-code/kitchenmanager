@@ -3,15 +3,16 @@
 **Editorial Structure + Tactile Utility + Semantic Restraint**
 
 Status: canonical production design language, visually approved.
-Scope: native iOS Home, Inventory, Recipes and Shopping. Other destinations retain their existing
+Scope: native iOS Home, Inventory, Recipes, Shopping and Meal Plan / Planner. Other destinations retain their existing
 semantics and presentation until deliberately brought into this language. The next adoption
-boundary is Meal Plan / Planner, followed by Profile / Settings. No recipe media dependency.
+boundary is Profile / Settings. No recipe media dependency.
 
 Implementation owners: `KitchenTheme.swift` (geometry/material/color),
 `KitchenControls.swift` (controls, labels, metadata and marks), `HomeMealHero.swift`
 (meal composition), `InventoryControlStrip.swift` (interactive console),
-`RecipeViews.swift` / `RecipeCookingModeView.swift` (recipe reading and cooking), and
-`MainFeatureViews.swift` (Shopping list and native entry).
+`RecipeViews.swift` / `RecipeCookingModeView.swift` (recipe reading and cooking),
+`MainFeatureViews.swift` (Shopping list and native entry), and `PlannerPresentation.swift`
+with `PlannerView.swift` / `SpecialPlanDetailView.swift` (Planner lists and event detail).
 
 ## Roles
 
@@ -189,3 +190,32 @@ complete it with a whole-row action. It generally does not require a Hero.
 
 Shopping introduces no new canonical role and does not redefine generation, stock-in,
 duplicate merging, classification or persistence semantics.
+
+## Planner application
+
+Planner is date-led: understand the arrangements across a week, find the relevant day and
+open a dish or event to inspect or adjust it. Home keeps the Today task hero; Planner has
+no Hero.
+
+- Week range and date headers are the structure. Every date is a section label with a
+  neutral horizontal mark; only today carries a sage mark and one `· 今天` annotation.
+  Days are not color-coded and there is no selected-day mode or calendar picker; the
+  existing native previous/current/next week menu remains the navigation.
+- Ordinary dishes are open rows on the plain canvas: name first, servings or 已完成 as
+  subordinate caption, chevron destination. No per-row fork icons and no per-dish card.
+  Several dishes on one day remain separate rows; nothing is truncated or previewed.
+- Empty dates stay in place with 暂无安排. A fully empty week keeps its single create
+  affordance. Planner adds no per-day add, edit, reorder or leftover projection.
+- Special Plan events are open rows with a sage icon container and their existing
+  people/time/constraint caption. The detail shows the request and essential context in
+  one elevated Module Surface, then the saved menu and draft as open rows under
+  `KitchenSectionLabel` headings with total counts. Draft save is the forest primary
+  action; generation, replacement and discard keep their existing secondary/utility roles.
+  Completed dishes use the forest control state.
+- AI actions (special composer, draft generation, weekly generation) use indigo only on
+  their own controls; the weekly generator keeps its native Form on the canvas.
+- Lists use the plain style on the canvas with the 20pt gutter, a visible navigation
+  background over scrolling content, and native footers rendered as quiet captions.
+
+Planner introduces no new canonical role and does not change PlannerProjection,
+SpecialPlan, weekly-plan models, shopping generation or AI contracts.
