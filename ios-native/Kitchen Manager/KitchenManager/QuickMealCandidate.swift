@@ -14,7 +14,7 @@ import Foundation
 /// Which record a candidate came from. Carried through to every component of
 /// every suggestion, so a later phase can act on the actual record without the
 /// engine ever having known its type.
-enum QuickMealCandidateSource: Hashable {
+nonisolated enum QuickMealCandidateSource: Hashable {
     case inventory(UUID)
     case preparedComponent(UUID)
 
@@ -26,7 +26,7 @@ enum QuickMealCandidateSource: Hashable {
 }
 
 /// One thing in the kitchen that could take part in a quick meal.
-struct QuickMealCandidate: Equatable {
+nonisolated struct QuickMealCandidate: Equatable {
     let source: QuickMealCandidateSource
     let name: String
     let profile: QuickFoodProfile

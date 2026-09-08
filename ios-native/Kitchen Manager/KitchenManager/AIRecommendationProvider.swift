@@ -387,7 +387,7 @@ enum AppleRecommendationBuilder {
         return parts.isEmpty ? "所需食材请逐项确认。" : parts.joined(separator: "；") + "。"
     }
 
-    private static func ingredientKey(_ value: String) -> String {
+    nonisolated private static func ingredientKey(_ value: String) -> String {
         IngredientNormalizer.matchKey(IngredientParser.parse(value).displayName)
     }
 
@@ -400,7 +400,7 @@ enum AppleRecommendationBuilder {
         }
     }
 
-    private static func normalizedRecipeName(_ value: String) -> String {
+    nonisolated private static func normalizedRecipeName(_ value: String) -> String {
         value.lowercased().filter { !$0.isWhitespace && !$0.isPunctuation }
     }
 

@@ -185,7 +185,7 @@ struct InventoryItem: Identifiable, Codable, Hashable {
 
     /// Reads and writes `kind`. Setting it false only demotes an actual staple
     /// back to ordinary — it never silently reclassifies a ready-to-cook row.
-    var isStaple: Bool {
+    nonisolated var isStaple: Bool {
         get { kind == .staple }
         set {
             if newValue {
@@ -499,7 +499,7 @@ enum PantryStapleError: LocalizedError {
     var errorDescription: String? { "请填写常备食材名称。" }
 }
 
-struct MealPlanItem: Identifiable, Codable, Hashable {
+nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
     var id = UUID()
     var recipeID: String
     var recipeName: String
@@ -1654,7 +1654,6 @@ final class KitchenStore: ObservableObject {
         let previousShoppingItems = shoppingItems
         let previousPlans = plans
         let previousPreparedComponents = preparedComponents
-        let previousSpecialPlans = specialPlans
         do {
             try inventoryPersistence.replaceInventory(with: backup.inventory)
             do {

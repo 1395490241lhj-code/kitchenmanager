@@ -28,6 +28,27 @@ final class PlannedServingsTests: XCTestCase {
 
     // MARK: - Model
 
+    nonisolated func testValueOperationsDoNotRequireMainActor() async throws {
+        try await Task.detached {
+            let plan = MealPlanItem(recipeID: "r", recipeName: "鸡蛋", plannedServings: 2)
+            let decoded = try JSONDecoder().decode(MealPlanItem.self, from: JSONEncoder().encode(plan))
+            XCTAssertEqual(plan, decoded)
+            XCTAssertEqual(Set([plan, decoded]).count, 1)
+
+            let parsed = IngredientParser.parse("鸡蛋 2 个")
+            XCTAssertEqual(parsed.displayName, "鸡蛋")
+            XCTAssertEqual(parsed.quantity, 2)
+            let recipe = Recipe(id: "r", title: "鸡蛋", cookingTime: nil, difficulty: nil,
+                                tags: [], ingredients: ["鸡蛋 2 个"], steps: [])
+            XCTAssertEqual(InventoryTonightLinkage.summaries(plans: [plan], recipes: { _ in recipe }),
+                           ["鸡蛋": "今晚 · 鸡蛋"])
+
+            let candidate = QuickMealCandidate(source: .inventory(plan.id), name: "鸡蛋",
+                                               profile: .unknown, expiryDate: nil)
+            XCTAssertEqual(candidate, candidate)
+        }.value
+    }
+
     func testUnstatedTargetIsNil() {
         let item = MealPlanItem(recipeID: "r", recipeName: "菜")
         XCTAssertNil(item.plannedServings, "no default 1: nobody stated a target")

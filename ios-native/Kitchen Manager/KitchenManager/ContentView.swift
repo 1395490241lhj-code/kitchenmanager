@@ -860,7 +860,7 @@ struct ContentView: View {
                 kitchenStore.inventory[eggIndex].lowStockThreshold = 12
             }
             kitchenStore.addPlans(
-                Recipe.samples.prefix(2).map { (recipe: $0, servings: 2) }
+                Recipe.samples.prefix(2).map { (recipe: $0, plannedServings: 2) }
             )
             navigationStore.selectedTab = .today
         }

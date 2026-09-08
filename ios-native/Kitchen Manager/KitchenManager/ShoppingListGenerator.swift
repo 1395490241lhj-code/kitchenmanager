@@ -95,7 +95,7 @@ enum UnitConverter {
 // Recipe.ingredients are free-text display strings (e.g. "鸡蛋 2 个", "盐 适量",
 // "2 tomatoes"). This turns one line into a name + optional quantity/unit.
 
-struct ParsedIngredient {
+nonisolated struct ParsedIngredient {
     let rawText: String
     let displayName: String
     let quantity: Double?
@@ -103,7 +103,7 @@ struct ParsedIngredient {
     let isVague: Bool
 }
 
-enum IngredientParser {
+nonisolated enum IngredientParser {
     private static let vagueWords = ["适量", "少许", "按需", "少量", "酌量", "适当"]
 
     private static let chineseNumerals: [String: Double] = [

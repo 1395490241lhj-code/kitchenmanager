@@ -70,11 +70,15 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
     /// `dishes` seeds a draft that was composed elsewhere — the creation sheet
     /// generates before the plan exists, then hands the menu to the detail.
     init(
-        generator: SpecialPlanMenuGenerator = SpecialPlanMenuGenerator(),
+        generator: SpecialPlanMenuGenerator,
         dishes: [SpecialPlanMenuDraftDish] = []
     ) {
         self.generator = generator
         self.dishes = dishes
+    }
+
+    convenience init(dishes: [SpecialPlanMenuDraftDish] = []) {
+        self.init(generator: SpecialPlanMenuGenerator(), dishes: dishes)
     }
 
     var hasDraft: Bool { !dishes.isEmpty }
