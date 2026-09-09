@@ -8,6 +8,12 @@ import SwiftUI
 /// way you go and look at it, so each count sets `InventoryFocus`. No new
 /// filtering rule is introduced here: `InventoryFocus` already drives the
 /// list's own filtering, and these controls only select it.
+///
+/// Quiet Kitchen R3.1 (research branch): the counts and the segmented filter
+/// now share one compact surface instead of a summary card above a picker.
+/// Counts render as small inline text (label first, count after) so the zone
+/// reads as one filter control, not a dashboard. Behaviour, identifiers and
+/// accessibility labels are unchanged.
 struct InventoryControlStrip: View {
     let totalCount: Int
     let expiringCount: Int
@@ -25,25 +31,24 @@ struct InventoryControlStrip: View {
                     counts
                 }
             }
-            .padding(.horizontal, KitchenTheme.consolePadding)
-            .padding(.vertical, KitchenTheme.consoleVerticalPadding)
+            .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                KitchenTheme.statusSurface,
-                in: .rect(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
-            )
-
             filterControl
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            KitchenTheme.filterSurface,
+            in: .rect(cornerRadius: 14, style: .continuous)
+        )
     }
 
     private var counts: some View {
-        let items = countItems
-        return HStack(alignment: .top, spacing: 10) {
-            ForEach(items, id: \.focus) { item in
-                consoleCountButton(item)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            ForEach(countItems, id: \.focus) { item in
+                inlineCountButton(item)
             }
+            Spacer(minLength: 0)
         }
     }
 
@@ -54,7 +59,7 @@ struct InventoryControlStrip: View {
             spacing: 8
         ) {
             ForEach(countItems, id: \.focus) { item in
-                consoleCountButton(item)
+                inlineCountButton(item)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -117,24 +122,15 @@ struct InventoryControlStrip: View {
         return items
     }
 
-    private func consoleCountButton(_ item: CountItem) -> some View {
+    private func inlineCountButton(_ item: CountItem) -> some View {
         Button {
             focus = item.focus
         } label: {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        countText(item)
-                        labelText(item)
-                    }
-                } else {
-                    VStack(alignment: .leading, spacing: 1) {
-                        countText(item)
-                        labelText(item)
-                    }
-                }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                labelText(item)
+                countText(item)
             }
-            .frame(maxWidth: .infinity, minHeight: KitchenTheme.controlHeight, alignment: .leading)
+            .frame(minHeight: KitchenTheme.controlHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(KitchenPressFeedbackStyle())
@@ -147,18 +143,14 @@ struct InventoryControlStrip: View {
 
     private func countText(_ item: CountItem) -> some View {
         Text("\(item.value)")
-            .font((dynamicTypeSize.isAccessibilitySize
-                   ? Font.headline
-                   : Font.title2)
-                .weight(.semibold))
-            .fontDesign(.rounded)
+            .font(.subheadline.weight(.semibold))
             .monospacedDigit()
             .foregroundStyle(item.tint)
     }
 
     private func labelText(_ item: CountItem) -> some View {
-        Text(dynamicTypeSize.isAccessibilitySize ? item.compactLabel : item.label)
-            .font(.footnote.weight(.medium))
+        Text(item.compactLabel)
+            .font(.footnote)
             .foregroundStyle(Color.secondary)
             .fixedSize(horizontal: true, vertical: false)
     }

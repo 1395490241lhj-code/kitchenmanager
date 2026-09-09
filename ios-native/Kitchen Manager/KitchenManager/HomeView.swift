@@ -834,14 +834,12 @@ private struct ClipboardRecipeImportPrompt: View {
 /// directly beneath the title.
 // MARK: - 1. Today Context
 //
-// Deliberately not a card. The day is stated in plain type directly on the
-// grouped canvas, so the page opens with a fact rather than with a container,
-// and the primary region below is the first surface the eye lands on.
-//
-// Before Home V2 this was a `.footnote` secondary line that read
-// 快手日 · 晚餐外食 · 午餐已留 1 份. That put the single most consequential state
-// on the screen — the one that decides what the whole primary region shows — at
-// the lowest weight on the page, next to the date and the household name.
+// Deliberately not a card and, since R3.1, deliberately not a headline either.
+// The context block is two compact layers of secondary type: the date line the
+// navigation title cannot express, and one line naming today's rhythm and what
+// it is for. The day type is context metadata here, not the page's hero — the
+// primary region below owns the page's state, so this block no longer competes
+// with it for weight. (Quiet Kitchen R3.1, research branch only.)
 private struct HomeTodayContext: View {
     let householdName: String?
     let isRestoringAccount: Bool
@@ -871,39 +869,17 @@ private struct HomeTodayContext: View {
 
             Button(action: onOpenDayRhythm) {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Image(systemName: dayType.homeSymbolName)
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(dayType.homeTint)
-                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                            .accessibilityHidden(true)
-                        Text(dayType.homeSummaryTitle)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(.primary)
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                            .accessibilityHidden(true)
-                        Spacer(minLength: 0)
-                    }
-                    // The sentence that makes the day type stop reading as
-                    // metadata: it says what today is for, in the reader's own
-                    // words, and the primary region below follows from it.
-                    // No identifiers on these: they are inside a Button whose
-                    // own accessibility label already carries every word (see
-                    // `accessibilityLabel` below), and a SwiftUI accessibility
-                    // modifier on an ancestor overrides its descendants' — so an
-                    // id here would silently erase `home.dayRhythm.row`.
-                    Text(dayType.homeExplanation)
+                    // One compact line: the rhythm named as low-emphasis
+                    // metadata, immediately followed by the same plain-language
+                    // explanation as before. Replacing the former large
+                    // title-weight day-name row keeps every word and the
+                    // 44pt target without giving the context block a second
+                    // headline layer.
+                    Text("\(dayType.homeSummaryTitle) · \(dayType.homeExplanation)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
-                        // Context, not content. At accessibility sizes this
-                        // sentence was taking most of the first screen and
-                        // pushing the dish and its action below the fold; the
-                        // day it describes is already named above it in full.
                         .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
                     if !exceptions.isEmpty {
                         Text(exceptions.joined(separator: " · "))
