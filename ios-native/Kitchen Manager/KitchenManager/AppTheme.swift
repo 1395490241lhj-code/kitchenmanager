@@ -47,14 +47,14 @@ enum AppTheme {
     /// Interactive foregrounds stay bright enough for links, toolbar items and
     /// native bordered controls on their surrounding surfaces.
     static let managementAccentForeground = adaptive(light: 0x007AFF, dark: 0x0A84FF)
-    static let cookingAccentForeground = adaptive(light: 0x386F45, dark: 0x70B77D)
+    static let cookingAccentForeground = adaptive(light: 0x3866D6, dark: 0xA5BDFF)
     static let aiAccentForeground = adaptive(light: 0x5856D6, dark: 0x9290EE)
 
     /// Prominent fills are deliberately separate from accent foregrounds: a
     /// Dark Mode link needs to get lighter, while a fill behind white text must
     /// stay dark enough to preserve 4.5:1 contrast.
     static let managementActionFill = adaptive(light: 0x006EDB, dark: 0x006EDB)
-    static let cookingActionFill = adaptive(light: 0x447C4F, dark: 0x4C8052)
+    static let cookingActionFill = adaptive(light: 0x3866D6, dark: 0x3866D6)
     static let onManagementAction = Color.white
     static let onCookingAction = Color.white
 

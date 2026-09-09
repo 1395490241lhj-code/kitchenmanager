@@ -7,18 +7,20 @@ import SwiftUI
 /// Scoped by design: other surfaces keep the plain system palette until this
 /// language is deliberately extended to them.
 enum KitchenTheme {
-    static let heroFontDesign: Font.Design = .serif
-    static let featureRadius: CGFloat = 24
+    // Quiet Kitchen R3.1 (research branch): native system typography is the
+    // approved direction; no serif hero face and no forced tracking.
+    static let heroFontDesign: Font.Design = .default
+    static let featureRadius: CGFloat = 20
     static let functionalRadius: CGFloat = 16
     static let compactRadius: CGFloat = 12
     static let borderOpacity = 0.55
     static let shadowOpacity = 0.055
     static let shadowRadius: CGFloat = 12
     static let shadowY: CGFloat = 6
-    static let canvas = AppTheme.adaptive(light: 0xF7F7F4, dark: 0x181A17)
-    static let surface = AppTheme.adaptive(light: 0xFFFFFD, dark: 0x222420)
-    static let elevatedSurface = AppTheme.adaptive(light: 0xF0F1ED, dark: 0x2B2D28)
-    static let filterSurface = AppTheme.adaptive(light: 0xE7E9E5, dark: 0x333630)
+    static let canvas = AppTheme.adaptive(light: 0xF2F3F6, dark: 0x16181D)
+    static let surface = AppTheme.adaptive(light: 0xFFFFFF, dark: 0x24272E)
+    static let elevatedSurface = AppTheme.adaptive(light: 0xF0F2F6, dark: 0x30343D)
+    static let filterSurface = AppTheme.adaptive(light: 0xE7E9ED, dark: 0x333842)
     static let statusSurface = elevatedSurface
 
     // Shared layout coordinates; row and section marks start at pageGutter.
@@ -39,17 +41,20 @@ enum KitchenTheme {
     static let consolePadding: CGFloat = 16
     static let consoleVerticalPadding: CGFloat = 8
 
-    static let statusNeutral = AppTheme.adaptive(light: 0x20231F, dark: 0xF5F4EE)
+    static let statusNeutral = AppTheme.adaptive(light: 0x222731, dark: 0xF2F4F8)
     static let statusTerracotta = AppTheme.adaptive(light: 0xA6452D, dark: 0xF08A6D)
     static let statusOchre = AppTheme.adaptive(light: 0x806019, dark: 0xE2B85A)
-    static let textPrimary = AppTheme.adaptive(light: 0x20231F, dark: 0xF5F4EE)
-    static let textSecondary = AppTheme.adaptive(light: 0x646862, dark: 0xC7C5BC)
-    static let separator = AppTheme.adaptive(light: 0xD9DCD6, dark: 0x444740)
-    static let cookingGreen = AppTheme.adaptive(light: 0x315C3A, dark: 0x84B88B)
-    static let cookingFill = AppTheme.adaptive(light: 0x365F3F, dark: 0x45694B)
-    static let sage = AppTheme.adaptive(light: 0x6D8167, dark: 0x9CAE92)
+    static let textPrimary = AppTheme.adaptive(light: 0x222731, dark: 0xF2F4F8)
+    static let textSecondary = AppTheme.adaptive(light: 0x59616F, dark: 0xAFB7C5)
+    static let separator = AppTheme.adaptive(light: 0xDCDFE6, dark: 0x3A3F49)
+    // R3.1: #3866D6 is the single product accent. Green survives only as a
+    // semantic status colour; the former cooking-journey greens become the
+    // shared blue at the token layer so every screen inherits it.
+    static let cookingGreen = AppTheme.adaptive(light: 0x3866D6, dark: 0xA5BDFF)
+    static let cookingFill = AppTheme.adaptive(light: 0x3866D6, dark: 0x3866D6)
+    static let sage = AppTheme.adaptive(light: 0x59616F, dark: 0xAFB7C5)
     static let terracotta = AppTheme.adaptive(light: 0xA6452D, dark: 0xF08A6D)
     static let ochre = AppTheme.adaptive(light: 0x806019, dark: 0xE2B85A)
     static let aiIndigo = AppTheme.adaptive(light: 0x58538F, dark: 0xABA5E8)
-    static let managementBlue = AppTheme.adaptive(light: 0x2F628D, dark: 0x78AADA)
+    static let managementBlue = AppTheme.adaptive(light: 0x3866D6, dark: 0xA5BDFF)
 }
