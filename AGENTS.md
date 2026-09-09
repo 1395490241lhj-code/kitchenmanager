@@ -139,7 +139,7 @@ These are stable, not immutable forever. Currently stable:
   descendants', so section-level ids silently erase the ids of the controls inside them);
 - Home attention is one named list — `需要处理` rows name the food; the count chips are gone,
   and `HomeDashboardSummary.attentionItems` is the only Home attention presentation path;
-- cooking green / management blue / AI indigo remain distinct semantic roles;
+- Quiet Kitchen R3.1 supersedes the former cooking-green / management-blue visual separation: shared product accent for cooking and management, existing subordinate AI role; preserve behavioral roles. See `docs/design/KITCHEN_DESIGN_LANGUAGE.md` and canonical Decision D-037;
 - AI stays visually subordinate to cooking where the current design implements the 0.30 vs 0.45 distinction;
 - a >=4.5:1 contrast floor, test-enforced (`KitchenManagerTests/UIFeedbackTests.swift`);
 - >=44pt / 44px touch targets;

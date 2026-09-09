@@ -2,6 +2,10 @@
 
 Only notable changes that have entered `main` are recorded here. Current state belongs in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); detailed evidence belongs in focused documents or Git history.
 
+## 2026-09-09
+
+- Integrated Quiet Kitchen R3.1's shared visual foundation and compact Home/Inventory presentation (`aa42abf`, `45b5022`), following the Swift concurrency fix (`7a69893`). See the [accepted seal and baseline-red disposition](docs/archive/ios/QUIET_KITCHEN_R31_SEAL.md). No model, persistence, sync or AI pipeline changes in the visual migration.
+
 ## 2026-08-16
 
 - Closed the P3 delivery phase at stable checkpoint `21500bc`: P3-A aligned shared recipe-draft eligibility and deterministic fixture isolation; P3-B completed Groq/Gemini text routing and unified `/api/ai-chat` text/vision SDK transport with Groq-only vision; P3-C made post-extraction Import save deterministic and verified at Normal and Accessibility XXXL sizes without network or paid AI.

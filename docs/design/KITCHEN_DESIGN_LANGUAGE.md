@@ -1,4 +1,16 @@
-# Kitchen Manager Design Language v1
+# Kitchen Manager Design Language — Quiet Kitchen R3.1
+
+## Current production revision — R3.1
+
+Approved and integrated at `aa42abf` / `45b5022`; gate **PASS WITH DOCUMENTED BASELINE REDS**. See [seal and acceptance](../archive/ios/QUIET_KITCHEN_R31_SEAL.md).
+
+R3.1 supersedes v1's warm palette, cooking-journey green, hero font design and separate Inventory summary surface. Shared `KitchenTheme` tokens now use the approved cooler neutral canvases, native system hero typography and a 20pt feature radius. Cooking and management use the shared product accent; AI retains its existing subordinate role. Token names are compatibility names, not literal descriptions of their current colors. Green remains available for semantic status.
+
+Home keeps fixed 今天 navigation and its existing IA, with compact date/day-rhythm context. Inventory count buttons and existing native filter share one compact surface; both production filter variants retain their behavior, labels and identifiers. This is not the research app's replacement of the production controls with a single new picker. Planner and other token consumers inherit the foundation; no page-specific Planner or Settings migration is implied.
+
+Existing 20pt rails, >=44pt targets, contrast contracts, no-photo recipes, native navigation/Form behavior and data boundaries remain. The implementation is authoritative. Source comments still saying “research branch” are historical wording; these four production files are integrated.
+
+## Prior v1 specification — historical where superseded above
 
 **Editorial Structure + Tactile Utility + Semantic Restraint**
 

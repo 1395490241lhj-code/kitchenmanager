@@ -12,6 +12,12 @@
 >
 > The body below is preserved as the audit record it was written to be.
 
+## Quiet Kitchen R3.1 seal — 2026-09-09
+
+Production code through `45b5022` is integrated and pushed to main, including the preceding concurrency fix `7a69893`. Gate: **PASS WITH DOCUMENTED BASELINE REDS**, explicitly accepted by the project owner. [Evidence, dispositions and independent Settings/Shopping follow-ups](docs/archive/ios/QUIET_KITCHEN_R31_SEAL.md).
+
+The migration changes four presentation source files only. No test, model, persistence, sync, provider or AI pipeline change. The older audit below remains a historical snapshot and its counts have not been refreshed.
+
 ## Last verified
 
 - Date: 2026-08-21
