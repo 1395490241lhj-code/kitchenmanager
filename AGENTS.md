@@ -18,6 +18,8 @@ When sources disagree, use this order:
 
 Historical evidence proves what was checked then; it does not override current code.
 
+Generated Spec Kit artifacts — `.specify/**` and `specs/**`, the constitution included — are bounded, feature-scoped work products. They do not enter this order at all and carry no repository-wide authority. See section 6.
+
 **This project-level order overrides the generic user-level Memorix rules** in `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`. Those rules are generic; for Kitchen Manager, Memorix stays subordinate to repo evidence and canonical project memory. A Memorix brief does **not** substitute for reading the vault, and the "brief is the default retrieval boundary" rule does not apply to the canonical notes in section 2.
 
 ## 2. Project memory
@@ -70,7 +72,7 @@ Not every dirty file invalidates canonical product state.
 
 **Product-relevant** — `src/**`, `app.js`, `server.js`, `styles.css`, `ios-native/**`, `data/**`, `supabase/**`, `test/**`, `docs/**`, `PROJECT_STATUS.md`, `package.json`, `*.xcconfig`, `project.pbxproj`, `*.entitlements`. Disclose these, inspect them, and treat canonical project memory as possibly stale for that uncommitted work **even when `head_commit == HEAD`**.
 
-**Known tooling state** — `skills-lock.json`, `.agents/**`, `.claude/settings.local.json`. `.agents/` is gitignored and regenerable from `skills-lock.json`, so changes here are expected rather than drift. **Disclose them, but do not treat them as invalidating canonical product state.**
+**Known tooling state** — `skills-lock.json`, `.agents/**`, `.specify/**`, `.claude/skills/speckit-*`, `.claude/settings.local.json`. `.agents/` is gitignored and remains fully regenerable, but it now has **two** generators rather than one: its non-Spec-Kit skills come from `skills-lock.json` via `npx skills`, and its `speckit-*` skills are produced by the Spec Kit CLI (section 6.1). Changes here are expected rather than drift. **Disclose them, but do not treat them as invalidating canonical product state.**
 
 **Anything else** — inspect its diff before classifying it. Never classify a file you have not looked at.
 
@@ -239,7 +241,67 @@ Never silently enable production writes, target an unapproved environment, use s
 
 Do not commit, push, open a PR, deploy, apply migrations, change hosted configuration, enable flags or touch real user data unless explicitly requested.
 
-## 6. Required final report
+## 6. Spec Kit
+
+Spec Kit (GitHub `spec-kit`, pinned at v1.0.6) is a **feature-level workflow layer for bounded
+changes**. It is not a source of repository-wide truth, and it does not replace anything in
+section 1 or section 2.
+
+- `AGENTS.md` remains the single repository instruction entry point. It outranks every generated
+  Spec Kit artifact — including `.specify/memory/constitution.md` — whenever the two appear to
+  disagree about repository-wide source-of-truth, routing or authorization rules.
+- Implementation evidence, the canonical vault (section 2), `Decisions`, the design language,
+  `docs/architecture/**` and `docs/contracts/**` keep exactly the authority section 1 gives them.
+  A Spec Kit artifact never supersedes them, and section 2.7 anti-drift still applies inside a
+  Spec Kit workflow.
+- Spec Kit owns bounded-change artifacts only: feature specification, clarification,
+  implementation plan, task breakdown, consistency analysis, implementation workflow and
+  convergence.
+- Do **not** retroactively specify the existing application with Spec Kit.
+- Do **not** copy volatile project status or canonical product facts into the constitution merely
+  to fill template slots. The constitution carries durable process principles; product state and
+  product decisions stay in the vault.
+
+When it applies:
+
+- **Skip Spec Kit** for small or local changes — a focused bug fix, a copy change, a contained
+  refactor, documentation.
+- **Use the appropriate Spec Kit workflow** for medium or large bounded features, migrations,
+  data-model changes, sync/auth/provider-routing changes, architecture work, and similarly
+  high-risk changes.
+
+Bug and assessment extensions are deliberately not installed. Do not install one unless a task
+actually requires it.
+
+Spec Kit changes nothing about authorization. After `/speckit-implement` or `/speckit-converge`,
+the ordinary rules still apply in full: real validation, the section 5 hard boundaries, the
+prohibition on commit/push/PR/deploy/migrations/hosted configuration without explicit request,
+the section 7 final report, and vault reconciliation under section 2.5. A generated task list is
+not approval to cross any of those.
+
+### 6.1 Integration files
+
+| Agent | Spec Kit skills | Committed |
+| --- | --- | --- |
+| Claude Code | `.claude/skills/speckit-*` | yes |
+| Codex CLI | `.agents/skills/speckit-*` | no — `.agents/` is gitignored |
+
+The shared layer — `.specify/scripts/`, `.specify/templates/`, `.specify/memory/`,
+`.specify/integrations/` and `.specify/workflows/` — is committed. `.specify/.gitignore` keeps
+machine-local state (`feature.json`, extension config overrides) out of Git.
+
+Because `.agents/` stays gitignored, a fresh clone or a new worktree has the Claude skills but
+**not** the Codex ones. Restore them with:
+
+    specify integration upgrade codex
+
+Then confirm with `specify integration status` — expect `Integration status: OK`,
+`Installed integrations: claude, codex` and `Missing managed files: 0`. Spec Kit itself is
+installed per machine rather than per clone:
+
+    uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v1.0.6
+
+## 7. Required final report
 
 ```text
 Summary:

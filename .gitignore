@@ -16,7 +16,8 @@ ios-native/Kitchen Manager/Config/Local.xcconfig
 node_modules/
 npm-debug.log*
 
-# Agent skills installed by `npx skills` (regenerable from skills-lock.json)
+# Local agent skills — regenerable, never committed. Two generators:
+# `npx skills` from skills-lock.json, and `speckit-*` from the Spec Kit CLI.
 .agents/
 
 # Local env / secrets
