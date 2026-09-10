@@ -17,11 +17,13 @@ enum PlannerRoute: Hashable {
 
 private enum PlannerSheet: Identifiable {
     case create
+    case createMeal
     case pickRecipe(planID: UUID, planIndex: Int)
 
     var id: String {
         switch self {
         case .create: "create"
+        case .createMeal: "create-meal"
         case .pickRecipe(planID: let id, planIndex: let index): "pick-\(id.uuidString)-\(index)"
         }
     }
@@ -148,17 +150,21 @@ struct PlannerView: View {
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            sheet = .create
+                        // Two things can be created here now, so the one control
+                        // that creates anything names both rather than standing
+                        // for whichever one it used to open. 新建聚餐, not an AI
+                        // label: AI is how that composer works, not what the
+                        // user is making.
+                        Menu {
+                            Button("新建一餐") { sheet = .createMeal }
+                                .accessibilityIdentifier("planner.meal.create")
+                            Button("新建聚餐") { sheet = .create }
+                                .accessibilityIdentifier("planner.special.create")
                         } label: {
-                            // 新建计划, not 新建特殊计划: the composer writes an
-                            // ordinary multi-dish menu just as readily, and the
-                            // narrower label made the one control that creates
-                            // anything here sound like it did not apply.
                             Image(systemName: "plus")
-                                .accessibilityLabel("新建计划")
+                                .accessibilityLabel("新建")
                         }
-                        .accessibilityIdentifier("planner.special.create")
+                        .accessibilityIdentifier("planner.create.menu")
                     }
                 }
                 .navigationDestination(for: PlannerRoute.self) { route in
@@ -191,6 +197,14 @@ struct PlannerView: View {
                         SpecialPlanComposerSheet(mode: .create(contextDate: nil)) { result in
                             kitchenStore.addSpecialPlan(result.plan)
                             pendingDraft = (result.plan.id, result.dishes)
+                        }
+                    case .createMeal:
+                        PlannerMealFormView(defaultDate: creationDefaultDate, calendar: calendar) { item in
+                            // A meal saved outside the week on screen would
+                            // otherwise land somewhere the user cannot see, so
+                            // the Planner follows it to its own week.
+                            let target = PlannerProjection.startOfWeek(containing: item.date, calendar: calendar)
+                            if target != weekStart { weekStart = target }
                         }
                     case .pickRecipe(let planID, _):
                         NavigationStack {
@@ -258,9 +272,12 @@ struct PlannerView: View {
                     ContentUnavailableView {
                         Label("这一周还没有安排", systemImage: "calendar")
                     } description: {
-                        Text("说一句想怎么吃，就能生成这一餐的菜单。")
+                        Text("先安排一餐，这一周就有了着落。")
                     } actions: {
-                        Button("新建计划") { sheet = .create }
+                        // Straight into ordinary creation: scheduling the first
+                        // meal is what an empty week is for, and 聚餐 stays one
+                        // tap away in the toolbar menu.
+                        Button("新建一餐") { sheet = .createMeal }
                             .buttonStyle(.borderedProminent)
                             .accessibilityIdentifier("planner.empty.create")
                     }
@@ -345,6 +362,13 @@ struct PlannerView: View {
         if let next = calendar.date(byAdding: .day, value: days, to: weekStart) {
             weekStart = next
         }
+    }
+
+    /// The day a new meal starts on: today while the current week is on screen,
+    /// otherwise the first day of whatever week is. Uses the Planner's own week
+    /// anchor rather than a second definition of where a week begins.
+    private var creationDefaultDate: Date {
+        weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) ? now : weekStart
     }
 }
 

@@ -2,10 +2,20 @@ import SwiftUI
 
 // MARK: - Recipe picker (add a dish from the library)
 
+/// How a picker row presents its action. A Special Plan adds a dish every time
+/// it is tapped, so every row offers a plus; ordinary meal creation chooses one
+/// recipe, so the current choice is marked instead.
+enum RecipePickerAccessory {
+    case add
+    case selection(String?)
+}
+
 struct RecipePickerView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
+    var title: String = "添加菜品"
+    var accessory: RecipePickerAccessory = .add
     let onSelect: (Recipe) -> Void
 
     private var recipes: [Recipe] {
@@ -21,33 +31,63 @@ struct RecipePickerView: View {
     }
 
     var body: some View {
-        List(recipes) { recipe in
-            Button {
-                onSelect(recipe)
-                dismiss()
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(recipe.title).font(.headline)
-                        if let time = recipe.cookingTime {
-                            Text("\(time) 分钟")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundStyle(AppTheme.brand)
+        Group {
+            if recipes.isEmpty {
+                // Not reachable while `recipesForDisplay` falls back to
+                // `Recipe.samples`, but a blank List explaining nothing is the
+                // wrong thing to render if that ever changes.
+                ContentUnavailableView {
+                    Label(searchText.isEmpty ? "还没有菜谱" : "没有找到菜谱", systemImage: "book.closed")
+                } description: {
+                    Text(searchText.isEmpty ? "先在菜谱里添加一道菜，再来安排。" : "换一个菜名或食材试试。")
                 }
-                .contentShape(Rectangle())
+            } else {
+                List(recipes) { recipe in
+                    Button {
+                        onSelect(recipe)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(recipe.title).font(.headline)
+                                if let time = recipe.cookingTime {
+                                    Text("\(time) 分钟")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            accessoryView(for: recipe)
+                        }
+                        .contentShape(Rectangle())
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("planner.recipe.pick.\(recipe.id)")
+                    .plannerRow()
+                }
+                .plannerList()
             }
-            .buttonStyle(.plain)
-            .plannerRow()
         }
-        .plannerList()
-        .navigationTitle("添加菜品")
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "搜索菜名或食材")
+    }
+
+    @ViewBuilder
+    private func accessoryView(for recipe: Recipe) -> some View {
+        switch accessory {
+        case .add:
+            Image(systemName: "plus.circle.fill")
+                .foregroundStyle(AppTheme.brand)
+                .accessibilityHidden(true)
+        case .selection(let selectedID):
+            if recipe.id == selectedID {
+                Image(systemName: "checkmark")
+                    .foregroundStyle(AppTheme.brand)
+                    .accessibilityHidden(true)
+            }
+        }
     }
 }
 

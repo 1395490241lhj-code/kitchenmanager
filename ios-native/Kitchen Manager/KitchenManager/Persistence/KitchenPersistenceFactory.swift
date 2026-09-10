@@ -5,7 +5,10 @@ import SwiftData
 struct KitchenPersistenceBundle {
     let inventory: InventoryPersistenceProtocol
     let shoppingList: ShoppingListPersistenceProtocol
-    let todayPlan: TodayPlanPersistenceProtocol
+    /// `var` only so a DEBUG fixture can wrap it for the Planner creation
+    /// sheet's failure-path UI test. The memberwise initialiser is unchanged,
+    /// so a new persistence still cannot be left out of the bundle by accident.
+    var todayPlan: TodayPlanPersistenceProtocol
     let consumption: ConsumptionPersistenceProtocol
     let weeklyPlan: WeeklyPlanPersistenceProtocol
     let userRecipes: UserRecipePersistenceProtocol

@@ -58,12 +58,19 @@ final class PlannerRegressionUITests: XCTestCase {
         let draft = launch("DRAFT"); reveal("茄汁土豆胡萝卜炖牛腩", draft); capture("09-Draft-Actions", draft)
         let weekly = launch("WEEKLY"); capture("10-Weekly-Generation", weekly)
         let empty = launch("EMPTY"); capture("12-Empty-Week", empty)
-        empty.buttons["planner.empty.create"].tap()
+        openComposer(in: empty)
         XCTAssertTrue(empty.buttons["planner.compose.generate"].waitForExistence(timeout: 5))
         empty.textFields["planner.compose.request"].typeText("周三四个人吃晚饭")
         XCTAssertTrue(empty.buttons["planner.compose.generate"].isHittable)
         capture("13-Composer", empty)
         let result = launch("RESULT"); reveal("麻婆豆腐", result); capture("14-Weekly-Result", result)
+    }
+
+    /// The empty-week CTA now starts ordinary meal creation, so the composer is
+    /// reached through the toolbar menu instead.
+    private func openComposer(in app: XCUIApplication) {
+        app.buttons["planner.create.menu"].tap()
+        app.buttons["planner.special.create"].tap()
     }
 
     private func matrix() {
@@ -106,7 +113,7 @@ final class PlannerRegressionUITests: XCTestCase {
         pick.tap()
         XCTAssertTrue(detail.navigationBars["周三家常晚餐"].waitForExistence(timeout: 5))
         let empty = launch("EMPTY"); capture("12-Empty-Week", empty)
-        empty.buttons["planner.empty.create"].tap()
+        openComposer(in: empty)
         XCTAssertTrue(empty.buttons["planner.compose.generate"].waitForExistence(timeout: 5)); let request = empty.textFields["planner.compose.request"]
         XCTAssertTrue(request.isHittable)
         request.typeText("周三四个人吃晚饭")

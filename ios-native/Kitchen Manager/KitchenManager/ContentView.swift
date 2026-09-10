@@ -27,8 +27,15 @@ struct KitchenManagerApp: App {
 
     init() {
         #if DEBUG
-        let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled || PlannerRegressionFixture.isEnabled
-        let persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
+        let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
+            || PlannerRegressionFixture.isEnabled || PlanPersistenceFailureFixture.failsFirstWrite
+        var persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
+        // UI-test-only: the Planner creation sheet's failure path has to be
+        // driven through the real store and view, and a write can only be made
+        // to fail at the persistence boundary.
+        if PlanPersistenceFailureFixture.failsFirstWrite {
+            persistence.todayPlan = PlanPersistenceFailureFixture.FailFirstWrite(wrapping: persistence.todayPlan)
+        }
         let recipeTestDefaults = isolatedFixture ? UserDefaults(suiteName: "ui-regression-\(UUID().uuidString)")! : .standard
         #else
         let persistence = KitchenPersistenceFactory.application()

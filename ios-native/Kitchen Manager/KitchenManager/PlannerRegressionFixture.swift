@@ -1,6 +1,39 @@
 import SwiftUI
 
 #if DEBUG
+/// Makes the first ordinary-plan write fail, so a UI test can drive the
+/// Planner creation sheet's failure and retry path through the production
+/// store, view and persistence protocol rather than a stubbed screen.
+enum PlanPersistenceFailureFixture {
+    static var failsFirstWrite: Bool {
+        ProcessInfo.processInfo.arguments.contains("UITEST_PLAN_FIRST_WRITE_FAILS")
+    }
+
+    struct InjectedFailure: Error {}
+
+    @MainActor
+    final class FailFirstWrite: TodayPlanPersistenceProtocol {
+        private let wrapped: TodayPlanPersistenceProtocol
+        private var hasFailed = false
+
+        init(wrapping wrapped: TodayPlanPersistenceProtocol) { self.wrapped = wrapped }
+
+        func loadPlans() throws -> [MealPlanItem] { try wrapped.loadPlans() }
+
+        func replacePlans(with items: [MealPlanItem]) throws {
+            guard hasFailed else {
+                hasFailed = true
+                throw InjectedFailure()
+            }
+            try wrapped.replacePlans(with: items)
+        }
+
+        func upsert(_ item: MealPlanItem) throws { try wrapped.upsert(item) }
+        func delete(id: UUID) throws { try wrapped.delete(id: id) }
+        func deleteAll() throws { try wrapped.deleteAll() }
+    }
+}
+
 /// Deterministic regression data in fresh in-memory stores; uses normal production views.
 enum PlannerRegressionFixture {
     static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("UITEST_SEED_PLANNER_REGRESSION") }

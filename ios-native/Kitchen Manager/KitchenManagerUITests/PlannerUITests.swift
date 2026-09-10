@@ -44,6 +44,18 @@ final class PlannerUITests: XCTestCase {
         return element
     }
 
+    /// The toolbar + is a menu now, so every route to the Special Plan composer
+    /// goes through it. Kept as a helper so the tests below assert what they are
+    /// about rather than repeating the two taps.
+    private func openSpecialPlanComposer(from app: XCUIApplication) {
+        let menu = app.buttons["planner.create.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the create menu is missing from the planner toolbar")
+        menu.tap()
+        let special = app.buttons["planner.special.create"]
+        XCTAssertTrue(special.waitForExistence(timeout: 5), "新建聚餐 is missing from the create menu")
+        special.tap()
+    }
+
     private func openSeededPlanDetail(from app: XCUIApplication) {
         openPlanner(from: app)
         // The seeded event sits on this week's Saturday; scroll until its row is in
@@ -78,7 +90,7 @@ final class PlannerUITests: XCTestCase {
         app.buttons["home.planner.link"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10), "the planner did not open from Home")
 
-        app.buttons["planner.special.create"].tap()
+        openSpecialPlanComposer(from: app)
         XCTAssertTrue(
             app.staticTexts["这次想怎么做饭？"].waitForExistence(timeout: 10),
             "the simplified composer did not appear"
@@ -163,13 +175,18 @@ final class PlannerUITests: XCTestCase {
 
     /// An entirely empty week states the absence once and can be acted on,
     /// instead of repeating 暂无安排 seven times with no way to create anything.
+    ///
+    /// The CTA now starts ordinary meal creation directly rather than the
+    /// Special Plan composer: scheduling the first meal is what an empty week
+    /// is for. 聚餐 stays reachable from the toolbar menu, which
+    /// `testTheCreateMenuOffersBothKindsOfPlan` holds to account.
     func testAnEmptyWeekOffersOneCreateAffordance() {
         let app = launch("UITEST_SEED_EMPTY_HOME", "UITEST_SPECIAL_PLAN_AI_MENU")
         openPlanner(from: app)
 
         let create = app.buttons["planner.empty.create"]
         XCTAssertTrue(create.waitForExistence(timeout: 5), "an empty week must offer a way to create a plan")
-        XCTAssertEqual(create.label, "新建计划")
+        XCTAssertEqual(create.label, "新建一餐")
         XCTAssertEqual(
             app.staticTexts.matching(NSPredicate(format: "label == %@", "暂无安排")).count, 0,
             "an empty week must not repeat the per-day placeholder"
@@ -179,8 +196,12 @@ final class PlannerUITests: XCTestCase {
 
         create.tap()
         XCTAssertTrue(
-            app.staticTexts["这次想怎么做饭？"].waitForExistence(timeout: 10),
-            "the empty state must open the same simplified composer as the + does"
+            app.navigationBars["新建一餐"].waitForExistence(timeout: 10),
+            "the empty state must open ordinary meal creation without a menu in between"
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["planner.mealForm.recipe"].exists,
+            "the ordinary meal form must be the sheet that opened"
         )
     }
 
@@ -195,12 +216,35 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(scrollTo("planner.special.entry.", in: app).exists, "the seeded plan row must still be listed")
     }
 
-    /// The one control that creates anything in the planner must not describe
-    /// itself more narrowly than what it does.
-    func testTheCreateToolbarItemIsNamedForPlansNotJustSpecialOnes() {
+    /// The toolbar + creates two different things now, so it names both. The
+    /// Special Plan composer stays reachable in exactly one tap more than
+    /// before — this is the assertion that the empty-state CTA change did not
+    /// strand it.
+    func testTheCreateMenuOffersBothKindsOfPlan() {
         let app = launch("UITEST_SEED_SPECIAL_PLAN")
         openPlanner(from: app)
-        XCTAssertEqual(app.buttons["planner.special.create"].label, "新建计划")
+
+        let menu = app.buttons["planner.create.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the toolbar create menu is missing")
+        XCTAssertEqual(menu.label, "新建")
+        menu.tap()
+
+        let meal = app.buttons["planner.meal.create"]
+        let special = app.buttons["planner.special.create"]
+        XCTAssertTrue(meal.waitForExistence(timeout: 5), "新建一餐 missing from the create menu")
+        XCTAssertTrue(special.exists, "新建聚餐 missing from the create menu")
+        XCTAssertEqual(meal.label, "新建一餐")
+        XCTAssertEqual(special.label, "新建聚餐")
+        XCTAssertFalse(
+            special.label.contains("AI"),
+            "AI is how the composer works, not what the user is creating"
+        )
+
+        special.tap()
+        XCTAssertTrue(
+            app.staticTexts["这次想怎么做饭？"].waitForExistence(timeout: 10),
+            "新建聚餐 must still open the existing Special Plan composer"
+        )
     }
 
     func testSeededSpecialPlanAppearsAndShowsDishes() {
@@ -224,7 +268,7 @@ final class PlannerUITests: XCTestCase {
         let app = launch("UITEST_SEED_SPECIAL_PLAN", "UITEST_SPECIAL_PLAN_AI_MENU")
         openPlanner(from: app)
 
-        app.buttons["planner.special.create"].tap()
+        openSpecialPlanComposer(from: app)
         let request = anyElement(app, "planner.compose.request")
         XCTAssertTrue(request.waitForExistence(timeout: 5), "request field missing")
         let inventory = app.switches["planner.compose.inventory"]
@@ -279,7 +323,7 @@ final class PlannerUITests: XCTestCase {
     func testFailedGenerationCreatesNoPlan() {
         let app = launch("UITEST_SEED_SPECIAL_PLAN", "UITEST_SPECIAL_PLAN_AI_FAILURE")
         openPlanner(from: app)
-        app.buttons["planner.special.create"].tap()
+        openSpecialPlanComposer(from: app)
         let request = anyElement(app, "planner.compose.request")
         XCTAssertTrue(request.waitForExistence(timeout: 5))
         request.tap()
