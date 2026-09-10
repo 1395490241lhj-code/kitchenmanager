@@ -13,7 +13,7 @@ final class RecipeCookingSession: ObservableObject {
     /// 4-serving recipe" (unchanged quantities) from "cook 4 of a 1-serving
     /// recipe" (4x). Without it, `servings` was applied as a raw multiplier and
     /// a 4-serving recipe viewed at 4 人份 showed quantities for sixteen.
-    let baseServings: Int?
+    private(set) var baseServings: Int?
     @Published private(set) var checkedIngredientIndexes: Set<Int> = []
     @Published private(set) var completedStepIndexes: Set<Int> = []
     @Published private(set) var currentStepIndex = 0
@@ -21,6 +21,23 @@ final class RecipeCookingSession: ObservableObject {
     init(servings: Int = 1, baseServings: Int? = nil) {
         self.servings = min(max(servings, 1), 12)
         self.baseServings = Recipe.validatedBaseServings(baseServings)
+    }
+
+    /// Re-points a reusable session at another dish, and clears the progress
+    /// that belonged to the previous one.
+    ///
+    /// Exists because Home can start cooking any of today's dishes from one
+    /// screen: a `@StateObject` is created once for the view's lifetime, so
+    /// without this the second dish would inherit the first dish's checked
+    /// ingredients, completed steps and current step. `RecipeDetailView` is
+    /// unaffected — it still builds its session once, in `init`, for the one
+    /// recipe it shows.
+    func configure(servings: Int, baseServings: Int?) {
+        self.servings = min(max(servings, 1), 12)
+        self.baseServings = Recipe.validatedBaseServings(baseServings)
+        checkedIngredientIndexes = []
+        completedStepIndexes = []
+        currentStepIndex = 0
     }
 
     /// What to multiply written quantities by for display.

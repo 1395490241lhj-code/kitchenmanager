@@ -463,7 +463,12 @@ struct CookConsumptionConfirmationView: View {
                     confirmedSection
                 } else {
                     Section {
-                        Text("这道「\(title)」用到的食材已按菜谱用量预估，确认或修改后扣减库存。")
+                        // States what confirming does and how a mistake is
+                        // fixed. There is no undo for a deduction, but the
+                        // quantities remain editable in Inventory afterwards —
+                        // so the honest warning is "you will have to correct it
+                        // by hand", not a claim of irreversible data loss.
+                        Text("这道「\(title)」用到的食材已按菜谱用量预估。确认后将扣减库存，如有误需要手动调整库存。")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }

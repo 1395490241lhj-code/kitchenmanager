@@ -395,8 +395,10 @@ struct RecipeDetailView: View {
     @State private var isShowingShoppingGeneration = false
     @State private var isEditing = false
     @State private var isShowingDeleteAlert = false
-    @State private var isShowingCookingMode = false
-    @State private var isShowingConsumptionConfirmation = false
+    /// Non-nil while this recipe's cooking flow is running. The flow itself —
+    /// cooking mode, the consumption confirmation and `markPlanCooked` — lives
+    /// in `cookingFlow(request:session:)`, shared with Home.
+    @State private var cookingRequest: CookingFlowRequest?
     @State private var errorMessage: String?
     @StateObject private var cookingSession: RecipeCookingSession
 
@@ -537,25 +539,9 @@ struct RecipeDetailView: View {
         }
         .navigationDestination(isPresented: $isShowingShoppingGeneration) { ShoppingListGenerationView(source: .recipe(recipe, servings: 1)) }
         .navigationDestination(isPresented: $isEditing) { RecipeEditView(recipe: recipe) }
-        .fullScreenCover(isPresented: $isShowingCookingMode) {
-            RecipeCookingModeView(recipe: recipe, session: cookingSession, todayPlan: todayPlan) {
-                isShowingCookingMode = false
-                isShowingConsumptionConfirmation = true
-            } onExit: { isShowingCookingMode = false }
-            .environmentObject(kitchenStore)
-        }
-        .sheet(isPresented: $isShowingConsumptionConfirmation) {
-            CookConsumptionConfirmationView(
-                title: recipe.title,
-                planIDs: todayPlan.map { kitchenStore.hasConsumedPlan($0.id) ? [] : [$0.id] } ?? [],
-                recipeID: recipe.id,
-                recipeName: recipe.title,
-                recipe: todayPlan == nil ? recipe : nil,
-                servings: cookingSession.servings
-            ) {
-                if let todayPlan { kitchenStore.markPlanCooked(todayPlan) }
-            }
-        }
+        // The session stays this screen's own: its serving stepper and
+        // ingredient checklist are bound to the same object the cook runs on.
+        .cookingFlow(request: $cookingRequest, session: cookingSession)
         .alert(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
             Button(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置" : "删除", role: .destructive) { do { try recipeStore.deleteUserRecipe(id: recipe.id) } catch { errorMessage = error.localizedDescription } }
             Button("取消", role: .cancel) {}
@@ -584,7 +570,7 @@ struct RecipeDetailView: View {
     }
 
     private var startCookingAction: some View {
-        Button { isShowingCookingMode = true } label: {
+        Button { cookingRequest = CookingFlowRequest(recipe: recipe, plan: todayPlan) } label: {
             Label("开始烹饪", systemImage: "flame.fill")
                 .frame(maxWidth: .infinity)
         }
