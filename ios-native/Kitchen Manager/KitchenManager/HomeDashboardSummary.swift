@@ -11,14 +11,19 @@ import Foundation
 /// happened to be a 备餐日. Nothing about `PreparedComponent`'s schema, its
 /// consumption path or its expiry seeding is touched by reading it.
 struct HomeDashboardSummary: Equatable {
-    static let maximumVisiblePlans = 3
     static let maximumVisibleShoppingItems = 3
     /// Home lists this many things to handle and then says how many are left.
-    /// A bounded list keeps 需要处理 secondary; the overflow row keeps the cap
+    /// Two, not four: Home is not an inventory inbox. Four named rows made the
+    /// secondary region compete with the primary task for the same glance, and
+    /// everything past the second row is better read on Inventory or Shopping,
+    /// where it can actually be worked through. The overflow row keeps the cap
     /// from reading as "that is everything".
-    static let maximumVisibleAttentionItems = 4
+    static let maximumVisibleAttentionItems = 2
 
-    let displayedPlans: [MealPlanItem]
+    /// Today's plans, pending first. Uncapped: the Home hero counts, times and
+    /// measures readiness over the whole menu, so a three-plan preview would
+    /// silently exclude the fourth dish from every number on the page.
+    let allPlans: [MealPlanItem]
     let totalPlanCount: Int
     let completedPlanCount: Int
     let expiredCount: Int
@@ -43,7 +48,7 @@ struct HomeDashboardSummary: Equatable {
     ) {
         let pendingPlans = todayPlans.filter { !$0.isCooked }
         let completedPlans = todayPlans.filter(\.isCooked)
-        displayedPlans = Array((pendingPlans + completedPlans).prefix(Self.maximumVisiblePlans))
+        allPlans = pendingPlans + completedPlans
         totalPlanCount = todayPlans.count
         completedPlanCount = completedPlans.count
 
@@ -84,10 +89,6 @@ struct HomeDashboardSummary: Equatable {
 
     var hasInventoryAlerts: Bool {
         expiredCount > 0 || expiringSoonCount > 0 || lowStockCount > 0
-    }
-
-    var additionalPlanCount: Int {
-        max(0, totalPlanCount - displayedPlans.count)
     }
 
     var todayPlanState: HomeTodayPlanState {

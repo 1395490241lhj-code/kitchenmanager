@@ -50,6 +50,13 @@ struct HomeView: View {
     @State private var isShowingPreparedComponents = false
     @State private var selectedPlan: MealPlanItem?
     @State private var selectedRecipe: Recipe?
+    /// Non-nil while Home is running a cooking flow. The flow itself is shared
+    /// with `RecipeDetailView` — see `cookingFlow(request:session:)`.
+    @State private var cookingRequest: CookingFlowRequest?
+    /// One reusable session, re-pointed at whichever dish is being started.
+    /// Home can begin any of today's dishes without leaving the page, so the
+    /// session has to be reconfigurable rather than built per recipe.
+    @StateObject private var cookingSession = RecipeCookingSession()
     @State private var clipboardPromptState = ClipboardPromptSessionState()
     @State private var clipboardDetectionTask: Task<Void, Never>?
     /// Which quick-meal suggestion is showing. Ordinary view state on purpose:
@@ -283,6 +290,10 @@ struct HomeView: View {
         .sheet(item: sharedImportSheetBinding) { request in
             sharedImportSheetContent(request)
         }
+        // 开始做饭 opens cooking mode directly. The chain behind it —
+        // confirmation, inventory deduction, markPlanCooked — is the same one
+        // RecipeDetailView uses, not a second copy.
+        .cookingFlow(request: $cookingRequest, session: cookingSession)
         .overlay(alignment: .bottom) {
             if let toastMessage {
                 FeedbackToast(message: toastMessage, style: toastStyle)
@@ -569,7 +580,12 @@ struct HomeView: View {
     /// Tonight's hero copy. Every number is counted from the plans on screen or
     /// read from the recipes they name; nothing is stored beside them.
     private func heroModel(for dashboard: HomeDashboardSummary) -> HomeMealHeroModel {
-        let plans = dashboard.displayedPlans
+        // Every number on the hero is measured over the same population: the
+        // whole menu. It used to count dishes across all of today's plans while
+        // timing and measuring readiness over only the first three, so a
+        // five-dish evening reported "5 道菜" beside a fraction that had never
+        // looked at two of them.
+        let plans = dashboard.allPlans
         let minutes = plans.reduce(into: 0) { total, plan in
             total += recipeStore.recipe(id: plan.recipeID)?.cookingTime ?? 0
         }
@@ -618,7 +634,8 @@ struct HomeView: View {
                     dashboard: dashboard,
                     hero: heroModel(for: dashboard),
                     onViewPlan: { isShowingTodayPlan = true },
-                    onSelectPlan: { selectedPlan = $0 }
+                    onSelectPlan: { selectedPlan = $0 },
+                    onStartCooking: startCooking
                 )
 
             case .recipeRecommendation:
@@ -729,6 +746,26 @@ struct HomeView: View {
             navigationStore.selectedTab = .shopping
         }
     }
+
+    /// Starts the lead dish. Home's primary control now describes what it does:
+    /// it opens cooking mode rather than a page about the recipe.
+    ///
+    /// A plan whose recipe has gone missing falls back to the detail, which
+    /// already explains that and keeps the plan intact — the same fallback the
+    /// plan rows use, rather than a silent no-op on the one prominent button.
+    private func startCooking(_ plan: MealPlanItem) {
+        guard let recipe = recipeStore.recipe(id: plan.recipeID) else {
+            selectedPlan = plan
+            return
+        }
+        let request = CookingFlowRequest(recipe: recipe, plan: plan)
+        cookingSession.configure(
+            servings: request.initialServings,
+            baseServings: recipe.baseServings
+        )
+        cookingRequest = request
+    }
+
 }
 private struct ClipboardRecipeImportPrompt: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -854,50 +891,53 @@ private struct HomeTodayContext: View {
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
 
+    /// Only a day whose shape changes what the user should do explains itself.
+    ///
+    /// 做饭日 and 自由日 are the two default shapes, and a line telling the
+    /// reader that today is an ordinary day is the clearest example of content
+    /// that does not help the task on the screen. 备餐日 and 快手日 do change
+    /// the day's work, so they keep their explanation.
+    private var explainsRhythm: Bool {
+        dayType == .mealPrep || dayType == .quick
+    }
+
     /// Everything that departs from an ordinary version of this day.
     private var exceptions: [String] {
         eatOutSlots.map(\.eatOutSummary) + incomingCarryover
     }
 
+    /// Exceptional rhythms explain the change in today’s work.
+    private var rhythmLine: String? {
+        explainsRhythm ? "\(dayType.homeSummaryTitle) · \(dayType.homeExplanation)" : nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(dateText)
-                .font(.subheadline)
-                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("home.today.date")
-
             Button(action: onOpenDayRhythm) {
-                VStack(alignment: .leading, spacing: 4) {
-                    // One compact line: the rhythm named as low-emphasis
-                    // metadata, immediately followed by the same plain-language
-                    // explanation as before. Replacing the former large
-                    // title-weight day-name row keeps every word and the
-                    // 44pt target without giving the context block a second
-                    // headline layer.
-                    Text("\(dayType.homeSummaryTitle) · \(dayType.homeExplanation)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
-                    if !exceptions.isEmpty {
-                        Text(exceptions.joined(separator: " · "))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(dateText)
+                            .font(.subheadline)
+                            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .accessibilityHidden(true)
+                    }
+                    if let contextLine {
+                        Text(contextLine)
+                            .font(.subheadline)
+                            .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
+                            .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
                     }
                 }
-                // Deliberately uncapped below the symbol: the explanation
-                // follows the full Dynamic Type range and wraps at Accessibility
-                // sizes, pushing the rest of Home down. Keeping every word
-                // legible outranks keeping the primary task on the first screen.
+                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabel)
-            .accessibilityHint("查看并调整今天的用餐安排")
             .accessibilityIdentifier("home.dayRhythm.row")
 
             if shouldShowHousehold, let householdName {
@@ -918,8 +958,13 @@ private struct HomeTodayContext: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var contextLine: String? {
+        let parts = [rhythmLine].compactMap { $0 } + exceptions
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     private var accessibilityLabel: String {
-        (["今天：\(dayType.homeSummaryTitle)", dayType.homeExplanation] + exceptions)
+        ([dateText, contextLine].compactMap { $0 } + ["调整今天安排"])
             .joined(separator: "，")
     }
 }
@@ -1055,17 +1100,21 @@ private struct TodayPlanSummaryCard: View {
     let hero: HomeMealHeroModel
     let onViewPlan: () -> Void
     let onSelectPlan: (MealPlanItem) -> Void
+    /// Opens cooking mode for the lead dish. Home's prominent control describes
+    /// its own result; routing it to a recipe page would not.
+    let onStartCooking: (MealPlanItem) -> Void
 
     var body: some View {
-        if let leadPlan = dashboard.displayedPlans.first {
-            VStack(alignment: .leading, spacing: KitchenTheme.heroSpacing) {
-                KitchenContextualLabel(text: "今晚")
-                    .padding(.bottom, -4)
+        if let leadPlan = dashboard.allPlans.first {
+            VStack(alignment: .leading, spacing: 8) {
+                // No 今晚 label. The section heading above already says
+                // 今天做这些; naming the same evening twice, four points apart,
+                // is the repetition this card exists to stop.
                 // With one dish the hero *is* that dish's row: the identifier,
                 // label and destination move onto it rather than disappearing,
                 // so the dish stays openable and VoiceOver still announces its
                 // serving count and completion state.
-                if dashboard.displayedPlans.count == 1 {
+                if dashboard.allPlans.count == 1 {
                     Button {
                         onSelectPlan(leadPlan)
                     } label: {
@@ -1080,34 +1129,22 @@ private struct TodayPlanSummaryCard: View {
                     heroView
                 }
 
-                // A four-plus-dish plan already needs an overflow row. Keep the
-                // primary action ahead of that preview so compact-height phones
-                // do not bury it several screens below the hero.
+                // The one prominent action stays directly under the hero, ahead
+                // of any disclosure, so a long menu never buries it.
                 actions(leadPlan)
 
-                // The individual dishes stay reachable as plain rows. With a
-                // single dish the hero has already named it. Multiple dishes
-                // read as one expandable meal module instead of a bare
-                // stack; expansion is presentation-only and defaults open so
-                // nothing is hidden on first render.
-                if dashboard.displayedPlans.count > 1 {
+                // Two dishes need no module: the hero's 配 line already named
+                // the other one. Three or more get a disclosure that lists the
+                // *remaining* dishes — the lead dish is the hero, and repeating
+                // it as the first row of its own menu is what made a two-dish
+                // evening state the same dish twice.
+                if dashboard.allPlans.count > 2 {
                     MealMenuModule(
-                        plans: dashboard.displayedPlans,
-                        totalCount: hero.dishCount,
-                        completedCount: dashboard.completedPlanCount,
+                        plans: Array(dashboard.allPlans.dropFirst()),
                         accessibilityLabel: planAccessibilityLabel,
                         onSelect: onSelectPlan
                     )
                 }
-
-                if dashboard.additionalPlanCount > 0 {
-                    Text("另有 \(dashboard.additionalPlanCount) 道")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("home.today.plan.overflow")
-                }
-
-
             }
             // One surface, because this whole region is the evening's
             // interactive object: the dish, its dishes, and the two things you
@@ -1121,16 +1158,57 @@ private struct TodayPlanSummaryCard: View {
     private func actions(_ leadPlan: MealPlanItem) -> some View {
         // One dominant action, and one text-level alternative beside it.
         // Two equally filled pills is the pattern this replaced.
-        HomeActionPair(
-            primaryTitle: leadPlan.isCooked ? "查看菜谱" : "开始准备",
-            primarySymbol: leadPlan.isCooked ? "book" : "play.fill",
-            primaryIdentifier: "home.today.plan.start",
-            primaryAction: { onSelectPlan(leadPlan) },
-            secondaryTitle: "今天的计划",
-            secondaryTint: KitchenTheme.cookingGreen,
-            secondaryIdentifier: "home.today.plan.viewAll",
-            secondaryAction: onViewPlan
-        )
+        //
+        // 开始做饭 now starts cooking. 开始准备 named neither the control's
+        // result nor the verb the destination used — the button said 准备, the
+        // page it opened said 开始烹饪, and neither of them cooked anything.
+        //
+        // Once every dish is done there is nothing left to start, so the pair
+        // becomes 查看菜谱 + 今天的计划 and the extra row below is unnecessary.
+        VStack(alignment: .leading, spacing: 12) {
+            if leadPlan.isCooked {
+                HomeActionPair(
+                    primaryTitle: "查看菜谱",
+                    primarySymbol: "book",
+                    primaryIdentifier: "home.today.plan.start",
+                    primaryAction: { onSelectPlan(leadPlan) },
+                    secondaryTitle: "今天的计划",
+                    secondaryTint: KitchenTheme.cookingGreen,
+                    secondaryIdentifier: "home.today.plan.viewAll",
+                    secondaryAction: onViewPlan
+                )
+            } else {
+                HomeActionPair(
+                    primaryTitle: "开始做饭",
+                    primarySymbol: "flame.fill",
+                    primaryIdentifier: "home.today.plan.start",
+                    primaryAction: { onStartCooking(leadPlan) },
+                    secondaryTitle: "查看菜谱",
+                    secondaryTint: KitchenTheme.cookingGreen,
+                    secondaryIdentifier: "home.today.plan.viewRecipe",
+                    secondaryAction: { onSelectPlan(leadPlan) }
+                )
+
+                // Quiet but clearly actionable: a standard navigation row.
+                // Secondary-on-secondary read as a disabled label.
+                Button(action: onViewPlan) {
+                    HStack {
+                        Text("今天的计划")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                    }
+                    .font(.subheadline)
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .contentShape(Rectangle())
+                }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("home.today.plan.viewAll")
+            }
+        }
     }
 
     /// One wording for a plan, wherever it is drawn — the hero when it is the
@@ -1219,7 +1297,8 @@ private struct HomeRecommendationSection: View {
 
             // The refresh and browse affordances live below the card rather than
             // beside a section title, so nothing competes with the primary
-            // heading. AI stays visually subordinate to cooking, as before.
+            // heading. AI uses the ordinary secondary-action hierarchy: it is a
+        // capability of this app, not a separate brand with its own colour.
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 16) { auxiliaryButtons }
                 VStack(alignment: .leading, spacing: 0) { auxiliaryButtons }
@@ -1233,7 +1312,7 @@ private struct HomeRecommendationSection: View {
                 if isGenerating {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(KitchenTheme.aiIndigo)
+                        .tint(KitchenTheme.cookingGreen)
                 } else {
                     Image(systemName: "sparkles")
                         .font(.subheadline)
@@ -1246,7 +1325,7 @@ private struct HomeRecommendationSection: View {
         }
         // Level 3 — utility. Compact bordered controls, so AI stays visually
         // subordinate to the cooking action while still reading as a control.
-        .kitchenUtilityButton(tint: KitchenTheme.aiIndigo)
+        .kitchenUtilityButton(tint: KitchenTheme.cookingGreen)
         .disabled(isGenerating)
         .accessibilityIdentifier("home.recommendation.refresh")
 
@@ -1265,14 +1344,11 @@ private struct HomeRecommendationSection: View {
         // Same hero grammar as an existing plan: the dish leads, its metadata
         // sits on one quiet line, and a single action follows. A proposal and a
         // decision should not look like two different products.
-        return VStack(alignment: .leading, spacing: KitchenTheme.heroSpacing) {
+        return VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 0) {
-                KitchenContextualLabel(text: "推荐")
-                    .padding(.bottom, 10)
-
                 Text(recipe.title)
                     .font(.system(
-                        dynamicTypeSize.isAccessibilitySize ? .title : .largeTitle,
+                        .title2,
                         design: KitchenTheme.heroFontDesign,
                         weight: .semibold
                     ))
@@ -1288,19 +1364,13 @@ private struct HomeRecommendationSection: View {
                     .padding(.top, 6)
                     .accessibilityIdentifier("home.recommendation.ingredients")
 
-                Rectangle()
-                    .fill(.quaternary)
-                    .frame(height: 1)
-                    .padding(.top, 16)
-                    .padding(.bottom, 10)
-
-                HStack(alignment: .top, spacing: 8) {
-                    KitchenIconBadge(systemImage: "sparkles", tint: KitchenTheme.aiIndigo, size: KitchenTheme.statusIconSize)
-                    Text(recommendation.reason ?? recommendationReason(recipe))
+                if let reason = recommendation.reason ?? recommendationReason(recipe) {
+                    Text(reason)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
+                        .padding(.top, 8)
                         .accessibilityIdentifier("home.recommendation.reason")
                 }
             }
@@ -1325,13 +1395,13 @@ private struct HomeRecommendationSection: View {
         .kitchenFeatureSurface()
     }
 
-    private func recommendationReason(_ recipe: Recipe) -> String {
+    private func recommendationReason(_ recipe: Recipe) -> String? {
         if let name = expiringNames.first(where: { expiring in
             recipe.ingredients.contains { $0.localizedCaseInsensitiveContains(expiring) }
         }) {
             return "\(name)快到期了，建议优先用。"
         }
-        return inventoryNames.isEmpty ? "先看看做法，也可以直接加入今天。" : "现有食材匹配度不错，可以先加入今天。"
+        return inventoryNames.isEmpty ? nil : "现有食材匹配度不错，可以先加入今天。"
     }
 
     private func ingredientSummary(_ recipe: Recipe) -> String {
@@ -1351,25 +1421,27 @@ private struct HomeRecommendationSection: View {
 // The section is deliberately quieter than the primary task: a `.subheadline`
 // label rather than a `.title3` heading, and plain rows rather than a card with
 // its own controls.
-/// names the whole menu, and the dish rows inside it. Expanded by default so
-/// first render never hides information; collapsing is a presentation choice,
-/// not a product state.
+/// The dishes the hero has not already named, behind one disclosure.
+///
+/// It carries no dish total and no completion count: both are stated once, in
+/// the primary heading and the hero's own metadata line. A header reading
+/// 菜单 · 2 道菜 · 已完成 1 above a hero that had just said the same two numbers
+/// was the clearest repetition on the page.
+///
+/// Collapsed by default. Nothing is lost: the header states how many dishes are
+/// inside, and the full list is one tap away in 今天的计划.
 private struct MealMenuModule: View {
+    /// The remaining dishes only — never the lead dish, which is the hero.
     let plans: [MealPlanItem]
-    /// The whole menu's dish total from the hero model, never the number of
-    /// preview rows: the header names the menu, so "3 道菜" above a module
-    /// rendering 另有 1 道 would contradict the hero's own count.
-    let totalCount: Int
-    let completedCount: Int
     let accessibilityLabel: (MealPlanItem) -> String
     let onSelect: (MealPlanItem) -> Void
 
-    @State private var isExpanded = true
+    @State private var isExpanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var headerTitle: String {
-        return completedCount > 0 ? "菜单 · \(totalCount) 道菜 · 已完成 \(completedCount)" : "菜单 · \(totalCount) 道菜"
+        "另有 \(plans.count) 道"
     }
 
     var body: some View {
@@ -1378,11 +1450,6 @@ private struct MealMenuModule: View {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { isExpanded.toggle() }
             } label: {
                 HStack(spacing: 8) {
-                    KitchenIconBadge(
-                        systemImage: "list.bullet",
-                        tint: KitchenTheme.sage,
-                        size: KitchenTheme.statusIconSize
-                    )
                     Text(headerTitle)
                         .font(.footnote.weight(.semibold))
                         .monospacedDigit()
@@ -1392,7 +1459,10 @@ private struct MealMenuModule: View {
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isExpanded ? 0 : -90))
+                        // Expand in place, never navigate: down when there is
+                        // more to show, up once it is open. The right-facing
+                        // chevron belongs to 今天的计划, which does navigate.
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
                         .accessibilityHidden(true)
                 }
                 .frame(minHeight: AppTheme.minimumHitTarget)
@@ -1471,15 +1541,14 @@ private struct HomeNeedsAttentionSection: View {
                 .accessibilityIdentifier("home.attention.healthy")
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    KitchenStatusRail(color: KitchenTheme.terracotta, length: KitchenTheme.contextRailLength)
-                    Text("优先处理 · \(items.count + additionalCount)")
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                .accessibilityIdentifier("home.attention.section")
+                // No leading accent mark: every row below names its own
+                // urgency in words and carries its own status symbol.
+                Text("需要处理 · \(items.count + additionalCount)")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("home.attention.section")
 
                 VStack(spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
@@ -1531,26 +1600,39 @@ private struct HomeNeedsAttentionSection: View {
 private struct HomeAttentionRow: View {
     let item: HomeAttentionItem
     let action: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 KitchenIconBadge(systemImage: item.kind.systemImage, tint: item.kind.tint, size: KitchenTheme.destinationIconSize)
                 // Name first, always. At Accessibility sizes the detail stacks
-                // under it rather than truncating either half.
-                ViewThatFits(in: .horizontal) {
+                // under it rather than truncating either half. ViewThatFits
+                // cannot be trusted here: its trailing Spacer(minLength: 0)
+                // lets the HStack report a fitting width at every size, so a
+                // single 44pt line silently defeats the stacking contract;
+                // accessibility sizes take the VStack directly.
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.name).foregroundStyle(.primary)
+                            // Each stacked line carries its own 44pt hit
+                            // region: the row's combined AX frame is the
+                            // union of the text frames, so a lone row-level
+                            // minHeight never reaches the accessibility tree.
+                            .frame(minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+                        Text(item.detail).foregroundStyle(.secondary)
+                            .frame(minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+                    }
+                    .font(.subheadline)
+                } else {
                     HStack(spacing: 6) {
                         Text(item.name).foregroundStyle(.primary)
                         Text("·").foregroundStyle(.secondary)
                         Text(item.detail).foregroundStyle(.secondary)
                         Spacer(minLength: 0)
                     }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name).foregroundStyle(.primary)
-                        Text(item.detail).foregroundStyle(.secondary)
-                    }
+                    .font(.subheadline)
                 }
-                .font(.subheadline)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
@@ -1716,7 +1798,8 @@ private struct HomeModuleIssues: View {
         ),
         hero: HomeMealHeroModel(title: "番茄炒蛋", sideDishes: ["清炒时蔬", "紫菜蛋花汤"], timing: nil, duration: "35 分钟", dishCount: 3, readiness: HomeMealReadiness(ready: 4, total: 6)),
         onViewPlan: {},
-        onSelectPlan: { _ in }
+        onSelectPlan: { _ in },
+        onStartCooking: { _ in }
     )
     .padding()
     .background(KitchenTheme.canvas)
@@ -1800,7 +1883,8 @@ private struct HomeModuleIssues: View {
         ),
         hero: HomeMealHeroModel(title: "家常豆腐", sideDishes: [], timing: nil, duration: "20 分钟", dishCount: 1, readiness: HomeMealReadiness(ready: 3, total: 3)),
         onViewPlan: {},
-        onSelectPlan: { _ in }
+        onSelectPlan: { _ in },
+        onStartCooking: { _ in }
     )
     .padding()
     .dynamicTypeSize(.accessibility3)
@@ -1815,7 +1899,8 @@ private struct HomeModuleIssues: View {
         ),
         hero: HomeMealHeroModel(title: "红烧豆腐", sideDishes: [], timing: nil, duration: "25 分钟", dishCount: 1, readiness: nil),
         onViewPlan: {},
-        onSelectPlan: { _ in }
+        onSelectPlan: { _ in },
+        onStartCooking: { _ in }
     )
     .padding()
     .background(KitchenTheme.canvas)
@@ -1870,7 +1955,8 @@ private struct HomeModuleIssues: View {
                 readiness: HomeMealReadiness(ready: 2, total: 7)
             ),
             onViewPlan: {},
-            onSelectPlan: { _ in }
+            onSelectPlan: { _ in },
+            onStartCooking: { _ in }
         )
     }
     .padding()

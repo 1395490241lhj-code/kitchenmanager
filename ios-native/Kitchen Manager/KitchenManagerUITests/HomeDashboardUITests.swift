@@ -51,7 +51,9 @@ final class HomeDashboardUITests: XCTestCase {
         // Leaf anchors on purpose. A SwiftUI accessibility modifier applied to a
         // container overrides every descendant's, so a section-level identifier
         // would erase the ids of the controls inside it.
-        let context = app.staticTexts["home.today.date"]
+        // The date is now the rhythm button itself. Keep the same ordering
+        // assertion on the semantic action instead of a separate static label.
+        let context = app.buttons["home.dayRhythm.row"]
         let primary = app.staticTexts["home.primary.title"]
         let attention = app.staticTexts["home.attention.section"]
 
@@ -79,6 +81,21 @@ final class HomeDashboardUITests: XCTestCase {
     // The day type used to be a `.footnote` fragment reading 快手日 · 午餐已留 1 份.
     // It now states the day and explains it, and the explanation is the sentence
     // that makes the primary region below follow from something.
+
+    func testOrdinaryDayUsesOnlyTheTappableDateForContext() throws {
+        let app = launch("UITEST_SEED_EMPTY_HOME")
+        let row = app.buttons["home.dayRhythm.row"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(row.label.contains("星期"), row.label)
+        XCTAssertTrue(row.label.contains("调整今天安排"), row.label)
+        XCTAssertFalse(row.label.contains("做饭日"), row.label)
+        XCTAssertFalse(row.label.contains("自由日"), row.label)
+        XCTAssertFalse(row.label.contains("今天怎么安排"), row.label)
+        XCTAssertFalse(app.staticTexts["今天怎么安排"].exists)
+        XCTAssertGreaterThanOrEqual(row.frame.height, 44)
+        row.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["今天怎么安排"].waitForExistence(timeout: 5))
+    }
 
     func testTodayContextNamesTheDayAndExplainsItInPlainLanguage() throws {
         let app = launch("UITEST_SEED_EMPTY_HOME", "UITEST_FORCE_QUICK_DAY")
@@ -208,7 +225,11 @@ final class HomeDashboardUITests: XCTestCase {
     func testExecutionModeHasExactlyOneProminentStartControl() throws {
         let app = launchSeededDashboard()
         XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.buttons["home.today.plan.start"].label, "开始准备")
+        // Old contract: 开始准备, which opened a recipe page.
+        // New contract: 开始做饭, which opens cooking mode. The control this
+        // test guards — exactly one prominent start on the page — is unchanged;
+        // only the promise it makes is now the one it keeps.
+        XCTAssertEqual(app.buttons["home.today.plan.start"].label, "开始做饭")
         XCTAssertFalse(app.buttons["home.recommendation.addToday"].exists)
         XCTAssertFalse(app.buttons["home.mealPrep.add"].exists)
     }
@@ -258,13 +279,22 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(expired.waitForExistence(timeout: 5))
         XCTAssertEqual(expired.label, "过期生菜，已过期 1 天", "A row must name the food, not count it.")
         XCTAssertTrue(app.buttons["home.attention.expiring.临期牛奶"].exists)
-        XCTAssertTrue(app.buttons["home.attention.lowStock.大米"].exists)
+        // Old contract: Home named up to four items, so 大米 had a row.
+        // New contract: Home names the two highest-priority items and states
+        // what it left out. Low stock is the lowest tier, so it is now behind
+        // the overflow row — which is asserted here rather than dropped, so the
+        // coverage moves with the item instead of disappearing with it.
+        XCTAssertFalse(app.buttons["home.attention.lowStock.大米"].exists)
+        XCTAssertTrue(app.buttons["home.attention.overflow"].exists)
         XCTAssertGreaterThanOrEqual(expired.frame.height, 43.5)
 
         makeHittable(expired, in: app)
         expired.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
-        let expiredFilter = app.segmentedControls["inventory.filter.picker"].buttons["已过期"]
+        // Addressed by identifier: the segment's visible label now carries its
+        // own count, so matching on the bare word is no longer stable.
+        let expiredFilter = app.segmentedControls["inventory.filter.picker"]
+            .buttons["inventory.filter.option.expired"]
         XCTAssertTrue(expiredFilter.waitForExistence(timeout: 5))
         XCTAssertTrue(expiredFilter.isSelected, "Home 的过期提醒必须打开已过期筛选。")
         XCTAssertTrue(app.staticTexts["过期生菜"].waitForExistence(timeout: 5))

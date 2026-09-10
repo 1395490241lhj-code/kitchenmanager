@@ -40,9 +40,14 @@ struct HomeActionPair: View {
         .disabled(isPrimaryDisabled)
         .accessibilityIdentifier(primaryIdentifier)
 
-        Button(secondaryTitle, action: secondaryAction)
-            .font(.callout.weight(.medium))
-            .buttonStyle(KitchenButtonStyle(role: .secondary))
-            .accessibilityIdentifier(secondaryIdentifier)
+        Button(action: secondaryAction) {
+            Text(secondaryTitle)
+                .font(.callout)
+                .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(secondaryTint)
+        .accessibilityIdentifier(secondaryIdentifier)
     }
 }

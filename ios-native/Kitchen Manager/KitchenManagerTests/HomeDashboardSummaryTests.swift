@@ -25,15 +25,28 @@ final class HomeDashboardSummaryTests: XCTestCase {
         MealPlanItem(recipeID: name, recipeName: name, isCooked: cooked)
     }
 
-    func testTodayPlanDisplaysAtMostThreePendingPlansBeforeCompletedPlans() {
+    /// Old contract: Home previewed at most three plans and reported the rest
+    /// as 另有 N 道. New contract: Home carries the whole menu, because every
+    /// number on the hero — the dish count, the cooking time, the readiness
+    /// fraction — is now measured over the same population, and a three-plan
+    /// preview silently excluded the fourth dish from two of the three.
+    ///
+    /// Not weaker: the ordering rule the old test existed to protect (pending
+    /// plans ahead of completed ones) is asserted on the full list instead of
+    /// on its first three entries, so it now covers the plans the old
+    /// assertion could not see.
+    func testTodayPlanOrdersPendingPlansBeforeCompletedOnesAndKeepsThemAll() {
         let summary = HomeDashboardSummary(
             inventory: [],
             todayPlans: [plan("已完成", cooked: true), plan("未完成一"), plan("未完成二"), plan("未完成三"), plan("未完成四")],
             shoppingItems: []
         )
 
-        XCTAssertEqual(summary.displayedPlans.map(\.recipeName), ["未完成一", "未完成二", "未完成三"])
-        XCTAssertEqual(summary.additionalPlanCount, 2)
+        XCTAssertEqual(
+            summary.allPlans.map(\.recipeName),
+            ["未完成一", "未完成二", "未完成三", "未完成四", "已完成"]
+        )
+        XCTAssertEqual(summary.totalPlanCount, 5)
         XCTAssertEqual(summary.completedPlanCount, 1)
         XCTAssertEqual(summary.todayPlanState, .partial)
     }
@@ -203,7 +216,17 @@ final class HomeDashboardSummaryTests: XCTestCase {
 
         XCTAssertEqual(summary.attentionItems.count, 7)
         XCTAssertEqual(shown.visible.count, HomeDashboardSummary.maximumVisibleAttentionItems)
-        XCTAssertEqual(shown.additional, 3, "A cap that is not reported reads as “that is everything”.")
+        // Old contract: four named rows, three reported as remaining.
+        // New contract: two named rows, five reported. Home is not an inventory
+        // inbox — the rest is worked through on Inventory, where it can be acted
+        // on in bulk. The assertion that matters is unchanged and still exact:
+        // whatever the cap is, the remainder is reported rather than dropped.
+        XCTAssertEqual(
+            shown.visible.count + shown.additional,
+            summary.attentionItems.count,
+            "A cap that is not reported reads as “that is everything”."
+        )
+        XCTAssertEqual(shown.additional, 5)
     }
 
     func testHealthyKitchenProducesNoAttentionItems() {

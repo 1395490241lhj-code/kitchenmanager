@@ -203,7 +203,12 @@ final class HomePrimaryTaskTests: XCTestCase {
         let shown = resolve(dayType: .mealPrep).needsAttention(from: items)
 
         XCTAssertEqual(shown.visible.count, HomeDashboardSummary.maximumVisibleAttentionItems)
-        XCTAssertEqual(shown.additional, 2, "6 inventory rows minus the 4 shown — the dropped batch is not counted as hidden.")
+        // Old contract: 6 relevant rows minus the 4 shown left 2 hidden.
+        // New contract: the cap is 2, so 4 are hidden. The property under test
+        // is unchanged and is still the sharp one — the prep-day batch is
+        // dropped as redundant with the board *before* the cap runs, so it is
+        // never counted as merely hidden.
+        XCTAssertEqual(shown.additional, 4, "6 inventory rows minus the 2 shown — the dropped batch is not counted as hidden.")
     }
 
     // MARK: - Day type copy

@@ -22,9 +22,6 @@ struct HomeMealHero: View {
     /// Ingredient readiness, when the caller can state it honestly.
     let readiness: HomeMealReadiness?
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    private var isAccessibilitySize: Bool { dynamicTypeSize.isAccessibilitySize }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
 
@@ -32,7 +29,7 @@ struct HomeMealHero: View {
             // Semantic title sizing preserves Dynamic Type reflow.
             Text(title)
                 .font(.system(
-                    isAccessibilitySize ? .title : .largeTitle,
+                    .title2,
                     design: KitchenTheme.heroFontDesign,
                     weight: .semibold
                 ))
@@ -50,7 +47,7 @@ struct HomeMealHero: View {
                     .accessibilityIdentifier("home.hero.composition")
             }
 
-            if metaLine != nil || readiness != nil {
+            if !statusText.isEmpty {
                 Rectangle()
                     .fill(.quaternary)
                     .frame(height: 1)
@@ -78,20 +75,23 @@ struct HomeMealHero: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// One factual secondary line: `2 道菜 · 1/4 食材已在库`. Two short facts
+    /// did not need two permanent rows. The line wraps when Dynamic Type needs
+    /// the room; nothing factual is dropped to keep it on one line.
     private var statusLine: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let metaLine {
-                KitchenMetadataText(text: metaLine)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
-            }
-            if let readiness, readiness.total > 0 {
-                KitchenReadinessChip(readiness: readiness)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(statusAccessibilityLabel)
-        .accessibilityIdentifier("home.hero.status")
+        KitchenMetadataText(text: statusText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(statusAccessibilityLabel)
+            .accessibilityIdentifier("home.hero.status")
+    }
+
+    private var statusText: String {
+        [metaLine, readiness.flatMap { $0.total > 0 ? $0.summary : nil }]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 
     private var statusAccessibilityLabel: String {
@@ -114,7 +114,12 @@ nonisolated struct HomeMealReadiness: Equatable {
 
     var summary: String {
         guard total > 0 else { return "无需备料" }
-        if ready >= total { return "食材齐全" }
-        return "\(ready)/\(total) 食材就绪"
+        // Presence, never sufficiency. The matcher behind this only asks
+        // whether an ingredient *name* resolved to something in stock — it
+        // compares no quantities, reads no expiry and applies no serving
+        // scaling. 食材齐全 and 就绪 both claimed a readiness verdict this
+        // cannot support, so both are retired.
+        if ready >= total { return "所需食材已在库" }
+        return "\(ready)/\(total) 食材已在库"
     }
 }

@@ -26,9 +26,16 @@ nonisolated struct HomeMealHeroModel: Equatable {
         guard let lead = plans.first else { return nil }
         return Self(
             title: lead.recipeName,
-            sideDishes: plans.dropFirst().map(\.recipeName),
+            // Only a two-dish menu names its other dish inline. At three or
+            // more the remaining dishes belong in the 另有 N 道 disclosure, and
+            // a 配 line listing them as well would be the same menu twice.
+            sideDishes: totalDishCount == 2 ? plans.dropFirst().map(\.recipeName) : [],
             timing: nil,
-            duration: cookingMinutes.map { "\($0) 分钟" },
+            // One dish states its own cooking time. Several dishes have no
+            // honest total: the recipes are cooked in an overlapping order the
+            // product does not model, so a sum is wrong, a max is wrong, and
+            // inventing a parallelism estimate is worse than saying nothing.
+            duration: totalDishCount == 1 ? cookingMinutes.map { "\($0) 分钟" } : nil,
             // The whole menu, not the truncated preview. Home caps how many
             // dishes it lists; saying "3 道菜" above a list that admits to
             // 另有 1 道 would state a number the evening does not hold.
