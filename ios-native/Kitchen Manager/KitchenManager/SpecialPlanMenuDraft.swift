@@ -76,6 +76,7 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
     private var composeTask: Task<SpecialPlanComposition, Error>?
     private var activeComposeID: UUID?
     private var replaceTask: Task<SpecialPlanMenuDraftDish, Error>?
+    private var activeReplaceID: UUID?
 
     /// `dishes` seeds a draft that was composed elsewhere — the creation sheet
     /// generates before the plan exists, then hands the menu to the detail.
@@ -190,6 +191,9 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
     /// Adopts a draft composed by another store instance (the creation or edit
     /// sheet), replacing whatever this one held.
     func adopt(_ newDishes: [SpecialPlanMenuDraftDish]) {
+        activeReplaceID = nil
+        replaceTask?.cancel()
+        replaceTask = nil
         dishes = newDishes
         errorMessage = nil
         replacingDishID = nil
@@ -207,9 +211,21 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
     ) async {
         guard !isBusy, replacingDishID == nil else { return }
         guard let index = dishes.firstIndex(where: { $0.id == dishID }) else { return }
+        let requestID = UUID()
+        activeReplaceID = requestID
         replacingDishID = dishID
         errorMessage = nil
         let original = dishes[index]
+
+        // A row keeps its dishID across retries; only this request token owns
+        // the result, error and cleanup after an await.
+        defer {
+            if activeReplaceID == requestID {
+                activeReplaceID = nil
+                replacingDishID = nil
+                replaceTask = nil
+            }
+        }
 
         do {
             // Every current dish name is excluded so the model does not simply
@@ -230,26 +246,18 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
             var replacement = try await task.value
             // Cancelled while in flight: the original dish stays exactly as it
             // was, which is the same guarantee a failure gives.
-            guard replacingDishID == dishID else { return }
+            guard activeReplaceID == requestID else { return }
             // Keep the row's identity stable so SwiftUI replaces content in
             // place rather than animating a delete + insert.
             replacement.id = original.id
             guard let current = dishes.firstIndex(where: { $0.id == dishID }) else {
-                replacingDishID = nil
-                replaceTask = nil
                 return
             }
             dishes[current] = replacement
         } catch {
-            if replacingDishID == dishID, !Self.isCancellation(error) {
+            if activeReplaceID == requestID, !Self.isCancellation(error) {
                 errorMessage = Self.message(for: error)
             }
-        }
-        // Only clear progress this call still owns. A cancelled replacement that
-        // has already been followed by a new one must not wipe the new one's row.
-        if replacingDishID == dishID {
-            replacingDishID = nil
-            replaceTask = nil
         }
     }
 
@@ -259,16 +267,16 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
 
     /// Stops whatever is in flight and hands the surface back to the user.
     ///
-    /// The draft is not touched here: `compose` and `replaceDish` each restore
-    /// what they had, so there is exactly one place that decides what "the draft
-    /// you had" means. Safe to call when nothing is running, which is what lets
-    /// a view call it unconditionally on dismissal.
+    /// The draft is not touched: requests write only when they still own their
+    /// result. No snapshot can resurrect a deliberately discarded draft. Safe
+    /// to call unconditionally on dismissal, even when nothing is running.
     func cancelGeneration() {
         composeTask?.cancel()
         composeTask = nil
         activeComposeID = nil
         isGenerating = false
 
+        activeReplaceID = nil
         replaceTask?.cancel()
         replaceTask = nil
         replacingDishID = nil

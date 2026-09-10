@@ -61,6 +61,32 @@ final class SpecialPlanGenerationCancellationTests: XCTestCase {
         }
     }
 
+    /// Deliberately delivers even after cancellation, so request ownership is
+    /// tested independently of whether the provider cooperates with cancel.
+    @MainActor
+    private final class ControlledMenuResponder: SpecialPlanMenuRequesting {
+        let didStart = (0..<2).map { XCTestExpectation(description: "replacement \($0) started") }
+        private var continuations: [Int: CheckedContinuation<AIWeeklyMenuResponse, Error>] = [:]
+        private var requestCount = 0
+        private(set) var cancelledRequests: Set<Int> = []
+
+        func generatePlan(request: AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse {
+            let index = requestCount
+            requestCount += 1
+            defer {
+                if Task.isCancelled { cancelledRequests.insert(index) }
+            }
+            return try await withCheckedThrowingContinuation { continuation in
+                continuations[index] = continuation
+                didStart[index].fulfill()
+            }
+        }
+
+        func finish(_ index: Int, with result: Result<AIWeeklyMenuResponse, Error>) {
+            continuations.removeValue(forKey: index)!.resume(with: result)
+        }
+    }
+
     private func menuResponse(_ names: [String]) throws -> AIWeeklyMenuResponse {
         let recipes: [[String: Any]] = names.map { name in
             [
@@ -233,6 +259,156 @@ final class SpecialPlanGenerationCancellationTests: XCTestCase {
     }
 
     // MARK: - The surface is usable again
+
+    func testStaleReplacementCannotMutateSameDishRetryAndRetryRemainsCancellable() async throws {
+        let existing = [draftDish("清蒸鱼"), draftDish("蒜蓉青菜")]
+        let responder = ControlledMenuResponder()
+        let store = makeStore(responder, dishes: existing)
+        let kitchen = try makeKitchenStore()
+        let recipes = makeRecipeStore()
+        let plan = samplePlan()
+        let targetID = existing[0].id
+        let response = try menuResponse(["红烧牛腩"])
+
+        let first = Task {
+            await store.replaceDish(id: targetID, for: plan, kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[0]], timeout: 3)
+        store.cancelGeneration()
+        let second = Task {
+            await store.replaceDish(id: targetID, for: plan, kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[1]], timeout: 3)
+
+        responder.finish(0, with: .success(response))
+        await first.value
+        XCTAssertEqual(store.dishes, existing, "A stale success must not write into the retried row.")
+        XCTAssertEqual(store.replacingDishID, targetID, "Only the new request owns progress.")
+        XCTAssertNil(store.errorMessage)
+
+        store.cancelGeneration()
+        responder.finish(1, with: .success(response))
+        await second.value
+        XCTAssertEqual(responder.cancelledRequests, [0, 1], "Stale cleanup must not lose the retry's task handle.")
+        XCTAssertEqual(store.dishes, existing)
+        XCTAssertNil(store.replacingDishID)
+        XCTAssertNil(store.errorMessage)
+    }
+
+    func testLatestReplacementWinsWhenCancelledSuccessArrivesLast() async throws {
+        let existing = [draftDish("清蒸鱼"), draftDish("蒜蓉青菜")]
+        let responder = ControlledMenuResponder()
+        let store = makeStore(responder, dishes: existing)
+        let kitchen = try makeKitchenStore()
+        let recipes = makeRecipeStore()
+        let plan = samplePlan()
+        let targetID = existing[0].id
+        let staleResponse = try menuResponse(["红烧牛腩"])
+        let latestResponse = try menuResponse(["冬瓜汤"])
+
+        let first = Task {
+            await store.replaceDish(id: targetID, for: plan, kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[0]], timeout: 3)
+        store.cancelGeneration()
+        let second = Task {
+            await store.replaceDish(id: targetID, for: plan, kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[1]], timeout: 3)
+        responder.finish(1, with: .success(latestResponse))
+        await second.value
+        let accepted = store.dishes
+        XCTAssertEqual(accepted[0].title, "冬瓜汤")
+        XCTAssertEqual(accepted[0].id, targetID)
+        XCTAssertEqual(accepted[1], existing[1])
+
+        responder.finish(0, with: .success(staleResponse))
+        await first.value
+        XCTAssertEqual(store.dishes, accepted)
+        XCTAssertEqual(responder.cancelledRequests, [0])
+        XCTAssertNil(store.replacingDishID)
+        XCTAssertNil(store.errorMessage)
+    }
+
+    func testStaleReplacementFailureCannotPublishErrorOrClearSameDishRetry() async throws {
+        let existing = [draftDish("清蒸鱼"), draftDish("蒜蓉青菜")]
+        let responder = ControlledMenuResponder()
+        let store = makeStore(responder, dishes: existing)
+        let kitchen = try makeKitchenStore()
+        let recipes = makeRecipeStore()
+        let plan = samplePlan()
+        let targetID = existing[0].id
+        let response = try menuResponse(["冬瓜汤"])
+
+        let first = Task {
+            await store.replaceDish(id: targetID, for: plan, kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[0]], timeout: 3)
+        store.cancelGeneration()
+        let second = Task {
+            await store.replaceDish(id: targetID, for: plan, kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[1]], timeout: 3)
+        responder.finish(0, with: .failure(SpecialPlanMenuGeneratorError.invalidResponse))
+        await first.value
+        XCTAssertNil(store.errorMessage, "An old failure does not belong to the active request.")
+        XCTAssertEqual(store.replacingDishID, targetID)
+        XCTAssertEqual(store.dishes, existing)
+
+        responder.finish(1, with: .success(response))
+        await second.value
+        XCTAssertEqual(store.dishes[0].title, "冬瓜汤")
+        XCTAssertEqual(store.dishes[0].id, targetID)
+        XCTAssertEqual(store.dishes[1], existing[1])
+        XCTAssertNil(store.errorMessage)
+        XCTAssertNil(store.replacingDishID)
+    }
+
+    func testDiscardedDraftIsNotResurrectedByLateReplacement() async throws {
+        let existing = [draftDish("清蒸鱼")]
+        let responder = ControlledMenuResponder()
+        let store = makeStore(responder, dishes: existing)
+        let kitchen = try makeKitchenStore()
+        let recipes = makeRecipeStore()
+        let response = try menuResponse(["红烧牛腩"])
+
+        let running = Task {
+            await store.replaceDish(id: existing[0].id, for: samplePlan(), kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[0]], timeout: 3)
+        store.discard()
+        responder.finish(0, with: .success(response))
+        await running.value
+
+        XCTAssertTrue(store.dishes.isEmpty)
+        XCTAssertEqual(responder.cancelledRequests, [0])
+        XCTAssertNil(store.replacingDishID)
+        XCTAssertNil(store.errorMessage)
+    }
+
+    func testAdoptingADraftInvalidatesAnInFlightReplacement() async throws {
+        let existing = [draftDish("清蒸鱼")]
+        let responder = ControlledMenuResponder()
+        let store = makeStore(responder, dishes: existing)
+        let kitchen = try makeKitchenStore()
+        let recipes = makeRecipeStore()
+        let response = try menuResponse(["红烧牛腩"])
+        var adopted = existing
+        adopted[0].title = "冬瓜汤"
+
+        let running = Task {
+            await store.replaceDish(id: existing[0].id, for: samplePlan(), kitchenStore: kitchen, recipeStore: recipes)
+        }
+        await fulfillment(of: [responder.didStart[0]], timeout: 3)
+        store.adopt(adopted)
+        responder.finish(0, with: .success(response))
+        await running.value
+
+        XCTAssertEqual(store.dishes, adopted, "Draft handoff retains its old stale-write protection, even with the same row ID.")
+        XCTAssertEqual(responder.cancelledRequests, [0])
+        XCTAssertNil(store.replacingDishID)
+        XCTAssertNil(store.errorMessage)
+    }
 
     func testTheSameRequestCanBeResubmittedImmediatelyAfterCancelling() async throws {
         let blocking = BlockingMenuResponder()
