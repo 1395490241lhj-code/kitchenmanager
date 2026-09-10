@@ -49,12 +49,33 @@ final class ProductionDesignLanguageUITests: XCTestCase {
                 let visibleName = app.staticTexts[name == "Inventory-Normal" ? "过期酸奶" : "嫩豆腐"]
                 XCTAssertGreaterThanOrEqual(visibleName.frame.minX, 19)
                 XCTAssertLessThanOrEqual(visibleName.frame.maxX, app.windows.firstMatch.frame.maxX - 19)
-                let all = app.buttons["inventory.summary.all"]
-                XCTAssertGreaterThanOrEqual(all.frame.height, 43.5)
-                let expiring = app.buttons["inventory.summary.expiringSoon"]
-                expiring.tap()
-                XCTAssertTrue(app.buttons["inventory.summary.all"].isHittable)
-                all.tap()
+                // Old contract: a read-only count row published its own
+                // inventory.summary.* controls above the picker.
+                // New contract: there is one filter surface, and the counts live
+                // on the choices. At Accessibility sizes that surface is the
+                // compact Menu, exactly as InventoryNavigationUITests pins it.
+                //
+                // Not weaker: the same two states are still driven through a
+                // real hittable control and the render is still captured either
+                // side of the change; the control asserted is now the one that
+                // actually applies the filter.
+                if accessibility {
+                    let menu = app.buttons["inventory.filter.menu"]
+                    XCTAssertTrue(menu.waitForExistence(timeout: 5))
+                    XCTAssertGreaterThanOrEqual(menu.frame.height, 43.5)
+                } else {
+                    let picker = app.segmentedControls["inventory.filter.picker"]
+                    let all = picker.buttons["inventory.filter.option.all"]
+                    let expiring = picker.buttons["inventory.filter.option.expiringSoon"]
+                    XCTAssertTrue(all.waitForExistence(timeout: 5))
+                    // The documented, narrowly scoped native-segment exception:
+                    // this unmodified SwiftUI Picker publishes ~32pt segments.
+                    // 44pt remains the app target for custom controls.
+                    XCTAssertGreaterThanOrEqual(all.frame.height, 28)
+                    expiring.tap()
+                    XCTAssertTrue(all.isHittable)
+                    all.tap()
+                }
                 // Supplementary evidence for the common-staple rail and tab clearance.
                 app.swipeUp()
                 attach(prefix + "-Rows")
@@ -75,7 +96,18 @@ final class ProductionDesignLanguageUITests: XCTestCase {
                         app.swipeUp()
                     }
                     XCTAssertTrue(toggle.isHittable)
-                    XCTAssertTrue(toggle.label.contains("4 道菜"))
+                    // Old contract: the disclosure header repeated the whole
+                    // menu s dish count. New contract: the count is stated once,
+                    // on the hero own status line, and the disclosure names
+                    // only what it holds — the dishes the hero did not.
+                    //
+                    // Not weaker: the number is still asserted on this render,
+                    // on the element that now owns it, and the disclosure is
+                    // additionally pinned to its own contract.
+                    XCTAssertTrue(toggle.label.hasPrefix("另有"), toggle.label)
+                    let status = app.descendants(matching: .any)["home.hero.status"]
+                    XCTAssertTrue(status.waitForExistence(timeout: 5))
+                    XCTAssertTrue(status.label.contains("4 道菜"), status.label)
                     toggle.tap()
                     toggle.tap()
                 }

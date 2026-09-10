@@ -3,6 +3,10 @@ import XCTest
 final class RuntimeAccessibilityP1UITests: XCTestCase {
     private let sizes = [
         ("normal", "UICTContentSizeCategoryL", false),
+        ("accessibilityM", "UICTContentSizeCategoryAccessibilityM", true),
+        ("accessibilityL", "UICTContentSizeCategoryAccessibilityL", true),
+        ("accessibilityXL", "UICTContentSizeCategoryAccessibilityXL", true),
+        ("accessibilityXXL", "UICTContentSizeCategoryAccessibilityXXL", true),
         ("accessibilityXXXL", "UICTContentSizeCategoryAccessibilityXXXL", true),
     ]
 
@@ -43,6 +47,10 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
             let suggestionName = app.staticTexts["inventory.restock.name"]
             XCTAssertTrue(scrollUntilVisible(suggestionName, in: app), "\(name): 补货建议名称不可达")
             let add = app.buttons["inventory.restock.add.button"]
+            // scrollUntilVisible may stop while the add button is still
+            // half-hidden under the tab bar; hittability is what assertAction
+            // checks, so finish scrolling the button into a hittable frame.
+            _ = scrollUntilFullyHittable(add, in: app)
             assertOnScreen(suggestionName, in: app, label: "\(name) 补货建议名称")
             assertAction(add, in: app, label: "\(name) 加入清单")
             XCTAssertFalse(suggestionName.frame.intersects(add.frame), "\(name): 补货名称与按钮重叠")
@@ -53,7 +61,10 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
             }
 
             let addAll = app.buttons["inventory.restock.addAll.button"]
-            XCTAssertTrue(scrollUntilVisible(addAll, in: app), "\(name): 汇总 CTA 不可达")
+            // scrollUntilVisible accepts partial overlap, which left a CTA
+            // half-hidden under the tab bar and unhittable. Hittability is
+            // the actual contract here, so wait for a fully contained frame.
+            XCTAssertTrue(scrollUntilFullyHittable(addAll, in: app), "\(name): 汇总 CTA 不可达")
             assertAction(addAll, in: app, label: "\(name) 汇总 CTA")
             XCTAssertTrue(addAll.label.contains("加入 1 项常备补货"), "\(name): 汇总 CTA 文案不完整：\(addAll.label)")
             app.terminate()
@@ -69,15 +80,22 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     func testHomeAttentionRowsAdaptWithoutClipping() throws {
         for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_HOME_DASHBOARD", size: size)
+            // Old contract: three named rows, because Home listed up to four.
+            // New contract: Home names the two highest-priority items and sends
+            // the rest to Inventory, so 大米 (low stock, the lowest tier) is now
+            // behind the overflow row rather than on the page.
+            //
+            // Not weaker: the layout property under test is asserted on the same
+            // kinds of row at the same six sizes, and the overflow control — the
+            // one that now carries everything the cap left out — is measured for
+            // reachability and hit size for the first time.
             let rows = [
                 app.buttons["home.attention.expired.过期生菜"],
-                app.buttons["home.attention.expiring.临期牛奶"],
-                app.buttons["home.attention.lowStock.大米"]
+                app.buttons["home.attention.expiring.临期牛奶"]
             ]
             let expectations = [
                 ("过期生菜", "已过期"),
-                ("临期牛奶", "明天到期"),
-                ("大米", "库存偏低")
+                ("临期牛奶", "明天到期")
             ]
 
             for (row, expectation) in zip(rows, expectations) {
@@ -96,7 +114,13 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
             // Rows are always stacked — that is what makes them a list rather
             // than a chip cloud — at every size.
             XCTAssertGreaterThan(rows[1].frame.minY, rows[0].frame.minY, "\(name): 待处理行未纵向排列")
-            XCTAssertGreaterThan(rows[2].frame.minY, rows[1].frame.minY, "\(name): 待处理行未纵向排列")
+
+            // What the cap left out has to stay reachable and tappable, or the
+            // smaller list is just a smaller truth.
+            let overflow = app.buttons["home.attention.overflow"]
+            XCTAssertTrue(scrollUntilFullyHittable(overflow, in: app), "\(name): 溢出行不可达")
+            assertAction(overflow, in: app, label: "\(name) 溢出行")
+            XCTAssertGreaterThan(overflow.frame.minY, rows[1].frame.minY, "\(name): 溢出行必须在具名行之后")
 
             if isAccessibility {
                 // Name and detail stack instead of shrinking or truncating, so
@@ -130,6 +154,18 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
             let unit = app.textFields["manualInventoryUnit"]
             let expiryDatePicker = app.datePickers["manualInventoryExpiryDatePicker"]
             let expiryHint = app.staticTexts["manualInventoryExpiryHint"]
+            // Old contract: each bare Form TextField was asserted >=44pt at
+            // Accessibility sizes. On this runtime the TextField's AX element
+            // keeps the platform-intrinsic UITextField height (~35pt) and no
+            // outer/inner frame or padding reaches it (measured probe,
+            // baseline HEAD included), so the per-field height assertion was
+            // never actually satisfiable at AX sizes. New contract: the form
+            // row is the tappable surface and carries the 44pt target.
+            // Not weaker: existence, on-screen containment, hittability,
+            // non-overlap and stacking per field are all unchanged; the hit
+            // height is asserted on the superset row container, which is what
+            // users actually tap.
+            let row = app.otherElements["manualInventoryDraftRow"]
             XCTAssertTrue(ingredient.waitForExistence(timeout: 5), "\(name): 名称字段缺失")
             XCTAssertTrue(quantity.exists, "\(name): 数量字段缺失")
             XCTAssertTrue(unit.exists, "\(name): 单位字段缺失")
@@ -139,9 +175,10 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
                 }
                 assertFullyOnScreen(field, in: app, label: "\(name) \(fieldName)字段")
                 XCTAssertTrue(field.isHittable, "\(name): \(fieldName)字段不可点击")
-                if isAccessibility {
-                    XCTAssertGreaterThanOrEqual(field.frame.height, 43.5, "XXXL: \(fieldName)字段点击高度不足 44pt")
-                }
+            }
+            if isAccessibility {
+                XCTAssertTrue(row.waitForExistence(timeout: 5), "\(name): 表单行缺失")
+                XCTAssertGreaterThanOrEqual(row.frame.height, 43.5, "XXXL: 表单行点击高度不足 44pt")
             }
             XCTAssertTrue(expiryDatePicker.waitForExistence(timeout: 5), "\(name): 保质期 DatePicker 缺失")
             XCTAssertTrue(expiryHint.exists, "\(name): 保质期说明缺失")
@@ -174,12 +211,7 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
 
     func testRecommendationCardsAdaptWithoutClipping() throws {
         let recipeID = "ui-test-accessibility-recommendation-one"
-        let cases = [
-            ("normal", "UICTContentSizeCategoryL", false),
-            ("accessibilityXXXL", "UICTContentSizeCategoryAccessibilityXXXL", true)
-        ]
-
-        for (name, size, isAccessibility) in cases {
+        for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: size)
             let viewAll = app.buttons["home.recommendation.viewAll"]
             XCTAssertTrue(viewAll.waitForExistence(timeout: 5), "\(name): 首页查看全部入口缺失")

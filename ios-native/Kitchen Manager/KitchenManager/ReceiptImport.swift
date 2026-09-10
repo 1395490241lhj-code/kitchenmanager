@@ -566,6 +566,13 @@ struct RecordFoodSheet: View {
                                 .accessibilityIdentifier("manualInventoryStapleHint")
                         }
                     }
+                    // The per-field AX element keeps the platform-intrinsic
+                    // UITextField height (~35pt); the row is the actual
+                    // tappable form surface, so the 44pt target is asserted
+                    // here rather than on the bare text field. .contain keeps
+                    // the child identifiers exposed to XCUITest.
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("manualInventoryDraftRow")
                 }
             }
         }
@@ -628,6 +635,11 @@ struct RecordFoodSheet: View {
 
     private func manualNameField(_ draft: Binding<ManualInventoryDraft>) -> some View {
         TextField("食材名", text: draft.name)
+            // The Form TextField's AX element keeps the platform-intrinsic
+            // UITextField height (~35pt on this runtime); outer/inner frames
+            // and padding do not reach it. The 44pt target is therefore
+            // asserted on the row container instead, which is the actual
+            // tappable surface of the form row.
             .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? AppTheme.minimumHitTarget : nil)
             .accessibilityIdentifier("manualInventoryName")
     }
