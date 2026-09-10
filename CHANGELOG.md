@@ -2,6 +2,11 @@
 
 Only notable changes that have entered `main` are recorded here. Current state belongs in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); detailed evidence belongs in focused documents or Git history.
 
+## 2026-09-10
+
+- Integrated the approved iOS behavior / information-architecture prototype (`d905312` … `0ac9edd`) and its replacement-ownership correctness fix (`d9da474`). Home states each fact once and `开始做饭` enters the shared cooking flow; Inventory has one filter surface with permanently discoverable search; individually empty Planner days keep only their date header; Special Plan generation is cancellable and per-request ownership prevents a cancelled request from overwriting a same-dish retry. See the [engineering seal](docs/archive/ios/BEHAVIOR_CONTRACT_SEAL.md). No model, persistence, sync, provider or AI pipeline change.
+- Recorded canonical Decisions D-038 (AI is a capability, not a second visual brand) and D-039 (frozen structural contract and the bounded native Inventory segmented-control accessibility exception, with 44pt retained as the app target).
+
 ## 2026-09-09
 
 - Integrated Quiet Kitchen R3.1's shared visual foundation and compact Home/Inventory presentation (`aa42abf`, `45b5022`), following the Swift concurrency fix (`7a69893`). See the [accepted seal and baseline-red disposition](docs/archive/ios/QUIET_KITCHEN_R31_SEAL.md). No model, persistence, sync or AI pipeline changes in the visual migration.

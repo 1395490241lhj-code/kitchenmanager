@@ -1,14 +1,18 @@
 # Kitchen Manager Design Language — Quiet Kitchen R3.1
 
-## Current production revision — R3.1
+## Current production revision — frozen behavior / IA prototype
 
-Approved and integrated at `aa42abf` / `45b5022`; gate **PASS WITH DOCUMENTED BASELINE REDS**. See [seal and acceptance](../archive/ios/QUIET_KITCHEN_R31_SEAL.md).
+Owner-approved at implementation `d9da474`; visual/IA design is frozen. [Engineering seal and evidence](../archive/ios/BEHAVIOR_CONTRACT_SEAL.md) records the final gate and integration status. Existing Quiet Kitchen R3.1 tokens/palette remain; this revision records the accepted structures and controls, not a new global visual redesign.
 
-R3.1 supersedes v1's warm palette, cooking-journey green, hero font design and separate Inventory summary surface. Shared `KitchenTheme` tokens now use the approved cooler neutral canvases, native system hero typography and a 20pt feature radius. Cooking and management use the shared product accent; AI retains its existing subordinate role. Token names are compatibility names, not literal descriptions of their current colors. Green remains available for semantic status.
+- Home: ordinary cooking/flexible days show one tappable date row; exceptional state may add one meaningful context line. No redundant hero `今晚`. Presence-only readiness uses `所需食材已在库` / `N/M 食材已在库` over all today's plans. One dish is hero-only; two add `配 …`; three or more use `另有 N 道` with only remaining dishes inside. No aggregate multi-dish duration. At most two named attention rows plus overflow. `开始做饭` enters the shared cooking flow; `查看菜谱` and `今天的计划` remain secondary.
+- Inventory: permanently discoverable native Search, one filter surface with counts in choices, persistent filter during search and independent clear behavior. Healthy rows suppress redundant expiry metadata; active constraints and no-results remain explicit. Accessibility sizes use the compact native Menu.
+- Planner: individually empty days keep only the dated header; no `暂无安排` body row or permanent per-day plus. Existing week navigation, planned/Special Plan rows, toolbar creation and whole-empty-week creation remain. No ordinary-meal CRUD or weekly AI materialization was added.
+- AI identity (canonical D-038): AI is a capability, not a second visual brand. Actions normally inherit the host surface's semantic/accent hierarchy; sparkles may identify capability. Independent indigo is no longer prescribed merely for AI. Home's approved action demonstrates this; compatibility tokens and other legacy AI uses were not globally restyled.
+- 44pt remains the app target. The sole segmented-control exception (D-039) is this exact unmodified four-choice Inventory Picker. The accepted iPhone 17 Pro probe recorded about 32pt visual/AX height; taps 3pt above and below inside a 44pt wrapper did not select a segment. Do not infer expanded hit testing from layout bounds or claim blanket HIG compliance. Retain native selection/spacing/VoiceOver state and the Accessibility Menu; custom actions still require >=44pt. The bounded test uses Apple's 28pt iOS platform floor; WCAG's 24 CSS-pixel reference does not lower the app target.
 
-Home keeps fixed 今天 navigation and its existing IA, with compact date/day-rhythm context. Inventory count buttons and existing native filter share one compact surface; both production filter variants retain their behavior, labels and identifiers. This is not the research app's replacement of the production controls with a single new picker. Planner and other token consumers inherit the foundation; no page-specific Planner or Settings migration is implied.
+Home semantic precedence remains mealPrep → dinner eatOut → Today Plan → quick → recommendation. Special Plan today in Home, quantity-aware sufficiency, AI weekly materialization and ordinary Planner CRUD remain deferred. No AI-provenance label or field was added.
 
-Existing 20pt rails, >=44pt targets, contrast contracts, no-photo recipes, native navigation/Form behavior and data boundaries remain. The implementation is authoritative. Source comments still saying “research branch” are historical wording; these four production files are integrated.
+The prior v1 text below is historical wherever it conflicts with this revision. In particular, old indigo references do not instruct future implementations to restore a separate AI brand; old console/empty-day descriptions do not restore removed repetition. Current code and the canonical vault remain authoritative.
 
 ## Prior v1 specification — historical where superseded above
 

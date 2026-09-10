@@ -12,6 +12,12 @@
 >
 > The body below is preserved as the audit record it was written to be.
 
+## Frozen iOS behavior / IA prototype seal — 2026-09-10
+
+Implementation through `d9da474` is integrated and pushed to main. Gate: **PASS WITH DOCUMENTED BASELINE REDS**. [Evidence, accessibility exception and deferred boundary](docs/archive/ios/BEHAVIOR_CONTRACT_SEAL.md).
+
+The change covers Home information hierarchy and direct cooking entry, the single Inventory filter surface, quiet empty Planner days, and Special Plan generation cancellation with per-request replacement ownership. No model, persistence, sync, provider or AI pipeline change. AI weekly materialization, ordinary-meal Planner CRUD, Special Plan Home precedence, quantity-aware sufficiency and AI provenance remain deferred. The older audit below remains a historical snapshot and its counts have not been refreshed.
+
 ## Quiet Kitchen R3.1 seal — 2026-09-09
 
 Production code through `45b5022` is integrated and pushed to main, including the preceding concurrency fix `7a69893`. Gate: **PASS WITH DOCUMENTED BASELINE REDS**, explicitly accepted by the project owner. [Evidence, dispositions and independent Settings/Shopping follow-ups](docs/archive/ios/QUIET_KITCHEN_R31_SEAL.md).
