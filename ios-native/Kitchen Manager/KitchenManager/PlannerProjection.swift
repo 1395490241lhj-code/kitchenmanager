@@ -30,8 +30,12 @@ nonisolated enum PlannerEntry: Equatable, Identifiable, Hashable, Sendable {
     }
 
     /// Sort key within a day: meals first (breakfast-like rolling order), then
-    /// special plans by scheduled time, then stable identity. Never uses `id`'s
-    /// UUID randomness as a display-order signal.
+    /// special plans by scheduled time, then stable identity.
+    ///
+    /// `id` is the *last-resort* tiebreak only. Every meal on a day collapses to
+    /// the same `startOfDay` time, so `entries(inWeekStarting:...)` inserts the
+    /// meal's position in `KitchenStore.plans` ahead of `id` and this key never
+    /// decides the order of two meals on its own.
     func sortKey(calendar: Calendar) -> (order: Int, time: Date, id: String) {
         switch self {
         case .meal(let meal):
@@ -76,23 +80,35 @@ nonisolated enum PlannerProjection {
         calendar: Calendar = .current
     ) -> [PlannerEntry] {
         let weekEnd = nextWeekStart(after: start, calendar: calendar)
-        let mealEntries: [PlannerEntry] = meals.compactMap { meal in
+        // `rank` is a meal's index in `KitchenStore.plans` — the order the user
+        // created them in, and the same order `TodayPlanRecord.sortIndex`
+        // persists and `loadPlans` restores. It is needed because every meal on
+        // a day carries the identical `startOfDay` sort time, so without it the
+        // comparison fell through to the UUID string: stable across a relaunch,
+        // but lexicographic randomness rather than anything the user chose.
+        //
+        // Special plans take a constant rank. `order` already separates them
+        // from meals, and `scheduledAt` orders them among themselves, so their
+        // tiebreak stays exactly what it was.
+        var ranked: [(entry: PlannerEntry, rank: Int)] = []
+        for (position, meal) in meals.enumerated() {
             let day = calendar.startOfDay(for: meal.date)
-            guard day >= start && day < weekEnd else { return nil }
-            return .meal(meal)
+            guard day >= start && day < weekEnd else { continue }
+            ranked.append((.meal(meal), position))
         }
-        let specialEntries: [PlannerEntry] = specialPlans.compactMap { plan in
+        for plan in specialPlans {
             let day = calendar.startOfDay(for: plan.scheduledAt)
-            guard day >= start && day < weekEnd else { return nil }
-            return .specialPlan(plan)
+            guard day >= start && day < weekEnd else { continue }
+            ranked.append((.specialPlan(plan), 0))
         }
-        return (mealEntries + specialEntries).sorted { lhs, rhs in
-            let l = lhs.sortKey(calendar: calendar)
-            let r = rhs.sortKey(calendar: calendar)
+        return ranked.sorted { lhs, rhs in
+            let l = lhs.entry.sortKey(calendar: calendar)
+            let r = rhs.entry.sortKey(calendar: calendar)
             if l.order != r.order { return l.order < r.order }
             if l.time != r.time { return l.time < r.time }
+            if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
             return l.id < r.id
-        }
+        }.map(\.entry)
     }
 
     /// Groups a week's entries into a Monday-first day list. Empty days within

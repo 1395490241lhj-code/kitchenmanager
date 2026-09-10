@@ -102,6 +102,108 @@ final class PlannerProjectionTests: XCTestCase {
         XCTAssertEqual(second.title, "晚餐")
     }
 
+    // MARK: - Within-day meal order
+
+    /// Insertion order a, b, c against a UUID order of c, b, a. If the tiebreak
+    /// were still lexicographic the assertion below would read 三, 二, 一.
+    private func adversarialMeals(on day: Date) -> [MealPlanItem] {
+        let ids = [
+            UUID(uuidString: "CCCCCCCC-0000-0000-0000-000000000001")!,
+            UUID(uuidString: "BBBBBBBB-0000-0000-0000-000000000002")!,
+            UUID(uuidString: "AAAAAAAA-0000-0000-0000-000000000003")!
+        ]
+        return zip(ids, ["一", "二", "三"]).map { id, name in
+            MealPlanItem(id: id, recipeID: name, recipeName: name, date: day, plannedServings: 2)
+        }
+    }
+
+    func testSameDayMealsFollowArrayOrderNotUUIDOrder() {
+        let calendar = makeCalendar(timeZone: utc)
+        let start = date(2026, 8, 31, calendar: calendar)
+        let day = date(2026, 9, 3, hour: 12, calendar: calendar)
+        let meals = adversarialMeals(on: day)
+        XCTAssertGreaterThan(
+            meals[0].id.uuidString, meals[2].id.uuidString,
+            "the fixture must actually contradict lexicographic order"
+        )
+
+        let entries = PlannerProjection.entries(
+            inWeekStarting: start,
+            meals: meals,
+            specialPlans: [],
+            calendar: calendar
+        )
+        XCTAssertEqual(entries.map(\.mealName), ["一", "二", "三"])
+    }
+
+    func testAMealAppendedToPlansAppearsAfterTheExistingOnesOnItsDay() {
+        let calendar = makeCalendar(timeZone: utc)
+        let start = date(2026, 8, 31, calendar: calendar)
+        let day = date(2026, 9, 3, hour: 12, calendar: calendar)
+        var meals = adversarialMeals(on: day)
+        meals.append(
+            MealPlanItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000004")!,
+                recipeID: "四", recipeName: "四", date: day, plannedServings: 2
+            )
+        )
+
+        let entries = PlannerProjection.entries(
+            inWeekStarting: start,
+            meals: meals,
+            specialPlans: [],
+            calendar: calendar
+        )
+        XCTAssertEqual(
+            entries.map(\.mealName), ["一", "二", "三", "四"],
+            "a newly appended meal sorts last on its day even with the lowest UUID"
+        )
+    }
+
+    func testArrayOrderSurvivesAMealMovedToAnotherDay() {
+        let calendar = makeCalendar(timeZone: utc)
+        let start = date(2026, 8, 31, calendar: calendar)
+        let day = date(2026, 9, 3, hour: 12, calendar: calendar)
+        var meals = adversarialMeals(on: day)
+        // The middle meal moves a day later; the ones left behind keep their
+        // relative order, and the moved one keeps its array position.
+        meals[1].date = date(2026, 9, 4, hour: 12, calendar: calendar)
+        meals.append(
+            MealPlanItem(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000005")!,
+                recipeID: "五", recipeName: "五",
+                date: date(2026, 9, 4, hour: 12, calendar: calendar), plannedServings: 2
+            )
+        )
+
+        let entries = PlannerProjection.entries(
+            inWeekStarting: start,
+            meals: meals,
+            specialPlans: [],
+            calendar: calendar
+        )
+        XCTAssertEqual(entries.map(\.mealName), ["一", "三", "二", "五"])
+    }
+
+    func testOrdinaryMealsStillPrecedeSpecialPlansOnTheSameDay() {
+        let calendar = makeCalendar(timeZone: utc)
+        let start = date(2026, 8, 31, calendar: calendar)
+        let day = date(2026, 9, 3, hour: 12, calendar: calendar)
+        let earlySpecial = self.special("早茶", date: date(2026, 9, 3, hour: 8, calendar: calendar))
+
+        let entries = PlannerProjection.entries(
+            inWeekStarting: start,
+            meals: adversarialMeals(on: day),
+            specialPlans: [earlySpecial],
+            calendar: calendar
+        )
+        XCTAssertEqual(
+            entries.map { $0.entryTypeName },
+            ["meal", "meal", "meal", "specialPlan"],
+            "a special plan scheduled earlier in the day still follows the ordinary meals"
+        )
+    }
+
     func testStableIdentityPerEntry() {
         let calendar = makeCalendar(timeZone: utc)
         let start = date(2026, 8, 31, calendar: calendar)
@@ -206,6 +308,13 @@ extension PlannerEntry {
         switch self {
         case .meal: "meal"
         case .specialPlan: "specialPlan"
+        }
+    }
+
+    fileprivate var mealName: String {
+        switch self {
+        case .meal(let meal): meal.recipeName
+        case .specialPlan(let plan): plan.title
         }
     }
 }

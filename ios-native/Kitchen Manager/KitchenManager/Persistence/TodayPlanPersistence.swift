@@ -57,7 +57,18 @@ final class SwiftDataTodayPlanPersistence: TodayPlanPersistenceProtocol {
         for (item, index) in incomingByID.values where !existingIDs.contains(item.id) {
             context.insert(TodayPlanRecord(item: item, sortIndex: index))
         }
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            // A failed save leaves this context holding the deletes and inserts
+            // the attempt made. That matters because the next `replacePlans`
+            // re-fetches: a record this attempt deleted but the next array still
+            // contains would come back as a fresh insert under the same `id` and
+            // collide with `TodayPlanRecord`'s unique attribute. Rolling back
+            // makes a failed write retryable instead of poisoning the context.
+            context.rollback()
+            throw error
+        }
     }
 
     func upsert(_ item: MealPlanItem) throws {

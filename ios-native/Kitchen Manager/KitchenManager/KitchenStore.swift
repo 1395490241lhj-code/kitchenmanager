@@ -559,6 +559,71 @@ nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
     }
 }
 
+extension MealPlanItem {
+    /// Normalizes an explicitly chosen Planner day to local noon.
+    ///
+    /// The Planner asks for a civil day; `date` stores an absolute instant.
+    /// Noon sits as far from both midnight boundaries as the day allows, so a
+    /// spring-forward or fall-back hour cannot slide the entry into the day
+    /// next door.
+    ///
+    /// This is a normalization strategy, not timezone independence. The stored
+    /// value remains an absolute `Date`, and a large enough change in the
+    /// device's timezone still changes the civil day it renders as. Civil-date
+    /// semantics that survive timezone travel would need a model decision this
+    /// phase does not make.
+    ///
+    /// `byAdding: .hour` rather than `bySettingHour:` because a day whose
+    /// midnight does not exist still has to produce a usable instant.
+    static func normalizedPlannerDate(for day: Date, calendar: Calendar = .current) -> Date {
+        let startOfDay = calendar.startOfDay(for: day)
+        return calendar.date(byAdding: .hour, value: 12, to: startOfDay) ?? startOfDay
+    }
+}
+
+/// Outcome of a canonical ordinary-meal mutation.
+///
+/// Three cases rather than a `Bool` because a caller has to tell a stale
+/// reference apart from a failed write: a Planner edit sheet retries a
+/// `.persistenceFailed` from the same input, but a `.notFound` names a plan
+/// that is already gone and retrying cannot help.
+///
+/// `.persistenceFailed` carries a guarantee: nothing was published. `plans`
+/// still holds the pre-mutation array, so this case can never be describing a
+/// change that is actually visible in memory.
+nonisolated enum PlanMutationOutcome<Value> {
+    case saved(Value)
+    case notFound
+    case persistenceFailed
+
+    var value: Value? {
+        guard case .saved(let value) = self else { return nil }
+        return value
+    }
+
+    var didPersist: Bool {
+        guard case .saved = self else { return false }
+        return true
+    }
+
+    var didFailToPersist: Bool {
+        guard case .persistenceFailed = self else { return false }
+        return true
+    }
+
+    var isNotFound: Bool {
+        guard case .notFound = self else { return false }
+        return true
+    }
+}
+
+/// A removed plan and the position it held, so an Undo restores the identical
+/// value at the same place instead of appending a lookalike.
+nonisolated struct PlanRemoval: Equatable {
+    let item: MealPlanItem
+    let index: Int
+}
+
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
@@ -1266,6 +1331,132 @@ final class KitchenStore: ObservableObject {
 
     func removePlan(_ plan: MealPlanItem) {
         plans.removeAll { $0.id == plan.id }
+    }
+
+    // MARK: - Ordinary meal CRUD (canonical write path)
+    //
+    // The Planner's create / edit / move / delete operations all route through
+    // `commitPlans`. The one-tap Today paths above keep their own semantics —
+    // `addPlans`' same-day dedup protects a double tap on a recommendation card,
+    // which an explicitly dated Planner save is not.
+
+    /// Persists first and publishes only on success.
+    ///
+    /// The ordinary `plans` setter runs persistence *after* the fact from
+    /// `didSet`, where a failure can only become `planNotice` copy while the
+    /// in-memory array keeps a change the disk never took. That is fine for a
+    /// one-tap add whose caller has nothing to decide, and wrong for a form that
+    /// has to stay open on failure.
+    ///
+    /// So this inverts the order: the durable write happens first, and `plans`
+    /// is republished only once it succeeded. A caller holding `.saved` is
+    /// looking at a durable fact; a caller holding `.persistenceFailed` is
+    /// looking at a store that never changed, which is why no rollback is
+    /// needed here.
+    ///
+    /// The publish is suppressed so `didSet` does not immediately repeat the
+    /// write that just succeeded — the same idiom `clearAllLocalData` and
+    /// `restoreBackupData` already use.
+    private func commitPlans(_ updated: [MealPlanItem]) -> Bool {
+        do {
+            try todayPlanPersistence.replacePlans(with: updated)
+        } catch {
+            planNotice = "今日计划保存失败，请稍后重试。"
+            #if DEBUG
+            print("[TodayPlanPersistence] save failed: \(error)")
+            #endif
+            return false
+        }
+        suppressPlanPersistence = true
+        plans = updated
+        suppressPlanPersistence = false
+        return true
+    }
+
+    /// Adds one ordinary meal on a stated day.
+    ///
+    /// Duplicates are allowed: the same dish twice on one day is a real plan,
+    /// and an explicit save with an explicit date is a deliberate act rather
+    /// than the accidental second tap `addPlans` guards against.
+    @discardableResult
+    func addPlan(
+        recipe: Recipe,
+        on day: Date,
+        plannedServings: Int? = nil,
+        calendar: Calendar = .current
+    ) -> PlanMutationOutcome<MealPlanItem> {
+        // `MealPlanItem.init` validates `plannedServings`, so an out-of-range
+        // value arrives here and leaves as `nil` rather than as a clamped number.
+        let item = MealPlanItem(
+            recipeID: recipe.id,
+            recipeName: recipe.title,
+            date: MealPlanItem.normalizedPlannerDate(for: day, calendar: calendar),
+            plannedServings: plannedServings
+        )
+        guard commitPlans(plans + [item]) else { return .persistenceFailed }
+        return .saved(item)
+    }
+
+    /// Moves a plan to another day and restates its target, in one write.
+    ///
+    /// `id`, `recipeID`, `recipeName` and `isCooked` are untouched by
+    /// construction: only the two editable fields are assigned. Changing which
+    /// dish a plan refers to is a delete and a re-add, not an edit.
+    @discardableResult
+    func updatePlan(
+        id: UUID,
+        on day: Date,
+        plannedServings: Int?,
+        calendar: Calendar = .current
+    ) -> PlanMutationOutcome<MealPlanItem> {
+        guard let index = plans.firstIndex(where: { $0.id == id }) else { return .notFound }
+        var updated = plans
+        updated[index].date = MealPlanItem.normalizedPlannerDate(for: day, calendar: calendar)
+        // Assigning the field directly bypasses the initialiser, so the same
+        // validation is restated here rather than assumed.
+        updated[index].plannedServings = Recipe.validatedBaseServings(plannedServings)
+        guard commitPlans(updated) else { return .persistenceFailed }
+        return .saved(updated[index])
+    }
+
+    /// Removes a plan and hands back what is needed to put it back.
+    @discardableResult
+    func removePlan(id: UUID) -> PlanMutationOutcome<PlanRemoval> {
+        guard let index = plans.firstIndex(where: { $0.id == id }) else { return .notFound }
+        let removal = PlanRemoval(item: plans[index], index: index)
+        var updated = plans
+        updated.remove(at: index)
+        guard commitPlans(updated) else { return .persistenceFailed }
+        return .saved(removal)
+    }
+
+    /// Re-inserts a removed plan, keeping its original `id` so anything that
+    /// referenced it — a consumption record's `planIDs`, most importantly —
+    /// still resolves.
+    ///
+    /// Idempotent: restoring an id that is already present is a no-op success
+    /// rather than a second copy, because two rows sharing one `id` would
+    /// collapse to a single `TodayPlanRecord` on the next write and leave memory
+    /// describing something the database does not hold.
+    ///
+    /// The already-present branch still writes. Returning `.saved` off the back
+    /// of an in-memory lookup would be a claim this store cannot support: a row
+    /// can sit in `plans` without being durable, because the legacy `didSet`
+    /// paths keep a change whose write failed. Re-committing the array as it
+    /// stands costs one write and keeps `.saved` meaning what it says.
+    ///
+    /// The index is clamped: in-memory changes between the delete and the Undo
+    /// can make the captured position no longer exist.
+    @discardableResult
+    func restorePlan(_ item: MealPlanItem, at index: Int) -> PlanMutationOutcome<MealPlanItem> {
+        var updated = plans
+        if let existing = updated.firstIndex(where: { $0.id == item.id }) {
+            guard commitPlans(updated) else { return .persistenceFailed }
+            return .saved(updated[existing])
+        }
+        updated.insert(item, at: min(max(index, 0), updated.count))
+        guard commitPlans(updated) else { return .persistenceFailed }
+        return .saved(item)
     }
 
     /// A plan already covered by a non-undone consumption record must not be deducted
