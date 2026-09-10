@@ -124,14 +124,35 @@ struct FeedbackToast: View {
 
     let message: String
     let style: AppFeedbackStyle
+    /// Optional trailing action (e.g. 撤销), rendered as a bordered button that
+    /// stays a 44pt target. Nil keeps the toast exactly as shipped.
+    var action: (label: String, handler: () -> Void)? = nil
 
     var body: some View {
-        AppFeedbackView(message: message, style: style, foregroundColor: .white)
-            .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 11)
-            .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard))
-            .padding(.bottom, 18)
-            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        HStack(spacing: 10) {
+            AppFeedbackView(message: message, style: style, foregroundColor: .white)
+                .font(.subheadline.weight(.semibold))
+            if let action {
+                Button(action: action.handler) {
+                    Text(action.label)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .contentShape(Rectangle())
+                }
+                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact))
+                .accessibilityIdentifier("feedback.toast.action")
+            }
+        }
+        .padding(.leading, 16)
+        // Without an action the toast keeps the metrics it shipped with, so
+        // existing callers are untouched. The action's own 44pt height
+        // supplies the vertical rhythm when one is present.
+        .padding(.trailing, action == nil ? 16 : 8)
+        .padding(.vertical, action == nil ? 11 : 4)
+        .background(.black.opacity(0.82), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard))
+        .padding(.bottom, 18)
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
     }
 }

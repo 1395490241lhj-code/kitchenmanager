@@ -108,6 +108,13 @@ struct PlannerView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var path: [PlannerRoute] = []
+    /// One active delete-undo opportunity. A later successful delete replaces
+    /// it (never queued); the earlier deletion becomes final. Session-scoped.
+    @State private var activeUndo: PlanRemoval?
+    /// Identity of the current toast, so a replaced toast is never dismissed
+    /// by the expiry task of the toast it replaced.
+    @State private var toastToken: UUID?
+    @State private var toast: (message: String, style: AppFeedbackStyle, removable: Bool)?
     @State private var weekStart: Date
     @State private var sheet: PlannerSheet?
     /// A menu the creation sheet composed for a plan that was just added. Held
@@ -243,11 +250,33 @@ struct PlannerView: View {
                         path.append(.specialPlan(pending.planID))
                     }
                 }
-                .onChange(of: path) { _, current in
-                    guard let pending = pendingDraft,
-                          !current.contains(.specialPlan(pending.planID)) else { return }
-                    pendingDraft = nil
-                }
+            .onChange(of: path) { _, current in
+                guard let pending = pendingDraft,
+                      !current.contains(.specialPlan(pending.planID)) else { return }
+                pendingDraft = nil
+            }
+        }
+        .overlay(alignment: .bottom) {
+            toastOverlay
+        }
+    }
+
+    /// Success toasts carry 撤销 plus a VoiceOver-only dismissal (知道了);
+    /// error toasts carry an explicit 知道了. Extracted so the action closures
+    /// type-check outside the body's builder context.
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let current = toast {
+            if current.removable {
+                FeedbackToast(message: current.message, style: current.style,
+                              action: (label: "撤销", handler: performUndo))
+                    .accessibilityAction(named: "知道了") {
+                        withAnimation { self.toast = nil }
+                    }
+            } else {
+                FeedbackToast(message: current.message, style: current.style,
+                              action: (label: "知道了", handler: { withAnimation { self.toast = nil } }))
+            }
         }
     }
 
@@ -356,11 +385,28 @@ struct PlannerView: View {
                 Button("编辑") { sheet = .editMeal(meal.id) }
                     .accessibilityIdentifier("planner.meal.edit.\(meal.id.uuidString)")
             }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                // No confirmation alert: removal is immediately undoable
+                // within the session.
+                Button(role: .destructive) {
+                    removeMeal(meal.id)
+                } label: {
+                    Text("移出计划")
+                }
+                .accessibilityIdentifier("planner.meal.remove.\(meal.id.uuidString)")
+            }
             .contextMenu {
                 Button("编辑", systemImage: "pencil") { sheet = .editMeal(meal.id) }
                     .accessibilityIdentifier("planner.meal.editMenu.\(meal.id.uuidString)")
+                Button(role: .destructive) {
+                    removeMeal(meal.id)
+                } label: {
+                    Label("移出计划", systemImage: "trash")
+                }
+                .accessibilityIdentifier("planner.meal.removeMenu.\(meal.id.uuidString)")
             }
             .accessibilityAction(named: "编辑") { sheet = .editMeal(meal.id) }
+            .accessibilityAction(named: "移出计划") { removeMeal(meal.id) }
         case .specialPlan(let plan):
             NavigationLink(value: PlannerRoute.specialPlan(plan.id)) {
                 PlannerRow(
@@ -384,6 +430,72 @@ struct PlannerView: View {
             case .specialPlan(let routeID): return routeID == id
             case .recipe, .plannedMeal: return false
             }
+        }
+    }
+
+    /// Removes through the durable store contract only. The captured removal
+    /// is the single active undo token; a later delete replaces it.
+    private func removeMeal(_ id: UUID) {
+        let outcome = kitchenStore.removePlan(id: id)
+        switch outcome {
+        case .saved(let removal):
+            activeUndo = removal
+            let token = UUID()
+            toastToken = token
+            withAnimation {
+                toast = (message: "已移出「" + removal.item.recipeName + "」",
+                             style: .success, removable: true)
+            }
+            // AppFeedbackView announces the toast itself, once per message.
+            scheduleUndoExpiry(token: token)
+        case .notFound:
+            break
+        case .persistenceFailed:
+            // The store publishes only after a durable write, so the row is
+            // still present; say so honestly and stay retryable.
+            let token = UUID()
+            toastToken = token
+            withAnimation {
+                toast = (message: "移出计划失败，请稍后重试。",
+                             style: .error, removable: false)
+            }
+            scheduleUndoExpiry(token: token)
+        }
+    }
+
+    /// Restores through the durable contract only. On failure the row stays
+    /// absent and the toast is replaced with an error — no false success.
+    private func performUndo() {
+        guard let removal = activeUndo else { return }
+        activeUndo = nil
+        let outcome = kitchenStore.restorePlan(removal.item, at: removal.index)
+        switch outcome {
+        case .saved:
+            withAnimation { toast = nil }
+        case .notFound, .persistenceFailed:
+            let token = UUID()
+            toastToken = token
+            withAnimation {
+                toast = (message: "撤销失败，这一餐仍在计划外。",
+                             style: .error, removable: false)
+            }
+            scheduleUndoExpiry(token: token)
+        }
+    }
+
+    /// Toasts auto-dismiss on a delay keyed by token, so a stale timer never
+    /// clears a newer toast. VoiceOver gets a far longer window, because
+    /// reaching 撤销 means navigating to it first and a short timer would make
+    /// undo practically unreachable. It still expires: a toast that never
+    /// cleared would cover the bottom of the list for the rest of the session,
+    /// and 知道了 is only a custom action.
+    private func scheduleUndoExpiry(token: UUID) {
+        let delay: Duration = UIAccessibility.isVoiceOverRunning ? .seconds(20) : .seconds(4)
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard token == self.toastToken else { return }
+            withAnimation { self.toast = nil }
+            self.toastToken = nil
         }
     }
 

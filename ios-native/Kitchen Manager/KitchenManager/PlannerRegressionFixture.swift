@@ -13,6 +13,7 @@ enum PlanPersistenceFailureFixture {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("UITEST_PLAN_FIRST_WRITE_FAILS") { return 1 }
         if arguments.contains("UITEST_PLAN_SECOND_WRITE_FAILS") { return 2 }
+        if arguments.contains("UITEST_PLAN_THIRD_WRITE_FAILS") { return 3 }
         return nil
     }
 

@@ -31,7 +31,7 @@ here and must not be re-derived retroactively.
 
 **Purpose**: Confirm the reviewed baseline before any UI mutation.
 
-- [ ] T001 Confirm the working tree is clean on the feature branch and the
+- [x] T001 Confirm the working tree is clean on the feature branch and the
   existing store-level delete/undo contracts in
   `ios-native/Kitchen Manager/KitchenManagerTests/PlannerMealCRUDTests.swift`
   (remove/restore outcomes, persistence failures, index clamping,
@@ -44,7 +44,7 @@ here and must not be re-derived retroactively.
 
 **Purpose**: Shared feedback capability every US4 UI task depends on.
 
-- [ ] T002 [P] Extend `FeedbackToast` in
+- [x] T002 [P] Extend `FeedbackToast` in
   `ios-native/Kitchen Manager/KitchenManager/AppFeedback.swift` with an
   optional trailing action (label + handler), preserving existing message/style
   rendering, dark high-contrast styling and VoiceOver announcement behavior
@@ -65,42 +65,42 @@ with no false success.
 
 ### Implementation for User Story 4
 
-- [ ] T003 [US4] Add the trailing destructive swipe action 移出计划 to ordinary
+- [x] T003 [US4] Add the trailing destructive swipe action 移出计划 to ordinary
   meal rows in `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift`,
   keeping the existing leading edit swipe intact; enable full swipe only if
   reliable undo survives it (FR-006).
-- [ ] T004 [P] [US4] Add 移出计划 to the existing row context menu in
+- [x] T004 [P] [US4] Add 移出计划 to the existing row context menu in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift` (FR-006).
-- [ ] T005 [US4] Add the VoiceOver accessibility custom action 移出计划 on
+- [x] T005 [US4] Add the VoiceOver accessibility custom action 移出计划 on
   ordinary meal rows in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift` (FR-006,
   FR-013).
-- [ ] T006 [US4] Route delete through `KitchenStore.removePlan(id:)` and handle
+- [x] T006 [US4] Route delete through `KitchenStore.removePlan(id:)` and handle
   `.saved` / `.notFound` / `.persistenceFailed` explicitly in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift`; never mutate
   `kitchenStore.plans` directly (FR-008).
-- [ ] T007 [US4] Hold the captured `PlanRemoval` in a single session-scoped
+- [x] T007 [US4] Hold the captured `PlanRemoval` in a single session-scoped
   undo token; a successful second delete replaces the token and toast in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift` (FR-015).
-- [ ] T008 [US4] Present the 已移出「<菜名>」 toast with the 撤销 action after a
+- [x] T008 [US4] Present the 已移出「<菜名>」 toast with the 撤销 action after a
   successful delete; 撤销 calls only
   `restorePlan(removal.item, at: removal.index)` in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift` (FR-009).
-- [ ] T009 [US4] Show honest failure states driven by `PlanMutationOutcome` in
+- [x] T009 [US4] Show honest failure states driven by `PlanMutationOutcome` in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift`: failed delete
   keeps the row and shows an error (no success toast, retryable); failed undo
   keeps the row absent and replaces the toast with an error (FR-010, FR-011).
-- [ ] T010 [P] [US4] Verify stale navigation to a deleted plan renders the
+- [x] T010 [P] [US4] Verify stale navigation to a deleted plan renders the
   existing 这一餐不存在 fallback in `plannedMealDestination` in
   `ios-native/Kitchen Manager/KitchenManager/PlannerView.swift`; change nothing
   if it is already safe (FR-014).
-- [ ] T011 [P] [US4] Add delete/undo coverage in a new
+- [x] T011 [P] [US4] Add delete/undo coverage in a new
   `ios-native/Kitchen Manager/KitchenManagerUITests/PlannerMealDeleteUITests.swift`:
   swipe delete removes the correct row, success toast appears, undo restores
   identity/day/position/servings/cooked state, context-menu delete,
   single-token replacement on second delete, persistence-failure error path,
   and toast/action accessibility (FR-006–FR-015).
-- [ ] T012 [US4] Confirm the cooked/consumed delete→undo linkage coverage in
+- [x] T012 [US4] Confirm the cooked/consumed delete→undo linkage coverage in
   `ios-native/Kitchen Manager/KitchenManagerTests/PlannerMealCRUDTests.swift`
   remains sufficient for the UI-facing rule; extend only if a gap is found
   (FR-012).
@@ -114,13 +114,13 @@ failures, accessibility.
 
 **Purpose**: Close the feature with the repository's own gates.
 
-- [ ] T013 Run the focused validation defined in quickstart.md:
+- [x] T013 Run the focused validation defined in quickstart.md:
   `PlannerMealCRUDTests`, `KitchenStoreTests`, `PlannerProjectionTests`,
   `TodayPlanPersistenceTests`, `PlannedServingsTests`,
   `RecipeCookingSupportTests` (unit); `PlannerMealCreateUITests`,
   `PlannerMealEditUITests`, `PlannerMealDeleteUITests`, `PlannerUITests`,
   `PlannerRegressionUITests` (UI) (SC-005).
-- [ ] T014 Run `git diff --check origin/main..HEAD` and a Debug build (SC-001,
+- [x] T014 Run `git diff --check origin/main..HEAD` and a Debug build (SC-001,
   SC-005).
 - [ ] T015 Produce the final report required by AGENTS.md; reconcile
   spec/plan/tasks against the implementation and record any divergence as a
