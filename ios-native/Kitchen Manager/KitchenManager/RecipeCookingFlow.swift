@@ -44,7 +44,7 @@ private struct CookingFlowModifier: ViewModifier {
                 RecipeCookingModeView(
                     recipe: active.recipe,
                     session: session,
-                    todayPlan: active.plan
+                    plan: active.plan
                 ) {
                     request = nil
                     confirming = active

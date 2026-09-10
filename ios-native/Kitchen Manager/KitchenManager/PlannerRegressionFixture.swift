@@ -1,30 +1,39 @@
 import SwiftUI
 
 #if DEBUG
-/// Makes the first ordinary-plan write fail, so a UI test can drive the
-/// Planner creation sheet's failure and retry path through the production
-/// store, view and persistence protocol rather than a stubbed screen.
+/// Fails one ordinary-plan write, so a UI test can drive a sheet's failure and
+/// retry path through the production store, view and persistence protocol
+/// rather than a stubbed screen.
+///
+/// Which write fails is selectable because the two flows need different ones:
+/// creation fails on the first write there is, while editing needs a meal to
+/// exist first, so its failure is the second.
 enum PlanPersistenceFailureFixture {
-    static var failsFirstWrite: Bool {
-        ProcessInfo.processInfo.arguments.contains("UITEST_PLAN_FIRST_WRITE_FAILS")
+    static var failingWriteIndex: Int? {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("UITEST_PLAN_FIRST_WRITE_FAILS") { return 1 }
+        if arguments.contains("UITEST_PLAN_SECOND_WRITE_FAILS") { return 2 }
+        return nil
     }
 
     struct InjectedFailure: Error {}
 
     @MainActor
-    final class FailFirstWrite: TodayPlanPersistenceProtocol {
+    final class FailOneWrite: TodayPlanPersistenceProtocol {
         private let wrapped: TodayPlanPersistenceProtocol
-        private var hasFailed = false
+        private let failingIndex: Int
+        private var writeCount = 0
 
-        init(wrapping wrapped: TodayPlanPersistenceProtocol) { self.wrapped = wrapped }
+        init(wrapping wrapped: TodayPlanPersistenceProtocol, failingIndex: Int) {
+            self.wrapped = wrapped
+            self.failingIndex = failingIndex
+        }
 
         func loadPlans() throws -> [MealPlanItem] { try wrapped.loadPlans() }
 
         func replacePlans(with items: [MealPlanItem]) throws {
-            guard hasFailed else {
-                hasFailed = true
-                throw InjectedFailure()
-            }
+            writeCount += 1
+            guard writeCount != failingIndex else { throw InjectedFailure() }
             try wrapped.replacePlans(with: items)
         }
 

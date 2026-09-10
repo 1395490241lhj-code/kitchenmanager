@@ -276,7 +276,7 @@ struct HomeView: View {
         // plan intact instead of dead-ending.
         .navigationDestination(item: $selectedPlan) { plan in
             if let recipe = recipeStore.recipe(id: plan.recipeID) {
-                RecipeDetailView(recipe: recipe, todayPlan: plan)
+                RecipeDetailView(recipe: recipe, plan: plan)
             } else {
                 ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
             }
@@ -2231,7 +2231,7 @@ struct TodayPlanDetailView: View {
         }
         .navigationDestination(item: $selectedRecipePlan) { plan in
             if let recipe = recipeStore.recipe(id: plan.recipeID) {
-                RecipeDetailView(recipe: recipe, todayPlan: plan)
+                RecipeDetailView(recipe: recipe, plan: plan)
             } else {
                 ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
             }

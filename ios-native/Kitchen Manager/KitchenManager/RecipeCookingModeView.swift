@@ -3,7 +3,7 @@ import SwiftUI
 struct RecipeCookingModeView: View {
     let recipe: Recipe
     @ObservedObject var session: RecipeCookingSession
-    let todayPlan: MealPlanItem?
+    let plan: MealPlanItem?
     let onFinish: () -> Void
     let onExit: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -93,7 +93,7 @@ struct RecipeCookingModeView: View {
         }
         .confirmationDialog("结束烹饪？", isPresented: $isShowingExitOptions, titleVisibility: .visible) {
             Button("保留进度") { onExit() }
-            Button(todayPlan == nil ? "结束烹饪" : "完成今日计划") { finishCooking() }
+            Button(plan == nil ? "结束烹饪" : "完成这一餐") { finishCooking() }
             Button("取消", role: .cancel) {}
         } message: { Text("保留进度会返回详情；完成后会先确认本次食材消耗。") }
         .sheet(isPresented: $isShowingIngredientSheet) {
@@ -238,7 +238,7 @@ struct RecipeCookingModeView: View {
     private var primaryCookingAction: some View {
         Button(action: performPrimaryAction) {
             Label(
-                isLastStep ? (todayPlan == nil ? "结束烹饪" : "完成今日计划") : "下一步",
+                isLastStep ? (plan == nil ? "结束烹饪" : "完成这一餐") : "下一步",
                 systemImage: isLastStep ? "checkmark" : "chevron.right"
             )
                 .frame(maxWidth: .infinity)
@@ -258,10 +258,10 @@ struct RecipeCookingModeView: View {
 }
 
 #Preview("Cooking mode") {
-    RecipeCookingModeView(recipe: Recipe.samples[0], session: RecipeCookingSession(servings: 2), todayPlan: nil, onFinish: {}, onExit: {})
+    RecipeCookingModeView(recipe: Recipe.samples[0], session: RecipeCookingSession(servings: 2), plan: nil, onFinish: {}, onExit: {})
 }
 
 #Preview("Cooking mode dark", traits: .fixedLayout(width: 390, height: 844)) {
-    RecipeCookingModeView(recipe: Recipe.samples[1], session: RecipeCookingSession(), todayPlan: nil, onFinish: {}, onExit: {})
+    RecipeCookingModeView(recipe: Recipe.samples[1], session: RecipeCookingSession(), plan: nil, onFinish: {}, onExit: {})
         .preferredColorScheme(.dark)
 }

@@ -13,17 +13,23 @@ import SwiftUI
 enum PlannerRoute: Hashable {
     case specialPlan(UUID)
     case recipe(String)
+    /// An ordinary meal, carried by id rather than by value so the destination
+    /// always resolves the current plan: an edit that lands while the detail is
+    /// open must not leave a stale copy on the navigation path.
+    case plannedMeal(UUID)
 }
 
 private enum PlannerSheet: Identifiable {
     case create
     case createMeal
+    case editMeal(UUID)
     case pickRecipe(planID: UUID, planIndex: Int)
 
     var id: String {
         switch self {
         case .create: "create"
         case .createMeal: "create-meal"
+        case .editMeal(let id): "edit-meal-\(id.uuidString)"
         case .pickRecipe(planID: let id, planIndex: let index): "pick-\(id.uuidString)-\(index)"
         }
     }
@@ -186,6 +192,8 @@ struct PlannerView: View {
                         } else {
                             ContentUnavailableView("菜谱不存在", systemImage: "questionmark.folder")
                         }
+                    case .plannedMeal(let id):
+                        plannedMealDestination(id)
                     }
                 }
                 .sheet(item: $sheet) { sheet in
@@ -203,8 +211,17 @@ struct PlannerView: View {
                             // A meal saved outside the week on screen would
                             // otherwise land somewhere the user cannot see, so
                             // the Planner follows it to its own week.
-                            let target = PlannerProjection.startOfWeek(containing: item.date, calendar: calendar)
-                            if target != weekStart { weekStart = target }
+                            reveal(item)
+                        }
+                    case .editMeal(let id):
+                        if let plan = kitchenStore.plans.first(where: { $0.id == id }) {
+                            PlannerMealFormView(editing: plan, calendar: calendar) { item in
+                                // Moving a meal is editing its date, so the same
+                                // rule applies: follow it to wherever it went.
+                                reveal(item)
+                            }
+                        } else {
+                            ContentUnavailableView("这一餐不存在", systemImage: "calendar.badge.exclamationmark")
                         }
                     case .pickRecipe(let planID, _):
                         NavigationStack {
@@ -323,7 +340,7 @@ struct PlannerView: View {
     private func row(for entry: PlannerEntry) -> some View {
         switch entry {
         case .meal(let meal):
-            NavigationLink(value: PlannerRoute.recipe(meal.recipeID)) {
+            NavigationLink(value: PlannerRoute.plannedMeal(meal.id)) {
                 PlannerRow(
                     entry: entry,
                     title: meal.recipeName,
@@ -332,6 +349,18 @@ struct PlannerView: View {
                     identifier: "planner.meal.\(meal.id.uuidString)"
                 )
             }
+            // Edit is a swipe and a context menu, the two places iOS already
+            // puts row actions. Neither is discoverable to VoiceOver, so the
+            // custom action carries the same capability for it.
+            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                Button("编辑") { sheet = .editMeal(meal.id) }
+                    .accessibilityIdentifier("planner.meal.edit.\(meal.id.uuidString)")
+            }
+            .contextMenu {
+                Button("编辑", systemImage: "pencil") { sheet = .editMeal(meal.id) }
+                    .accessibilityIdentifier("planner.meal.editMenu.\(meal.id.uuidString)")
+            }
+            .accessibilityAction(named: "编辑") { sheet = .editMeal(meal.id) }
         case .specialPlan(let plan):
             NavigationLink(value: PlannerRoute.specialPlan(plan.id)) {
                 PlannerRow(
@@ -353,7 +382,7 @@ struct PlannerView: View {
         path.removeAll { route in
             switch route {
             case .specialPlan(let routeID): return routeID == id
-            case .recipe: return false
+            case .recipe, .plannedMeal: return false
             }
         }
     }
@@ -361,6 +390,37 @@ struct PlannerView: View {
     private func moveWeek(by days: Int) {
         if let next = calendar.date(byAdding: .day, value: days, to: weekStart) {
             weekStart = next
+        }
+    }
+
+    /// Brings a just-saved meal into view. Creating for another week and moving
+    /// a meal to one are the same problem: the result must not land somewhere
+    /// the user is not looking.
+    private func reveal(_ item: MealPlanItem) {
+        let target = PlannerProjection.startOfWeek(containing: item.date, calendar: calendar)
+        if target != weekStart { weekStart = target }
+    }
+
+    /// Opens an ordinary meal with its own plan attached, so the cooking flow
+    /// behind it marks *this* plan cooked. Home and today's plan detail have
+    /// always passed the plan; the Planner passed only a recipe id, which is
+    /// why the same dish finished from here never completed.
+    @ViewBuilder
+    private func plannedMealDestination(_ id: UUID) -> some View {
+        if let plan = kitchenStore.plans.first(where: { $0.id == id }) {
+            if let recipe = recipeStore.recipe(id: plan.recipeID) {
+                RecipeDetailView(recipe: recipe, plan: plan)
+            } else {
+                // Same fallback Home and today's plan detail use: the plan
+                // survives a recipe that has gone missing.
+                ContentUnavailableView(
+                    "菜谱暂不可用",
+                    systemImage: "book.closed",
+                    description: Text("这份计划保留不变，可以稍后重试。")
+                )
+            }
+        } else {
+            ContentUnavailableView("这一餐不存在", systemImage: "calendar.badge.exclamationmark")
         }
     }
 

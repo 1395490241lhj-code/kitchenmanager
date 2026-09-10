@@ -356,6 +356,87 @@ final class PlannerMealCRUDTests: XCTestCase {
 
     // MARK: - Date normalization
 
+    // MARK: - Edit, move and plan context
+
+    func testUpdateMovesAMealToAPastDate() throws {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        store.addPlan(recipe: recipe(), on: day(2026, 3, 18, calendar: calendar), plannedServings: 2, calendar: calendar)
+        let id = try XCTUnwrap(store.plans.first?.id)
+        let past = day(2025, 12, 24, calendar: calendar)
+
+        XCTAssertTrue(store.updatePlan(id: id, on: past, plannedServings: 2, calendar: calendar).didPersist)
+        XCTAssertTrue(calendar.isDate(store.plans[0].date, inSameDayAs: past), "a past date is a legitimate correction")
+    }
+
+    func testUpdateKeepsACookedMealsServingsWhenTheCallerPassesThemBack() throws {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        store.addPlan(recipe: recipe(), on: day(2026, 3, 18, calendar: calendar), plannedServings: 4, calendar: calendar)
+        let id = try XCTUnwrap(store.plans.first?.id)
+        store.setPlanCooked(id, isCooked: true)
+        let moved = day(2026, 3, 25, calendar: calendar)
+
+        // What the edit sheet does for a completed meal: move the date, hand the
+        // existing target straight back.
+        let outcome = store.updatePlan(id: id, on: moved, plannedServings: store.plans[0].plannedServings, calendar: calendar)
+
+        XCTAssertTrue(outcome.didPersist)
+        XCTAssertEqual(store.plans[0].plannedServings, 4, "a completed cook's target is not rewritten")
+        XCTAssertTrue(store.plans[0].isCooked)
+        XCTAssertTrue(calendar.isDate(store.plans[0].date, inSameDayAs: moved))
+    }
+
+    func testCookingContextCarriesThePlanRegardlessOfItsDate() throws {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        // A meal on another day: reachable from the Planner, never from Home's
+        // today-scoped surfaces.
+        let future = day(2026, 3, 25, calendar: calendar)
+        let saved = try XCTUnwrap(store.addPlan(recipe: recipe(), on: future, plannedServings: 5, calendar: calendar).value)
+        XCTAssertTrue(store.todayPlans.isEmpty, "the fixture must not be a today plan")
+
+        let request = CookingFlowRequest(recipe: recipe(), plan: saved)
+
+        XCTAssertEqual(request.plan?.id, saved.id, "the Planner row must hand the cooking flow this exact meal")
+        XCTAssertEqual(request.initialServings, 5, "the plan's target seeds the cook, not the recipe's base")
+
+        // What the flow does on finish.
+        store.markPlanCooked(try XCTUnwrap(request.plan))
+        XCTAssertTrue(store.plans[0].isCooked, "cooking a Planner meal completes that meal")
+    }
+
+    func testTodayAndNonTodayPlansProduceTheSameCookingOutcome() throws {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        let todayMeal = try XCTUnwrap(
+            store.addPlan(recipe: recipe(id: "a", title: "A"), on: Date(), plannedServings: 3, calendar: calendar).value
+        )
+        let laterMeal = try XCTUnwrap(
+            store.addPlan(recipe: recipe(id: "b", title: "B"), on: day(2026, 3, 25, calendar: calendar),
+                          plannedServings: 3, calendar: calendar).value
+        )
+
+        for meal in [todayMeal, laterMeal] {
+            let request = CookingFlowRequest(recipe: recipe(id: meal.recipeID, title: meal.recipeName), plan: meal)
+            XCTAssertEqual(request.initialServings, 3)
+            store.markPlanCooked(try XCTUnwrap(request.plan))
+        }
+
+        XCTAssertEqual(
+            store.plans.filter(\.isCooked).map(\.id).sorted(by: { $0.uuidString < $1.uuidString }),
+            [todayMeal.id, laterMeal.id].sorted(by: { $0.uuidString < $1.uuidString }),
+            "navigation origin must not change which plan a cook completes"
+        )
+    }
+
+    func testCookingWithoutAPlanStillMarksNothing() {
+        let (store, _) = makeStore()
+        let request = CookingFlowRequest(recipe: recipe(), plan: nil)
+        XCTAssertNil(request.plan, "a recipe opened outside any plan carries no plan")
+        XCTAssertTrue(store.plans.isEmpty)
+    }
+
     func testNormalizedDateStaysOnTheSelectedDayAcrossADSTTransition() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
