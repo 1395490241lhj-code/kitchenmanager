@@ -37,7 +37,10 @@ private struct PlannerRow: View {
     var body: some View {
         HStack(spacing: 12) {
             if case .specialPlan = entry {
-                KitchenIconBadge(systemImage: icon, tint: KitchenTheme.sage)
+                Image(systemName: icon)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -222,7 +225,7 @@ struct PlannerView: View {
             Section {
                 HStack {
                     Text(PlannerDateText.weekRange(start: weekStart, calendar: calendar))
-                        .font(.title3.weight(.semibold))
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(KitchenTheme.textPrimary)
                     Spacer()
                     if weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) {
@@ -267,28 +270,31 @@ struct PlannerView: View {
             } else {
                 ForEach(groups) { group in
                     Section {
-                        if group.entries.isEmpty {
-                            Text("暂无安排")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
+                        // An empty day renders its dated header and nothing
+                        // else. 暂无安排 gave a day with no plans the same
+                        // vertical weight as a day with one, so a sparse week
+                        // read as a wall of absence with the real entries
+                        // scattered through it. Empty is the default state of a
+                        // week, not news — the header still marks the day, so
+                        // the calendar skeleton survives at a fraction of the
+                        // height.
+                        ForEach(group.entries) { entry in
+                            row(for: entry)
                                 .plannerRow()
-                        } else {
-                            ForEach(group.entries) { entry in
-                                row(for: entry)
-                                    .plannerRow()
-                            }
                         }
                     } header: {
                         let today = calendar.isDate(group.day, inSameDayAs: now)
-                        HStack(spacing: KitchenTheme.railTextGap) {
-                            KitchenStatusRail(color: today ? KitchenTheme.sage : KitchenTheme.textSecondary)
-                            Text(PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : ""))
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(today ? KitchenTheme.textPrimary : KitchenTheme.textSecondary)
-                                .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
-                        }
-                        .accessibilityAddTraits(.isHeader)
-                        .plannerSectionHeader()
+                        Text(PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : ""))
+                            .font(.subheadline.weight(today ? .semibold : .regular))
+                            .foregroundStyle(today ? Color.primary : Color.secondary)
+                            .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
+                            .accessibilityAddTraits(.isHeader)
+                            .textCase(nil)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
+                            .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
+                                                     bottom: 0, trailing: KitchenTheme.pageGutter))
+                            .background(KitchenTheme.canvas)
                     }
                 }
             }
