@@ -166,10 +166,16 @@ struct KitchenSectionLabel: View {
     let title: String
     let count: Int
     var tint: Color = KitchenTheme.sage
+    /// Inventory drops the leading rail: its rows already state their own
+    /// status in words, so the marker above them carried no information.
+    /// Default preserves every existing caller.
+    var showsRail = true
 
     var body: some View {
         HStack(spacing: KitchenTheme.railTextGap) {
-            KitchenStatusRail(color: tint, length: KitchenTheme.contextRailLength)
+            if showsRail {
+                KitchenStatusRail(color: tint, length: KitchenTheme.contextRailLength)
+            }
             Text(title)
                 .font(.subheadline.weight(.semibold))
             Text("\(count) 项")

@@ -35,6 +35,7 @@ struct InventoryView: View {
     @State private var itemPendingDeletion: InventoryItem?
     @State private var searchText = ""
 
+
     private var restockSuggestions: [RestockSuggestion] {
         RestockSuggestionEngine().generate(kitchenStore: store, recipeStore: recipeStore)
     }
@@ -49,8 +50,12 @@ struct InventoryView: View {
         )
     }
 
-    private var focusedFreshInventory: [InventoryItem] {
-        switch navigationStore.inventoryFocus {
+    /// Parameterised by focus rather than reading the current one, so the filter
+    /// control's counts come from the same predicate that builds the rows. A
+    /// count that does not match the list it labels is the same lie the hidden
+    /// filter was, moved somewhere new.
+    private func freshInventory(for focus: InventoryFocus) -> [InventoryItem] {
+        switch focus {
         case .all:
             store.sortedFreshInventory
         case .expired:
@@ -66,10 +71,39 @@ struct InventoryView: View {
         }
     }
 
-    private var focusedStaples: [InventoryItem] {
+    private func staples(for focus: InventoryFocus) -> [InventoryItem] {
         let staples = store.pantryStaples.filter(stapleFilter.includes)
-        guard navigationStore.inventoryFocus == .lowStock else { return staples }
+        guard focus == .lowStock else { return staples }
         return staples.filter { $0.stapleStatus == .low || $0.stapleStatus == .outOfStock }
+    }
+
+    private var focusedFreshInventory: [InventoryItem] {
+        freshInventory(for: navigationStore.inventoryFocus)
+    }
+
+    private var focusedStaples: [InventoryItem] {
+        staples(for: navigationStore.inventoryFocus)
+    }
+
+    /// What each filter is *about*, search excluded: the segment describes the
+    /// filter, not the intersection with a half-typed query.
+    ///
+    /// Deliberately not "rows this filter renders". Staples are stock-tracked
+    /// and never date-filtered, so they stay on screen under 临期 and 已过期 —
+    /// counting them there would print 临期 5 above two expiring items. The
+    /// count names the state, and 补货 is the one filter staples genuinely
+    /// belong to.
+    private var filterCounts: [InventoryFocus: Int] {
+        InventoryFocus.filterOrder.reduce(into: [:]) { counts, option in
+            switch option {
+            case .all:
+                counts[option] = store.inventory.count
+            case .lowStock:
+                counts[option] = freshInventory(for: option).count + staples(for: option).count
+            case .expired, .expiringSoon:
+                counts[option] = freshInventory(for: option).count
+            }
+        }
     }
 
     private var displayedFreshInventory: [InventoryItem] {
@@ -89,12 +123,18 @@ struct InventoryView: View {
     }
 
     private var showsEmptyInventory: Bool {
-        !hasSearchQuery && navigationStore.inventoryFocus == .all && store.inventory.isEmpty
+        store.inventory.isEmpty && store.pantryStaples.isEmpty
     }
 
     private func matchesSearch(_ item: InventoryItem) -> Bool {
         guard hasSearchQuery else { return true }
         return item.name.localizedCaseInsensitiveContains(searchText)
+    }
+
+    private var searchPlacement: SearchFieldPlacement {
+        // Local Inventory search stays discoverable on entry using the same
+        // native placement as the Accessibility-size fork.
+        .navigationBarDrawer(displayMode: .always)
     }
 
     var body: some View {
@@ -108,15 +148,15 @@ struct InventoryView: View {
             // It stays on screen whenever the kitchen has anything in it, even
             // when the current filter matches nothing: the control that got you
             // into an empty result is the one that has to get you out of it.
-            if !hasSearchQuery && !store.inventory.isEmpty {
+            // Renders during search too. The filter kept narrowing the list
+            // while hiding itself, so a query that found nothing was blamed for
+            // a constraint the user could not see.
+            if !showsEmptyInventory {
                 Section {
                     InventoryControlStrip(
-                        totalCount: store.inventory.count,
-                        expiringCount: store.expiringItems.count,
-                        lowStockCount: store.inventory.filter {
-                            $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
-                        }.count,
-                        focus: $navigationStore.inventoryFocus
+                        counts: filterCounts,
+                        focus: $navigationStore.inventoryFocus,
+                        isSearching: hasSearchQuery
                     )
                     .listRowInsets(EdgeInsets(top: 8, leading: KitchenTheme.pageGutter, bottom: 12, trailing: KitchenTheme.pageGutter))
                     .listRowBackground(AppTheme.canvas)
@@ -125,16 +165,7 @@ struct InventoryView: View {
                 .listSectionSeparator(.hidden)
             }
 
-            if hasSearchQuery && !hasSearchResults {
-                Section {
-                    ContentUnavailableView(
-                        "没有找到匹配食材",
-                        systemImage: "magnifyingglass",
-                        description: Text("尝试使用更短的名称，或清除搜索。")
-                    )
-                    .accessibilityIdentifier("inventory.search.empty")
-                }
-            } else if showsEmptyInventory {
+            if showsEmptyInventory {
                 Section {
                     ContentUnavailableView(
                         "还没有食材",
@@ -150,14 +181,8 @@ struct InventoryView: View {
                     .frame(minHeight: 44)
                     .accessibilityIdentifier("inventory.empty.add.button")
                 }
-            } else if navigationStore.inventoryFocus != .all && !hasSearchResults {
-                Section {
-                    ContentUnavailableView(
-                        "没有符合条件的食材",
-                        systemImage: "line.3.horizontal.decrease.circle",
-                        description: Text("可以清除筛选查看全部食材。")
-                    )
-                }
+            } else if !hasSearchResults {
+                Section { constrainedEmptyState }
             } else {
                 if !displayedFreshInventory.isEmpty {
                     Section {
@@ -196,7 +221,7 @@ struct InventoryView: View {
                             }
                         }
                     } header: {
-                        KitchenSectionLabel(title: "食材", count: displayedFreshInventory.count)
+                        KitchenSectionLabel(title: "食材", count: displayedFreshInventory.count, showsRail: false)
                             .textCase(nil)
                             .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter, bottom: 0, trailing: KitchenTheme.pageGutter))
                     }
@@ -225,7 +250,8 @@ struct InventoryView: View {
                             KitchenSectionLabel(
                                 title: "常备食材",
                                 count: displayedStaples.count,
-                                tint: KitchenTheme.ochre
+                                tint: KitchenTheme.ochre,
+                                showsRail: false
                             )
                             .textCase(nil)
                             Spacer()
@@ -356,13 +382,11 @@ struct InventoryView: View {
         // the "搜索食材" prompt are clipped away and the bar renders as an empty
         // grey capsule. Verified again in Phase 1B by removing this and
         // reproducing exactly that empty capsule, so the cost — a taller field
-        // at XXXL only — is deliberate. Normal sizes keep `.automatic`, the
-        // standard hidden-until-pulled-down behavior.
+        // at XXXL — is deliberate. Normal sizes now use the same native
+        // placement so search is visible on initial Inventory entry.
         .searchable(
             text: $searchText,
-            placement: dynamicTypeSize.isAccessibilitySize
-                ? .navigationBarDrawer(displayMode: .always)
-                : .automatic,
+            placement: searchPlacement,
             prompt: "搜索食材"
         )
         .toolbar {
@@ -444,6 +468,48 @@ struct InventoryView: View {
             unit: suggestion.unit ?? "份",
             source: suggestion.source == .pantryStaple ? "来自常备货架" : "补货建议"
         )
+    }
+
+    /// Names the constraint that actually produced the empty result, and offers
+    /// an exit from each one separately.
+    ///
+    /// The single old message blamed the query in every search case, including
+    /// the one where a filter the user could not see was the real cause. No
+    /// identifier sits on the container: it would erase the buttons' own.
+    @ViewBuilder
+    private var constrainedEmptyState: some View {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filter = navigationStore.inventoryFocus
+        let isFiltered = filter != .all
+
+        ContentUnavailableView {
+            if hasSearchQuery && isFiltered {
+                Label("没有\(filter.shortTitle)的「\(query)」", systemImage: "magnifyingglass")
+            } else if hasSearchQuery {
+                Label("没有找到「\(query)」", systemImage: "magnifyingglass")
+            } else {
+                Label("没有符合条件的食材", systemImage: "line.3.horizontal.decrease.circle")
+            }
+        } description: {
+            if hasSearchQuery && isFiltered {
+                Text("筛选和搜索同时生效，可以分别清除。")
+            } else if hasSearchQuery {
+                Text("尝试使用更短的名称，或清除搜索。")
+            } else {
+                Text("可以清除筛选查看全部食材。")
+            }
+        } actions: {
+            if isFiltered {
+                Button("清除筛选") { navigationStore.inventoryFocus = .all }
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .accessibilityIdentifier("inventory.empty.clearFilter")
+            }
+            if hasSearchQuery {
+                Button("清除搜索") { searchText = "" }
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .accessibilityIdentifier("inventory.empty.clearSearch")
+            }
+        }
     }
 
     private func restockSuggestionLabels(_ suggestion: RestockSuggestion) -> some View {
@@ -572,9 +638,10 @@ private struct InventoryFoodCard: View {
 
     var body: some View {
         Group {
+            // No leading rail. 剩余 1 天 / 缺货 already say the state in words,
+            // and a colour-only marker beside them was decoration that also
+            // asked the reader to decode a hue.
             HStack(alignment: .top, spacing: 12) {
-                KitchenStatusRail(color: markerColor, length: KitchenTheme.stateRailLength, vertical: true)
-                    .padding(.top, 2)
                 if dynamicTypeSize.isAccessibilitySize {
                     accessibilityLayout
                 } else {
@@ -593,13 +660,6 @@ private struct InventoryFoodCard: View {
         var parts = ["\(item.name)，\(item.quantity.formatted()) \(item.unit)，\(statusText)"]
         if let tonight { parts.append(tonight) }
         return parts.joined(separator: "，")
-    }
-
-    private var markerColor: Color {
-        if tonight != nil { return KitchenTheme.sage }
-        if item.stapleStatus == .low || item.stapleStatus == .outOfStock { return KitchenTheme.ochre }
-        if !item.isAvailable || item.expiryStatus == .expired || item.isExpiringSoon { return KitchenTheme.terracotta }
-        return KitchenTheme.separator
     }
 
     /// name → quantity on one line, then the quiet secondary line, then the
@@ -642,12 +702,17 @@ private struct InventoryFoodCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private var statusLabel: some View {
-        Text(statusText)
-            .font(.footnote)
-            .foregroundStyle(showsUrgency ? statusColor : Color.secondary)
-            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-            .accessibilityHidden(true)
+        // Reuse the domain's attention boundary; no presentation-only day cutoff.
+        // Full expiry wording remains in the row's accessibility label and detail.
+        if showsUrgency || item.expiryStatus == .unknown {
+            Text(statusText)
+                .font(.footnote)
+                .foregroundStyle(showsUrgency ? statusColor : Color.secondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder

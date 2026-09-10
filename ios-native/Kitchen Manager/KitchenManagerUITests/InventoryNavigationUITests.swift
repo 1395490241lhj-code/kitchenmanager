@@ -39,17 +39,17 @@ final class InventoryNavigationUITests: XCTestCase {
     /// at default and Accessibility sizes (where the list is several times
     /// taller). Returns whether the target was reached.
     @discardableResult
-    private func scrollUntilVisible(_ target: XCUIElement, in app: XCUIApplication, swipes: Int = 12) -> Bool {
+    private func scrollUntilVisible(_ target: XCUIElement, in app: XCUIApplication, swipes: Int = 12, above bottomBoundary: CGFloat? = nil) -> Bool {
         let scrollable = inventoryList(of: app)
         guard scrollable.exists else {
             XCTFail("库存列表不存在，无法滚动")
             return false
         }
         for _ in 0..<swipes {
-            if target.exists && target.isHittable { return true }
+            if target.exists && target.isHittable && (bottomBoundary.map { target.frame.maxY <= $0 } ?? true) { return true }
             scrollable.swipeUp()
         }
-        return target.exists && target.isHittable
+        return target.exists && target.isHittable && (bottomBoundary.map { target.frame.maxY <= $0 } ?? true)
     }
 
     /// A row is only genuinely reachable if its whole frame — not just its
@@ -262,19 +262,36 @@ final class InventoryNavigationUITests: XCTestCase {
         expiredReminder.tap()
 
         let picker = app.segmentedControls["inventory.filter.picker"]
-        XCTAssertTrue(picker.buttons["已过期"].waitForExistence(timeout: 5))
-        XCTAssertTrue(picker.buttons["已过期"].isSelected)
+        let expired = picker.buttons["inventory.filter.option.expired"]
+        XCTAssertTrue(expired.waitForExistence(timeout: 5))
+        XCTAssertTrue(expired.isSelected)
 
-        let all = app.buttons["inventory.summary.all"]
+        // Old contract: a separate 在库 summary control cleared the filter.
+        // New contract: 全部 is a choice on the one native filter surface.
+        // Kitchen Manager still targets 44pt; this exception applies ONLY to
+        // this unmodified SwiftUI segmented Picker, not custom buttons/rows.
+        // iPhone 17 Pro: segment AX frame 32pt; with a 44pt wrapper, coordinate
+        // taps 3pt above and below did NOT select it. Do not infer hit slop
+        // from that wrapper or call 32pt generally Apple-HIG-compliant.
+        // Four related mutually exclusive filters are a strong semantic fit;
+        // prefer native selection over custom chips. AX Dynamic Type uses Menu.
+        // Apple's current Accessibility table: iOS default 44pt, minimum 28pt.
+        // 32pt also exceeds WCAG 2.2 SC 2.5.8's 24px target-size minimum.
+        // https://developer.apple.com/design/human-interface-guidelines/accessibility
+        // https://developer.apple.com/design/human-interface-guidelines/segmented-controls
+        // https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html
+        let all = picker.buttons["inventory.filter.option.all"]
         XCTAssertTrue(all.waitForExistence(timeout: 5))
-        XCTAssertTrue(all.isHittable, "在库 summary control 不可点击")
+        XCTAssertTrue(all.isHittable, "全部 筛选选项不可点击")
         XCTAssertGreaterThanOrEqual(
             all.frame.height,
-            43.5,
-            "在库 summary control 发布的实际可点击高度不足 44pt：\(all.frame)"
+            28,
+            "原生分段选项低于 iOS 平台最小尺寸：\(all.frame)"
         )
+        XCTAssertGreaterThanOrEqual(all.frame.width, 28)
+        XCTAssertFalse(all.label.isEmpty)
         all.tap()
-        XCTAssertTrue(picker.buttons["全部"].isSelected)
+        XCTAssertTrue(all.isSelected)
         XCTAssertTrue(app.staticTexts["临期牛奶"].waitForExistence(timeout: 5))
     }
 
@@ -286,24 +303,24 @@ final class InventoryNavigationUITests: XCTestCase {
         ]
         app.launch()
 
-        let all = assertSummaryControl("inventory.summary.all", label: "13 项在库", in: app)
-        let expiring = assertSummaryControl("inventory.summary.expiringSoon", label: "2 项即将到期", in: app)
-        let lowStock = assertSummaryControl("inventory.summary.lowStock", label: "1 项需要补货", in: app)
+        let all = assertFilterChoice("inventory.filter.option.all", label: "全部，13 项", in: app)
+        let expiring = assertFilterChoice("inventory.filter.option.expiringSoon", label: "临期，2 项", in: app)
+        let lowStock = assertFilterChoice("inventory.filter.option.lowStock", label: "缺货，1 项", in: app)
 
         expiring.tap()
-        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["临期"].isSelected)
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["inventory.filter.option.expiringSoon"].isSelected)
         XCTAssertTrue(app.staticTexts["嫩豆腐"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["小番茄"].exists)
         XCTAssertFalse(app.staticTexts["西兰花"].exists)
 
         lowStock.tap()
-        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["缺货"].isSelected)
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["inventory.filter.option.lowStock"].isSelected)
         XCTAssertTrue(app.staticTexts["鸡蛋"].waitForExistence(timeout: 3))
         XCTAssertFalse(app.staticTexts["橄榄油"].exists)
         XCTAssertFalse(app.staticTexts["嫩豆腐"].exists)
 
         all.tap()
-        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["全部"].isSelected)
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["inventory.filter.option.all"].isSelected)
         XCTAssertTrue(app.staticTexts["西兰花"].waitForExistence(timeout: 3))
     }
 
@@ -316,10 +333,10 @@ final class InventoryNavigationUITests: XCTestCase {
         app.launch()
         openExpiringInventoryFromHome(in: app)
 
-        assertSummaryControl("inventory.summary.all", label: "13 项在库", in: app)
-        assertSummaryControl("inventory.summary.expiringSoon", label: "2 项即将到期", in: app)
-        assertSummaryControl("inventory.summary.lowStock", label: "1 项需要补货", in: app)
-        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["临期"].isSelected)
+        assertFilterChoice("inventory.filter.option.all", label: "全部，13 项", in: app)
+        assertFilterChoice("inventory.filter.option.expiringSoon", label: "临期，2 项", in: app)
+        assertFilterChoice("inventory.filter.option.lowStock", label: "缺货，1 项", in: app)
+        XCTAssertTrue(app.segmentedControls["inventory.filter.picker"].buttons["inventory.filter.option.expiringSoon"].isSelected)
         assertExpiringResults(in: app)
         attachScreenshot(of: app, named: "inventory-filtered-dual-risk")
     }
@@ -333,14 +350,13 @@ final class InventoryNavigationUITests: XCTestCase {
         app.launch()
         openExpiringInventoryFromHome(in: app)
 
-        assertSummaryControl("inventory.summary.all", label: "13 项在库", in: app)
-        assertSummaryControl("inventory.summary.expiringSoon", label: "2 项即将到期", in: app)
-        assertSummaryControl("inventory.summary.lowStock", label: "1 项需要补货", in: app)
-
+        // At Accessibility sizes the surface collapses to one compact
+        // disclosure, so there are no segments to assert — the constraint and
+        // its count are stated in the control's own value instead.
         let filterMenu = app.buttons["inventory.filter.menu"]
         XCTAssertTrue(filterMenu.waitForExistence(timeout: 5), "Accessibility size 应使用原生筛选菜单")
         XCTAssertEqual(filterMenu.label, "筛选")
-        XCTAssertEqual(filterMenu.value as? String, "临期")
+        XCTAssertEqual(filterMenu.value as? String, "临期，2 项")
         XCTAssertTrue(filterMenu.isHittable)
         assertExpiringResults(in: app)
     }
@@ -374,16 +390,25 @@ final class InventoryNavigationUITests: XCTestCase {
     }
 
     @discardableResult
-    private func assertSummaryControl(
+    /// Old contract: a read-only count row above the picker exposed
+    /// `inventory.summary.*` controls whose labels carried the derived counts.
+    /// New contract: there is one filter surface, and the counts live on the
+    /// choices they describe.
+    ///
+    /// Not weaker: the same three derived numbers are still asserted exactly,
+    /// still on a real hittable control, and the control they now sit on is the
+    /// one that actually applies the filter — so a count and its filter can no
+    /// longer drift apart the way two separate controls could.
+    private func assertFilterChoice(
         _ identifier: String,
         label: String,
         in app: XCUIApplication,
         file: StaticString = #filePath,
         line: UInt = #line
     ) -> XCUIElement {
-        let control = app.buttons[identifier]
+        let control = app.segmentedControls["inventory.filter.picker"].buttons[identifier]
         XCTAssertTrue(control.waitForExistence(timeout: 5), "\(identifier) 缺失", file: file, line: line)
-        XCTAssertEqual(control.label, label, "summary control 的完整语义错误", file: file, line: line)
+        XCTAssertEqual(control.label, label, "筛选选项的完整语义错误", file: file, line: line)
         XCTAssertTrue(control.isHittable, "\(identifier) 不可点击", file: file, line: line)
         return control
     }
@@ -427,7 +452,10 @@ final class InventoryNavigationUITests: XCTestCase {
         let tabBarTop = expandedTabBarTop(of: app)
 
         let cta = app.buttons["inventory.staple.empty.add.button"]
-        XCTAssertTrue(scrollUntilVisible(cta, in: app), "未能滚动到常备食材空状态 CTA")
+        // The shorter one-row filter leaves this CTA partially hittable at
+        // rest. Hittability alone stopped scrolling before full clearance.
+        // Preserve the original expanded-bar assertion; reach its full frame.
+        XCTAssertTrue(scrollUntilVisible(cta, in: app, above: tabBarTop), "未能滚动到常备食材空状态 CTA")
         assertClearsTabBar(cta, tabBarTop: tabBarTop, label: "常备食材空状态 CTA")
         XCTAssertGreaterThanOrEqual(cta.frame.height, 44, "常备食材 CTA 点击区域应至少 44pt")
 
@@ -509,13 +537,17 @@ final class InventoryNavigationUITests: XCTestCase {
         // The interactive summary is chrome and must stay a minority of the
         // screen rather than pushing the list off it. Address the real control,
         // not a particular visual text composition.
-        let summary = app.buttons["inventory.summary.all"]
-        XCTAssertTrue(summary.waitForExistence(timeout: 5), "总库存摘要缺失")
-        XCTAssertEqual(summary.label, "13 项在库")
+        // Old contract: the 在库 summary control. New contract: the compact
+        // constraint disclosure that replaced the whole two-row surface at these
+        // sizes. The property under test — chrome stays a minority of the screen
+        // — is asserted on the control that now occupies that space.
+        let summary = app.buttons["inventory.filter.menu"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5), "筛选约束披露缺失")
+        XCTAssertEqual(summary.value as? String, "全部，13 项")
         XCTAssertLessThan(
             summary.frame.height,
             app.windows.firstMatch.frame.height * 0.25,
-            "Accessibility XXXL 下总库存摘要占据了超过四分之一屏幕"
+            "Accessibility XXXL 下筛选约束披露占据了超过四分之一屏幕"
         )
 
         // Both toolbar actions stay bounded and tappable instead of scaling with
