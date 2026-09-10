@@ -143,11 +143,18 @@ struct SpecialPlanComposerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                        .disabled(draft.isBusy)
+                    // Always enabled. A sheet's cancellation slot means "leave",
+                    // and a network wait is not a reason to take leaving away —
+                    // this control used to be disabled for the whole request,
+                    // which turned a 50 s timeout into a 50 s trap.
+                    Button("取消") {
+                        draft.cancelGeneration()
+                        dismiss()
+                    }
                 }
             }
-            .interactiveDismissDisabled(draft.isBusy)
+            // Swiping the sheet down is the same exit, and cancels the same way.
+            .onDisappear { draft.cancelGeneration() }
             .onAppear { isEditing = true }
         }
         .presentationDetents([.medium, .large], selection: $detent)
@@ -199,9 +206,20 @@ struct SpecialPlanComposerSheet: View {
                     Text("正在设计菜单…")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        // Leaf-level. An identifier on the enclosing HStack would
+                        // silently erase the cancel button's own — the same
+                        // SwiftUI override rule Home's section ids follow.
+                        .accessibilityIdentifier("planner.compose.generating")
+                    Spacer(minLength: 8)
+                    // Stop and stay. Distinct from the toolbar's 取消, which
+                    // stops and leaves: a user who wants to change one word of
+                    // the request should not have to reopen the sheet to do it.
+                    Button("取消生成") { draft.cancelGeneration() }
+                        .font(.subheadline.weight(.medium))
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .accessibilityIdentifier("planner.compose.cancelGeneration")
                 }
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
-                .accessibilityIdentifier("planner.compose.generating")
             } else {
                 Button {
                     Task { await compose() }

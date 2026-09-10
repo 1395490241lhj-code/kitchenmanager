@@ -67,6 +67,16 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
 
     private let generator: SpecialPlanMenuGenerator
 
+    /// Handles on the requests in flight. Held so the user can stop one.
+    ///
+    /// Without these the composer had no cancellation path at any layer: the
+    /// sheet disabled its own 取消 and its interactive dismissal while a request
+    /// ran, so a 50 s timeout was a 50 s trap. A generation the user cannot
+    /// leave is the agency failure this store exists to remove.
+    private var composeTask: Task<SpecialPlanComposition, Error>?
+    private var activeComposeID: UUID?
+    private var replaceTask: Task<SpecialPlanMenuDraftDish, Error>?
+
     /// `dishes` seeds a draft that was composed elsewhere — the creation sheet
     /// generates before the plan exists, then hands the menu to the detail.
     init(
@@ -90,6 +100,10 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
     /// round trip. On success the draft holds the menu and the model's reading
     /// of the request is returned for the caller to turn into plan fields. On
     /// failure the previous draft is untouched and `nil` is returned.
+    ///
+    /// Cancellation returns `nil` exactly like a failure, but leaves
+    /// `errorMessage` alone: stopping on purpose is not an error, and the
+    /// caller must not turn it into one.
     @discardableResult
     func compose(
         _ input: SpecialPlanMenuGenerator.Input,
@@ -98,25 +112,60 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
         excludedRecipeNames: [String] = []
     ) async -> SpecialPlanInterpretation? {
         guard !isBusy else { return nil }
+        let requestID = UUID()
+        activeComposeID = requestID
         isGenerating = true
         errorMessage = nil
-        // A failed generation must leave the previous draft untouched.
-        let previous = dishes
-        defer { isGenerating = false }
+        // The draft you already had survives a failure *and* a cancellation
+        // because nothing below writes `dishes` until a composition actually
+        // succeeds. That is a structural guarantee, not a restore step.
+        //
+        // An explicit `dishes = previous` in the failure path looked harmless
+        // and was not: `discard()` empties the draft while a request is still
+        // in flight, and the cancelled request would then put the discarded
+        // dishes back. Restoring a snapshot can only ever fight a deliberate
+        // later edit, so there is no snapshot.
+        // Only the request that still owns the store clears its busy state. A
+        // cancelled request must not switch the spinner back on for whatever
+        // replaced it.
+        defer {
+            if activeComposeID == requestID {
+                isGenerating = false
+                activeComposeID = nil
+                composeTask = nil
+            }
+        }
 
-        do {
-            let composition = try await generator.composeMenu(
+        // Read on the main actor before the task starts, so the request is built
+        // from a snapshot rather than from stores read off an escaping closure.
+        // The full creation pool is offered; the generator sends none of it when
+        // the plan does not use home inventory.
+        let inventory = kitchenStore.recipeCreationInventory
+        let existingRecipes = recipeStore.recipes
+        let generator = self.generator
+        let task = Task {
+            try await generator.composeMenu(
                 input,
-                // The full creation pool is offered; the generator sends none
-                // of it when the plan does not use home inventory.
-                inventory: kitchenStore.recipeCreationInventory,
-                existingRecipes: recipeStore.recipes,
+                inventory: inventory,
+                existingRecipes: existingRecipes,
                 excludedRecipeNames: excludedRecipeNames
             )
+        }
+        composeTask = task
+
+        do {
+            let composition = try await task.value
+            // A cancelled or superseded request never writes a draft.
+            guard activeComposeID == requestID else { return nil }
             dishes = composition.dishes
             return composition.interpretation
         } catch {
-            dishes = previous
+            // Cancelled, or superseded by a later request. Deliberately keyed on
+            // ownership rather than on the error type: a cancelled URLSession
+            // surfaces as `APIError.cancelled` in production and as
+            // `CancellationError` through the test seam, and neither is a
+            // failure the user should be told about.
+            guard activeComposeID == requestID, !Self.isCancellation(error) else { return nil }
             errorMessage = Self.message(for: error)
             return nil
         }
@@ -166,31 +215,69 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
             // Every current dish name is excluded so the model does not simply
             // hand back something already on the menu.
             let exclusions = dishes.map(\.title) + plan.dishes.map(\.recipeName)
-            var replacement = try await generator.generateReplacement(
-                for: plan,
-                inventory: kitchenStore.recipeCreationInventory,
-                existingRecipes: recipeStore.recipes,
-                excludedRecipeNames: exclusions
-            )
+            let inventory = kitchenStore.recipeCreationInventory
+            let existingRecipes = recipeStore.recipes
+            let generator = self.generator
+            let task = Task {
+                try await generator.generateReplacement(
+                    for: plan,
+                    inventory: inventory,
+                    existingRecipes: existingRecipes,
+                    excludedRecipeNames: exclusions
+                )
+            }
+            replaceTask = task
+            var replacement = try await task.value
+            // Cancelled while in flight: the original dish stays exactly as it
+            // was, which is the same guarantee a failure gives.
+            guard replacingDishID == dishID else { return }
             // Keep the row's identity stable so SwiftUI replaces content in
             // place rather than animating a delete + insert.
             replacement.id = original.id
-            guard let current = dishes.firstIndex(where: { $0.id == dishID }) else { return }
+            guard let current = dishes.firstIndex(where: { $0.id == dishID }) else {
+                replacingDishID = nil
+                replaceTask = nil
+                return
+            }
             dishes[current] = replacement
         } catch {
-            errorMessage = Self.message(for: error)
+            if replacingDishID == dishID, !Self.isCancellation(error) {
+                errorMessage = Self.message(for: error)
+            }
         }
-        replacingDishID = nil
+        // Only clear progress this call still owns. A cancelled replacement that
+        // has already been followed by a new one must not wipe the new one's row.
+        if replacingDishID == dishID {
+            replacingDishID = nil
+            replaceTask = nil
+        }
     }
 
     func removeDish(id dishID: UUID) {
         dishes.removeAll { $0.id == dishID }
     }
 
+    /// Stops whatever is in flight and hands the surface back to the user.
+    ///
+    /// The draft is not touched here: `compose` and `replaceDish` each restore
+    /// what they had, so there is exactly one place that decides what "the draft
+    /// you had" means. Safe to call when nothing is running, which is what lets
+    /// a view call it unconditionally on dismissal.
+    func cancelGeneration() {
+        composeTask?.cancel()
+        composeTask = nil
+        activeComposeID = nil
+        isGenerating = false
+
+        replaceTask?.cancel()
+        replaceTask = nil
+        replacingDishID = nil
+    }
+
     func discard() {
+        cancelGeneration()
         dishes = []
         errorMessage = nil
-        replacingDishID = nil
     }
 
     // MARK: - Acceptance
@@ -230,6 +317,16 @@ final class SpecialPlanMenuDraftStore: ObservableObject {
         (error as? LocalizedError)?.errorDescription
             ?? SpecialPlanMenuGeneratorError.invalidResponse.errorDescription
             ?? "操作失败，请稍后重试。"
+    }
+
+    /// A stop the user asked for, in either of the two shapes it arrives in.
+    /// `APIClient` already maps a cancelled `URLSession` and a cancelled `Task`
+    /// onto `APIError.cancelled`; the test seam throws `CancellationError`
+    /// directly. Neither is a failure worth showing.
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let apiError = error as? APIError, case .cancelled = apiError { return true }
+        return false
     }
 }
 

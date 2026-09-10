@@ -90,6 +90,9 @@ struct SpecialPlanDetailView: View {
         .plannerList()
         .navigationTitle(plan.title)
         .navigationBarTitleDisplayMode(.inline)
+        // Leaving the detail already discards the transient draft; it must also
+        // stop whatever request is still running for it.
+        .onDisappear { menuDraft.cancelGeneration() }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
@@ -231,9 +234,16 @@ struct SpecialPlanDetailView: View {
                     Text("正在设计菜单…")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        // Leaf-level: an identifier on the row would erase the
+                        // cancel button's own.
+                        .accessibilityIdentifier("planner.menu.generating")
+                    Spacer(minLength: 8)
+                    Button("取消生成") { menuDraft.cancelGeneration() }
+                        .font(.subheadline.weight(.medium))
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .accessibilityIdentifier("planner.menu.cancelGeneration")
                 }
                 .frame(minHeight: AppTheme.minimumHitTarget)
-                .accessibilityIdentifier("planner.menu.generating")
             } else {
                 ForEach(menuDraft.dishes) { dish in
                     draftRow(dish, plan: plan)
