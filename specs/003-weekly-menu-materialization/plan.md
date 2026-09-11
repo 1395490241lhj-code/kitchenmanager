@@ -2,8 +2,8 @@
 
 **Branch**: `codex/003-weekly-menu-materialization` | **Date**: 2026-09-10 | **Spec**: [spec.md](spec.md)
 
-**Status**: Sealed under OD-1…OD-11. Slices A–C implemented on the feature branch; Slices R, D and E
-open, each still requiring explicit user authorization.
+**Status**: Sealed under OD-1…OD-11. Slices A, B, C and R implemented on the feature branch;
+Slices D and E open, each still requiring explicit user authorization.
 
 ## Summary
 
@@ -39,7 +39,7 @@ or `Recipe`; no `HomeView.swift` / 002 / Special Plan edit; no visual redesign
 **Scale/Scope**: `KitchenStore.swift` (batch + observable draft write, remove dead
 `todaysWeeklyMeals`), `Recipe.swift` (batch recipe save), `WeeklyMenuPlanner.swift` (receipt,
 materializer, state machine, copy, CTA, action removal, host callback), `InventoryConsumption.swift`
-+ one pure projection (restock migration), `ShoppingListGenerator.swift` (two strings in the `.weeklyPlan` branch), tests
++ one pure projection (restock migration), `ShoppingListGenerator.swift` (two strings in the `.weeklyPlan` branch, plus the `.plannedMeals` case and its label), tests
 
 ## Constitution Check
 
@@ -112,4 +112,3 @@ No constitution violations. Two deliberate, disclosed simplifications: the recei
 legacy draft rather than on `MealPlanItem` (the no-provenance rule), and a partial exact-id set is
 surfaced for explicit user recovery rather than auto-repaired, because a missing id is equally
 consistent with a legitimate Planner deletion.
-

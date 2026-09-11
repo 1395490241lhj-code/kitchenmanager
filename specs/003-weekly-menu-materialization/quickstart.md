@@ -85,4 +85,3 @@ npm run ios:release:check
 ```
 
 Compare against the documented Settings baseline red only.
-

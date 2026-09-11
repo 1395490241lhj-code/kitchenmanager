@@ -172,8 +172,14 @@ after `保留当前安排` some intended meals are absent on purpose.
 
 ## 5. Mapping types
 
-    struct WeeklyMenuMaterializer {
-        struct PreparedItem { let item: MealPlanItem; let recipe: Recipe; let isNewRecipe: Bool }
+    @MainActor
+    enum WeeklyMenuMaterializer {
+        struct Preparation {
+            let candidates: [WeeklyMenuCandidate]
+            /// Generated recipes the library does not hold yet, in candidate
+            /// order and deduplicated by id.
+            let recipesToPersist: [Recipe]
+        }
         enum ResolutionFailure: Error, Equatable {
             case missingLocalRecipe(dishName: String), recipeIdentityConflict(dishName: String)
         }
@@ -182,12 +188,21 @@ after `保留当前安排` some intended meals are absent on purpose.
             plan: WeeklyMealPlan,
             recipeStore: RecipeStore,
             calendar: Calendar = .current
-        ) throws -> [PreparedItem]
+        ) throws -> Preparation
     }
 
-Each `PreparedItem.item` carries a freshly allocated `id`, `recipeID` resolved per spec §2,
-`recipeName` from the recipe, the normalized date from `startDate + dayIndex`, `plannedServings: nil`
-and `isCooked: false`. No provenance field exists on either type.
+    nonisolated struct WeeklyMenuCandidate: Equatable {
+        let dishID: String, dishName: String
+        let dayIndex: Int, mealIndex: Int
+        let date: Date          // already normalized the way the Planner stores dates
+        let recipeID: String    // resolved from the canonical recipe, never the draft's copy
+        let recipeName: String
+        let planID: UUID        // the exact id the meal will carry
+    }
+
+Each candidate carries its allocated `planID`, the `recipeID` resolved per spec §2, `recipeName`
+from the recipe, and the normalized date from `startDate + dayIndex`. The `MealPlanItem` built from
+it takes `plannedServings: nil` and `isCooked: false`. No provenance field exists on either type.
 
 ## 6. Restock migration (OD-9)
 
@@ -224,7 +239,8 @@ through a computed property — so no new observation machinery is involved.
 
 `MealPlanItem` shape, `TodayPlanRecord`, `WeeklyPlanRecord` schema, `Recipe` shape,
 `PlanMutationOutcome`, private `commitPlans`, `PlannerProjection`, the weekly migration key, the
-backup format, guest-merge counts, and `ShoppingGenerationSource` cases.
+backup format, guest-merge counts, and the pre-existing `ShoppingGenerationSource` cases —
+`.todayPlans` keeps meaning today, and `.plannedMeals` is added per §6.
 
 ## 8. Removed
 
@@ -240,4 +256,3 @@ As implemented: `weekly.result.range`, `weekly.result.materialize`,
 
 Only what a behaviour test needs to be stable. The failure and stale alerts are matched by their
 native titles, and no identifier was added to an element a test does not reach.
-

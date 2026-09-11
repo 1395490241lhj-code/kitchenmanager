@@ -2,6 +2,12 @@
 
 Only notable changes that have entered `main` are recorded here. Current state belongs in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); detailed evidence belongs in focused documents or Git history.
 
+## 2026-09-11
+
+- Made the AI weekly menu materialize into the canonical meal plan (`86a65fa` … `e83defd`). `加入用餐计划` now creates real `MealPlanItem` rows in `KitchenStore.plans` with resolved recipe identities and `plannedServings` left unset, in one all-or-none batch, behind a durable receipt that binds each intended plan id to its recipe and its intended date. An interrupted attempt is a retry on the same ids rather than a second menu; a half-present menu asks the member instead of repairing itself; a finished menu never re-materializes, so deleting a meal in Planner stays the member's decision. The result screen states the rolling date range it actually covers, and the manual `把今天加入计划` / per-dish `加入今日计划` paths are gone with their dangling-id hazard.
+- Moved global restock onto the canonical schedule: pending, uncooked meals from today through today + 6, through a new pure `PlannedMealHorizon`. A generated menu nobody added no longer changes what the kitchen says it needs to buy, and the reason reads `未来 7 天计划需要` instead of claiming a saved week. `KitchenStore.weeklyPlan` is a resumable draft plus its receipt, never a second schedule. No schema, migration, sync, provider or AI pipeline change.
+- Recorded canonical Decision D-041 (canonical plans own the schedule; weekly menus materialize into them).
+
 ## 2026-09-10
 
 - Completed Planner ordinary-meal CRUD in native iOS (`07b59ec` … `b5200a1`): explicit dated creation, edit/move, plan-aware cooking on any date, and delete with a single-level session undo. Every ordinary-meal write goes through canonical store contracts that persist before publishing and report a `PlanMutationOutcome`, so no visible state describes a change the store did not keep. Same-day ordering follows persisted array order instead of UUID, and an explicitly chosen Planner date normalizes to local noon. Home is untouched: `TodayPlanDetailView` still owns `全部做完`, `生成今日购物清单` and the weekly-menu entry, and the Home IA change waits for its own feature. No schema, sync, provider or AI pipeline change.

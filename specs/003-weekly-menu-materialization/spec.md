@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: Sealed under OD-1…OD-11. Slices A–C implemented on the feature branch; Slices R, D and E open.
+**Status**: Sealed under OD-1…OD-11. Slices A, B, C and R implemented on the feature branch; Slices D and E open.
 
 **Input**: Owner brief “003 — Weekly Menu → Canonical Planner Materialization” and the owner clarifications of 2026-09-10, on `main` = `1a7475b` (D-040 Planner CRUD sealed). Prerequisite for completing 002 (Home IA consolidation), whose local spec branch (`4e6623a`) is untouched.
 
@@ -293,7 +293,7 @@ Recovery is by exact id only, and only while the receipt is `.pending`:
 | pending, strict subset present | explicit recovery case (S3); never duplicate, never claim success |
 | materialized | frozen; no presence re-check |
 
-The CTA is unavailable in S2/S4, blocked by `isMaterializing` during the attempt, and the batch
+The CTA is unavailable in S2/S4, and the batch
 rejects ids already present, so a double tap cannot produce a second set of rows even if the UI
 guard were bypassed.
 
@@ -555,4 +555,3 @@ whatever path they have today, and 003 is about the draft / canonical ordinary-p
 - Single SwiftData container, one `ModelContext` per store, no cross-context transaction (verified).
 - The restock horizon is today through today + 6 days, pending meals only; it is a named constant,
   not a week boundary.
-

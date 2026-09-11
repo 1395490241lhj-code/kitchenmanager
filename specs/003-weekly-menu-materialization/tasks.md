@@ -6,8 +6,9 @@ description: "Task list for Weekly Menu → Canonical Planner Materialization �
 
 **Input**: `specs/003-weekly-menu-materialization/`
 
-**Prerequisites**: spec sealed with OD-1…OD-11 (spec `## Clarifications`). Implementation of any task
-still requires explicit user authorization (constitution VI).
+**Prerequisites**: spec sealed with OD-1…OD-11 (spec `## Clarifications`). T001–T018 are implemented
+and committed; implementation of the open tasks (T019–T022) still requires explicit user
+authorization (constitution VI).
 
 **Tests**: requested by the acceptance scenarios; the tests that change by design are listed at the
 end so red is expected and attributable.
@@ -165,9 +166,10 @@ end so red is expected and attributable.
   `_STALE` / `_MISSING_RECIPE`, all seeding `generatedPlan` directly so no AI call is involved.
   (test support)
 - [x] T018 [C] Reference gate run: the weekly flow holds none of the retired wording. Remaining hits
-  are outside this slice — `本周计划需要` and `todaysWeeklyMeals` belong to Slice R, the Shopping
-  regression fixture seeds a historical `本周菜单` provenance value, and the Recipes tab keeps its own
-  unrelated `加入今日计划`. (SC-004)
+  at Slice C time were outside that slice — `本周计划需要` and `todaysWeeklyMeals` belonged to Slice R
+  and are now gone with it; what the gate still reports is the disclosed by-design residue: the
+  Shopping regression fixture's historical `本周菜单` provenance seed, the Recipes tab's own
+  `加入今日计划`, and Home's own `已在今天` toast. (SC-004)
 
 ### Slice C implementation notes (2026-09-10)
 
@@ -205,22 +207,35 @@ end so red is expected and attributable.
 
 ## Phase 5: Slice D — validation (after C and R)
 
-- [ ] T019 [D] new `KitchenManagerUITests/WeeklyMenuMaterializationUITests.swift` covering the
-  quickstart manual list. Keep `PlannerUITests` reachability green — `today.plan.weeklyMenu.link` and
-  its `HomeView.swift` copy are untouched by 003. (SC-004, SC-005)
-- [ ] T020 [D] Full native suite + `npm run ios:release:check`; attribute any red to the documented
-  Settings baseline or fix. (SC-007)
+- [x] T019 [D] new `KitchenManagerUITests/WeeklyMenuMaterializationUITests.swift` covering the
+  quickstart manual list — 15 tests: truthful copy, the single add action and its repeat-proofing,
+  collision confirm/cancel, both recovery choices, the stale and missing-recipe notices, draft
+  editing following the receipt, and reachability at accessibility sizes. `PlannerUITests` and the
+  `PlannerRegressionUITests` matrix stay green; `today.plan.weeklyMenu.link` and its `HomeView.swift`
+  copy are untouched. (SC-004, SC-005)
+- [x] T020 [D] Full native suite, serial, one iPhone 17 Pro / iOS 27.0, no `-only-testing`:
+  **1998 executed — 1990 passed, 2 failed, 6 skipped** (1697 unit + 301 UI). Both reds are attributed,
+  neither is a feature regression: `SettingsExperienceUITests/testCoreSettingsEntriesRemainReachable`
+  is the documented Settings baseline, reproduced at the same assertion on a clean `1a7475b`
+  worktree; `SpecialPlanNormalSessionUITests/testNormalUserSessionEndToEnd` is a long-run
+  infrastructure flake — it passed in isolation on this exact tree, passed in the earlier full run,
+  and 003 changes no Special Plan file. `npm run ios:release:check` passed, Release simulator build
+  succeeded, and both Release binaries carry zero fixture markers. (SC-007)
 
 ## Phase 6: Slice E — reconciliation
 
-- [ ] T021 [E] Re-read `Decisions.md` and take the actual next Decision number (D-041 if nothing
-  landed first); never reserve a number. (FR-018)
-- [ ] T022 [E] Reconcile artifacts; AGENTS.md §7 report; verify with `git diff --stat main` that no
-  Home, `TodayPlanDetailView`, 002 spec, Special Plan or sync file changed (FR-017). VAULT UPDATE
-  list: the new Decision, `Current Status.md`, `Next Actions.md` (002's weekly-generator gate flips
-  to NO; `TodayPlanDetailView` retirement unblocked; the `TodayPlanDetailView` entry-row subtitle
-  recorded as a follow-up), `Product & IA.md`,
-  `Architecture.md`. Commit / push / vault writes remain user-authorized.
+- [x] T021 [E] Re-read canonical `Decisions.md` at reconciliation time: it ended at D-040, so this
+  feature takes **D-041**. No number was reserved in advance, and 002's local spec proposal consumed
+  none. (FR-018)
+- [x] T022 [E] Reconciled. `git diff --name-only 1a7475b..HEAD` is 25 files and contains no
+  `HomeView`, `TodayPlanDetailView`, 002 spec, Special Plan, sync, Supabase, `.xcconfig`,
+  `.entitlements`, `project.pbxproj` or migration file (FR-017). Vault reconciled: D-041,
+  `Current Status.md` (anchor advanced), `Next Actions.md` (002 unblocked and rebaseable; 003
+  follow-ups recorded), `Testing & Release.md` (gate evidence and both red dispositions),
+  `Product & IA.md` (the weekly-generator overlap and the "not implemented" list). `Architecture.md`
+  needed no edit — it names `WeeklyPlanRecord` in the record list and makes no schedule-ownership
+  claim. Repo: `CHANGELOG.md`; `PROJECT_STATUS.md` deliberately untouched, since it is a
+  banner-marked point-in-time snapshot rather than current truth.
 
 ## Dependencies
 
@@ -238,4 +253,3 @@ T001–T004 are parallel within A; T006 and T008 are parallel within R.
 | WeeklyMenuBaseYieldCompatibilityTests, WeeklyMealPlanDerivedCountTests | unchanged (`baseServings` stays nil; derived counts unchanged) |
 | PlannerUITests | unchanged (weekly entry link and label remain until 002) |
 | new WeeklyMenuMaterializationTests / WeeklyMenuMaterializationUITests | Slices B and D |
-

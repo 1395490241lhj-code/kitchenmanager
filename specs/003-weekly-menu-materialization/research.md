@@ -188,4 +188,3 @@ lands first. 002 rebases to the number after.
 > confirmation, never replaced. The manual add-today actions are removed. `KitchenStore.weeklyPlan` is
 > a resumable draft, a receipt and an in-flow shopping source — never a schedule; global restock
 > derives from canonical `plans`. No provenance is stored on `MealPlanItem` or `Recipe`.
-
