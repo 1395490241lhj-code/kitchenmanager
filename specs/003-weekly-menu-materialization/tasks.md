@@ -1,0 +1,127 @@
+---
+description: "Task list for Weekly Menu → Canonical Planner Materialization — slices A, R, B, C, D, E"
+---
+
+# Tasks: Weekly Menu → Canonical Planner Materialization
+
+**Input**: `specs/003-weekly-menu-materialization/`
+
+**Prerequisites**: spec sealed with OD-1…OD-11 (spec `## Clarifications`). Implementation of any task
+still requires explicit user authorization (constitution VI).
+
+**Tests**: requested by the acceptance scenarios; the tests that change by design are listed at the
+end so red is expected and attributable.
+
+## Format: `[ID] [P?] [Slice] Description` — paths under `ios-native/Kitchen Manager/`
+
+## Phase 1: Slice A — store contracts
+
+- [ ] T001 [A] `KitchenManager/KitchenStore.swift`: add `PlanBatchOutcome` / `PlanBatchRejection` and
+  `appendPlans(_ items: [MealPlanItem], calendar:) -> PlanBatchOutcome` (named apart from D-040's
+  deduplicating `addPlans(_ additions:)`) — preserve caller ids, normalize
+  each item's date via `MealPlanItem.normalizedPlannerDate`, append in order, allow duplicate
+  `(recipeID, date)`, reject `empty` / `duplicateIDsInBatch` / `idsAlreadyPresent` before any write,
+  commit once through `commitPlans`. Leave `PlanMutationOutcome` untouched. (FR-001, FR-005)
+- [ ] T002 [P] [A] `KitchenManager/KitchenStore.swift`: add `commitWeeklyPlan(_:) -> Bool`
+  (persist-before-publish with suppressed republish, mirroring `commitPlans`); remove
+  `saveWeeklyPlan` if T011 leaves it without a caller. (FR-009)
+- [ ] T003 [P] [A] `KitchenManager/Recipe.swift`: add `RecipeStore.saveUserRecipes(_:)` — one
+  `replaceRecipes`; ids already present reused; in-batch fingerprint duplicates collapse; throws only
+  on persistence failure. (FR-003)
+- [ ] T004 [P] [A] `KitchenManager/WeeklyMenuPlanner.swift`: add `WeeklyMaterializationState`,
+  `WeeklyMaterializationReceipt`, `WeeklyMealPlan.materialization`, and the pure
+  `WeeklyMaterializationStatus.status(receipt:plans:)` classifier per data-model §2. (FR-008)
+- [ ] T005 [A] Tests: batch contracts in `PlannerMealCRUDTests` (ids, dates, order, duplicates,
+  three rejections, `FailingTodayPlanPersistence` → unchanged `plans`, existing rows and Special Plans
+  untouched); `commitWeeklyPlan` failure; receipt round-trip and legacy decode in
+  `WeeklyPlanPersistenceTests`; `saveUserRecipes` batch behaviour. (SC-001, SC-002, SC-003)
+
+## Phase 2: Slice R — restock migration (parallel with A/B)
+
+- [ ] T006 [P] [R] new `KitchenManager/PlannedMealHorizon.swift`: pure
+  `upcoming(plans:from:days:calendar:)` returning pending (not cooked) meals from the reference day
+  through `+forwardDays`, date ascending, with `forwardDays = 6` as a named constant. (FR-015)
+- [ ] T007 [R] `KitchenManager/InventoryConsumption.swift`: replace the `kitchenStore.weeklyPlan`
+  branch of `RestockSuggestionEngine.generate` with `PlannedMealHorizon.upcoming(plans:)` fed to
+  `ShoppingGenerationSource.todayPlans`; rename `RestockSuggestionSource.weeklyPlan` →
+  `.plannedMeals` and its label; reason string `本周计划需要` → `用餐计划需要`. No
+  `ShoppingListGenerator` change. (FR-015)
+- [ ] T008 [P] [R] `KitchenManager/KitchenStore.swift`: delete the dead `todaysWeeklyMeals()` (no
+  callers; it maps today onto the draft, a second-schedule reading). (FR-016)
+- [ ] T009 [R] `KitchenManagerTests/RestockSuggestionEngineTests.swift`: an unmaterialized draft alone
+  yields no plan-derived suggestion; canonical pending meals in the horizon do, with reason
+  `用餐计划需要`; cooked meals and out-of-horizon meals excluded; the two existing absence assertions
+  (`PreparedComponentTests`, `QuickMealPreparedUsageTests`) still pass. (SC-006)
+
+## Phase 3: Slice B — materializer and state machine (after A)
+
+- [ ] T010 [B] `KitchenManager/WeeklyMenuPlanner.swift`: `WeeklyMenuMaterializer.prepare(plan:recipeStore:calendar:)`
+  — resolve `.local` ids against `RecipeStore` and throw `missingRecipe(title:)` on a miss; build
+  `.ai` recipes via `domainRecipe` (`baseServings` nil); date from `startOfDay(startDate) + dayIndex`
+  then Planner normalization; `plannedServings: nil`; allocate each `MealPlanItem.id` here.
+  (FR-004, FR-005, FR-006)
+- [ ] T011 [B] `WeeklyMenuPlannerStore`: `isMaterializing` + `materialize(kitchenStore:recipeStore:)`
+  implementing data-model §3 in order — refuse when the status is not `.notStarted`/`.pending`;
+  collision detection over `kitchenStore.plans` surfaced to the view for one confirmation;
+  `saveUserRecipes` → `commitWeeklyPlan` (pending receipt + `isSavedToLibrary`) → `appendPlans` →
+  `commitWeeklyPlan` (materialized). Retry from `.pending` reuses the receipt's exact ids. Delete
+  `addRecipeToTodayPlan`, `addDayToTodayPlan` and `savePlan`. (FR-002, FR-007, FR-008, FR-010, FR-011)
+- [ ] T012 [B] `WeeklyMenuPlannerStore`: regeneration and `duplicateWeeklyPlanForNextWeek` clear the
+  receipt; a successful receipt is never carried to a new draft. (FR-013)
+- [ ] T013 [B] new `KitchenManagerTests/WeeklyMenuMaterializationTests.swift`: every quickstart Slice B
+  case, plus `weeklyPlan`-alone-yields-no-Planner-entries and today's items visible through
+  `todayPlans`. (SC-001, SC-002, SC-003, SC-005)
+
+## Phase 4: Slice C — result surface truth (after B)
+
+- [ ] T014 [C] `WeeklyMenuResultView`: one prominent CTA (`weekly.result.materialize`) with the five
+  presentation states from data-model §3, including the `.partiallyPresent` recovery pair
+  (`加入缺少的 N 道`, `标记为已加入`); remove the overview `把今天加入计划` and the per-dish
+  `加入今日计划`; remove `保存本周计划` from the ⋯ menu. (FR-010, FR-011, FR-008)
+- [ ] T015 [C] Copy per spec §9 across `WeeklyMenuPlanner.swift` and the single
+  `ShoppingListGenerator.sourceLabel(.weeklyPlan)` string; state the explicit date range in the
+  overview (`weekly.result.range`); regenerate and delete alert bodies; collision confirmation
+  wording. (FR-012, FR-013)
+- [ ] T016 [C] `WeeklyMenuPlannerView` / `WeeklyMenuResultView`: `onMaterialized` callback and the
+  legacy host's `查看用餐计划` affordance; empty draft disables the CTA; add every accessibility
+  identifier from data-model §9. (FR-014)
+- [ ] T017 [P] [C] `KitchenManager/PlannerRegressionFixture.swift`: DEBUG states for a stubbed result,
+  a collision seed, a failing plan persistence, and a pending receipt. (test support)
+- [ ] T018 [C] Run the quickstart reference gate → `clean`. (SC-004)
+
+## Phase 5: Slice D — validation (after C and R)
+
+- [ ] T019 [D] new `KitchenManagerUITests/WeeklyMenuMaterializationUITests.swift` covering the
+  quickstart manual list. Keep `PlannerUITests` reachability green — `today.plan.weeklyMenu.link` and
+  its `HomeView.swift` copy are untouched by 003. (SC-004, SC-005)
+- [ ] T020 [D] Full native suite + `npm run ios:release:check`; attribute any red to the documented
+  Settings baseline or fix. (SC-007)
+
+## Phase 6: Slice E — reconciliation
+
+- [ ] T021 [E] Re-read `Decisions.md` and take the actual next Decision number (D-041 if nothing
+  landed first); never reserve a number. (FR-018)
+- [ ] T022 [E] Reconcile artifacts; AGENTS.md §7 report; verify with `git diff --stat main` that no
+  Home, `TodayPlanDetailView`, 002 spec, Special Plan or sync file changed (FR-017). VAULT UPDATE
+  list: the new Decision, `Current Status.md`, `Next Actions.md` (002's weekly-generator gate flips
+  to NO; `TodayPlanDetailView` retirement unblocked; the `.todayPlans` case-name rename and the
+  `TodayPlanDetailView` entry-row subtitle recorded as follow-ups), `Product & IA.md`,
+  `Architecture.md`. Commit / push / vault writes remain user-authorized.
+
+## Dependencies
+
+A → B → C → D → E; R is independent of A–C and may land in parallel or first; D needs C and R.
+T001–T004 are parallel within A; T006 and T008 are parallel within R.
+
+## Tests that change by design
+
+| File | Change |
+|---|---|
+| PlannerMealCRUDTests | + batch contracts (ids, rejections, atomicity) |
+| WeeklyPlanPersistenceTests | + receipt round-trip, + legacy payload without a receipt |
+| RestockSuggestionEngineTests | + canonical-plan derivation and horizon cases; draft-alone yields nothing |
+| ShoppingScalingTests, PreparedComponentTests, QuickMealPreparedUsageTests | unchanged; verified still valid after the restock migration |
+| WeeklyMenuBaseYieldCompatibilityTests, WeeklyMealPlanDerivedCountTests | unchanged (`baseServings` stays nil; derived counts unchanged) |
+| PlannerUITests | unchanged (weekly entry link and label remain until 002) |
+| new WeeklyMenuMaterializationTests / WeeklyMenuMaterializationUITests | Slices B and D |
+
