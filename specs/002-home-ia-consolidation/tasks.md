@@ -25,46 +25,48 @@ unstarted.
 
 ## Phase 1: Slice A — Planner capability parity (blocking for B, D, E)
 
-- [ ] T001 [A] `KitchenManager/PlannerView.swift`: on pending ordinary rows add `做好了` as the
+- [x] T001 [A] `KitchenManager/PlannerView.swift`: on pending ordinary rows add `做好了` as the
   first leading swipe action beside `编辑`, in `.contextMenu`, and as
   `.accessibilityAction(named: "做好了")` — the same three paths the delete flow already uses.
-  Each presents `CookConsumptionConfirmationView` with `planIDs: hasConsumedPlan ? [] : [id]` for
-  that exact `MealPlanItem`; on confirm `markPlanCooked` plus the existing toast mechanism.
+  Each presents `CookConsumptionConfirmationView` with `planIDs: [id]`, preserving that exact
+  `MealPlanItem`. Explicit confirmation is semantic success when consumption is newly persisted
+  or already recorded for that valid exact target (no second deduction); invalid targets and
+  persistence failures remain failures. On success, `markPlanCooked` plus the existing toast mechanism.
   Hidden for cooked rows. No bare `isCooked` flip. (FR-001, FR-002)
-- [ ] T002 [A] Verify the two-action leading edge at standard and AXXXL Dynamic Type and with
+- [x] T002 [A] Verify the two-action leading edge at standard and AXXXL Dynamic Type and with
   VoiceOver; if native density is inappropriate, **report** in the slice result rather than adding
   custom controls. (FR-001)
-- [ ] T003 [P] [A] `KitchenManager/PlannerView.swift`: add a trailing toolbar `Menu`
+- [x] T003 [P] [A] `KitchenManager/PlannerView.swift`: add a trailing toolbar `Menu`
   (`ellipsis.circle`, label `更多`) and a `PlannerRoute` value that opens
   `ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))`. No shopping
   management inside Planner. (FR-003)
-- [ ] T004 [A] `KitchenManager/PlannerView.swift`: add the weekly-generator entry to the same
+- [x] T004 [A] `KitchenManager/PlannerView.swift`: add the weekly-generator entry to the same
   `更多` menu and a route that presents `WeeklyMenuPlannerView(onMaterialized:)`. Pass the
   callback and nothing else: no receipt inspection, no materialization logic, no id inference, no
   second notification channel. `WeeklyMenuPlanner.swift` is not modified. (FR-004)
-- [ ] T005 [A] `KitchenManager/PlannerView.swift`: in the `onMaterialized` handler set
+- [x] T005 [A] `KitchenManager/PlannerView.swift`: in the `onMaterialized` handler set
   `weekStart` to `PlannerProjection.startOfWeek(containing: summary.startDate)` and return the
   member to the week list. Do not assert that any specific meal exists — a recovery choice can
   legitimately leave intended meals absent. (FR-005)
-- [ ] T006 [P] [A] `KitchenManager/PlannerView.swift`: give the generator entry a subtitle that
+- [x] T006 [P] [A] `KitchenManager/PlannerView.swift`: give the generator entry a subtitle that
   describes an existing draft as generated rather than scheduled; do not carry over
   `已安排 N 天 · M 道菜`. (FR-006)
-- [ ] T007 [P] [A] `KitchenManager/PlannerView.swift`: add an initial-path seed to
+- [x] T007 [P] [A] `KitchenManager/PlannerView.swift`: add an initial-path seed to
   `PlannerView.init` so a caller can open Planner directly at a `PlannerRoute`. (FR-013
   prerequisite)
-- [ ] T008 [P] [A] `KitchenManagerTests/PlannerMealCRUDTests.swift` (or `KitchenStoreTests`):
+- [x] T008 [P] [A] `KitchenManagerTests/PlannerMealCRUDTests.swift` (or `KitchenStoreTests`):
   completion-parity unit test — the same plan completed through the confirmation path then
   `markPlanCooked` yields identical `isCooked` and consumption linkage regardless of origin, and
   `hasConsumedPlan` prevents a second deduction. (SC-010)
-- [ ] T009 [A] New `KitchenManagerUITests/PlannerQuickCompleteUITests.swift`: leading-swipe,
+- [x] T009 [A] New `KitchenManagerUITests/PlannerQuickCompleteUITests.swift`: leading-swipe,
   context-menu and VoiceOver-action `做好了` → confirm → `已完成`; a cooked row offers none; the
   `更多` menu offers `生成今日购物清单`, which opens the generation screen; empty today shows
   `没有可生成的购物清单`. (US1, US2, SC-005)
-- [ ] T010 [A] New `KitchenManagerUITests/PlannerWeeklyHostUITests.swift`: the `更多` menu opens
+- [x] T010 [A] New `KitchenManagerUITests/PlannerWeeklyHostUITests.swift`: the `更多` menu opens
   the generator; `加入用餐计划` returns to Planner showing the week containing the range start; a
   range crossing two weeks reveals the start week and pages normally; cancel changes nothing; the
   entry never describes a draft as scheduled. (US3, SC-006)
-- [ ] T011 [A] Run the quickstart Slice A commands; record results, including the AXXXL and
+- [x] T011 [A] Run the quickstart Slice A commands; record results, including the AXXXL and
   VoiceOver findings from T002. (SC-005, SC-006, SC-010)
 
 **Checkpoint**: Planner owns quick-complete, shopping derivation and weekly-generator hosting.

@@ -12,7 +12,8 @@ than pretending the original reasoning never happened.
 **Decision**: pending ordinary rows get `做好了` as the first leading swipe action beside `编辑`
 (`allowsFullSwipe: false`, as the existing edge already is), in `.contextMenu`, and as
 `.accessibilityAction(named:)`. Each presents the existing `CookConsumptionConfirmationView` for
-that `MealPlanItem` (`planIDs` empty when `hasConsumedPlan`) and calls `markPlanCooked` — the same
+that `MealPlanItem` (exact plan IDs always preserved; an already-consumed plan confirms with
+zero deduction through the shared already-satisfied state) and calls `markPlanCooked` — the same
 tail the cooking flow and `TodayPlanDetailView.completionButton` use.
 
 **Rationale**: owner instruction; the leading edge currently carries one action so two is
@@ -192,4 +193,3 @@ resolved against `Decisions.md` at the moment of writing, not now.
 
 Assign the number by re-reading `Decisions.md` immediately before writing; do not carry a number
 forward from this document.
-

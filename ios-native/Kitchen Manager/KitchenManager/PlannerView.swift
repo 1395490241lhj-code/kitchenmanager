@@ -17,12 +17,15 @@ enum PlannerRoute: Hashable {
     /// always resolves the current plan: an edit that lands while the detail is
     /// open must not leave a stale copy on the navigation path.
     case plannedMeal(UUID)
+    case todayShopping
+    case weeklyGenerator
 }
 
 private enum PlannerSheet: Identifiable {
     case create
     case createMeal
     case editMeal(UUID)
+    case completeMeal(UUID)
     case pickRecipe(planID: UUID, planIndex: Int)
 
     var id: String {
@@ -30,6 +33,7 @@ private enum PlannerSheet: Identifiable {
         case .create: "create"
         case .createMeal: "create-meal"
         case .editMeal(let id): "edit-meal-\(id.uuidString)"
+        case .completeMeal(let id): "complete-meal-\(id.uuidString)"
         case .pickRecipe(planID: let id, planIndex: let index): "pick-\(id.uuidString)-\(index)"
         }
     }
@@ -128,10 +132,12 @@ struct PlannerView: View {
     init(
         weekStart: Date? = nil,
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        initialPath: [PlannerRoute] = []
     ) {
         let reference = now
         self.calendar = calendar
+        _path = State(initialValue: initialPath)
         self.now = reference
         _weekStart = State(initialValue: weekStart ?? PlannerProjection.startOfWeek(containing: reference, calendar: calendar))
     }
@@ -161,6 +167,28 @@ struct PlannerView: View {
                             Image(systemName: "calendar")
                                 .accessibilityLabel("切换周")
                         }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("生成今日购物清单", systemImage: "cart.badge.plus") {
+                                path.append(.todayShopping)
+                            }
+                            .accessibilityIdentifier("planner.shopping.generateToday")
+                            Button {
+                                path.append(.weeklyGenerator)
+                            } label: {
+                                Label {
+                                    Text(kitchenStore.weeklyPlan == nil ? "AI 生成一周菜单" : "查看已生成的一周菜单")
+                                    Text(weeklyGeneratorSubtitle)
+                                } icon: {
+                                    Image(systemName: "calendar.badge.clock")
+                                }
+                            }
+                            .accessibilityIdentifier("planner.weekly.open")
+                        } label: {
+                            Label("更多", systemImage: "ellipsis.circle")
+                        }
+                        .accessibilityIdentifier("planner.tools.menu")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         // Two things can be created here now, so the one control
@@ -201,6 +229,13 @@ struct PlannerView: View {
                         }
                     case .plannedMeal(let id):
                         plannedMealDestination(id)
+                    case .todayShopping:
+                        ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
+                    case .weeklyGenerator:
+                        WeeklyMenuPlannerView { summary in
+                            weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
+                            path.removeAll()
+                        }
                     }
                 }
                 .sheet(item: $sheet) { sheet in
@@ -226,6 +261,25 @@ struct PlannerView: View {
                                 // Moving a meal is editing its date, so the same
                                 // rule applies: follow it to wherever it went.
                                 reveal(item)
+                            }
+                        } else {
+                            ContentUnavailableView("这一餐不存在", systemImage: "calendar.badge.exclamationmark")
+                        }
+                    case .completeMeal(let id):
+                        if let plan = kitchenStore.plans.first(where: { $0.id == id }) {
+                            CookConsumptionConfirmationView(
+                                title: plan.recipeName,
+                                planIDs: [plan.id],
+                                recipeID: plan.recipeID,
+                                recipeName: plan.recipeName
+                            ) {
+                                kitchenStore.markPlanCooked(plan)
+                                let token = UUID()
+                                toastToken = token
+                                withAnimation {
+                                    toast = (message: "已记录消耗，库存已更新", style: .success, removable: false)
+                                }
+                                scheduleUndoExpiry(token: token)
                             }
                         } else {
                             ContentUnavailableView("这一餐不存在", systemImage: "calendar.badge.exclamationmark")
@@ -286,6 +340,7 @@ struct PlannerView: View {
                 HStack {
                     Text(PlannerDateText.weekRange(start: weekStart, calendar: calendar))
                         .font(.subheadline.weight(.medium))
+                        .accessibilityIdentifier("planner.week.range")
                         .foregroundStyle(KitchenTheme.textPrimary)
                     Spacer()
                     if weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) {
@@ -382,6 +437,10 @@ struct PlannerView: View {
             // puts row actions. Neither is discoverable to VoiceOver, so the
             // custom action carries the same capability for it.
             .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                if !meal.isCooked {
+                    Button("做好了", systemImage: "checkmark.circle") { sheet = .completeMeal(meal.id) }
+                        .accessibilityIdentifier("planner.meal.complete.\(meal.id.uuidString)")
+                }
                 Button("编辑") { sheet = .editMeal(meal.id) }
                     .accessibilityIdentifier("planner.meal.edit.\(meal.id.uuidString)")
             }
@@ -396,6 +455,10 @@ struct PlannerView: View {
                 .accessibilityIdentifier("planner.meal.remove.\(meal.id.uuidString)")
             }
             .contextMenu {
+                if !meal.isCooked {
+                    Button("做好了", systemImage: "checkmark.circle") { sheet = .completeMeal(meal.id) }
+                        .accessibilityIdentifier("planner.meal.completeMenu.\(meal.id.uuidString)")
+                }
                 Button("编辑", systemImage: "pencil") { sheet = .editMeal(meal.id) }
                     .accessibilityIdentifier("planner.meal.editMenu.\(meal.id.uuidString)")
                 Button(role: .destructive) {
@@ -404,6 +467,11 @@ struct PlannerView: View {
                     Label("移出计划", systemImage: "trash")
                 }
                 .accessibilityIdentifier("planner.meal.removeMenu.\(meal.id.uuidString)")
+            }
+            .accessibilityActions {
+                if !meal.isCooked {
+                    Button("做好了") { sheet = .completeMeal(meal.id) }
+                }
             }
             .accessibilityAction(named: "编辑") { sheet = .editMeal(meal.id) }
             .accessibilityAction(named: "移出计划") { removeMeal(meal.id) }
@@ -428,7 +496,7 @@ struct PlannerView: View {
         path.removeAll { route in
             switch route {
             case .specialPlan(let routeID): return routeID == id
-            case .recipe, .plannedMeal: return false
+            case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator: return false
             }
         }
     }
@@ -539,6 +607,11 @@ struct PlannerView: View {
     /// The day a new meal starts on: today while the current week is on screen,
     /// otherwise the first day of whatever week is. Uses the Planner's own week
     /// anchor rather than a second definition of where a week begins.
+    private var weeklyGeneratorSubtitle: String {
+        guard let draft = kitchenStore.weeklyPlan else { return "按顿数、人数生成一周安排" }
+        return "已生成 \(draft.dayCount) 天 · \(draft.dishCount) 道菜"
+    }
+
     private var creationDefaultDate: Date {
         weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) ? now : weekStart
     }

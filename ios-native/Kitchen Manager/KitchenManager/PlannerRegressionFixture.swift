@@ -77,7 +77,17 @@ enum PlannerRegressionFixture {
         kitchen.specialPlans = state == "PLANNER_DATA_SPECIAL" || state == "PLANNER_DATA_DETAIL" || state == "PLANNER_DATA_DRAFT" ? [plan] : []
         kitchen.plans = []
         guard state != "PLANNER_DATA_EMPTY", state != "PLANNER_DATA_SPECIAL", state != "PLANNER_DATA_DETAIL", state != "PLANNER_DATA_DRAFT" else { return }
-        let days = state == "PLANNER_DATA_MIXED" ? [0, 2, 5] : Array(0..<7)
+        // The weekly-host states keep days 0 and 2 free so the seeded draft's
+        // own meals can materialize without a collision dialog.
+        let days: [Int]
+        switch state {
+        case "PLANNER_DATA_MIXED":
+            days = [0, 2, 5]
+        case "PLANNER_DATA_HOST_WEEKLY", "PLANNER_DATA_HOST_WEEKLY_CROSS":
+            days = [3, 4]
+        default:
+            days = Array(0..<7)
+        }
         for day in days {
             let count = state == "PLANNER_DATA_MULTI" && day == 0 ? 4 : 1
             for index in 0..<count {
@@ -88,7 +98,23 @@ enum PlannerRegressionFixture {
                     plannedServings: index == 1 ? nil : (index == 2 ? 4 : 2), isCooked: day == 0 && state == "PLANNER_DATA_WEEK"))
             }
         }
+        if state == "PLANNER_DATA_HOST_WEEKLY" {
+            kitchen.weeklyPlan = WeeklyMenuRegressionFixture.plan()
+        } else if state == "PLANNER_DATA_HOST_WEEKLY_CROSS" {
+            kitchen.weeklyPlan = WeeklyMenuRegressionFixture.crossWeekPlan
+        }
+        if state == "PLANNER_DATA_CONSUMED",
+           let pending = kitchen.plans.first(where: { $0.id == consumedPlanID }) {
+            // Pending Planner meal whose consumption is already recorded but
+            // whose cooked state is still false: exactly the already-satisfied
+            // confirmation state the zero-deduction UI must show. The empty
+            // record deducts nothing and marks nothing cooked.
+            kitchen.applyConsumption([], planIDs: [pending.id], recipeID: nil, recipeName: pending.recipeName)
+        }
     }
+    /// The fixture's own "today" (Wednesday) meal — pinned by id because the
+    /// device calendar's today is not the fixture's.
+    static let consumedPlanID = UUID(uuidString: "63000000-0000-0000-0000-000000000021")!
 }
 
 /// Deterministic weekly-menu result states, so the materialization flow can be
@@ -137,6 +163,30 @@ enum WeeklyMenuRegressionFixture {
             summary: nil,
             createdAt: startDate,
             materialization: receipt
+        )
+    }
+
+    /// A draft whose covered days cross two calendar weeks: the range starts
+    /// Saturday and reaches into the following Monday. Revealing it must open
+    /// the week that contains the start, not the week of its last day.
+    static var crossWeekPlan: WeeklyMealPlan {
+        let calendar = PlannerRegressionFixture.calendar
+        let start = calendar.date(byAdding: .day, value: 5, to: calendar.startOfDay(for: startDate))!
+        let all = dishes
+        return WeeklyMealPlan(
+            startDate: MealPlanItem.normalizedPlannerDate(for: start, calendar: calendar),
+            days: [
+                WeeklyMealPlanDay(dayIndex: 0, meals: [
+                    WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [all[0]])
+                ]),
+                WeeklyMealPlanDay(dayIndex: 2, meals: [
+                    WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [all[1]])
+                ])
+            ],
+            shoppingItems: [],
+            servings: 2,
+            summary: nil,
+            createdAt: start
         )
     }
 

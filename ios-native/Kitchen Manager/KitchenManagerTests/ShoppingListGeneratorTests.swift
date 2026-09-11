@@ -338,4 +338,61 @@ final class ShoppingListGeneratorTests: XCTestCase {
         XCTAssertGreaterThan(generationStore.importSelectedItems(into: store), 0)
         XCTAssertTrue(store.shoppingItems.allSatisfy { $0.source == "用餐计划" })
     }
+
+    // MARK: - Planner today-shopping gate (002 Slice A)
+
+    /// Planner's 生成今日购物清单 passes source .todayPlans(kitchenStore.todayPlans).
+    /// This proves through the real store what that gate admits: today's plans
+    /// only — cooked ones included, as before — while tomorrow/future plans
+    /// (and therefore any PlannedMealHorizon-derived set), the weekly draft
+    /// and special plans contribute nothing.
+    @MainActor
+    func test_plannerTodaySource_usesOnlyTodayPlans_notWeeklyDraftOrSpecialPlans() throws {
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let todayRecipe = recipe(title: "今天的菜", ingredients: ["今日专有食材 2 个"])
+        let tomorrowRecipe = recipe(title: "明天的菜", ingredients: ["明日专有食材 3 个"])
+        let cookedTodayRecipe = recipe(title: "已完成的菜", ingredients: ["熟菜专有食材 1 个"])
+        let weeklyOnlyRecipe = recipe(title: "周计划菜", ingredients: ["周计划专有食材 4 克"])
+        for item in [todayRecipe, tomorrowRecipe, cookedTodayRecipe, weeklyOnlyRecipe] {
+            try recipeStore.saveUserRecipe(item)
+        }
+
+        let cookedPlan = try XCTUnwrap(kitchen.addPlan(recipe: cookedTodayRecipe, on: Date()).value)
+        kitchen.markPlanCooked(cookedPlan)
+        _ = try XCTUnwrap(kitchen.addPlan(recipe: todayRecipe, on: Date()).value)
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        _ = try XCTUnwrap(kitchen.addPlan(recipe: tomorrowRecipe, on: tomorrow).value)
+        kitchen.weeklyPlan = WeeklyMealPlan(
+            startDate: tomorrow,
+            days: [WeeklyMealPlanDay(dayIndex: 0, meals: [
+                WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [
+                    WeeklyMealPlanRecipe(id: weeklyOnlyRecipe.id, title: weeklyOnlyRecipe.title,
+                                         ingredients: weeklyOnlyRecipe.ingredients, seasonings: [],
+                                         steps: weeklyOnlyRecipe.steps, tags: [], cookingTime: nil,
+                                         difficulty: nil, reason: nil, source: .local,
+                                         existingRecipeID: weeklyOnlyRecipe.id, isSavedToLibrary: true)
+                ])
+            ])],
+            shoppingItems: [], servings: 1, summary: nil, createdAt: Date()
+        )
+        kitchen.specialPlans = [SpecialPlan(
+            id: UUID(), title: "特餐", scheduledAt: Date(), peopleCount: 2,
+            constraintNotes: [], requestText: "", usesHomeInventory: false,
+            dishes: [SpecialPlanDish(id: UUID(), recipeID: "special-only",
+                                     recipeName: "特餐菜", isCooked: false)]
+        )]
+
+        let draft = generator.generate(
+            source: .todayPlans(kitchen.todayPlans),
+            inventory: [],
+            existingShoppingItems: [],
+            recipeStore: recipeStore
+        )
+        let names = draft.missingItems.map { $0.displayName }
+        XCTAssertTrue(names.contains { $0.contains("今日") }, "today's pending plan must be included, got: \(names)")
+        XCTAssertTrue(names.contains { $0.contains("熟菜") }, "a cooked today plan keeps contributing, unchanged")
+        XCTAssertFalse(names.contains { $0.contains("明日") }, "tomorrow must be excluded — this path cannot be PlannedMealHorizon-driven")
+        XCTAssertFalse(names.contains { $0.contains("周计划") }, "the weekly draft alone must have no effect")
+        XCTAssertFalse(names.contains { $0.contains("特餐") }, "special plans must not be silently included")
+    }
 }
