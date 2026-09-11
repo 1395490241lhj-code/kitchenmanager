@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: In Progress — Slices 1–3 implemented and reviewed; Slice 4 (delete + undo) pending
+**Status**: Complete — Slices 1–4 implemented, reviewed and validated
 
 **Input**: Owner-approved Planner ordinary-meal CRUD direction and Slice 4 behavioral contract
 
@@ -89,7 +89,7 @@ marked cooked the same way a today-plan is.
 
 ### User Story 4 - Delete an ordinary meal with undo (Priority: P1)
 
-**Status**: Pending — Slice 4.
+**Status**: Implemented and reviewed (delete + undo).
 
 The member removes a planned meal. Removal takes effect immediately, is
 announced non-blockingly, and can be undone within the session; no

@@ -4,6 +4,9 @@ Only notable changes that have entered `main` are recorded here. Current state b
 
 ## 2026-09-10
 
+- Completed Planner ordinary-meal CRUD in native iOS (`07b59ec` … `b5200a1`): explicit dated creation, edit/move, plan-aware cooking on any date, and delete with a single-level session undo. Every ordinary-meal write goes through canonical store contracts that persist before publishing and report a `PlanMutationOutcome`, so no visible state describes a change the store did not keep. Same-day ordering follows persisted array order instead of UUID, and an explicitly chosen Planner date normalizes to local noon. Home is untouched: `TodayPlanDetailView` still owns `全部做完`, `生成今日购物清单` and the weekly-menu entry, and the Home IA change waits for its own feature. No schema, sync, provider or AI pipeline change.
+- Recorded canonical Decision D-040 (Planner ordinary-meal CRUD contracts), which narrows decision 6 of D-031: the Planner creation affordance keeps its discoverability intent but now names both kinds of plan, because Planner creates two.
+
 - Integrated the approved iOS behavior / information-architecture prototype (`d905312` … `0ac9edd`) and its replacement-ownership correctness fix (`d9da474`). Home states each fact once and `开始做饭` enters the shared cooking flow; Inventory has one filter surface with permanently discoverable search; individually empty Planner days keep only their date header; Special Plan generation is cancellable and per-request ownership prevents a cancelled request from overwriting a same-dish retry. See the [engineering seal](docs/archive/ios/BEHAVIOR_CONTRACT_SEAL.md). No model, persistence, sync, provider or AI pipeline change.
 - Recorded canonical Decisions D-038 (AI is a capability, not a second visual brand) and D-039 (frozen structural contract and the bounded native Inventory segmented-control accessibility exception, with 44pt retained as the app target).
 

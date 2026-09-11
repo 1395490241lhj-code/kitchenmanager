@@ -82,6 +82,7 @@ ios-native/Kitchen Manager/
 │   ├── KitchenStore.swift          # existing store contracts (no changes expected)
 │   ├── PlannerView.swift           # delete entry points, undo token, outcome handling
 │   ├── AppFeedback.swift           # FeedbackToast optional-action extension
+│   ├── PlannerRegressionFixture.swift # DEBUG-only: selects which write fails
 │   └── (all other surfaces untouched)
 ├── KitchenManagerTests/
 │   └── PlannerMealCRUDTests.swift  # existing store-level delete/undo coverage

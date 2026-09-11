@@ -11,7 +11,7 @@ Focused unit suites (store contracts, projection, persistence, servings,
 cooking):
 
 ```bash
-xcodebuild test -project "ios-native/Kitchen Manager/KitchenManager.xcodeproj" \
+xcodebuild test -project "ios-native/Kitchen Manager/Kitchen Manager.xcodeproj" \
   -scheme KitchenManager -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KitchenManagerTests/PlannerMealCRUDTests \
   -only-testing:KitchenManagerTests/KitchenStoreTests \
@@ -24,7 +24,7 @@ xcodebuild test -project "ios-native/Kitchen Manager/KitchenManager.xcodeproj" \
 Focused UI suites (create / edit / delete-undo / Planner regression):
 
 ```bash
-xcodebuild test -project "ios-native/Kitchen Manager/KitchenManager.xcodeproj" \
+xcodebuild test -project "ios-native/Kitchen Manager/Kitchen Manager.xcodeproj" \
   -scheme KitchenManager -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -only-testing:KitchenManagerUITests/PlannerMealCreateUITests \
   -only-testing:KitchenManagerUITests/PlannerMealEditUITests \
@@ -37,7 +37,7 @@ Whitespace gate and Debug build:
 
 ```bash
 git diff --check origin/main..HEAD
-xcodebuild build -project "ios-native/Kitchen Manager/KitchenManager.xcodeproj" \
+xcodebuild build -project "ios-native/Kitchen Manager/Kitchen Manager.xcodeproj" \
   -scheme KitchenManager -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 

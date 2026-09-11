@@ -122,7 +122,7 @@ failures, accessibility.
   `PlannerRegressionUITests` (UI) (SC-005).
 - [x] T014 Run `git diff --check origin/main..HEAD` and a Debug build (SC-001,
   SC-005).
-- [ ] T015 Produce the final report required by AGENTS.md; reconcile
+- [x] T015 Produce the final report required by AGENTS.md; reconcile
   spec/plan/tasks against the implementation and record any divergence as a
   known gap or fix it (Constitution VII).
 
@@ -156,3 +156,23 @@ failures, accessibility.
   T003–T005→FR-006/FR-013, T006→FR-008, T007→FR-015, T008→FR-009,
   T009→FR-010/FR-011, T010→FR-014, T011→FR-006–FR-015, T012→FR-012,
   T013/T014→SC-001/SC-005, T015→Constitution VII.
+
+## Final validation evidence
+
+- Full native suite, iPhone 17 Pro, parallel testing disabled: 1890 passed,
+  1 failed, 6 skipped. The one failure,
+  `SettingsExperienceUITests/testCoreSettingsEntriesRemainReachable`, is a
+  pre-existing baseline red: it reproduces identically on a clean
+  `origin/main` worktree at the same assertion, and this feature changes no
+  Settings code or test. The 6 skips are the hosted sync/dogfood smokes gated
+  behind flags that default `NO` (D-009).
+- Feature suites: PlannerMealCRUDTests, KitchenStoreTests, PlannerProjectionTests,
+  TodayPlanPersistenceTests, PlannedServingsTests, RecipeCookingSupportTests,
+  UIFeedbackTests, PlannerMealCreateUITests, PlannerMealEditUITests,
+  PlannerMealDeleteUITests, PlannerUITests, PlannerRegressionUITests — all green.
+- `git diff --check origin/main..HEAD` clean; Debug build and Release
+  simulator build both succeeded; `npm run ios:release:check` OK.
+- Toast timing policy: every toast expires — 4 seconds normally, 20 seconds
+  while VoiceOver runs, keyed by a token UUID so a replaced toast is never
+  cleared by its predecessor's timer. A toast that never expired would cover
+  the bottom of the list for the rest of the session.
