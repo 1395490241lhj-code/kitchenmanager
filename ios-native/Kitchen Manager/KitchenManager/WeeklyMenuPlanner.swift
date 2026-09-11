@@ -4,9 +4,10 @@ import UIKit
 
 // MARK: - Persisted plan models
 //
-// These live alongside `MealPlanItem` (today's plan) rather than replacing it —
-// the weekly plan is a separate, higher-level schedule that gets pushed into
-// `KitchenStore.plans` a day at a time via `addRecipeToTodayPlan`/`addDayToTodayPlan`.
+// The generated menu is a draft, not a schedule. `KitchenStore.plans` is the
+// only schedule Planner and Home read; a menu reaches it by being materialized
+// in one canonical batch, which also records a receipt on the draft so an
+// interrupted attempt can be finished later. See `WeeklyMenuMaterializer`.
 
 struct WeeklyMealPlanRecipe: Identifiable, Codable, Hashable {
     var id: String
@@ -207,6 +208,60 @@ nonisolated struct WeeklyMenuCandidate: Equatable {
     let planID: UUID
 }
 
+/// What a completed planning action tells whoever is hosting the generator.
+///
+/// Only the days the menu covers, which is all a host needs to reveal them in
+/// the Planner. Ids are deliberately absent: after 保留当前安排 some intended
+/// meals are absent on purpose, and any list of ids would either claim rows
+/// that do not exist or need a second field to explain which ones do.
+nonisolated struct WeeklyMaterializationSummary: Equatable {
+    let startDate: Date
+    let endDate: Date
+}
+
+extension WeeklyMealPlan {
+    /// The first and last civil day this menu covers, as start-of-day instants
+    /// in `calendar`. One implementation, shared by the overview row and the
+    /// host summary, so they can never disagree.
+    nonisolated func coveredDays(calendar: Calendar = .current) -> (start: Date, end: Date) {
+        let start = calendar.startOfDay(for: startDate)
+        let lastIndex = days.map(\.dayIndex).max() ?? 0
+        let end = calendar.date(byAdding: .day, value: lastIndex, to: start) ?? start
+        return (start, end)
+    }
+}
+
+/// Decides whether an outcome of a **member-initiated** action completes the
+/// planning action for the host.
+///
+/// The callback is not a state observer. It fires when the member's own tap
+/// just brought the menu to a settled state — the meals were added, or the
+/// member chose to keep the plan as it is — and never because a screen was
+/// opened onto a menu that was already settled. Passive receipt repair goes
+/// through `WeeklyMenuPlannerStore.repairReceiptIfMealsArePresent`, which
+/// returns a `Bool` and so cannot reach this function at all.
+nonisolated enum WeeklyMaterializationHostNotification {
+    static func summary(
+        for outcome: WeeklyMaterializationOutcome,
+        of plan: WeeklyMealPlan,
+        calendar: Calendar = .current
+    ) -> WeeklyMaterializationSummary? {
+        switch outcome {
+        case .materialized, .materializedNeedsReceiptRepair, .receiptRepaired:
+            // `.receiptRepaired` here can only be 保留当前安排 (or re-adding
+            // when nothing turned out to be missing): both are the member
+            // settling the menu. The meals-durable-but-receipt-lagging case is
+            // a success too, because the plan really changed.
+            let range = plan.coveredDays(calendar: calendar)
+            return WeeklyMaterializationSummary(startDate: range.start, endDate: range.end)
+        case .alreadyMaterialized, .confirmationRequired, .missingLocalRecipe,
+             .recipeIdentityConflict, .recipePersistenceFailed, .receiptPersistenceFailed,
+             .planPersistenceFailed, .partialRecoveryRequired, .staleReceipt, .emptyDraft:
+            return nil
+        }
+    }
+}
+
 /// What a member is about to append onto, when they already planned something.
 nonisolated struct WeeklyMaterializationCollision: Equatable {
     /// Distinct target days that already hold ordinary meals.
@@ -238,8 +293,9 @@ nonisolated enum WeeklyMaterializationOutcome: Equatable {
     case confirmationRequired(WeeklyMaterializationCollision)
     /// A dish points at a recipe that is no longer in the library.
     case missingLocalRecipe(dishName: String)
-    /// A generated recipe's id is taken by different content.
-    case recipeIdentityConflict(recipeID: String)
+    /// A generated recipe's id is taken by different content. Carries the dish
+    /// name, because an id means nothing to the person reading the screen.
+    case recipeIdentityConflict(dishName: String)
     case recipePersistenceFailed
     case receiptPersistenceFailed
     case planPersistenceFailed
@@ -277,12 +333,12 @@ nonisolated enum WeeklyMaterializationOutcome: Equatable {
 enum WeeklyMenuMaterializer {
     enum ResolutionFailure: Error, Equatable {
         case missingLocalRecipe(dishName: String)
-        case recipeIdentityConflict(recipeID: String)
+        case recipeIdentityConflict(dishName: String)
 
         var outcome: WeeklyMaterializationOutcome {
             switch self {
             case .missingLocalRecipe(let dishName): return .missingLocalRecipe(dishName: dishName)
-            case .recipeIdentityConflict(let recipeID): return .recipeIdentityConflict(recipeID: recipeID)
+            case .recipeIdentityConflict(let dishName): return .recipeIdentityConflict(dishName: dishName)
             }
         }
     }
@@ -366,7 +422,7 @@ enum WeeklyMenuMaterializer {
         // be the member's own recipe.
         if let stored = recipeStore.userRecipes.first(where: { $0.id == generated.id }) {
             guard RecipeStore.fingerprint(for: stored) == RecipeStore.fingerprint(for: generated) else {
-                throw ResolutionFailure.recipeIdentityConflict(recipeID: generated.id)
+                throw ResolutionFailure.recipeIdentityConflict(dishName: dish.title)
             }
             return Resolved(recipe: stored, needsPersisting: false)
         }
@@ -1308,6 +1364,28 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         )
     }
 
+    /// Bookkeeping only: if every intended meal is already on the plan but the
+    /// receipt still says pending, mark it done. Appends nothing, asks nothing.
+    ///
+    /// Returns whether the receipt is now finalized. A `Bool` on purpose — this
+    /// is not a planning action, so it must not be able to produce an outcome
+    /// the host could be told about.
+    @discardableResult
+    func repairReceiptIfMealsArePresent(
+        kitchenStore: KitchenStore,
+        now: Date = Date()
+    ) -> Bool {
+        guard let draft = generatedPlan, let receipt = draft.materialization else { return false }
+        guard receipt.state == .pending else { return true }
+        guard case .materialized = WeeklyMaterializationStatus.resolve(
+            receipt: receipt, plans: kitchenStore.plans
+        ) else { return false }
+        if case .receiptRepaired = finalize(draft: draft, kitchenStore: kitchenStore, now: now) {
+            return true
+        }
+        return false
+    }
+
     /// Recovery choice: leave the plan as the member has it now.
     ///
     /// The menu counts as handled and will not offer to add itself again. The
@@ -1317,7 +1395,10 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         kitchenStore: KitchenStore,
         now: Date = Date()
     ) -> WeeklyMaterializationOutcome {
-        guard let draft = generatedPlan, draft.materialization != nil else { return .emptyDraft }
+        guard let draft = generatedPlan, let receipt = draft.materialization else { return .emptyDraft }
+        // Settling a menu is done once. A finalized receipt has nothing left to
+        // accept, and reporting a repair would read as a second completion.
+        guard receipt.state == .pending else { return .alreadyMaterialized }
         return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
     }
 
@@ -1344,7 +1425,10 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             do {
                 try recipeStore.saveUserRecipes(preparation.recipesToPersist)
             } catch UserRecipeBatchError.idConflict(let id) {
-                return .recipeIdentityConflict(recipeID: id)
+                // Resolution normally catches this first; if the library changed
+                // underneath, name the dish rather than the id.
+                let dishName = preparation.candidates.first { $0.recipeID == id }?.dishName ?? id
+                return .recipeIdentityConflict(dishName: dishName)
             } catch {
                 return .recipePersistenceFailed
             }
@@ -1428,29 +1512,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         }
     }
 
-    func savePlan(kitchenStore: KitchenStore) {
-        guard let generatedPlan else { return }
-        kitchenStore.saveWeeklyPlan(generatedPlan)
-        hasUnsavedChanges = false
-    }
-
-    func addRecipeToTodayPlan(_ recipe: WeeklyMealPlanRecipe, kitchenStore: KitchenStore) {
-        // `generatedPlan.servings` is the household headcount for the week, not
-        // a per-dish target: four people sharing three dishes do not want four
-        // servings of each. It stays on the weekly plan and never becomes a
-        // per-recipe numerator.
-        kitchenStore.addPlan(recipe: Self.domainRecipe(from: recipe))
-    }
-
-    func addDayToTodayPlan(dayIndex: Int, kitchenStore: KitchenStore) {
-        guard let day = generatedPlan?.days.first(where: { $0.dayIndex == dayIndex }) else { return }
-        let additions = day.meals
-            .flatMap(\.recipes)
-            // Same reason as above: household headcount is not a per-dish target.
-            .map { (recipe: Self.domainRecipe(from: $0), plannedServings: Int?.none) }
-        kitchenStore.addPlans(additions)
-    }
-
     func saveRecipeToLibrary(_ recipe: WeeklyMealPlanRecipe, recipeStore: RecipeStore) throws {
         guard recipe.source == .ai else { return }
         try recipeStore.saveUserRecipe(Self.domainRecipe(from: recipe))
@@ -1470,7 +1531,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
                 name: item.name,
                 quantity: quantity,
                 unit: unit,
-                source: "本周菜单"
+                source: "生成的菜单"
             )
         }
         kitchenStore.addShoppingItems(additions)
@@ -1653,6 +1714,10 @@ private extension String {
 // MARK: - Input view
 
 struct WeeklyMenuPlannerView: View {
+    /// Passed straight through to the result screen. Defaults to nothing, so a
+    /// host that does not care about navigation is unaffected.
+    var onMaterialized: ((WeeklyMaterializationSummary) -> Void)?
+
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @StateObject private var store = WeeklyMenuPlannerStore()
@@ -1738,7 +1803,7 @@ struct WeeklyMenuPlannerView: View {
                         if store.isGenerating {
                             ProgressView().tint(AppTheme.onManagementAction)
                         } else {
-                            Label("生成本周菜单", systemImage: "sparkles")
+                            Label("生成菜单", systemImage: "sparkles")
                         }
                         Spacer()
                     }
@@ -1749,7 +1814,7 @@ struct WeeklyMenuPlannerView: View {
                 .disabled(store.isGenerating)
 
                 if kitchenStore.weeklyPlan != nil {
-                    Button("查看已保存的本周计划") {
+                    Button("查看上次生成的菜单") {
                         store.generatedPlan = kitchenStore.weeklyPlan
                         isShowingResult = true
                     }
@@ -1764,10 +1829,10 @@ struct WeeklyMenuPlannerView: View {
         .tint(KitchenTheme.cookingGreen)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isShowingResult) {
-            WeeklyMenuResultView(store: store)
+            WeeklyMenuResultView(store: store, onMaterialized: onMaterialized)
         }
         .alert(
-            "暂时无法生成周菜单",
+            "暂时无法生成菜单",
             isPresented: Binding(
                 get: { store.errorMessage != nil },
                 set: { if !$0 { store.errorMessage = nil } }
@@ -1820,16 +1885,74 @@ struct MultiSelectionListView: View {
 
 // MARK: - Result view
 
+/// The three things that can interrupt adding a menu to the meal plan, kept out
+/// of the result view's own modifier chain so each stays type-checkable.
+private struct WeeklyMaterializationAlerts: ViewModifier {
+    @Binding var collision: WeeklyMaterializationCollision?
+    @Binding var isShowingStaleNotice: Bool
+    @Binding var failureMessage: String?
+    let onConfirmAppend: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                "已有安排",
+                isPresented: Binding(
+                    get: { collision != nil },
+                    set: { if !$0 { collision = nil } }
+                ),
+                presenting: collision
+            ) { _ in
+                Button("继续加入") {
+                    collision = nil
+                    onConfirmAppend()
+                }
+                .accessibilityIdentifier("weekly.collision.confirm")
+                Button("取消", role: .cancel) { collision = nil }
+                    .accessibilityIdentifier("weekly.collision.cancel")
+            } message: { collision in
+                Text("其中 \(collision.dayCount) 天已经有安排。加入后会保留现有安排，并追加生成的菜品。")
+            }
+            .alert("这份菜单已发生变化", isPresented: $isShowingStaleNotice) {
+                Button("好", role: .cancel) { isShowingStaleNotice = false }
+            } message: {
+                Text("这份菜单已发生变化，无法继续之前的加入操作。请重新生成菜单。已经加入用餐计划的菜品不会被更改。")
+            }
+            .alert(
+                "未能加入用餐计划",
+                isPresented: Binding(
+                    get: { failureMessage != nil },
+                    set: { if !$0 { failureMessage = nil } }
+                )
+            ) {
+                Button("好", role: .cancel) { failureMessage = nil }
+            } message: {
+                Text(failureMessage ?? "请稍后重试。")
+            }
+    }
+}
+
 struct WeeklyMenuResultView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @ObservedObject var store: WeeklyMenuPlannerStore
+    /// Lets whoever presents this screen decide where to go afterwards. The
+    /// generator has no business owning navigation policy, so when nobody is
+    /// listening a finished menu simply stays on screen.
+    var onMaterialized: ((WeeklyMaterializationSummary) -> Void)?
 
     @State private var isShowingRegenerateConfirm = false
     @State private var isShowingDeleteConfirm = false
     @State private var isShowingShoppingGeneration = false
     @State private var viewingRecipe: Recipe?
     @State private var saveErrorMessage: String?
+    @State private var failureMessage: String?
+    @State private var pendingCollision: WeeklyMaterializationCollision?
+    @State private var isShowingStaleNotice = false
+    /// One repair attempt per appearance. A menu whose meals are already on the
+    /// plan only needs its bookkeeping finished, and retrying that forever would
+    /// spin on a disk that is not cooperating.
+    @State private var hasAttemptedReceiptRepair = false
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
 
@@ -1851,36 +1974,32 @@ struct WeeklyMenuResultView: View {
                     shoppingSection(plan)
                 }
             } else {
-                ContentUnavailableView("还没有生成周菜单", systemImage: "calendar")
+                ContentUnavailableView("还没有生成菜单", systemImage: "calendar")
             }
         }
-        .navigationTitle("本周菜单")
+        .navigationTitle("生成的菜单")
         .plannerList()
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("重新生成整周", systemImage: "arrow.clockwise") {
+                    Button("重新生成", systemImage: "arrow.clockwise") {
                         isShowingRegenerateConfirm = true
                     }
-                    .disabled(store.isGenerating)
-                    Button("保存本周计划", systemImage: "square.and.arrow.down") {
-                        store.savePlan(kitchenStore: kitchenStore)
-                        showToast("已保存本周计划")
-                    }
-                    .disabled(store.generatedPlan == nil)
-                    Button("生成本周购物清单", systemImage: "cart.badge.plus") {
+                    .disabled(store.isGenerating || store.isMaterializing)
+                    .accessibilityIdentifier("weekly.result.regenerate")
+                    Button("生成购物清单", systemImage: "cart.badge.plus") {
                         isShowingShoppingGeneration = true
                     }
                     .disabled(store.generatedPlan == nil)
                     if kitchenStore.weeklyPlan != nil {
-                        Button("复制为下一周", systemImage: "doc.on.doc") {
+                        Button("复制到 7 天后", systemImage: "doc.on.doc") {
                             if let copy = kitchenStore.duplicateWeeklyPlanForNextWeek() {
                                 store.generatedPlan = copy
-                                showToast("已复制为下一周计划")
+                                showToast("已复制到 7 天后")
                             }
                         }
-                        Button("删除本周计划", systemImage: "trash", role: .destructive) {
+                        Button("删除这份菜单", systemImage: "trash", role: .destructive) {
                             isShowingDeleteConfirm = true
                         }
                     }
@@ -1902,25 +2021,25 @@ struct WeeklyMenuResultView: View {
                 FeedbackToast(message: toastMessage, style: toastStyle)
             }
         }
-        .alert("重新生成整周菜单？", isPresented: $isShowingRegenerateConfirm) {
+        .alert("重新生成菜单？", isPresented: $isShowingRegenerateConfirm) {
             Button("重新生成", role: .destructive) {
                 Task { await store.regeneratePlan(recipeStore: recipeStore, kitchenStore: kitchenStore) }
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("当前未保存的计划会被新结果替换。")
+            Text("当前菜单会被新结果替换。重新生成不会更改已经加入用餐计划的菜品。")
         }
-        .alert("删除本周计划？", isPresented: $isShowingDeleteConfirm) {
+        .alert("删除这份菜单？", isPresented: $isShowingDeleteConfirm) {
             Button("删除", role: .destructive) {
                 kitchenStore.deleteWeeklyPlan()
                 store.generatedPlan = nil
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("已保存的本周计划将被删除，此操作无法撤销。")
+            Text("这份生成的菜单将被删除。已经加入用餐计划的菜品不受影响。")
         }
         .alert(
-            "暂时无法生成周菜单",
+            "暂时无法生成菜单",
             isPresented: Binding(
                 get: { store.errorMessage != nil },
                 set: { if !$0 { store.errorMessage = nil } }
@@ -1941,30 +2060,221 @@ struct WeeklyMenuResultView: View {
         } message: {
             Text(saveErrorMessage ?? "请稍后重试。")
         }
+        .modifier(
+            WeeklyMaterializationAlerts(
+                collision: $pendingCollision,
+                isShowingStaleNotice: $isShowingStaleNotice,
+                failureMessage: $failureMessage,
+                onConfirmAppend: { runMaterialization(confirmedAppend: true) }
+            )
+        )
         .onDisappear {
             store.cancelGeneration()
+        }
+        .task {
+            repairReceiptIfTheMealsAreAlreadyThere()
         }
     }
 
     private func overviewSection(_ plan: WeeklyMealPlan) -> some View {
         Section {
-            LabeledContent("共计", value: "\(totalMeals(plan)) 顿")
-            LabeledContent("菜品", value: "\(totalDishes(plan)) 道")
-            LabeledContent("预计新增采购", value: "\(plan.shoppingItems.count) 项")
-            if let todayIndex = dayIndexForToday(plan), plan.days.contains(where: { $0.dayIndex == todayIndex }) {
-                Button("把今天加入计划") {
-                    store.addDayToTodayPlan(dayIndex: todayIndex, kitchenStore: kitchenStore)
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    showToast("已加入今天的计划")
-                }
-                .tint(AppTheme.brand)
-            }
+            overviewRows(plan)
+            materializationControl(plan)
         } header: {
-            Text("本周概览").plannerSectionTitle()
+            Text("菜单概览").plannerSectionTitle()
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
                                  bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+    }
+
+    @ViewBuilder
+    private func overviewRows(_ plan: WeeklyMealPlan) -> some View {
+        let meals: String = "\(totalMeals(plan)) 顿"
+        let dishes: String = "\(totalDishes(plan)) 道"
+        let purchases: String = "\(plan.shoppingItems.count) 项"
+        LabeledContent("日期", value: dateRangeText(plan))
+            .accessibilityIdentifier("weekly.result.range")
+        LabeledContent("共计", value: meals)
+        LabeledContent("菜品", value: dishes)
+        LabeledContent("预计新增采购", value: purchases)
+    }
+
+    // MARK: - Adding the menu to the meal plan
+
+    /// What the plan itself says about this menu, which is the only thing worth
+    /// showing. A menu whose meals are all present counts as added even if its
+    /// receipt has not been marked done yet.
+    private var materializationStatus: WeeklyMaterializationStatus {
+        WeeklyMaterializationStatus.resolve(
+            receipt: store.generatedPlan?.materialization,
+            plans: kitchenStore.plans
+        )
+    }
+
+    private var isAddedToPlan: Bool {
+        materializationStatus == .materialized
+    }
+
+    /// The draft is the member's to reshape only until an attempt binds ids to
+    /// this exact dish set. After that, regenerating is the way to a new draft.
+    private var isDraftEditable: Bool {
+        materializationStatus == .notStarted
+    }
+
+    @ViewBuilder
+    private func materializationControl(_ plan: WeeklyMealPlan) -> some View {
+        switch materializationStatus {
+        case .materialized:
+            // Deliberately not a button. The menu is on the plan, and the meals
+            // are the Planner's to edit from here — including deleting one,
+            // which does not make this menu unadded.
+            Label("已加入用餐计划", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(AppTheme.successInk)
+                .accessibilityIdentifier("weekly.result.materialized")
+
+        case .partiallyPresent(_, let missing):
+            let addTitle: String = "重新加入缺少的 \(missing.count) 道"
+            VStack(alignment: .leading, spacing: 10) {
+                Text("用餐计划中只保留了这份菜单的一部分。你可以重新加入缺少的菜品，或保留现在的安排。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(addTitle) {
+                    handle(
+                        store.materializeMissingMeals(
+                            kitchenStore: kitchenStore, recipeStore: recipeStore
+                        )
+                    )
+                }
+                .disabled(store.isMaterializing)
+                .accessibilityIdentifier("weekly.result.recover.add")
+                Button("保留当前安排") {
+                    handle(store.acceptCurrentSchedule(kitchenStore: kitchenStore))
+                }
+                .disabled(store.isMaterializing)
+                .accessibilityIdentifier("weekly.result.recover.keep")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+        case .notStarted, .pending:
+            Button {
+                runMaterialization()
+            } label: {
+                if store.isMaterializing {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("正在加入…")
+                    }
+                } else {
+                    Text("加入用餐计划")
+                }
+            }
+            .tint(AppTheme.brand)
+            .disabled(store.isMaterializing || plan.dishCount == 0)
+            .accessibilityIdentifier("weekly.result.materialize")
+        }
+    }
+
+    private func runMaterialization(confirmedAppend: Bool = false) {
+        handle(
+            store.materialize(
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore,
+                confirmedAppend: confirmedAppend
+            )
+        )
+    }
+
+    /// A menu whose meals are already on the plan only needs its receipt
+    /// finished. That is not a second attempt to add anything — the orchestrator
+    /// refuses to append in this state — so it runs quietly, once per visit.
+    private func repairReceiptIfTheMealsAreAlreadyThere() {
+        guard !hasAttemptedReceiptRepair,
+              store.generatedPlan?.materialization?.state == .pending,
+              materializationStatus == .materialized else { return }
+        hasAttemptedReceiptRepair = true
+        // Whether the repair write succeeds or not, the meals are durable and
+        // the screen already says so. A failure is left for the next visit. This
+        // is bookkeeping, not a planning action, so it never reaches `handle`
+        // and the host is not told.
+        _ = store.repairReceiptIfMealsArePresent(kitchenStore: kitchenStore)
+    }
+
+    /// Turns an outcome into the one thing worth telling the member.
+    private func handle(_ outcome: WeeklyMaterializationOutcome) {
+        switch outcome {
+        case .materialized, .materializedNeedsReceiptRepair:
+            // The meals are durable in both cases; the second one only means the
+            // menu record lagged behind, which the next visit repairs.
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            showToast("已加入用餐计划")
+            notifyHost(for: outcome)
+
+        case .receiptRepaired:
+            // Reached from a tap only through 保留当前安排 (or re-adding when
+            // nothing was missing after all): the member settled the menu.
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            showToast("已保留当前安排")
+            notifyHost(for: outcome)
+
+        case .alreadyMaterialized:
+            break
+
+        case .confirmationRequired(let collision):
+            pendingCollision = collision
+
+        case .missingLocalRecipe(let dishName):
+            failureMessage = "「\(dishName)」已不在菜谱库。请替换或移除这道菜后再试。"
+
+        case .recipeIdentityConflict(let dishName):
+            failureMessage = "「\(dishName)」与菜谱库里的另一份菜谱冲突。请替换这道菜后再试。"
+
+        case .recipePersistenceFailed:
+            failureMessage = "菜谱没能保存到设备，请稍后重试。"
+
+        case .receiptPersistenceFailed:
+            failureMessage = "菜单没能保存到设备，请稍后重试。"
+
+        case .planPersistenceFailed:
+            failureMessage = "用餐计划没能更新，请稍后重试。"
+
+        case .partialRecoveryRequired:
+            // Shown in place by `materializationControl`, where the member can
+            // act on it, rather than as an alert they must dismiss first.
+            break
+
+        case .staleReceipt:
+            isShowingStaleNotice = true
+
+        case .emptyDraft:
+            failureMessage = "这份菜单里还没有菜品。"
+        }
+    }
+
+    /// Every call into `handle` comes from a member's tap, so this is the only
+    /// place the host is told, and each tap reaches it at most once.
+    private func notifyHost(for outcome: WeeklyMaterializationOutcome) {
+        guard let onMaterialized, let plan = store.generatedPlan,
+              let summary = WeeklyMaterializationHostNotification.summary(for: outcome, of: plan)
+        else { return }
+        onMaterialized(summary)
+    }
+
+    /// The days this menu actually covers. It starts when it was generated and
+    /// runs for as many days as were asked for, so it is stated as a range
+    /// rather than as a week it may not line up with.
+    private func dateRangeText(_ plan: WeeklyMealPlan) -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "M月d日"
+        let (start, end) = plan.coveredDays(calendar: calendar)
+        if calendar.isDate(start, inSameDayAs: end) {
+            return formatter.string(from: start)
+        }
+        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
     }
 
     private func mealSection(_ meal: WeeklyMealPlanMeal, dayIndex: Int, mealsPerDay: Int) -> some View {
@@ -1981,9 +2291,8 @@ struct WeeklyMenuResultView: View {
     }
 
     private func dishRow(_ recipe: WeeklyMealPlanRecipe, dayIndex: Int, mealIndex: Int) -> some View {
-        let isAdded = kitchenStore.todayPlans.contains {
-            $0.recipeID == (recipe.existingRecipeID ?? recipe.id)
-        }
+        let isInLibrary = recipe.isSavedToLibrary
+            || recipeStore.userRecipes.contains { $0.id == recipe.id }
         let coverage = inventoryCoverage(for: recipe)
 
         return HStack(alignment: .top, spacing: 10) {
@@ -2028,45 +2337,56 @@ struct WeeklyMenuResultView: View {
                     Button("查看菜谱", systemImage: "book.pages") {
                         viewingRecipe = recipeForDetail(recipe)
                     }
-                    Button("替换这道", systemImage: "arrow.triangle.2.circlepath") {
-                        Task {
-                            await store.replaceRecipe(
-                                dayIndex: dayIndex,
-                                mealIndex: mealIndex,
-                                recipeID: recipe.id,
-                                recipeStore: recipeStore,
-                                kitchenStore: kitchenStore
-                            )
-                        }
-                    }
-                    let otherDays = otherDayIndices(excluding: dayIndex)
-                    if !otherDays.isEmpty {
-                        Menu("移到其他天") {
-                            ForEach(otherDays, id: \.self) { targetDay in
-                                Button("第 \(targetDay + 1) 天") {
-                                    store.moveRecipe(recipe.id, fromDay: dayIndex, mealIndex: mealIndex, toDay: targetDay)
-                                }
+                    // Once the meals are on the plan the Planner owns them, and a
+                    // draft edited here would no longer be the menu that was added,
+                    // so the editing actions go away. While an attempt is pending
+                    // the receipt's ids are bound to this exact dish set, so they
+                    // stay visible but locked; regenerating is the way to a new draft.
+                    if !isAddedToPlan {
+                        Button("替换这道", systemImage: "arrow.triangle.2.circlepath") {
+                            Task {
+                                await store.replaceRecipe(
+                                    dayIndex: dayIndex,
+                                    mealIndex: mealIndex,
+                                    recipeID: recipe.id,
+                                    recipeStore: recipeStore,
+                                    kitchenStore: kitchenStore
+                                )
                             }
                         }
+                        .disabled(!isDraftEditable)
+                        let otherDays = otherDayIndices(excluding: dayIndex)
+                        if !otherDays.isEmpty {
+                            Menu("移到其他天") {
+                                ForEach(otherDays, id: \.self) { targetDay in
+                                    Button("第 \(targetDay + 1) 天") {
+                                        store.moveRecipe(recipe.id, fromDay: dayIndex, mealIndex: mealIndex, toDay: targetDay)
+                                    }
+                                }
+                            }
+                            .disabled(!isDraftEditable)
+                        }
                     }
-                    if recipe.source == .ai && !recipe.isSavedToLibrary {
+                    // Offered only while the recipe really is missing from the
+                    // library. Materializing the menu stores it, so continuing to
+                    // offer it afterwards would invite a member to save what they
+                    // already have.
+                    if recipe.source == .ai && !isInLibrary {
                         Button("保存到菜谱库", systemImage: "square.and.arrow.down") {
                             attemptSaveToLibrary(recipe)
                         }
                     }
-                    Button(isAdded ? "已在今天" : "加入今日计划", systemImage: "calendar.badge.plus") {
-                        store.addRecipeToTodayPlan(recipe, kitchenStore: kitchenStore)
-                        UINotificationFeedbackGenerator().notificationOccurred(isAdded ? .warning : .success)
-                        showToast(isAdded ? "已在今天" : "已加入今天", style: isAdded ? .warning : .success)
-                    }
-                    .disabled(isAdded)
-                    Divider()
-                    Button("从计划移除", systemImage: "trash", role: .destructive) {
-                        store.removeRecipe(recipe.id, dayIndex: dayIndex, mealIndex: mealIndex)
+                    if !isAddedToPlan {
+                        Divider()
+                        Button("从计划移除", systemImage: "trash", role: .destructive) {
+                            store.removeRecipe(recipe.id, dayIndex: dayIndex, mealIndex: mealIndex)
+                        }
+                        .disabled(!isDraftEditable)
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle").foregroundStyle(.primary)
                 }
+                .accessibilityIdentifier("weekly.result.dish.menu")
             }
         }
         .padding(.vertical, 4)

@@ -51,7 +51,7 @@ Invariants:
   **materialized** receipt still short-circuits, since it claims no mapping to re-derive. No
   SwiftData migration is involved — the field lives in the existing JSON payload.
 - `planIDs` are allocated **before** the canonical batch and never regenerated on retry.
-- Regeneration and `复制到下一个 7 天` produce a draft with `materialization == nil`; a successful
+- Regeneration and `复制到 7 天后` produce a draft with `materialization == nil`; a successful
   receipt is never carried onto a new draft.
 - The receipt is written through `commitWeeklyPlan` (§4), never through the `didSet` path, so a
   failed receipt write is observable.
@@ -65,7 +65,7 @@ Invariants:
         case materialized
     }
 
-    static func status(
+    static func resolve(
         receipt: WeeklyMaterializationReceipt?,
         plans: [MealPlanItem]
     ) -> WeeklyMaterializationStatus
@@ -89,9 +89,9 @@ materialized meal in Planner, and re-checking would re-offer the action and recr
 |---|---|---|---|
 | `.notStarted` | `加入用餐计划` (disabled when the draft has no dishes) | full | — |
 | in flight | disabled, progress | disabled | — |
-| `.pending` | `重试加入用餐计划` | disabled (ids already committed to) | honest error line |
-| `.partiallyPresent` | none | disabled | `加入缺少的 N 道` and `标记为已加入` |
-| `.materialized` | `已加入用餐计划`, disabled | hidden | `查看用餐计划` (host callback) |
+| `.pending` | `加入用餐计划` again (same ids) | per-dish actions visible, disabled (ids already committed to) | the failure was named in the `未能加入用餐计划` alert |
+| `.partiallyPresent` | none | disabled | `重新加入缺少的 N 道` and `保留当前安排` |
+| `.materialized` | `已加入用餐计划`, disabled | hidden (`查看菜谱` stays) | the host's own `查看用餐计划`, if it offers one; the callback does not fire on reopen |
 
 Write order and what is durable after each step:
 
@@ -136,11 +136,47 @@ Write order and what is durable after each step:
 exist in `plans` (`TodayPlanRecord.id` is `@Attribute(.unique)` and `replacePlans` would otherwise
 collapse the pair into one row). `PlanMutationOutcome` is unchanged.
 
+### 4.1 Host notification
+
+    nonisolated struct WeeklyMaterializationSummary: Equatable {
+        let startDate: Date   // first covered day, start-of-day in the materialization calendar
+        let endDate: Date     // last covered day
+    }
+
+    // WeeklyMenuPlannerStore
+    @discardableResult
+    func repairReceiptIfMealsArePresent(kitchenStore: KitchenStore, now: Date = Date()) -> Bool
+
+    enum WeeklyMaterializationOutcome: Equatable {
+        case materialized([MealPlanItem])
+        case materializedNeedsReceiptRepair([MealPlanItem])   // meals durable, receipt lagging
+        case receiptRepaired                                   // nothing appended
+        case alreadyMaterialized
+        case confirmationRequired(WeeklyMaterializationCollision)
+        case missingLocalRecipe(dishName: String)
+        case recipeIdentityConflict(dishName: String)
+        case recipePersistenceFailed, receiptPersistenceFailed, planPersistenceFailed
+        case partialRecoveryRequired(present: [UUID], missing: [UUID])
+        case staleReceipt
+        case emptyDraft
+    }
+
+`onMaterialized: ((WeeklyMaterializationSummary) -> Void)?` fires once per member-initiated
+completion: the `.materialized`, `.materializedNeedsReceiptRepair` and `.receiptRepaired` outcomes
+of a tap (`materialize`, `materializeMissingMeals`, `acceptCurrentSchedule`) reach it, decided in one
+place (`WeeklyMaterializationHostNotification.summary(for:of:calendar:)`); every other outcome does
+not. Passive `.task` receipt repair goes through `repairReceiptIfMealsArePresent`, which returns a
+`Bool` and so cannot produce a notifiable outcome. `acceptCurrentSchedule` on a finalized receipt
+returns `.alreadyMaterialized`, so settling a menu is reported once. The summary carries no ids:
+after `保留当前安排` some intended meals are absent on purpose.
+
 ## 5. Mapping types
 
     struct WeeklyMenuMaterializer {
         struct PreparedItem { let item: MealPlanItem; let recipe: Recipe; let isNewRecipe: Bool }
-        enum Failure: Error, Equatable { case missingRecipe(title: String) }
+        enum ResolutionFailure: Error, Equatable {
+            case missingLocalRecipe(dishName: String), recipeIdentityConflict(dishName: String)
+        }
 
         static func prepare(
             plan: WeeklyMealPlan,
@@ -186,9 +222,11 @@ dead `KitchenStore.todaysWeeklyMeals()`, and the copy listed in spec §9.
 
 ## 9. Accessibility identifiers (the weekly views currently have none)
 
-`weekly.input.generate`, `weekly.input.viewLast`, `weekly.result.materialize`,
-`weekly.result.materialized`, `weekly.result.retry`, `weekly.result.repair.add`,
-`weekly.result.repair.markDone`, `weekly.result.viewPlanner`, `weekly.result.range`,
-`weekly.result.dish.<recipeID>`, `weekly.collision.confirm`, `weekly.collision.cancel`,
-`weekly.regenerate.confirm`.
+As implemented: `weekly.result.range`, `weekly.result.materialize`,
+`weekly.result.materialized`, `weekly.result.regenerate`, `weekly.result.recover.add`,
+`weekly.result.recover.keep`, `weekly.result.dish.menu`, `weekly.collision.confirm`,
+`weekly.collision.cancel`.
+
+Only what a behaviour test needs to be stable. The failure and stale alerts are matched by their
+native titles, and no identifier was added to an element a test does not reach.
 

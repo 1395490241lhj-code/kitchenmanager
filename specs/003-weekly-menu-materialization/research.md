@@ -81,7 +81,7 @@ the ids *before* the batch is what makes an interrupted attempt recoverable rath
 legitimate; re-checking presence would re-offer the CTA and re-create meals the user removed.
 
 **Partial subset**: surfaced as an explicit recovery case with two user actions
-(`加入缺少的 N 道` using only the missing exact ids, or `标记为已加入` finalizing the receipt without
+(`重新加入缺少的 N 道` using only the missing exact ids, or `保留当前安排` finalizing the receipt without
 writing). Automatic repair is wrong because a missing id is equally consistent with a deliberate
 Planner deletion; blind re-adding is exactly the duplication OD-7 forbids.
 
@@ -106,12 +106,17 @@ hazard and a second way to reach `plans` from this screen.
 
 ## R9 — Host callback for post-materialization navigation (OD-8)
 
-**Decision**: `onMaterialized: ((WeeklyMealPlan, [MealPlanItem]) -> Void)?` on the generator/result
-surface; the legacy host offers `查看用餐计划`; a future Planner host may pop and reveal the dates.
+**Decision**: `onMaterialized: ((WeeklyMaterializationSummary) -> Void)?` on the generator/result
+surface, where the summary is the covered date range only (`startDate`, `endDate`). It fires once
+per member-initiated completion — first append, append whose receipt finalization lagged,
+`重新加入缺少的 N 道`, `保留当前安排` — and never as a state observer: reopening a finished menu,
+passive receipt repair and every failure or cancel path stay silent. The legacy Home host passes
+nothing; a future Planner host may pop and reveal the dates.
 
 **Rationale**: the generator is currently pushed on the Home tab stack where Planner is a sheet, so
 it cannot dismiss “back to Planner”; the policy belongs to whoever hosts it. Empty draft disables
-the CTA.
+the CTA. Ids were dropped from the summary: after `保留当前安排` some intended meals are absent on
+purpose, so any id list would either claim rows that do not exist or need bookkeeping no host needs.
 
 ## R10 — Restock derives from canonical plans (OD-9)
 

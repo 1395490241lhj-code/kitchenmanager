@@ -257,7 +257,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
 
         let outcome = materialize(harness)
 
-        XCTAssertEqual(outcome, .recipeIdentityConflict(recipeID: "weekly-ai-1"))
+        XCTAssertEqual(outcome, .recipeIdentityConflict(dishName: "番茄炒蛋"), "the dish is named, not its id")
         XCTAssertTrue(harness.kitchen.plans.isEmpty)
         XCTAssertEqual(harness.recipes.recipe(id: "weekly-ai-1")?.title, "我的红烧肉", "never overwritten")
     }
@@ -705,6 +705,185 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
             .staleReceipt
         )
         XCTAssertTrue(harness.kitchen.plans.isEmpty)
+    }
+
+    // MARK: - Host notification
+    //
+    // The host callback fires when the member's own tap just settled the menu,
+    // and never because a screen was opened onto a menu that was already
+    // settled. `WeeklyMaterializationHostNotification.summary` is the whole
+    // decision; passive repair returns a Bool and cannot reach it.
+
+    private func hostSummary(
+        _ outcome: WeeklyMaterializationOutcome,
+        _ harness: Harness
+    ) -> WeeklyMaterializationSummary? {
+        guard let plan = harness.planner.generatedPlan else { return nil }
+        return WeeklyMaterializationHostNotification.summary(for: outcome, of: plan, calendar: calendar)
+    }
+
+    private var expectedSummary: WeeklyMaterializationSummary {
+        let calendar = self.calendar
+        let start = calendar.startOfDay(for: startDate)
+        return WeeklyMaterializationSummary(
+            startDate: start,
+            endDate: calendar.date(byAdding: .day, value: 1, to: start)!
+        )
+    }
+
+    func testAFirstSuccessfulAddTellsTheHostExactlyOnce() {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [
+            0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")],
+            1: [aiDish(id: "weekly-ai-2", title: "青椒肉丝", ingredient: "青椒 3 个")]
+        ])
+
+        let first = materialize(harness)
+        XCTAssertEqual(hostSummary(first, harness), expectedSummary, "the host learns which days changed")
+
+        // The same tap cannot produce a second notification, and a second tap
+        // finds nothing left to do.
+        XCTAssertNil(hostSummary(materialize(harness), harness), "an already-added menu is not a new completion")
+    }
+
+    func testMealsAddedButReceiptLaggingStillTellsTheHostOnceAndRepairIsSilent() throws {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        harness.todayPlan.onWrite = { harness.weekly.shouldFail = true }
+        let outcome = materialize(harness)
+        harness.todayPlan.onWrite = nil
+
+        guard case .materializedNeedsReceiptRepair = outcome else {
+            return XCTFail("expected the meals-durable-but-receipt-lagging result, got \(outcome)")
+        }
+        XCTAssertNotNil(hostSummary(outcome, harness), "the plan really changed, so the host is told")
+
+        // Later, the screen quietly finishes the bookkeeping. That path returns
+        // a Bool: there is no outcome to tell anyone about.
+        harness.weekly.shouldFail = false
+        let reopened = reopen(harness)
+        XCTAssertTrue(reopened.repairReceiptIfMealsArePresent(kitchenStore: harness.kitchen))
+        XCTAssertEqual(harness.kitchen.weeklyPlan?.materialization?.state, .materialized)
+        XCTAssertEqual(harness.kitchen.plans.count, 1, "repair appends nothing")
+
+        // And if the member somehow taps again, the store says it is done.
+        let again = reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar)
+        XCTAssertEqual(again, .alreadyMaterialized)
+        XCTAssertNil(hostSummary(again, harness))
+    }
+
+    func testAPassiveRepairAttemptThatFailsIsStillSilentAndRetryable() throws {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        harness.todayPlan.onWrite = { harness.weekly.shouldFail = true }
+        _ = materialize(harness)
+        harness.todayPlan.onWrite = nil
+
+        let reopened = reopen(harness)
+        XCTAssertFalse(reopened.repairReceiptIfMealsArePresent(kitchenStore: harness.kitchen), "the disk still refuses")
+        XCTAssertEqual(harness.weekly.plan?.materialization?.state, .pending)
+
+        harness.weekly.shouldFail = false
+        XCTAssertTrue(reopened.repairReceiptIfMealsArePresent(kitchenStore: harness.kitchen), "a later visit finishes it")
+        XCTAssertEqual(harness.kitchen.plans.count, 1)
+    }
+
+    func testReopeningAFinishedMenuTellsTheHostNothing() {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        XCTAssertTrue(materialize(harness).didChangeSchedule)
+
+        let reopened = reopen(harness)
+        XCTAssertTrue(reopened.repairReceiptIfMealsArePresent(kitchenStore: harness.kitchen), "already finalized, nothing to do")
+        let outcome = reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar)
+        XCTAssertEqual(outcome, .alreadyMaterialized)
+        XCTAssertNil(hostSummary(outcome, harness))
+    }
+
+    func testPuttingBackTheMissingDishTellsTheHostOnce() throws {
+        let harness = makeHarness()
+        let receipt = try pendingReceiptAfterAFailedPlanWrite(harness)
+        let planDates = try XCTUnwrap(receipt.planDates)
+        harness.kitchen.appendPlans([
+            MealPlanItem(id: receipt.planIDs[0], recipeID: "weekly-ai-1", recipeName: "番茄炒蛋", date: planDates[0])
+        ])
+        let reopened = reopen(harness)
+
+        let outcome = reopened.materializeMissingMeals(
+            kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar
+        )
+
+        XCTAssertNotNil(hostSummary(outcome, harness))
+        XCTAssertNil(
+            hostSummary(reopened.materializeMissingMeals(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar), harness),
+            "the menu is finished; nothing fires again"
+        )
+    }
+
+    func testKeepingTheCurrentArrangementTellsTheHostOnceWithoutClaimingAbsentMeals() throws {
+        let harness = makeHarness()
+        let receipt = try pendingReceiptAfterAFailedPlanWrite(harness)
+        let planDates = try XCTUnwrap(receipt.planDates)
+        harness.kitchen.appendPlans([
+            MealPlanItem(id: receipt.planIDs[0], recipeID: "weekly-ai-1", recipeName: "番茄炒蛋", date: planDates[0])
+        ])
+        let reopened = reopen(harness)
+
+        let outcome = reopened.acceptCurrentSchedule(kitchenStore: harness.kitchen)
+
+        XCTAssertEqual(outcome, .receiptRepaired)
+        let summary = try XCTUnwrap(WeeklyMaterializationHostNotification.summary(
+            for: outcome, of: XCTUnwrap(reopened.generatedPlan), calendar: calendar
+        ))
+        XCTAssertEqual(summary, expectedSummary, "the host learns the days the menu covers, and nothing else")
+        XCTAssertEqual(harness.kitchen.plans.count, 1, "the absent meal stays absent")
+        // The summary carries no ids at all, so it cannot describe the absent
+        // meal as created or present.
+        XCTAssertEqual(Mirror(reflecting: summary).children.map { $0.label ?? "" }, ["startDate", "endDate"])
+
+        XCTAssertNil(
+            hostSummary(reopened.acceptCurrentSchedule(kitchenStore: harness.kitchen), harness),
+            "settling the menu twice is not two completions"
+        )
+    }
+
+    func testNoFailureOrCancelTellsTheHost() throws {
+        // Collision awaiting confirmation.
+        let occupied = makeHarness()
+        occupied.kitchen.addPlan(recipe: storedRecipe(id: "existing", title: "既有"), on: expectedDate(dayIndex: 0), calendar: calendar)
+        occupied.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        XCTAssertNil(hostSummary(materialize(occupied), occupied), "asking is not completing")
+
+        // A vanished recipe.
+        let missing = makeHarness()
+        missing.planner.generatedPlan = draft(days: [0: [localDish(id: "gone", title: "红烧肉")]])
+        XCTAssertNil(hostSummary(materialize(missing), missing))
+
+        // A failed plan write.
+        let failing = makeHarness()
+        failing.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        failing.todayPlan.shouldFail = true
+        XCTAssertNil(hostSummary(materialize(failing), failing))
+
+        // A stale receipt.
+        let stale = makeHarness()
+        _ = try pendingReceiptAfterAFailedPlanWrite(stale)
+        let reopened = reopen(stale)
+        var edited = try XCTUnwrap(reopened.generatedPlan)
+        edited.days[1].meals[0].recipes = []
+        reopened.generatedPlan = edited
+        let outcome = reopened.materialize(kitchenStore: stale.kitchen, recipeStore: stale.recipes, calendar: calendar)
+        XCTAssertEqual(outcome, .staleReceipt)
+        XCTAssertNil(WeeklyMaterializationHostNotification.summary(for: outcome, of: edited, calendar: calendar))
+
+        // Partial state itself, before the member chooses.
+        let partial = makeHarness()
+        let receipt = try pendingReceiptAfterAFailedPlanWrite(partial)
+        partial.kitchen.appendPlans([
+            MealPlanItem(id: receipt.planIDs[0], recipeID: "weekly-ai-1", recipeName: "番茄炒蛋", date: try XCTUnwrap(receipt.planDates)[0])
+        ])
+        let partialOutcome = reopen(partial).materialize(kitchenStore: partial.kitchen, recipeStore: partial.recipes, calendar: calendar)
+        XCTAssertNil(hostSummary(partialOutcome, partial), "a question to the member is not a completion")
     }
 
     // MARK: - Helpers

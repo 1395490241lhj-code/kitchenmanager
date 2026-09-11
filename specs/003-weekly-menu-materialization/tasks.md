@@ -95,7 +95,7 @@ end so red is expected and attributable.
   `WeeklyMealPlan`. `KitchenStore.duplicateWeeklyPlanForNextWeek` did **not**: it copied the receipt,
   so a duplicated menu would have refused to be added at all. It now clears `materialization`.
   (FR-013)
-- [x] T013 [B] new `KitchenManagerTests/WeeklyMenuMaterializationTests.swift` — 21 tests covering
+- [x] T013 [B] new `KitchenManagerTests/WeeklyMenuMaterializationTests.swift` — tests covering
   resolution, dates and order, collision, the write order, every failure window, retry and relaunch,
   partial recovery, receipt integrity and the copied-menu case. (SC-001, SC-002, SC-003, SC-005)
 
@@ -119,20 +119,66 @@ end so red is expected and attributable.
 
 ## Phase 4: Slice C — result surface truth (after B)
 
-- [ ] T014 [C] `WeeklyMenuResultView`: one prominent CTA (`weekly.result.materialize`) with the five
-  presentation states from data-model §3, including the `.partiallyPresent` recovery pair
-  (`加入缺少的 N 道`, `标记为已加入`); remove the overview `把今天加入计划` and the per-dish
-  `加入今日计划`; remove `保存本周计划` from the ⋯ menu. (FR-010, FR-011, FR-008)
-- [ ] T015 [C] Copy per spec §9 across `WeeklyMenuPlanner.swift` and the single
+- [x] T014 [C] `WeeklyMenuResultView`: one CTA (`weekly.result.materialize`) driving the Slice B
+  materializer, with the presentation states from data-model §3 — including the `.partiallyPresent`
+  recovery pair `重新加入缺少的 N 道` / `保留当前安排`, whose wording avoids any internal vocabulary.
+  The overview `把今天加入计划`, the per-dish `加入今日计划` and the ⋯ `保存本周计划` are gone, along
+  with `savePlan`, `addRecipeToTodayPlan` and `addDayToTodayPlan`. (FR-002, FR-008, FR-010, FR-011)
+- [x] T015 [C] Copy per spec §9 across `WeeklyMenuPlanner.swift` and the single
   `ShoppingListGenerator.sourceLabel(.weeklyPlan)` string; state the explicit date range in the
   overview (`weekly.result.range`); regenerate and delete alert bodies; collision confirmation
   wording. (FR-012, FR-013)
-- [ ] T016 [C] `WeeklyMenuPlannerView` / `WeeklyMenuResultView`: `onMaterialized` callback and the
-  legacy host's `查看用餐计划` affordance; empty draft disables the CTA; add every accessibility
-  identifier from data-model §9. (FR-014)
-- [ ] T017 [P] [C] `KitchenManager/PlannerRegressionFixture.swift`: DEBUG states for a stubbed result,
-  a collision seed, a failing plan persistence, and a pending receipt. (test support)
-- [ ] T018 [C] Run the quickstart reference gate → `clean`. (SC-004)
+- [x] T016 [C] `WeeklyMenuPlannerView` / `WeeklyMenuResultView`: `onMaterialized` callback carrying a
+  `WeeklyMaterializationSummary` (covered date range only — no ids, because after `保留当前安排`
+  some intended meals are absent on purpose), defaulted to `nil` so the existing Home call site is
+  untouched; it fires once per member-initiated completion (first append, append whose receipt
+  finalization lagged, `重新加入缺少的 N 道`, `保留当前安排`) and never on reopen, passive repair
+  (`repairReceiptIfMealsArePresent` returns a `Bool`) or failure/cancel; empty draft disables the
+  CTA; accessibility identifiers added.
+  The legacy host shows no `查看用餐计划` affordance, because supplying one would mean editing Home,
+  which 003 must not do — 002 will pass a callback when it hosts the generator. (FR-014)
+- [x] T017 [P] [C] `KitchenManager/PlannerRegressionFixture.swift`: `WeeklyMenuRegressionFixture`
+  with DEBUG states `PLANNER_DATA_WEEKLY_PLAIN` / `_COLLISION` / `_ADDED` / `_REPAIR` / `_PARTIAL` /
+  `_STALE` / `_MISSING_RECIPE`, all seeding `generatedPlan` directly so no AI call is involved.
+  (test support)
+- [x] T018 [C] Reference gate run: the weekly flow holds none of the retired wording. Remaining hits
+  are outside this slice — `本周计划需要` and `todaysWeeklyMeals` belong to Slice R, the Shopping
+  regression fixture seeds a historical `本周菜单` provenance value, and the Recipes tab keeps its own
+  unrelated `加入今日计划`. (SC-004)
+
+### Slice C implementation notes (2026-09-10)
+
+- The result screen now has exactly one way to put a menu on the plan, and it runs the Slice B
+  materializer. `savePlan`, `addRecipeToTodayPlan` and `addDayToTodayPlan` are gone.
+  `KitchenStore.saveWeeklyPlan` stays: `SwiftDataConsistencyTests` still exercises it, so it is not
+  dead.
+- A menu whose meals are all on the plan but whose receipt never got marked done finishes that
+  bookkeeping once per visit, silently. It cannot append — the orchestrator refuses in that state —
+  and if the repair write fails the screen still reads `已加入用餐计划`, because the meals really are
+  there. The next visit tries again.
+- Two SwiftUI compile limits shaped the code rather than the design: the overview rows were split
+  into `overviewRows` and the three new alerts moved into a `WeeklyMaterializationAlerts` modifier,
+  because the type checker gave up on the combined expression.
+- At accessibility sizes the four summary rows fill the first screen, so the CTA is scrolled to
+  rather than visible immediately. A lazy List does not build what it does not show, so the
+  reachability tests scroll before asserting existence. Reachable, not immediately visible, is the
+  requirement.
+- No `查看用餐计划` affordance exists on the legacy host: supplying one would mean editing Home.
+  `onMaterialized` is in place and defaults to `nil`, so 002 can pass one when it hosts the
+  generator from Planner.
+- Callback audit (2026-09-10): `WeeklyMaterializationHostNotification.summary(for:of:calendar:)` is
+  the single decision point, reached only from `handle`, which only a tap calls. Seven unit tests
+  under `// MARK: - Host notification` in `WeeklyMenuMaterializationTests` pin each path: first
+  append once; lagging-receipt append once with the later repair silent; passive repair silent even
+  when its write fails; reopen silent; re-add once; keep-current once with a dates-only summary; no
+  failure or cancel path firing.
+- `ShoppingListGenerator.swift` changes in this slice are two strings inside the `.weeklyPlan`
+  branch (the empty-draft warning and `sourceLabel`). `.todayPlans` still means today only, and
+  `InventoryConsumption.swift` / `todaysWeeklyMeals()` stay untouched until Slice R.
+- Draft editing follows the receipt (spec §3 S1/S4): `替换这道`, `移到其他天` and `从计划移除` are
+  hidden once the menu is on the plan and disabled while a receipt is pending or partial
+  (`isDraftEditable`); `查看菜谱` stays. Found while reconciling the spec against the code — the
+  gate had been declared but never wired. Pinned by `testEditingStopsOnceTheMenuIsOnThePlan`.
 
 ## Phase 5: Slice D — validation (after C and R)
 

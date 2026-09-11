@@ -126,13 +126,13 @@ final class PlannerRegressionUITests: XCTestCase {
     }
     private func weeklyResult() {
         let app = launch("RESULT")
-        XCTAssertTrue(app.staticTexts["本周概览"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["菜单概览"].waitForExistence(timeout: 5))
         // Lazy List: at accessibility sizes the overview fills the first screen.
         reveal("麻婆豆腐", app)
         XCTAssertTrue(app.staticTexts["麻婆豆腐"].isHittable)
         capture("14-Weekly-Result", app)
         app.buttons["更多"].tap()
-        XCTAssertTrue(app.buttons["保存本周计划"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["weekly.result.regenerate"].waitForExistence(timeout: 5))
         capture("15-Weekly-Actions", app)
     }
 }

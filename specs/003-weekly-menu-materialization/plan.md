@@ -2,8 +2,8 @@
 
 **Branch**: `codex/003-weekly-menu-materialization` | **Date**: 2026-09-10 | **Spec**: [spec.md](spec.md)
 
-**Status**: Sealed for implementation planning under OD-1…OD-11. No code changed. Slice A may start
-once the user authorizes implementation.
+**Status**: Sealed under OD-1…OD-11. Slices A–C implemented on the feature branch; Slices R, D and E
+open, each still requiring explicit user authorization.
 
 ## Summary
 
@@ -39,7 +39,7 @@ or `Recipe`; no `HomeView.swift` / 002 / Special Plan edit; no visual redesign
 **Scale/Scope**: `KitchenStore.swift` (batch + observable draft write, remove dead
 `todaysWeeklyMeals`), `Recipe.swift` (batch recipe save), `WeeklyMenuPlanner.swift` (receipt,
 materializer, state machine, copy, CTA, action removal, host callback), `InventoryConsumption.swift`
-+ one pure projection (restock migration), `ShoppingListGenerator.swift` (one label string), tests
++ one pure projection (restock migration), `ShoppingListGenerator.swift` (two strings in the `.weeklyPlan` branch), tests
 
 ## Constitution Check
 
@@ -52,6 +52,7 @@ materializer, state machine, copy, CTA, action removal, host callback), `Invento
 | V. Validation Proportional to Risk | PLANNED | Persistence-failure fixtures at each boundary, id-collision rejection, receipt state machine, relaunch, restock migration, full suite (quickstart). |
 | VI. Authorization Is Never Implied | SATISFIED | Tasks are proposals; commit/push/vault remain explicit user actions. |
 | VII. Convergence | REQUIRED | Slice E reconciles, re-reads the next Decision number, and produces the final report and vault list. |
+| Additional constraint — specs describe WHAT/WHY | ACCEPTED WITH RATIONALE | spec §4–§5, FR-001 and FR-009 carry Swift signatures because the owner brief asked for the exact receipt, batch and store contracts as owner decisions (spec Input, OD-7); they are contract facts under D-040's single write path, reviewable in one place, not implementation choices left to this plan. `data-model.md` remains the owner of signatures. Recorded here so the deviation is accepted explicitly rather than only self-certified in the requirements checklist. |
 
 Post-design re-check: unchanged. One optional Codable field, two additive store APIs, one enum case
 rename; no entity or persistence-shape change.
@@ -76,7 +77,7 @@ ios-native/Kitchen Manager/
 │   ├── WeeklyMenuPlanner.swift         # receipt + status, WeeklyMenuMaterializer, state machine, copy, CTA, action removal, onMaterialized
 │   ├── InventoryConsumption.swift      # restock derives from canonical plans; .weeklyPlan → .plannedMeals; 用餐计划需要
 │   ├── PlannedMealHorizon.swift        # new: pure forward-horizon slice over [MealPlanItem]
-│   ├── ShoppingListGenerator.swift     # sourceLabel(.weeklyPlan) string only
+│   ├── ShoppingListGenerator.swift     # two strings in the .weeklyPlan branch (sourceLabel + empty-draft warning)
 │   └── PlannerRegressionFixture.swift  # DEBUG fixture states for stubbed result / collision / failure / pending receipt
 ├── KitchenManagerTests/
 │   ├── PlannerMealCRUDTests.swift              # batch contracts
@@ -98,7 +99,7 @@ it and it follows the existing `plans:`-parameter projection convention.
 |---|---|---|---|
 | **A — Store contracts** | `appendPlans(_:)` + `PlanBatchOutcome`/`PlanBatchRejection` (FR-001); `commitWeeklyPlan` (FR-009); `saveUserRecipes` (FR-003); receipt types + persistence round-trip (FR-008) | — | PlannerMealCRUDTests, WeeklyPlanPersistenceTests, recipe-store tests |
 | **B — Materializer + state machine** | pure mapping (FR-005/006), OD-2 refusal (FR-004), collision detection (FR-007), ordered writes and recovery classification (FR-002/008/010/013) | A | WeeklyMenuMaterializationTests |
-| **C — Result surface truth** | single CTA and its states, frozen/pending/recovery presentation, copy per §9 (FR-012), removal of both manual actions (FR-011), regenerate/duplicate confirmations (FR-013), `onMaterialized` + `查看用餐计划` (FR-014), accessibility identifiers | B | WeeklyMenuMaterializationUITests |
+| **C — Result surface truth** | single CTA and its states, frozen/pending/recovery presentation, copy per §9 (FR-012), removal of both manual actions (FR-011), regenerate/duplicate confirmations (FR-013), `onMaterialized` (FR-014; a host-supplied `查看用餐计划` is deferred to 002), accessibility identifiers | B | WeeklyMenuMaterializationUITests |
 | **R — Restock migration** | `PlannedMealHorizon`; restock derives from canonical plans; `.weeklyPlan` → `.plannedMeals`; `用餐计划需要`; remove dead `todaysWeeklyMeals()` (FR-015/016) | — (parallel with A/B) | RestockSuggestionEngineTests |
 | **D — Validation** | UI suites, relaunch, full native suite (SC-005/007) | C, R | quickstart |
 | **E — Reconciliation** | artifacts; next Decision number re-read (FR-018); final report; vault list | D | — |

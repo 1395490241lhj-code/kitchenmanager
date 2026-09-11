@@ -91,6 +91,139 @@ enum PlannerRegressionFixture {
     }
 }
 
+/// Deterministic weekly-menu result states, so the materialization flow can be
+/// exercised without an AI call.
+///
+/// `generatedPlan` is the seam: the result screen reads it, and every state
+/// below is just a different draft plus whatever the canonical plan already
+/// holds. Nothing here changes how materialization itself behaves.
+@MainActor
+enum WeeklyMenuRegressionFixture {
+    /// Two dishes, on the fixture's first and third day.
+    static var dishes: [WeeklyMealPlanRecipe] {
+        PlannerRegressionFixture.recipes.prefix(2).map { recipe in
+            WeeklyMealPlanRecipe(
+                id: recipe.id, title: recipe.title, ingredients: recipe.ingredients,
+                seasonings: recipe.seasonings, steps: recipe.steps, tags: recipe.tags,
+                cookingTime: recipe.cookingTime, difficulty: recipe.difficulty,
+                reason: nil, source: .local, existingRecipeID: recipe.id, isSavedToLibrary: true
+            )
+        }
+    }
+
+    static var startDate: Date { PlannerRegressionFixture.monday }
+
+    static func date(dayIndex: Int) -> Date {
+        let calendar = PlannerRegressionFixture.calendar
+        let start = calendar.startOfDay(for: startDate)
+        let raw = calendar.date(byAdding: .day, value: dayIndex, to: start) ?? start
+        return MealPlanItem.normalizedPlannerDate(for: raw, calendar: calendar)
+    }
+
+    static func plan(receipt: WeeklyMaterializationReceipt? = nil) -> WeeklyMealPlan {
+        let all = dishes
+        return WeeklyMealPlan(
+            startDate: startDate,
+            days: [
+                WeeklyMealPlanDay(dayIndex: 0, meals: [
+                    WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [all[0]])
+                ]),
+                WeeklyMealPlanDay(dayIndex: 2, meals: [
+                    WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [all[1]])
+                ])
+            ],
+            shoppingItems: [],
+            servings: 2,
+            summary: nil,
+            createdAt: startDate,
+            materialization: receipt
+        )
+    }
+
+    static let planIDs = [
+        UUID(uuidString: "64000000-0000-0000-0000-000000000001")!,
+        UUID(uuidString: "64000000-0000-0000-0000-000000000002")!
+    ]
+
+    static func receipt(state: WeeklyMaterializationState) -> WeeklyMaterializationReceipt {
+        WeeklyMaterializationReceipt(
+            state: state,
+            planIDs: planIDs,
+            recipeIDs: dishes.map(\.id),
+            planDates: [date(dayIndex: 0), date(dayIndex: 2)],
+            startedAt: startDate,
+            completedAt: state == .materialized ? startDate : nil
+        )
+    }
+
+    static func meal(index: Int) -> MealPlanItem {
+        MealPlanItem(
+            id: planIDs[index],
+            recipeID: dishes[index].id,
+            recipeName: dishes[index].title,
+            date: date(dayIndex: index == 0 ? 0 : 2)
+        )
+    }
+
+    /// Seeds the canonical plan and returns the draft the result screen opens on.
+    static func seed(state: String, kitchen: KitchenStore) -> WeeklyMealPlan {
+        switch state {
+        case "PLANNER_DATA_WEEKLY_COLLISION":
+            // Something already stands on the menu's first day.
+            kitchen.plans = [
+                MealPlanItem(
+                    recipeID: "planner-greens", recipeName: "蒜蓉上海青", date: date(dayIndex: 0)
+                )
+            ]
+            return plan()
+
+        case "PLANNER_DATA_WEEKLY_ADDED":
+            kitchen.plans = [meal(index: 0), meal(index: 1)]
+            return plan(receipt: receipt(state: .materialized))
+
+        case "PLANNER_DATA_WEEKLY_REPAIR":
+            // The meals landed; only the receipt never got marked done.
+            kitchen.plans = [meal(index: 0), meal(index: 1)]
+            return plan(receipt: receipt(state: .pending))
+
+        case "PLANNER_DATA_WEEKLY_PARTIAL":
+            kitchen.plans = [meal(index: 0)]
+            return plan(receipt: receipt(state: .pending))
+
+        case "PLANNER_DATA_WEEKLY_STALE":
+            // A pending receipt for two meals against a one-dish draft.
+            kitchen.plans = []
+            var edited = plan(receipt: receipt(state: .pending))
+            edited.days[1].meals[0].recipes = []
+            return edited
+
+        case "PLANNER_DATA_WEEKLY_MISSING_RECIPE":
+            kitchen.plans = []
+            var broken = plan()
+            broken.days[0].meals[0].recipes[0].existingRecipeID = "gone-from-library"
+            broken.days[0].meals[0].recipes[0].id = "gone-from-library"
+            return broken
+
+        default:
+            kitchen.plans = []
+            return plan()
+        }
+    }
+}
+
+private struct WeeklyMenuRegressionResult: View {
+    let state: String
+    @EnvironmentObject private var kitchen: KitchenStore
+    @StateObject private var store = WeeklyMenuPlannerStore()
+
+    var body: some View {
+        NavigationStack { WeeklyMenuResultView(store: store) }
+            .task {
+                store.generatedPlan = WeeklyMenuRegressionFixture.seed(state: state, kitchen: kitchen)
+            }
+    }
+}
+
 struct PlannerRegressionHost: View {
     @EnvironmentObject private var kitchen: KitchenStore
     @EnvironmentObject private var library: RecipeStore
@@ -102,7 +235,9 @@ struct PlannerRegressionHost: View {
                 ready = true
             }
             .sheet(isPresented: $ready) {
-                if PlannerRegressionFixture.state == "PLANNER_DATA_RESULT" {
+                if PlannerRegressionFixture.state.hasPrefix("PLANNER_DATA_WEEKLY_") {
+                    WeeklyMenuRegressionResult(state: PlannerRegressionFixture.state)
+                } else if PlannerRegressionFixture.state == "PLANNER_DATA_RESULT" {
                     PlannerRegressionWeeklyResult()
                 } else if PlannerRegressionFixture.state == "PLANNER_DATA_WEEKLY" {
                     NavigationStack { WeeklyMenuPlannerView() }

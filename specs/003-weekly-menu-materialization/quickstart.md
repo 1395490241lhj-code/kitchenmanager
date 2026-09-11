@@ -67,11 +67,13 @@ action exists; an empty draft disables the CTA.
 ## Reference gate
 
 ```bash
-rg -n '本周菜单|本周概览|保存本周计划|已保存本周计划|本周计划需要|生成本周菜单|生成本周购物清单|重新生成整周|把今天加入计划|加入今日计划|查看已保存的本周计划|复制为下一周|删除本周计划|todaysWeeklyMeals' \
+rg -n '本周菜单|本周概览|保存本周计划|已保存本周计划|本周计划需要|生成本周菜单|生成本周购物清单|重新生成整周|把今天加入计划|加入今日计划|查看已保存的本周计划|复制为下一周|删除本周计划|已在今天|本周计划中没有安排菜品|todaysWeeklyMeals' \
    "ios-native/Kitchen Manager/KitchenManager" && echo "STALE" || echo "clean"
 ```
 
-Expected `clean`. Note `today.plan.weeklyMenu.link` and its `HomeView.swift` row copy are **not** in
+Expected `clean` once Slice R lands, apart from the by-design residue T018 records: the Recipes
+tab's own `加入今日计划` (`RecipeViews.swift`, `AddRecipeViews.swift`) and the Shopping regression
+fixture's historical `本周菜单` seed. Note `today.plan.weeklyMenu.link` and its `HomeView.swift` row copy are **not** in
 this gate: 003 does not edit Home (FR-017).
 
 ## Final gate

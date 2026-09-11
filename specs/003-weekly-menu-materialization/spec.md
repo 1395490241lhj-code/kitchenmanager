@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: Sealed for planning — audit + specification + owner clarifications (OD-1…OD-11) encoded. No product code changed.
+**Status**: Sealed under OD-1…OD-11. Slices A–C implemented on the feature branch; Slices R, D and E open.
 
 **Input**: Owner brief “003 — Weekly Menu → Canonical Planner Materialization” and the owner clarifications of 2026-09-10, on `main` = `1a7475b` (D-040 Planner CRUD sealed). Prerequisite for completing 002 (Home IA consolidation), whose local spec branch (`4e6623a`) is untouched.
 
@@ -60,6 +60,12 @@ draft. No Home changes, no AI provenance, no visual redesign.
   Expose a host-level completion callback; the legacy host may offer `查看用餐计划`; a future Planner
   host (002) may dismiss and reveal the materialized dates. Empty draft → CTA disabled. No custom
   navigation system.
+- Q: When does the host completion callback fire? → A: once per member-initiated completion —
+  the first append, an append whose receipt finalization lagged, `重新加入缺少的 N 道` and
+  `保留当前安排`. It is not a state observer: reopening a finished menu, passive receipt repair and
+  every failure or cancel path stay silent, and no single action fires it twice. Its summary
+  carries only the covered date range; ids are omitted because after `保留当前安排` some intended
+  meals are absent on purpose.
 - Q: Legacy `weeklyPlan` and restock semantics? → A: **OD-9 modified.** `weeklyPlan` is a resumable
   generated draft + materialization receipt, never a canonical schedule. Inside the draft/result
   flow, shopping calculations may use the draft explicitly. Global restock / inventory surfaces MUST
@@ -135,10 +141,11 @@ state.
 | State | Condition | Result surface |
 |---|---|---|
 | **S0 NotStarted** | receipt `nil` | CTA `加入用餐计划` enabled (disabled when the draft has no dishes); draft fully editable |
-| **S1 Pending, none present** | receipt `.pending`, no `planIDs` in `plans` | CTA `重试加入用餐计划`; editing disabled, because the receipt's ids are bound to the current dish set; honest error line. Regenerating or deleting the menu is the way out, including when a retry refuses under OD-2 |
+| **S1 Pending, none present** | receipt `.pending`, no `planIDs` in `plans` | CTA `加入用餐计划` again (the tap retries with the same ids); per-dish editing actions visible but disabled, because the receipt's ids are bound to the current dish set; the failure that led here was named in the `未能加入用餐计划` alert. Regenerating or deleting the menu is the way out, including when a retry refuses under OD-2 |
 | **S2 Pending, all present** | receipt `.pending`, every `planID` in `plans` | materialization succeeded; finalize the receipt on appearance, then behave as S4 |
 | **S3 Pending, some present** | receipt `.pending`, a strict non-empty subset present | invariant violation; explicit recovery (below). Never blind re-add, never claim success |
-| **S4 Materialized** | receipt `.materialized` | frozen: CTA reads `已加入用餐计划` and is disabled; editing hidden; host affordance `查看用餐计划` |
+| **S4 Materialized** | receipt `.materialized` | frozen: CTA reads `已加入用餐计划` and is disabled; editing hidden (`查看菜谱` stays); the host's own `查看用餐计划`, if it offers one — the callback does not fire on reopen |
+| **S5 Stale receipt** | receipt `.pending`, but the draft no longer matches the receipt's candidate count, recipe sequence or date sequence (§4) | no write; alert `这份菜单已发生变化`; regenerating or deleting the menu is the way out |
 
 Happy path from S0:
 
@@ -153,19 +160,20 @@ Happy path from S0:
    now), write `{state: .pending, planIDs, recipeIDs, planDates, startedAt}` together with the updated
    `isSavedToLibrary` flags through an **observable** draft write (§5). Failure → S0 with an honest
    error; nothing was added to the plan; recipes from step 3 remain (OD-3).
-5. **Batch.** One atomic canonical write of exactly those items. Failure → **S1**; error copy
-   `未能加入用餐计划，请稍后重试`; no success copy.
+5. **Batch.** One atomic canonical write of exactly those items. Failure → **S1**; alert
+   `未能加入用餐计划` naming the cause (§9); no success copy.
 6. **Finalize.** Receipt → `.materialized` with `completedAt`. Success copy `已加入用餐计划` is shown
-   because the exact ids are durably present. If this last write fails, success still stands and a
-   non-blocking notice says the menu record could not be updated; the next open reconciles via S2.
+   because the exact ids are durably present. If this last write fails, success still stands with the
+   same `已加入用餐计划`, nothing technical is shown, and the next open reconciles via S2.
 
 Retry from S1 re-runs steps 1, 3 and 5 with the **same** `planIDs`; recipes resolved in step 3 are
 reused by id, so no duplicate recipes and no duplicate plans. A step-1 refusal during a retry leaves
 the receipt pending rather than returning to S0.
 
-S3 recovery: state the fact (`这份菜单只有部分菜品在用餐计划中`) and offer two explicit actions —
-`加入缺少的 N 道` (one batch using only the missing exact ids) and `标记为已加入` (finalize the receipt
-without writing, for the user who deliberately removed meals in Planner). No automatic repair,
+S3 recovery: state the fact (`用餐计划中只保留了这份菜单的一部分。你可以重新加入缺少的菜品，或保留现在的安排。`) and offer two explicit actions —
+`重新加入缺少的 N 道` (one batch using only the missing exact ids) and `保留当前安排` (finalize the
+receipt without writing, for the member who deliberately removed meals in Planner). The wording is
+the member's, not the system's: nothing about receipts or ids reaches the screen. No automatic repair,
 because a missing id is equally consistent with a legitimate Planner deletion.
 
 A `.materialized` receipt is **never** re-verified against `plans`: deleting a materialized meal in
@@ -174,7 +182,7 @@ Planner is legitimate and must not reopen the CTA.
 Regeneration is allowed in every state and never touches existing Planner meals. When the current
 receipt is `.pending` or `.materialized`, confirm with
 `重新生成不会更改已经加入用餐计划的菜品。`; the new draft starts at S0 with `materialization = nil`.
-`复制到下一个 7 天` likewise produces a receipt-free draft.
+`复制到 7 天后` likewise produces a receipt-free draft.
 
 App termination: before step 4's commit nothing durable exists beyond possible recipe residue;
 between 4 and 5 → S1; between 5 and 6 → S2; after 6 → S4.
@@ -270,7 +278,7 @@ calendar-correct, and `+12h` yields 13:00 on a 23-hour day — still the same ci
 documented D-040 normalization strategy, not timezone independence.
 
 Covered by test: `dayIndex 0` = today; a span crossing Sunday→Monday; a DST transition inside the
-span; `复制到下一个 7 天` (+7); Planner's today section shows `dayIndex 0`.
+span; `复制到 7 天后` (+7); Planner's today section shows `dayIndex 0`.
 
 ## 7. Idempotency and recovery (OD-7)
 
@@ -337,11 +345,15 @@ correctable.
 | ⋯ `保存本周计划` | removed (replaced by the CTA above) |
 | ⋯ `重新生成整周` | `重新生成` |
 | ⋯ `生成本周购物清单` | `生成购物清单` |
-| ⋯ `复制为下一周` | `复制到下一个 7 天` |
+| ⋯ `复制为下一周` | `复制到 7 天后` |
 | ⋯ `删除本周计划` | `删除这份菜单` |
 | toast `已保存本周计划` | `已加入用餐计划` (only per §3 step 6) |
 | — | **new collision confirmation** `其中 N 天已经有安排。加入后会保留现有安排，并追加生成的菜品。` with `取消` / `继续加入` (OD-5) |
-| toast `已复制为下一周计划` | `已复制到下一个 7 天` |
+| — | toast `已保留当前安排` after `保留当前安排` |
+| — | partial-recovery line `用餐计划中只保留了这份菜单的一部分。你可以重新加入缺少的菜品，或保留现在的安排。` with `重新加入缺少的 N 道` / `保留当前安排` |
+| — | failure alert `未能加入用餐计划` whose message names the cause: `「<菜名>」已不在菜谱库。请替换或移除这道菜后再试。` / `「<菜名>」与菜谱库里的另一份菜谱冲突。请替换这道菜后再试。` / `菜谱没能保存到设备，请稍后重试。` / `菜单没能保存到设备，请稍后重试。` / `用餐计划没能更新，请稍后重试。` / `这份菜单里还没有菜品。` |
+| — | stale alert `这份菜单已发生变化`: `这份菜单已发生变化，无法继续之前的加入操作。请重新生成菜单。已经加入用餐计划的菜品不会被更改。` |
+| toast `已复制为下一周计划` | `已复制到 7 天后` |
 | regenerate alert body `当前未保存的计划会被新结果替换。` | `当前菜单会被新结果替换。重新生成不会更改已经加入用餐计划的菜品。` |
 | delete alert body `已保存的本周计划将被删除，此操作无法撤销。` | `这份生成的菜单将被删除，已加入用餐计划的菜品不受影响。` |
 | shopping import source `本周菜单` (`addShoppingItems`) and `sourceLabel(.weeklyPlan)` | `生成的菜单` |
@@ -410,7 +422,8 @@ manual add-today actions are absent; empty draft disables the CTA.
 
 1. **Given** the result screen, **Then** no wording claims a saved plan before materialization, the
    date range is stated explicitly, no manual add-today action exists in any state, and after
-   success the host affordance `查看用餐计划` is available.
+   success the host has been told exactly once, so it can offer `查看用餐计划` (the legacy Home host
+   offers nothing; 002 will).
 2. **Given** regeneration after a successful materialization, **Then** the confirmation states that
    already-added dishes are unchanged, and they are.
 
@@ -472,7 +485,11 @@ manual add-today actions are absent; empty draft disables the CTA.
 - **FR-013** Regeneration and duplication MUST clear the receipt, MUST NOT alter already-created
   Planner meals, and MUST confirm with `重新生成不会更改已经加入用餐计划的菜品。` when a receipt exists.
 - **FR-014** The generator MUST expose a host completion callback for post-materialization
-  navigation; the legacy host MAY offer `查看用餐计划`; no custom navigation system (OD-8).
+  navigation; the legacy host MAY offer `查看用餐计划`; no custom navigation system (OD-8). The
+  callback MUST fire exactly once per member-initiated completion (first append, append whose
+  receipt finalization lagged, `重新加入缺少的 N 道`, `保留当前安排`) and MUST NOT fire on reopening
+  a finished menu, on passive receipt repair, or on any failure or cancel path; its summary
+  carries only the covered date range, never ids.
 - **FR-015** Global restock/inventory surfaces MUST derive scheduled-plan semantics from canonical
   `plans`, MUST NOT read the unmaterialized draft, and MUST NOT show `本周计划需要`; the draft/result
   flow MAY still use the draft explicitly for its own shopping generation (OD-9).
@@ -501,7 +518,9 @@ manual add-today actions are absent; empty draft disables the CTA.
 - **SC-003** Existing Planner meals and Special Plans are unchanged after any materialization, and a
   collision is always confirmed first.
 - **SC-004** `本周菜单`, `保存本周计划`, `已保存本周计划`, `本周计划需要` and both manual add-today
-  actions no longer exist in the product.
+  actions no longer exist in the weekly generator, its result screen or restock. The Recipes tab's
+  own `加入今日计划` and the Shopping regression fixture's historical `本周菜单` provenance seed are
+  unrelated and stay.
 - **SC-005** Planner and Home reflect a materialized menu immediately and after relaunch with no
   Home or Planner code change.
 - **SC-006** With an unmaterialized draft as the only source, no global restock suggestion is

@@ -587,7 +587,7 @@ struct ShoppingListGenerator {
                     }
                 }
             }
-            return (resolved, resolved.isEmpty ? ["本周计划中没有安排菜品"] : [])
+            return (resolved, resolved.isEmpty ? ["这份菜单里没有菜品"] : [])
         }
     }
 
@@ -722,7 +722,7 @@ final class ShoppingListGenerationStore: ObservableObject {
         switch source {
         case .recipe: return "菜谱"
         case .todayPlans: return "今日计划"
-        case .weeklyPlan: return "本周菜单"
+        case .weeklyPlan: return "生成的菜单"
         case .selectedRecipes: return "菜谱"
         case .none: return "手动添加"
         }
