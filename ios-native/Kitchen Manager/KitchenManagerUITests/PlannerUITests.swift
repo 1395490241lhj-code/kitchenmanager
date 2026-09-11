@@ -150,11 +150,11 @@ final class PlannerUITests: XCTestCase {
     }
 
     /// The two Today-scoped secondary links describe mutually exclusive states —
-    /// `想再加一道` only exists in execution mode, where `secondaryPlanCount` is
+    /// `更多推荐` only exists in execution mode, where `secondaryPlanCount` is
     /// zero by construction. `用餐计划` is unconditional and belongs to neither.
     func testTodaySecondaryLinksAreMutuallyExclusive() {
         let execution = launch("UITEST_SEED_SPECIAL_PLAN")
-        XCTAssertTrue(execution.buttons["home.recommendation.moreLink"].waitForExistence(timeout: 10))
+        XCTAssertTrue(execution.buttons["home.recommendation.more"].waitForExistence(timeout: 10))
         XCTAssertFalse(
             execution.buttons["home.plan.secondaryLink"].exists,
             "a plan that is the primary task is never also a demoted one"
@@ -167,7 +167,7 @@ final class PlannerUITests: XCTestCase {
         let eatOut = launch("UITEST_SEED_HOME_EAT_OUT_WITH_PLAN")
         XCTAssertTrue(eatOut.buttons["home.plan.secondaryLink"].waitForExistence(timeout: 10))
         XCTAssertFalse(
-            eatOut.buttons["home.recommendation.moreLink"].exists,
+            eatOut.buttons["home.recommendation.more"].exists,
             "Home must not propose another dish for an evening already settled"
         )
         XCTAssertTrue(eatOut.buttons["home.planner.link"].exists, "the planner link belongs to neither mode")

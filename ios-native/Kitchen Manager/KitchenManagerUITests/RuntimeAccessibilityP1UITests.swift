@@ -143,10 +143,11 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     func testManualStockInFieldsAdaptWithoutOverflow() throws {
         for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_MANUAL_ACCESSIBILITY", size: size)
-            XCTAssertTrue(app.buttons["home.import.add.button"].waitForExistence(timeout: 5))
-            app.buttons["home.import.add.button"].tap()
-            let manualEntry = app.buttons["home.import.food.manual"]
-            XCTAssertTrue(scrollUntilHittable(manualEntry, in: app), "\(name): 手动添加食材入口不可达")
+            // Manual entry lives on the Inventory tab now; Home has no `+` (FR-007).
+            app.tabBars.buttons["食材"].tap()
+            let manualEntry = app.buttons["inventory.add.button"]
+            XCTAssertTrue(manualEntry.waitForExistence(timeout: 5), "\(name): 添加食材入口缺失")
+            XCTAssertTrue(manualEntry.isHittable, "\(name): 添加食材入口不可达")
             manualEntry.tap()
 
             let ingredient = app.textFields["manualInventoryName"]
@@ -213,9 +214,10 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
         let recipeID = "ui-test-accessibility-recommendation-one"
         for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: size)
-            let viewAll = app.buttons["home.recommendation.viewAll"]
-            XCTAssertTrue(viewAll.waitForExistence(timeout: 5), "\(name): 首页查看全部入口缺失")
-            viewAll.tap()
+            let more = app.buttons["home.recommendation.more"]
+            XCTAssertTrue(more.waitForExistence(timeout: 5), "\(name): 首页更多推荐入口缺失")
+            XCTAssertFalse(app.buttons["home.recommendation.refresh"].exists, "\(name): 首页不应再有 AI 换几道")
+            more.tap()
             XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5), "\(name): 推荐页未打开")
 
             let title = app.staticTexts["recommendation.\(recipeID).title"]
@@ -280,7 +282,7 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     func testRecommendationMenuUsesPersistentActionsAndOmitsFakeFeedback() throws {
         let recipeID = "ui-test-accessibility-recommendation-one"
         let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: "UICTContentSizeCategoryL")
-        app.buttons["home.recommendation.viewAll"].tap()
+        app.buttons["home.recommendation.more"].tap()
 
         let menu = app.buttons["recommendation.\(recipeID).menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 5))

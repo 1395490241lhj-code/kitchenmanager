@@ -140,7 +140,7 @@ final class HomeDashboardUITests: XCTestCase {
 
     func testAnOrdinaryDayMakesRecipeRecommendationThePrimaryTask() throws {
         let app = launch("UITEST_SEED_EMPTY_HOME")
-        XCTAssertTrue(app.buttons["home.recommendation.refresh"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["home.recommendation.more"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["home.quickMeal.title"].exists)
         XCTAssertEqual(app.staticTexts["home.primary.title"].label, "今天怎么吃")
     }
@@ -149,7 +149,7 @@ final class HomeDashboardUITests: XCTestCase {
         let app = launch("UITEST_SEED_QUICK_MEAL_PREPARED", "UITEST_FORCE_QUICK_DAY")
         XCTAssertTrue(app.staticTexts["home.quickMeal.title"].waitForExistence(timeout: 5))
         XCTAssertFalse(
-            app.buttons["home.recommendation.refresh"].exists,
+            app.buttons["home.recommendation.addToday"].exists,
             "Home must never show both surfaces at once"
         )
         XCTAssertEqual(app.staticTexts["home.primary.title"].label, "今天怎么吃")
@@ -203,20 +203,23 @@ final class HomeDashboardUITests: XCTestCase {
     }
 
     /// The heart of Product Decision 1. Recommendation is not deleted — it is
-    /// demoted from a full card with its own prominent CTA to a single link.
+    /// demoted from a full card with its own prominent CTA to a single link,
+    /// which carries the one Home discovery label, 更多推荐 (FR-008).
     func testExecutionModeDemotesRecommendationToALinkWithoutRemovingIt() throws {
         let app = launchSeededDashboard()
 
         XCTAssertTrue(app.buttons["home.today.plan.start"].exists)
-        XCTAssertFalse(
-            app.buttons["home.recommendation.refresh"].exists,
-            "A second same-weight recommendation card must not sit beside the plan."
-        )
         XCTAssertFalse(app.buttons["home.recommendation.addToday"].exists)
 
-        let more = app.buttons["home.recommendation.moreLink"]
+        let more = app.buttons["home.recommendation.more"]
         XCTAssertTrue(more.exists)
-        XCTAssertEqual(more.label, "想再加一道")
+        XCTAssertEqual(more.label, "更多推荐")
+        XCTAssertEqual(app.buttons.matching(identifier: "home.recommendation.more").count, 1,
+                       "exactly one discovery control per state")
+        // 更多推荐 is task-local discovery, so it sits above the planning row (OD-6).
+        let planner = app.buttons["home.planner.link"]
+        XCTAssertTrue(planner.exists)
+        XCTAssertLessThan(more.frame.minY, planner.frame.minY, "更多推荐 must sit above 用餐计划")
         makeHittable(more, in: app)
         more.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
@@ -386,15 +389,26 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["今天的计划"].waitForExistence(timeout: 5))
     }
 
-    func testHeaderImportAndSettingsRemainReachableFromMyTab() throws {
+    /// FR-007: Home's toolbar carries no `+`. The former hub's rows live on
+    /// their owning tabs — link import is proved reachable on Recipes here;
+    /// the Inventory rows are covered by ManualEntryExpiryUITests and
+    /// ReceiptCompactListUITests.
+    func testHomeHasNoImportButtonAndImportIsReachableOnRecipes() throws {
         let app = launchSeededDashboard()
-        let importButton = app.buttons["home.import.add.button"]
-        XCTAssertEqual(importButton.label, "导入与添加")
+        XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["home.import.add.button"].exists)
+        XCTAssertFalse(app.navigationBars.buttons["导入与添加"].exists)
+        XCTAssertEqual(app.navigationBars.firstMatch.buttons.count, 0, "Home's toolbar must be empty")
         XCTAssertFalse(app.buttons["home.settings.button"].exists)
         XCTAssertFalse(app.buttons["home.add.menu"].exists)
-        importButton.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["导入与添加"].waitForExistence(timeout: 5))
-        app.buttons["关闭"].tap()
+
+        app.tabBars.buttons["菜谱"].tap()
+        let add = app.buttons["添加菜谱"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        XCTAssertTrue(app.buttons["从链接导入"].waitForExistence(timeout: 5))
+        app.buttons["从链接导入"].tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["导入菜谱"].waitForExistence(timeout: 5))
 
         app.tabBars.buttons["我的"].tap()
         XCTAssertTrue(app.navigationBars.staticTexts["我的"].waitForExistence(timeout: 5))
@@ -402,21 +416,35 @@ final class HomeDashboardUITests: XCTestCase {
 
     func testDecisionModeCanOpenTheFullRecommendationExperience() throws {
         let app = launch("UITEST_SEED_EMPTY_HOME")
-        let viewAll = app.buttons["home.recommendation.viewAll"]
-        XCTAssertTrue(viewAll.waitForExistence(timeout: 5))
-        makeHittable(viewAll, in: app)
-        viewAll.tap()
+        let more = app.buttons["home.recommendation.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5))
+        XCTAssertEqual(more.label, "更多推荐")
+        XCTAssertEqual(app.buttons.matching(identifier: "home.recommendation.more").count, 1)
+        XCTAssertFalse(app.buttons["home.recommendation.viewAll"].exists)
+        XCTAssertFalse(app.buttons["home.recommendation.refresh"].exists, "AI 换几道 is not a Home action (FR-009)")
+        XCTAssertFalse(app.buttons["查看全部"].exists)
+        makeHittable(more, in: app)
+        more.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
     }
 
-    func testAIRefreshRunsOnHomeWithoutNavigatingAway() throws {
+    /// FR-009: regeneration is a capability of the recommendation browser,
+    /// reached through 更多推荐, and no longer a parallel Home action.
+    func testRegenerationLivesInTheRecommendationBrowserNotOnHome() throws {
         let app = launch("UITEST_SEED_EMPTY_HOME")
-        let refresh = app.buttons["home.recommendation.refresh"]
-        XCTAssertTrue(refresh.waitForExistence(timeout: 5))
-        makeHittable(refresh, in: app)
-        refresh.tap()
-        XCTAssertFalse(app.navigationBars.staticTexts["推荐"].exists)
-        XCTAssertTrue(app.buttons["home.recommendation.refresh"].exists)
+        let more = app.buttons["home.recommendation.more"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["home.recommendation.refresh"].exists)
+        XCTAssertFalse(app.buttons["AI 换几道"].exists)
+        makeHittable(more, in: app)
+        more.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
+        let regenerate = app.buttons["recommendation.regenerate.button"]
+        XCTAssertTrue(regenerate.waitForExistence(timeout: 5))
+        XCTAssertEqual(regenerate.label, "AI 换几道")
+        makeHittable(regenerate, in: app)
+        regenerate.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].exists, "regeneration runs in place in the browser")
     }
 
     func testInlineRecommendationLoadingErrorAndEmptyStatesStayOnHome() throws {

@@ -12,23 +12,25 @@ final class ReceiptCompactListUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    private func openReceiptScanner(in app: XCUIApplication) {
+        app.tabBars.buttons["食材"].tap()
+        let more = app.buttons["inventory.more.button"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5))
+        more.tap()
+        let scan = app.buttons["扫描购物小票"]
+        XCTAssertTrue(scan.waitForExistence(timeout: 5))
+        scan.tap()
+    }
+
     func testReceiptList_twentyItems_isCompactAndScrollable() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_RECEIPT_ITEMS"]
         app.launch()
 
-        // Receipt scanning lives behind the header "+" ("导入与添加") button —
-        // tap it via its stable accessibility identifier (not the Chinese
-        // label, which the product copy has changed more than once), then
-        // the "扫描购物小票" row via its own stable identifier, which opens
-        // `RecordFoodSheet(initialMode: .receipt)` exactly as before.
-        let smartImportButton = app.buttons["home.import.add.button"]
-        XCTAssertTrue(smartImportButton.waitForExistence(timeout: 5))
-        smartImportButton.tap()
-
-        let receiptRow = app.buttons["home.import.food.receipt"]
-        XCTAssertTrue(receiptRow.waitForExistence(timeout: 5))
-        receiptRow.tap()
+        // Receipt scanning lives on the Inventory tab behind 更多食材操作 →
+        // 扫描购物小票, which opens `RecordFoodSheet(initialMode: .receipt)`
+        // exactly as before. Home carries no import entry any more (FR-007).
+        openReceiptScanner(in: app)
 
         // The seeded image-less placeholder section still renders above the
         // items list, and Form/List (UITableView-backed) only realizes
@@ -132,12 +134,7 @@ final class ReceiptCompactListUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_RECEIPT_SELECTION"]
         app.launch()
 
-        let smartImportButton = app.buttons["home.import.add.button"]
-        XCTAssertTrue(smartImportButton.waitForExistence(timeout: 5))
-        smartImportButton.tap()
-        let receiptRow = app.buttons["home.import.food.receipt"]
-        XCTAssertTrue(receiptRow.waitForExistence(timeout: 5))
-        receiptRow.tap()
+        openReceiptScanner(in: app)
 
         let selection = app.buttons["receiptItemSelection"]
         var scrollAttempts = 0

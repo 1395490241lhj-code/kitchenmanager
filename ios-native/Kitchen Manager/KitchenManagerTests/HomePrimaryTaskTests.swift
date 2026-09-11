@@ -58,7 +58,7 @@ final class HomePrimaryTaskTests: XCTestCase {
 
         XCTAssertEqual(task.detail, "已完成 1/3")
         XCTAssertFalse(task.isDecisionMode, "The full recommendation card must not sit beside the plan.")
-        XCTAssertTrue(task.showsRecommendationLink, "想再加一道 keeps the capability; only its weight is reduced.")
+        XCTAssertTrue(task.showsRecommendationLink, "更多推荐 keeps the capability; only its weight is reduced.")
     }
 
     func testAFullyCookedPlanStaysInExecutionModeRatherThanReopeningTheDecision() {

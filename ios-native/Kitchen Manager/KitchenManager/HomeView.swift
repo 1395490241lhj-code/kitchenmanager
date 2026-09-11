@@ -7,7 +7,6 @@ private struct ClipboardImportPresentation {
 }
 
 private enum HomeSheet: Identifiable {
-    case smartImport
     case expiry
     case shopping
     case todayRhythm
@@ -15,7 +14,6 @@ private enum HomeSheet: Identifiable {
 
     var id: String {
         switch self {
-        case .smartImport: "smart-import"
         case .expiry: "expiry"
         case .shopping: "shopping"
         case .todayRhythm: "today-rhythm"
@@ -242,15 +240,6 @@ struct HomeView: View {
         // could not collapse — the title measured 17.7pt against the 30.0pt
         // large titles one tab away, and sat 31pt higher on the screen.
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("导入与添加", systemImage: "plus") { activeSheet = .smartImport }
-                    .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
-                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                    .accessibilityIdentifier("home.import.add.button")
-                    .accessibilityHint("打开菜谱、收据和食材添加选项")
-            }
-        }
         .navigationDestination(isPresented: $isShowingTodayPlan) {
             TodayPlanDetailView()
         }
@@ -407,11 +396,6 @@ struct HomeView: View {
     @ViewBuilder
     private func sheetContent(_ sheet: HomeSheet) -> some View {
         switch sheet {
-        case .smartImport:
-            SmartImportSheet {
-                activeSheet = nil
-                showToast("已保存到菜谱库")
-            }
         case .expiry:
             ExpirySheet { item in
                 activeSheet = nil
@@ -561,15 +545,6 @@ struct HomeView: View {
         )
     }
 
-    private func generateAIRecommendations() {
-        Task {
-            await recommendationStore.generateNewRecommendations(
-                inventory: kitchenStore.recipeCreationInventory.map(\.name),
-                expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
-            )
-        }
-    }
-
     private func addRecommendationToPlan(_ recipe: Recipe) {
         let alreadyAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
         kitchenStore.addPlan(recipe: recipe)
@@ -653,8 +628,7 @@ struct HomeView: View {
                     expiringNames: kitchenStore.recipeCreationExpiringItems.map(\.name),
                     onAddToToday: addRecommendationToPlan,
                     onViewRecipe: { selectedRecipe = $0 },
-                    onRefresh: generateAIRecommendations,
-                    onViewAll: { isShowingRecommendations = true }
+                    onMore: { isShowingRecommendations = true }
                 )
 
             case .quickMeal:
@@ -688,10 +662,10 @@ struct HomeView: View {
             // Execution mode keeps recommendation one tap away and nothing more.
             if task.showsRecommendationLink {
                 HomeSecondaryLinkRow(
-                    title: "想再加一道",
+                    title: "更多推荐",
                     systemImage: "sparkles",
                     symbolTint: KitchenTheme.aiIndigo,
-                    identifier: "home.recommendation.moreLink",
+                    identifier: "home.recommendation.more",
                     action: { isShowingRecommendations = true }
                 )
             }
@@ -1232,16 +1206,17 @@ private struct TodayPlanSummaryCard: View {
     }
 }
 
-/// Decision mode's content. Unchanged in behaviour — same recommendation, same
-/// three actions, same loading / error / sample states. What changed is that it
-/// no longer owns a `.title3` heading and no longer sits beside a Today Plan
-/// card of equal weight: `HomePrimaryHeader` names it, and it renders only when
-/// it *is* the primary task.
+/// Decision mode's content: the recommendation card with its loading / error /
+/// sample states and one discovery control, 更多推荐. It has no heading of its
+/// own — `HomePrimaryHeader` names it — and it renders only when it *is* the
+/// primary task. Regeneration lives in the recommendation browser (D-042).
 private struct HomeRecommendationSection: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let recommendation: RecipeRecommendation?
     let isLoading: Bool
+    /// Store-level: the browser may still be regenerating when the user
+    /// returns here. Only the placeholder reads it; Home has no regenerate action.
     let isGenerating: Bool
     let errorMessage: String?
     let noticeMessage: String?
@@ -1251,8 +1226,7 @@ private struct HomeRecommendationSection: View {
     let expiringNames: [String]
     let onAddToToday: (Recipe) -> Void
     let onViewRecipe: (Recipe) -> Void
-    let onRefresh: () -> Void
-    let onViewAll: () -> Void
+    let onMore: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1295,48 +1269,18 @@ private struct HomeRecommendationSection: View {
                     .accessibilityIdentifier("home.recommendation.notice")
             }
 
-            // The refresh and browse affordances live below the card rather than
+            // The one discovery affordance lives below the card rather than
             // beside a section title, so nothing competes with the primary
-            // heading. AI uses the ordinary secondary-action hierarchy: it is a
-        // capability of this app, not a separate brand with its own colour.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) { auxiliaryButtons }
-                VStack(alignment: .leading, spacing: 0) { auxiliaryButtons }
+            // heading. Level 3 — utility.
+            Button(action: onMore) {
+                Text("更多推荐")
+                    .font(.subheadline.weight(.medium))
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .contentShape(Rectangle())
             }
+            .kitchenUtilityButton(tint: KitchenTheme.cookingGreen)
+            .accessibilityIdentifier("home.recommendation.more")
         }
-    }
-
-    @ViewBuilder private var auxiliaryButtons: some View {
-        Button(action: onRefresh) {
-            HStack(spacing: 6) {
-                if isGenerating {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(KitchenTheme.cookingGreen)
-                } else {
-                    Image(systemName: "sparkles")
-                        .font(.subheadline)
-                }
-                Text(isGenerating ? "正在生成…" : "AI 换几道")
-            }
-            .font(.subheadline.weight(.medium))
-            .frame(minHeight: AppTheme.minimumHitTarget)
-            .contentShape(Rectangle())
-        }
-        // Level 3 — utility. Compact bordered controls, so AI stays visually
-        // subordinate to the cooking action while still reading as a control.
-        .kitchenUtilityButton(tint: KitchenTheme.cookingGreen)
-        .disabled(isGenerating)
-        .accessibilityIdentifier("home.recommendation.refresh")
-
-        Button(action: onViewAll) {
-            Text("查看全部")
-                .font(.subheadline.weight(.medium))
-                .frame(minHeight: AppTheme.minimumHitTarget)
-                .contentShape(Rectangle())
-        }
-        .kitchenUtilityButton(tint: KitchenTheme.cookingGreen)
-        .accessibilityIdentifier("home.recommendation.viewAll")
     }
 
     private func recommendationCard(_ recommendation: RecipeRecommendation) -> some View {
@@ -1985,143 +1929,6 @@ private struct HomeModuleIssues: View {
 
 private extension String {
     var nilIfEmptyHome: String? { isEmpty ? nil : self }
-}
-
-// MARK: - Smart import
-
-private enum SmartImportRoute: Hashable {
-    case xiaohongshu
-    case manualRecipe
-}
-
-private enum SmartImportChildSheet: String, Identifiable {
-    case receipt
-    case manualIngredient
-    var id: String { rawValue }
-}
-
-struct SmartImportSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var path = NavigationPath()
-    @State private var childSheet: SmartImportChildSheet?
-    var onRecipeSaved: () -> Void
-
-    var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                Section("菜谱") {
-                    NavigationLink(value: SmartImportRoute.xiaohongshu) {
-                        SmartImportRow(
-                            title: "从小红书导入菜谱",
-                            subtitle: "粘贴链接，智能提取食材与步骤",
-                            systemImage: "sparkles.rectangle.stack.fill",
-                            accent: AppTheme.brand
-                        )
-                    }
-                    .accessibilityIdentifier("home.import.recipe.xiaohongshu")
-                    NavigationLink(value: SmartImportRoute.manualRecipe) {
-                        SmartImportRow(
-                            title: "手动创建菜谱",
-                            subtitle: "记录自己的菜谱",
-                            systemImage: "square.and.pencil",
-                            accent: nil
-                        )
-                    }
-                    .accessibilityIdentifier("home.import.recipe.manual")
-                }
-
-                Section("食材") {
-                    Button { childSheet = .receipt } label: {
-                        SmartImportRow(
-                            title: "扫描购物小票",
-                            subtitle: "拍照智能识别商品并加入库存",
-                            systemImage: "camera.viewfinder",
-                            accent: AppTheme.primary
-                        )
-                    }
-                    .accessibilityIdentifier("home.import.food.receipt")
-                    Button { childSheet = .manualIngredient } label: {
-                        SmartImportRow(
-                            title: "手动添加食材",
-                            subtitle: "快速记录食材库存",
-                            systemImage: "shippingbox",
-                            accent: nil
-                        )
-                    }
-                    .accessibilityIdentifier("home.import.food.manual")
-                }
-            }
-            .navigationTitle("导入与添加")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
-            }
-            .navigationDestination(for: SmartImportRoute.self) { route in
-                switch route {
-                case .xiaohongshu:
-                    ImportRecipeView(onSaved: finishRecipeImport)
-                case .manualRecipe:
-                    ManualRecipeView()
-                }
-            }
-            .sheet(item: $childSheet) { sheet in
-                switch sheet {
-                case .receipt:
-                    RecordFoodSheet(initialMode: .receipt)
-                case .manualIngredient:
-                    RecordFoodSheet(initialMode: .manual)
-                }
-            }
-        }
-    }
-
-    private func finishRecipeImport() {
-        dismiss()
-        onRecipeSaved()
-    }
-}
-
-private struct SmartImportRow: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    let accent: Color?
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: systemImage)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(accent == nil ? AppTheme.textSecondary : .white)
-                .frame(width: 36, height: 36)
-                .background(
-                    accent ?? AppTheme.textSecondary.opacity(0.12),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(title)
-                        .font(.subheadline.weight(accent == nil ? .regular : .semibold))
-                        .foregroundStyle(.primary)
-                    if accent != nil {
-                        Text("智能")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(AppTheme.textSecondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(AppTheme.textSecondary.opacity(0.12), in: Capsule())
-                    }
-                }
-                Text(subtitle)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-    }
 }
 
 // MARK: - Today plan detail (secondary page)

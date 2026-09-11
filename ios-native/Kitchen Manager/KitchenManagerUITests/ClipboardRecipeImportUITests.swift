@@ -16,13 +16,14 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         add(attachment)
     }
 
-    /// Navigates Home → Smart Import → link import, where the shared paste
-    /// control is rendered.
+    /// Navigates Recipes → 添加菜谱 → 从链接导入, where the shared paste
+    /// control is rendered. Home no longer carries an import entry (FR-007).
     private func openLinkImport(in app: XCUIApplication) {
-        app.buttons["home.import.add.button"].tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["导入与添加"].waitForExistence(timeout: 5))
-
-        let linkImport = app.buttons["home.import.recipe.xiaohongshu"]
+        app.tabBars.buttons["菜谱"].tap()
+        let add = app.buttons["添加菜谱"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let linkImport = app.buttons["从链接导入"]
         XCTAssertTrue(linkImport.waitForExistence(timeout: 5))
         linkImport.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["导入菜谱"].waitForExistence(timeout: 5))
@@ -50,12 +51,12 @@ final class ClipboardRecipeImportUITests: XCTestCase {
     }
 
     private func assertImportedFixtureExists(in app: XCUIApplication) {
+        // Saving pops the pushed import screen back to the Recipes list.
         XCTAssertTrue(
-            app.staticTexts["home.primary.title"].waitForExistence(timeout: 8),
-            "保存后导入 sheet 未关闭"
+            app.navigationBars.staticTexts["菜谱"].waitForExistence(timeout: 8),
+            "保存后导入页未返回菜谱列表"
         )
         XCTAssertFalse(app.alerts.firstMatch.exists, "保存成功不应出现错误弹窗")
-        app.tabBars.buttons["菜谱"].tap()
         XCTAssertTrue(
             app.buttons["recipe.list.ui-test-import-result"].waitForExistence(timeout: 5),
             "RecipeStore 中未出现固定导入菜谱"

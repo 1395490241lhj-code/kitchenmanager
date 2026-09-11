@@ -14,18 +14,14 @@ final class ManualEntryExpiryUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // Manual ingredient entry lives behind the header "+" ("导入与添加")
-        // button — tap it via its stable accessibility identifier (not the
-        // Chinese label, which the product copy has changed more than once),
-        // then the "手动添加食材" row via its own stable identifier, both of
-        // which open `RecordFoodSheet` exactly as before.
-        let smartImportButton = app.buttons["home.import.add.button"]
-        XCTAssertTrue(smartImportButton.waitForExistence(timeout: 5))
-        smartImportButton.tap()
-
-        let manualIngredientRow = app.buttons["home.import.food.manual"]
-        XCTAssertTrue(manualIngredientRow.waitForExistence(timeout: 5))
-        manualIngredientRow.tap()
+        // Manual ingredient entry lives on the Inventory tab behind its own
+        // toolbar "+" (`inventory.add.button`), which opens
+        // `RecordFoodSheet(initialMode: .manual)`. Home carries no import
+        // entry any more (FR-007).
+        app.tabBars.buttons["食材"].tap()
+        let addButton = app.buttons["inventory.add.button"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.tap()
 
         let manualSegment = app.segmentedControls.buttons["手动输入"]
         XCTAssertTrue(manualSegment.waitForExistence(timeout: 5))

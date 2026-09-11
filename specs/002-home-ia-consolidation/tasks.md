@@ -74,28 +74,28 @@ Nothing may remove a Home route to `TodayPlanDetailView` before this checkpoint 
 
 ## Phase 2: Slice C — Home reduction (parallel with A)
 
-- [ ] T012 [P] [C] `KitchenManager/HomeView.swift`: delete the toolbar `+`,
+- [x] T012 [P] [C] `KitchenManager/HomeView.swift`: delete the toolbar `+`,
   `HomeSheet.smartImport`, `SmartImportSheet`, `SmartImportRow`, `SmartImportRoute` and
   `SmartImportChildSheet`. (FR-007)
-- [ ] T013 [P] [C] `KitchenManager/HomeView.swift`: in the Home recommendation section remove the
+- [x] T013 [P] [C] `KitchenManager/HomeView.swift`: in the Home recommendation section remove the
   `AI 换几道` button with its `onRefresh` / `isGenerating` plumbing, and rename `查看全部` to
   `更多推荐` with identifier `home.recommendation.more`. Keep the store-level error, notice and
   sample-fallback states, which are not tied to the removed button. (FR-008, FR-009)
-- [ ] T014 [P] [C] `KitchenManager/HomeView.swift`: execution-mode `HomeSecondaryLinkRow`
+- [x] T014 [P] [C] `KitchenManager/HomeView.swift`: execution-mode `HomeSecondaryLinkRow`
   `想再加一道` → `更多推荐`, identifier `home.recommendation.more`; same symbol and tint; stays
   above `用餐计划`. (FR-008)
-- [ ] T015 [C] Reroute the tests that used Home `+` as an entry path to the owning tabs:
+- [x] T015 [C] Reroute the tests that used Home `+` as an entry path to the owning tabs:
   `ClipboardRecipeImportUITests` (Recipes `+ → 从链接导入`), `ManualEntryExpiryUITests`
   (Inventory `inventory.add.button`), `ReceiptCompactListUITests` (Inventory
   `更多食材操作 → 扫描购物小票`), `RuntimeAccessibilityP1UITests` (manual entry via Inventory), and
   `HomeDashboardUITests` import reachability (assert Home has no `+`; import reachable on
   Recipes). (SC-002)
-- [ ] T016 [C] `HomeDashboardUITests`: delete the Home AI-refresh test; update the recommendation
+- [x] T016 [C] `HomeDashboardUITests`: delete the Home AI-refresh test; update the recommendation
   label and identifier cases to `更多推荐` / `home.recommendation.more`; update
   `ComponentMealUITests` and `RuntimeAccessibilityP1UITests` where they assert Home regeneration;
   add a browser regenerate test if none exists; add an order assertion that `更多推荐` sits above
   `用餐计划`. (US4, SC-003, SC-004)
-- [ ] T017 [C] Run the quickstart Slice C commands; record results. (SC-002, SC-003, SC-004)
+- [x] T017 [C] Run the quickstart Slice C commands; record results. (SC-002, SC-003, SC-004)
 
 ## Phase 3: Slice B — canonical routing (after A and C; Decision recorded)
 

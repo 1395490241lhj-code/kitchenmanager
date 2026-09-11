@@ -69,7 +69,7 @@ final class ComponentMealUITests: XCTestCase {
         let app = launchSeeded()
 
         XCTAssertFalse(
-            app.buttons["home.recommendation.refresh"].exists,
+            app.buttons["home.recommendation.addToday"].exists,
             "the board replaces the slot rather than adding a section"
         )
         XCTAssertFalse(app.staticTexts["home.quickMeal.title"].exists)
