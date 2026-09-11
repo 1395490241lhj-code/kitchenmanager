@@ -99,31 +99,31 @@ Nothing may remove a Home route to `TodayPlanDetailView` before this checkpoint 
 
 ## Phase 3: Slice B — canonical routing (after A and C; Decision recorded)
 
-- [ ] T018 [B] **Gate**: confirm the next available Home IA Decision is recorded in
+- [x] T018 [B] **Gate**: confirm the next available Home IA Decision is recorded in
   `Decisions.md` by a user-authorized vault write. Read the file at that moment to learn the
   number — expected to be D-042, but do not assume it. No B, D or E code task starts first.
   (FR-022)
-- [ ] T019 [B] `KitchenManager/HomePrimaryTask.swift`: add `otherPlansLine: String?` —
+- [x] T019 [B] `KitchenManager/HomePrimaryTask.swift`: add `otherPlansLine: String?` —
   `今天另有 N 道计划` when pending > 0, `今天另有 N 道计划 · 已完成` when total > 0 and all are
   cooked, nil when total == 0 — computed for `.mealPrepBoard` and `.eatOut` (and
   `.specialPlanToday` in Slice D). Never `今日计划已全部完成`. (FR-011)
-- [ ] T020 [P] [B] `KitchenManagerTests/HomePrimaryTaskTests.swift`: pending / all-cooked / none
+- [x] T020 [P] [B] `KitchenManagerTests/HomePrimaryTaskTests.swift`: pending / all-cooked / none
   cases across `.mealPrepBoard` and `.eatOut`, asserting the exact copy. (FR-011)
-- [ ] T021 [B] `KitchenManager/HomeView.swift`: remove `home.plan.secondaryLink` and render
+- [x] T021 [B] `KitchenManager/HomeView.swift`: remove `home.plan.secondaryLink` and render
   `otherPlansLine` in `HomeTodayContext` as static `Text` (identifier `home.context.otherPlans`,
   no chevron, no button trait). (FR-010, FR-011)
-- [ ] T022 [B] `KitchenManager/HomeView.swift`: remove both `home.today.plan.viewAll` branches in
+- [x] T022 [B] `KitchenManager/HomeView.swift`: remove both `home.today.plan.viewAll` branches in
   `TodayPlanSummaryCard` (the `HomeActionPair` secondary for the cooked state and the standalone
   row for the pending state) together with the `onViewPlan` wiring at both call sites, leaving
   `用餐计划` as Home's only planning destination. The view itself is still present at this point
   and is deleted in Slice E. (FR-010)
-- [ ] T023 [B] `PlannerUITests`: retarget `testTodayPlanDetailNoLongerCarriesAPlannerRoute` and
+- [x] T023 [B] `PlannerUITests`: retarget `testTodayPlanDetailNoLongerCarriesAPlannerRoute` and
   rewrite `testTodaySecondaryLinksAreMutuallyExclusive` to “exactly one `更多推荐` in execution
   mode, none in eat-out; `用餐计划` always present and the only planning row; no
   `home.plan.secondaryLink`; no `home.today.plan.viewAll`; static `home.context.otherPlans` on
   eat-out”. `HomeDashboardUITests`: rewrite the eat-out stale-plan case to assert the context line
   is not a button and Planner is the route. (US4, SC-001)
-- [ ] T024 [B] Run the quickstart Slice B commands; record results. (SC-001)
+- [x] T024 [B] Run the quickstart Slice B commands; record results. (SC-001)
 
 ## Phase 4: Slice D — Special Plan today (after B; Decision recorded)
 

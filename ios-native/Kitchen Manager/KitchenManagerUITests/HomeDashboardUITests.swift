@@ -249,7 +249,10 @@ final class HomeDashboardUITests: XCTestCase {
         attachScreenshot(of: app, named: "home-v2-eat-out-with-stale-plan")
     }
 
-    func testAStalePlanUnderAnEatOutDinnerStaysReachableButNeverProminent() throws {
+    /// D-042 / FR-011: a plan displaced by tonight's eat-out is stated as a
+    /// fact in Today Context — text, no chevron, no tap — and Planner is the
+    /// route to it.
+    func testAStalePlanUnderAnEatOutDinnerIsStatedAsContextAndRoutedThroughPlanner() throws {
         let app = launch("UITEST_SEED_HOME_EAT_OUT_WITH_PLAN")
         XCTAssertTrue(element(app, "home.primary.eatOut").waitForExistence(timeout: 5))
 
@@ -258,12 +261,21 @@ final class HomeDashboardUITests: XCTestCase {
             "Home must not say 今晚外食 and offer 开始准备 in the same breath."
         )
 
-        let link = app.buttons["home.plan.secondaryLink"]
-        XCTAssertTrue(link.exists, "The plan is demoted, never deleted.")
-        XCTAssertEqual(link.label, "今日仍有 2 道计划")
-        makeHittable(link, in: app)
-        link.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["今天的计划"].waitForExistence(timeout: 5))
+        let context = app.staticTexts["home.context.otherPlans"]
+        XCTAssertTrue(context.exists, "The plan is demoted to context, never deleted.")
+        XCTAssertEqual(context.label, "今天另有 2 道计划")
+        XCTAssertFalse(app.buttons["home.context.otherPlans"].exists, "the context line is not a button")
+        XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists)
+        XCTAssertFalse(app.staticTexts["今日计划已全部完成"].exists)
+        attachScreenshot(of: app, named: "home-v2-eat-out-context-line")
+
+        let planner = app.buttons["home.planner.link"]
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1, "one planning route")
+        makeHittable(planner, in: app)
+        planner.tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.'")).firstMatch.exists,
+                      "the displaced plans are on Planner")
     }
 
     // MARK: - Needs attention
@@ -381,12 +393,34 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertFalse(app.navigationBars.staticTexts["菜谱详情"].exists)
     }
 
-    func testTodayPlanViewAllStillReachesTheFullPlan() throws {
+    /// D-042 / FR-010: the execution card carries no planning route. 开始做饭 and
+    /// 查看菜谱 remain; 更多推荐 sits above the one planning row, 用餐计划, which
+    /// opens Planner on today's week with the meal visible.
+    func testExecutionCardHasNoPlanRouteAndPlannerIsTheOnlyPlanningDestination() throws {
         let app = launchSeededDashboard()
-        let viewAll = app.buttons["home.today.plan.viewAll"]
-        makeHittable(viewAll, in: app)
-        viewAll.tap()
-        XCTAssertTrue(app.navigationBars.staticTexts["今天的计划"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["home.today.plan.start"].label, "开始做饭")
+        XCTAssertTrue(app.buttons["home.today.plan.viewRecipe"].exists)
+        XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists)
+        XCTAssertFalse(app.buttons["今天的计划"].exists)
+        XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists)
+
+        let more = app.buttons["home.recommendation.more"]
+        let planner = app.buttons["home.planner.link"]
+        XCTAssertTrue(more.exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1)
+        XCTAssertLessThan(more.frame.minY, planner.frame.minY)
+        attachScreenshot(of: app, named: "home-v2-execution-one-planning-route")
+
+        makeHittable(planner, in: app)
+        planner.tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars.staticTexts["今天的计划"].exists)
+        let todayHeader = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.day.' AND label CONTAINS '今天'")).firstMatch
+        XCTAssertTrue(todayHeader.waitForExistence(timeout: 5), "Planner opens on the current week with today marked")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.'")).firstMatch.exists,
+                      "today's ordinary meal is visible on Planner")
+        attachScreenshot(of: app, named: "home-v2-planner-from-home")
     }
 
     /// FR-007: Home's toolbar carries no `+`. The former hub's rows live on

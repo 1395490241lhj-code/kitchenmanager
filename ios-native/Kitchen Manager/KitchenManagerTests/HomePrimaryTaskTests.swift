@@ -105,7 +105,7 @@ final class HomePrimaryTaskTests: XCTestCase {
         let task = resolve(dayType: .cooking, dinnerIntent: .eatOut, planState: .active, total: 2, completed: 0)
 
         XCTAssertEqual(task.kind, .eatOut)
-        XCTAssertEqual(task.secondaryPlanCount, 2, "The plan is never deleted — only demoted to a reachable link.")
+        XCTAssertEqual(task.secondaryPlanCount, 2, "The plan is never deleted — only demoted to a context fact.")
         XCTAssertFalse(task.showsRecommendationLink)
     }
 
@@ -113,7 +113,28 @@ final class HomePrimaryTaskTests: XCTestCase {
         let task = resolve(dayType: .cooking, dinnerIntent: .eatOut, planState: .completed, total: 2, completed: 2)
 
         XCTAssertEqual(task.kind, .eatOut)
-        XCTAssertEqual(task.secondaryPlanCount, 0, "Nothing is still pending, so there is nothing to link to.")
+        XCTAssertEqual(task.secondaryPlanCount, 0, "Nothing is still pending.")
+    }
+
+    // MARK: - Suppressed ordinary-plan context (D-042 / FR-011)
+
+    /// Exact copy, for both tasks that displace an ordinary plan. Never the
+    /// misleading 今日计划已全部完成.
+    func testOtherPlansLineStatesTheSuppressedPlansAsAFact() {
+        for (dayType, intent) in [(DayType.mealPrep, MealIntent.household), (.cooking, .eatOut)] {
+            let pending = resolve(dayType: dayType, dinnerIntent: intent, planState: .partial, total: 3, completed: 1)
+            XCTAssertEqual(pending.otherPlansLine, "今天另有 3 道计划", "\(dayType) \(intent)")
+            let cooked = resolve(dayType: dayType, dinnerIntent: intent, planState: .completed, total: 2, completed: 2)
+            XCTAssertEqual(cooked.otherPlansLine, "今天另有 2 道计划 · 已完成", "\(dayType) \(intent)")
+            let none = resolve(dayType: dayType, dinnerIntent: intent, planState: .empty, total: 0, completed: 0)
+            XCTAssertNil(none.otherPlansLine, "\(dayType) \(intent)")
+        }
+    }
+
+    func testOtherPlansLineIsNeverShownWhenThePlanIsThePrimaryTask() {
+        XCTAssertNil(resolve(dayType: .cooking, planState: .partial, total: 3, completed: 1).otherPlansLine)
+        XCTAssertNil(resolve(dayType: .quick, planState: .completed, total: 2, completed: 2).otherPlansLine)
+        XCTAssertNil(resolve(dayType: .cooking).otherPlansLine)
     }
 
     // MARK: - Precedence between day types and plans

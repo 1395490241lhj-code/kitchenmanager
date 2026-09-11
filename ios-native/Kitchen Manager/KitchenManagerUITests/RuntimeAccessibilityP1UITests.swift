@@ -14,29 +14,30 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// D-042 retired the Home → 今天的计划 route; today's meal row and its 做好了
+    /// now live on Planner (Slice A), reached through Home's one planning row.
     func testTodayPlanRowAdaptsWithoutClipping() throws {
-        for (name, size, isAccessibility) in sizes {
+        for (name, size, _) in sizes {
             let app = launch("UITEST_SEED_ACCESSIBILITY_TODAY_PLAN", size: size)
-            let viewAll = app.buttons["home.today.plan.viewAll"]
-            XCTAssertTrue(viewAll.waitForExistence(timeout: 5))
-            XCTAssertTrue(scrollUntilFullyHittable(viewAll, in: app))
-            viewAll.tap()
+            XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists, "\(name): 首页不应再有 今天的计划")
+            let planner = app.buttons["home.planner.link"]
+            XCTAssertTrue(planner.waitForExistence(timeout: 5))
+            XCTAssertTrue(scrollUntilFullyHittable(planner, in: app))
+            planner.tap()
+            XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "\(name): 用餐计划未打开")
 
-            let title = app.staticTexts["超长名称的番茄牛腩炖土豆配时令蔬菜家庭晚餐"]
-            let metadata = app.staticTexts["4 人份 · 今天"]
-            let complete = app.buttons["today.plan.complete.button"]
-            XCTAssertTrue(title.waitForExistence(timeout: 5), "\(name): 菜名缺失或被裁切")
-            XCTAssertTrue(metadata.exists, "\(name): 份量/日期缺失")
-            assertOnScreen(title, in: app, label: "\(name) 菜名")
-            assertOnScreen(metadata, in: app, label: "\(name) 份量/日期")
+            let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.'")).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "\(name): 菜品行缺失")
+            XCTAssertTrue(row.label.contains("超长名称的番茄牛腩炖土豆配时令蔬菜家庭晚餐"), "\(name): 菜名缺失或被裁切: \(row.label)")
+            XCTAssertTrue(row.label.contains("4 人份"), "\(name): 份量缺失: \(row.label)")
+            XCTAssertTrue(scrollUntilFullyHittable(row, in: app), "\(name): 菜品行不可完整到达")
+            assertOnScreen(row, in: app, label: "\(name) 菜品行")
+            XCTAssertGreaterThanOrEqual(row.frame.height, 43.5, "\(name): 菜品行高度不足 44pt")
+
+            row.swipeRight()
+            let complete = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.complete.'")).firstMatch
+            XCTAssertTrue(complete.waitForExistence(timeout: 5), "\(name): 做好了缺失")
             assertAction(complete, in: app, label: "\(name) 做好了")
-            XCTAssertFalse(title.frame.intersects(complete.frame), "\(name): 菜名与做好了按钮重叠")
-            XCTAssertFalse(metadata.frame.intersects(complete.frame), "\(name): 份量/日期与做好了按钮重叠")
-            if isAccessibility {
-                XCTAssertGreaterThanOrEqual(complete.frame.minY, metadata.frame.maxY - 1, "XXXL: 做好了未排在详情下方")
-            } else {
-                XCTAssertGreaterThanOrEqual(complete.frame.minX, title.frame.maxX - 1, "Normal: 菜品行不再横排")
-            }
             app.terminate()
         }
     }

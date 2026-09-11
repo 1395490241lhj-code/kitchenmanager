@@ -164,6 +164,7 @@ struct HomeView: View {
                     dayType: dayRhythmStore.effectiveDayType(),
                     eatOutSlots: MealSlot.allCases.filter { dayRhythmStore.intent(for: $0) == .eatOut },
                     incomingCarryover: incomingCarryoverSummaries,
+                    otherPlansLine: primaryTask.otherPlansLine,
                     onOpenDayRhythm: { activeSheet = .todayRhythm }
                 )
 
@@ -608,7 +609,6 @@ struct HomeView: View {
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
                     hero: heroModel(for: dashboard),
-                    onViewPlan: { isShowingTodayPlan = true },
                     onSelectPlan: { selectedPlan = $0 },
                     onStartCooking: startCooking
                 )
@@ -670,22 +670,10 @@ struct HomeView: View {
                 )
             }
 
-            // A plan that exists but is not today's headline. Reachable, never
-            // prominent: Home must not say 今晚外食 and 开始准备 in one breath.
-            if task.secondaryPlanCount > 0 {
-                HomeSecondaryLinkRow(
-                    title: "今日仍有 \(task.secondaryPlanCount) 道计划",
-                    systemImage: "list.bullet",
-                    symbolTint: AppTheme.textSecondary,
-                    identifier: "home.plan.secondaryLink",
-                    action: { isShowingTodayPlan = true }
-                )
-            }
-
             // Everything beyond today: later meals, and the special plans that
-            // sit among them. Unconditional on purpose, and now Home's *only*
-            // route to the planner — the deep one through today's plan detail
-            // was removed in D-031 once this one had been verified on a device.
+            // sit among them. Unconditional on purpose, and Home's *only*
+            // planning route (D-042): a plan that is not today's headline is a
+            // fact in Today Context, not a second destination.
             //
             // It stays a link rather than a card because planning ahead is
             // never today's primary task. The extra top padding is the only
@@ -861,6 +849,10 @@ private struct HomeTodayContext: View {
     let eatOutSlots: [MealSlot]
     /// Food an earlier day left for today. Today's food, so it belongs here.
     let incomingCarryover: [String]
+    /// Ordinary plans that another task has displaced from the primary
+    /// position (D-042 / FR-011). A fact about today, so it is stated here as
+    /// text: no chevron, no button, no second planning route.
+    let otherPlansLine: String?
     let onOpenDayRhythm: () -> Void
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
@@ -914,6 +906,12 @@ private struct HomeTodayContext: View {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityIdentifier("home.dayRhythm.row")
 
+            if let otherPlansLine {
+                Text(otherPlansLine)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home.context.otherPlans")
+            }
             if shouldShowHousehold, let householdName {
                 Label(householdName, systemImage: "person.2")
                     .font(.footnote)
@@ -1072,7 +1070,6 @@ private struct TodayPlanSummaryCard: View {
     let dashboard: HomeDashboardSummary
     /// Tonight's hero copy, already resolved from real plans by `HomeView`.
     let hero: HomeMealHeroModel
-    let onViewPlan: () -> Void
     let onSelectPlan: (MealPlanItem) -> Void
     /// Opens cooking mode for the lead dish. Home's prominent control describes
     /// its own result; routing it to a recipe page would not.
@@ -1129,6 +1126,7 @@ private struct TodayPlanSummaryCard: View {
         }
     }
 
+    @ViewBuilder
     private func actions(_ leadPlan: MealPlanItem) -> some View {
         // One dominant action, and one text-level alternative beside it.
         // Two equally filled pills is the pattern this replaced.
@@ -1137,51 +1135,29 @@ private struct TodayPlanSummaryCard: View {
         // result nor the verb the destination used — the button said 准备, the
         // page it opened said 开始烹饪, and neither of them cooked anything.
         //
-        // Once every dish is done there is nothing left to start, so the pair
-        // becomes 查看菜谱 + 今天的计划 and the extra row below is unnecessary.
-        VStack(alignment: .leading, spacing: 12) {
-            if leadPlan.isCooked {
-                HomeActionPair(
-                    primaryTitle: "查看菜谱",
-                    primarySymbol: "book",
-                    primaryIdentifier: "home.today.plan.start",
-                    primaryAction: { onSelectPlan(leadPlan) },
-                    secondaryTitle: "今天的计划",
-                    secondaryTint: KitchenTheme.cookingGreen,
-                    secondaryIdentifier: "home.today.plan.viewAll",
-                    secondaryAction: onViewPlan
-                )
-            } else {
-                HomeActionPair(
-                    primaryTitle: "开始做饭",
-                    primarySymbol: "flame.fill",
-                    primaryIdentifier: "home.today.plan.start",
-                    primaryAction: { onStartCooking(leadPlan) },
-                    secondaryTitle: "查看菜谱",
-                    secondaryTint: KitchenTheme.cookingGreen,
-                    secondaryIdentifier: "home.today.plan.viewRecipe",
-                    secondaryAction: { onSelectPlan(leadPlan) }
-                )
-
-                // Quiet but clearly actionable: a standard navigation row.
-                // Secondary-on-secondary read as a disabled label.
-                Button(action: onViewPlan) {
-                    HStack {
-                        Text("今天的计划")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                            .accessibilityHidden(true)
-                    }
-                    .font(.subheadline)
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .contentShape(Rectangle())
-                }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("home.today.plan.viewAll")
+        // Once every dish is done there is nothing left to start, so only
+        // 查看菜谱 remains. Planning management is 用餐计划 below the card
+        // (D-042); the card carries no route of its own.
+        if leadPlan.isCooked {
+            Button {
+                onSelectPlan(leadPlan)
+            } label: {
+                Label("查看菜谱", systemImage: "book")
+                    .font(.callout.weight(.semibold))
             }
+            .buttonStyle(KitchenButtonStyle(role: .primary))
+            .accessibilityIdentifier("home.today.plan.start")
+        } else {
+            HomeActionPair(
+                primaryTitle: "开始做饭",
+                primarySymbol: "flame.fill",
+                primaryIdentifier: "home.today.plan.start",
+                primaryAction: { onStartCooking(leadPlan) },
+                secondaryTitle: "查看菜谱",
+                secondaryTint: KitchenTheme.cookingGreen,
+                secondaryIdentifier: "home.today.plan.viewRecipe",
+                secondaryAction: { onSelectPlan(leadPlan) }
+            )
         }
     }
 
@@ -1373,7 +1349,7 @@ private struct HomeRecommendationSection: View {
 /// was the clearest repetition on the page.
 ///
 /// Collapsed by default. Nothing is lost: the header states how many dishes are
-/// inside, and the full list is one tap away in 今天的计划.
+/// inside, and the full list is on Planner via 用餐计划.
 private struct MealMenuModule: View {
     /// The remaining dishes only — never the lead dish, which is the hero.
     let plans: [MealPlanItem]
@@ -1405,7 +1381,7 @@ private struct MealMenuModule: View {
                         .foregroundStyle(.tertiary)
                         // Expand in place, never navigate: down when there is
                         // more to show, up once it is open. The right-facing
-                        // chevron belongs to 今天的计划, which does navigate.
+                        // chevron belongs to rows that navigate, such as 用餐计划.
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                         .accessibilityHidden(true)
                 }
@@ -1741,7 +1717,6 @@ private struct HomeModuleIssues: View {
             shoppingItems: []
         ),
         hero: HomeMealHeroModel(title: "番茄炒蛋", sideDishes: ["清炒时蔬", "紫菜蛋花汤"], timing: nil, duration: "35 分钟", dishCount: 3, readiness: HomeMealReadiness(ready: 4, total: 6)),
-        onViewPlan: {},
         onSelectPlan: { _ in },
         onStartCooking: { _ in }
     )
@@ -1758,6 +1733,7 @@ private struct HomeModuleIssues: View {
             dayType: .flexible,
             eatOutSlots: [],
             incomingCarryover: [],
+            otherPlansLine: nil,
             onOpenDayRhythm: {}
         )
         HomeNeedsAttentionSection(items: [], additionalCount: 0, onSelect: { _ in }, onViewAll: {})
@@ -1791,13 +1767,9 @@ private struct HomeModuleIssues: View {
             )
         )
         HomeEatOutPrimary()
-        HomeSecondaryLinkRow(
-            title: "今日仍有 1 道计划",
-            systemImage: "list.bullet",
-            symbolTint: AppTheme.textSecondary,
-            identifier: "home.plan.secondaryLink",
-            action: {}
-        )
+        Text("今天另有 1 道计划")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
     }
     .padding()
     .background(KitchenTheme.canvas)
@@ -1826,7 +1798,6 @@ private struct HomeModuleIssues: View {
             shoppingItems: []
         ),
         hero: HomeMealHeroModel(title: "家常豆腐", sideDishes: [], timing: nil, duration: "20 分钟", dishCount: 1, readiness: HomeMealReadiness(ready: 3, total: 3)),
-        onViewPlan: {},
         onSelectPlan: { _ in },
         onStartCooking: { _ in }
     )
@@ -1842,7 +1813,6 @@ private struct HomeModuleIssues: View {
             shoppingItems: []
         ),
         hero: HomeMealHeroModel(title: "红烧豆腐", sideDishes: [], timing: nil, duration: "25 分钟", dishCount: 1, readiness: nil),
-        onViewPlan: {},
         onSelectPlan: { _ in },
         onStartCooking: { _ in }
     )
@@ -1882,6 +1852,7 @@ private struct HomeModuleIssues: View {
             dayType: .cooking,
             eatOutSlots: [.lunch, .dinner],
             incomingCarryover: [MealPortionCopy.targetDaySummary(2)],
+            otherPlansLine: nil,
             onOpenDayRhythm: {}
         )
         TodayPlanSummaryCard(
@@ -1898,7 +1869,6 @@ private struct HomeModuleIssues: View {
                 dishCount: 1,
                 readiness: HomeMealReadiness(ready: 2, total: 7)
             ),
-            onViewPlan: {},
             onSelectPlan: { _ in },
             onStartCooking: { _ in }
         )

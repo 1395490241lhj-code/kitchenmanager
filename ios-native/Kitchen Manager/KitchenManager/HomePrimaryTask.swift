@@ -41,11 +41,14 @@ struct HomePrimaryTask: Equatable {
     let title: String
     /// The qualifier beside the heading: 还没决定 / 已完成 1/2 / 已安排外食.
     let detail: String?
-    /// Plans that exist but are *not* the primary task. Home must still let the
-    /// user reach them, and must not offer a prominent 开始准备 alongside a
-    /// contradicting primary task — 今晚外食 and 开始准备番茄炒蛋 cannot both be
-    /// the page's headline claim.
+    /// Plans that exist but are *not* the primary task, still pending. Home
+    /// must not offer a prominent 开始准备 alongside a contradicting primary
+    /// task — 今晚外食 and 开始准备番茄炒蛋 cannot both be the page's headline
+    /// claim. Since D-042 this is a fact stated in Today Context, never a
+    /// second planning route; see `otherPlansLine`.
     let secondaryPlanCount: Int
+    /// Every ordinary plan today, used only to word `otherPlansLine`.
+    let totalPlanCount: Int
 
     /// Decision mode: the full recommendation card is the primary content.
     var isDecisionMode: Bool { kind == .recipeRecommendation }
@@ -53,6 +56,17 @@ struct HomePrimaryTask: Equatable {
     /// Execution mode keeps recommendation reachable, but only as a light link.
     /// The capability is never removed — only its weight.
     var showsRecommendationLink: Bool { kind == .planExecution }
+
+    /// D-042 / FR-011: when another task owns the primary position, the
+    /// ordinary plans are reported as non-interactive context. Nil when none
+    /// exist or when the plans *are* the primary task. Never the misleading
+    /// 今日计划已全部完成 — a Special Plan may still be pending.
+    var otherPlansLine: String? {
+        guard kind == .mealPrepBoard || kind == .eatOut, totalPlanCount > 0 else { return nil }
+        return secondaryPlanCount > 0
+            ? "今天另有 \(totalPlanCount) 道计划"
+            : "今天另有 \(totalPlanCount) 道计划 · 已完成"
+    }
 }
 
 extension HomePrimaryTask {
@@ -107,7 +121,8 @@ extension HomePrimaryTask {
                 kind: .mealPrepBoard,
                 title: "今天备的菜",
                 detail: "先吃快到期的",
-                secondaryPlanCount: pendingPlanCount
+                secondaryPlanCount: pendingPlanCount,
+                totalPlanCount: totalPlanCount
             )
         }
 
@@ -116,7 +131,8 @@ extension HomePrimaryTask {
                 kind: .eatOut,
                 title: "今晚",
                 detail: "已安排外食",
-                secondaryPlanCount: pendingPlanCount
+                secondaryPlanCount: pendingPlanCount,
+                totalPlanCount: totalPlanCount
             )
         }
 
@@ -125,7 +141,8 @@ extension HomePrimaryTask {
                 kind: .planExecution,
                 title: "今天做这些",
                 detail: "已完成 \(completedPlanCount)/\(totalPlanCount)",
-                secondaryPlanCount: 0
+                secondaryPlanCount: 0,
+                totalPlanCount: totalPlanCount
             )
         }
 
@@ -134,7 +151,8 @@ extension HomePrimaryTask {
                 kind: .quickMeal,
                 title: "今天怎么吃",
                 detail: nil,
-                secondaryPlanCount: 0
+                secondaryPlanCount: 0,
+                totalPlanCount: 0
             )
         }
 
@@ -145,7 +163,8 @@ extension HomePrimaryTask {
             kind: .recipeRecommendation,
             title: dayType == .cooking ? "今天做什么" : "今天怎么吃",
             detail: dayType == .cooking ? "还没决定" : nil,
-            secondaryPlanCount: 0
+            secondaryPlanCount: 0,
+            totalPlanCount: 0
         )
     }
 }

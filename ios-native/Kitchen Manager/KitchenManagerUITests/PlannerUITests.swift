@@ -84,8 +84,7 @@ final class PlannerUITests: XCTestCase {
 
         // Precondition: Home has no today plan, so the plan-gated route is gone.
         XCTAssertTrue(app.buttons["home.planner.link"].waitForExistence(timeout: 10), "planner link missing on an empty Home")
-        XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists, "fixture must have no today plan")
-        XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists, "fixture must have no today plan")
+        XCTAssertFalse(app.buttons["home.today.plan.start"].exists, "fixture must have no today plan")
 
         app.buttons["home.planner.link"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10), "the planner did not open from Home")
@@ -113,64 +112,66 @@ final class PlannerUITests: XCTestCase {
         empty.terminate()
 
         // With a today plan the prominent path is still the plan card; the link
-        // is present in addition to it, not instead of it.
+        // is present in addition to it, not instead of it — and it is the only
+        // planning row (D-042).
         let seeded = launch("UITEST_SEED_SPECIAL_PLAN")
-        XCTAssertTrue(seeded.buttons["home.today.plan.viewAll"].waitForExistence(timeout: 10), "the plan card must still lead the page")
+        XCTAssertTrue(seeded.buttons["home.today.plan.start"].waitForExistence(timeout: 10), "the plan card must still lead the page")
         let seededLink = seeded.buttons["home.planner.link"]
         XCTAssertTrue(seededLink.exists, "the link must survive execution mode")
         XCTAssertEqual(seededLink.label, "用餐计划")
     }
 
-    /// D-031: the planner has exactly one entry, and it is Home's. The deep
-    /// route through today's plan detail is gone, and nothing about the detail
-    /// screen's own job went with it.
-    func testTodayPlanDetailNoLongerCarriesAPlannerRoute() {
+    /// D-042: Home has exactly one planning route, 用餐计划 → Planner. The
+    /// card's own 今天的计划 route is gone, and what it used to reach — today's
+    /// meal with 做好了, 生成今日购物清单 and the weekly generator — is on Planner.
+    func testHomeHasOnePlanningRouteAndItReachesPlannerCapabilities() {
         let app = launch("UITEST_SEED_SPECIAL_PLAN")
 
-        let viewAll = app.buttons["home.today.plan.viewAll"]
-        XCTAssertTrue(viewAll.waitForExistence(timeout: 10))
-        // The card's action is named after where it goes, and that is not the
-        // planner. 查看全部 belonged to the recommendation card as well, which
-        // is precisely the ambiguity this removes.
-        XCTAssertEqual(viewAll.label, "今天的计划", "the today card action names its destination")
-        viewAll.tap()
+        XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists, "the card carries no planning route")
+        XCTAssertFalse(app.buttons["今天的计划"].exists)
+        XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1, "exactly one planning row")
 
-        XCTAssertTrue(app.navigationBars.staticTexts["今天的计划"].waitForExistence(timeout: 5))
-        XCTAssertFalse(
-            app.buttons["today.plan.planner.link"].exists,
-            "the duplicate planner route must be gone from today's plan detail"
-        )
-        XCTAssertFalse(app.staticTexts["查看本周安排 · 特殊计划"].exists)
+        openPlanner(from: app)
+        XCTAssertFalse(app.navigationBars.staticTexts["今天的计划"].exists, "no TodayPlanDetail intermediate surface")
 
-        // What the detail is actually for is untouched, including the weekly AI
-        // generator that used to sit confusingly next to the planner row.
-        XCTAssertTrue(app.buttons["today.plan.weeklyMenu.link"].exists, "the weekly AI menu route must remain reachable")
-        XCTAssertTrue(app.staticTexts["AI 生成一周菜单"].exists, "the weekly generator says it is a generator")
-        XCTAssertTrue(app.buttons["生成今日购物清单"].exists, "today's own actions are unaffected")
+        // Today's week is what opens, with today marked and the ordinary meal on it.
+        let todayHeader = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.day.' AND label CONTAINS '今天'")).firstMatch
+        XCTAssertTrue(todayHeader.waitForExistence(timeout: 5), "the current week with today marked must be visible")
+        let meal = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.'")).firstMatch
+        XCTAssertTrue(meal.exists, "today's ordinary meal must be visible on Planner")
+
+        // Slice A capabilities stay reachable from here.
+        let menu = app.buttons["planner.tools.menu"]
+        XCTAssertTrue(menu.exists, "the 更多 menu is missing")
+        menu.tap()
+        XCTAssertTrue(app.buttons["planner.shopping.generateToday"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
     }
 
-    /// The two Today-scoped secondary links describe mutually exclusive states —
-    /// `更多推荐` only exists in execution mode, where `secondaryPlanCount` is
-    /// zero by construction. `用餐计划` is unconditional and belongs to neither.
-    func testTodaySecondaryLinksAreMutuallyExclusive() {
+    /// D-042: exactly one `更多推荐` in execution mode and none in eat-out;
+    /// `用餐计划` is always present and is the only planning row. A plan that
+    /// another task displaces is stated as static context, never a second route.
+    func testHomeSecondaryRowsFollowTheCanonicalIA() {
         let execution = launch("UITEST_SEED_SPECIAL_PLAN")
         XCTAssertTrue(execution.buttons["home.recommendation.more"].waitForExistence(timeout: 10))
-        XCTAssertFalse(
-            execution.buttons["home.plan.secondaryLink"].exists,
-            "a plan that is the primary task is never also a demoted one"
-        )
-        XCTAssertTrue(execution.buttons["home.planner.link"].exists)
+        XCTAssertEqual(execution.buttons.matching(identifier: "home.recommendation.more").count, 1)
+        XCTAssertFalse(execution.buttons["home.plan.secondaryLink"].exists)
+        XCTAssertFalse(execution.buttons["home.today.plan.viewAll"].exists)
+        XCTAssertFalse(execution.staticTexts["home.context.otherPlans"].exists, "the plan is the primary task, not context")
+        XCTAssertEqual(execution.buttons.matching(identifier: "home.planner.link").count, 1)
         execution.terminate()
 
-        // An eat-out dinner with a leftover plan is the other half: the plan is
-        // demoted, and recommendation is not offered at all.
         let eatOut = launch("UITEST_SEED_HOME_EAT_OUT_WITH_PLAN")
-        XCTAssertTrue(eatOut.buttons["home.plan.secondaryLink"].waitForExistence(timeout: 10))
-        XCTAssertFalse(
-            eatOut.buttons["home.recommendation.more"].exists,
-            "Home must not propose another dish for an evening already settled"
-        )
-        XCTAssertTrue(eatOut.buttons["home.planner.link"].exists, "the planner link belongs to neither mode")
+        let context = eatOut.staticTexts["home.context.otherPlans"]
+        XCTAssertTrue(context.waitForExistence(timeout: 10), "the displaced plan is stated in Today Context")
+        XCTAssertEqual(context.label, "今天另有 2 道计划")
+        XCTAssertFalse(eatOut.buttons["home.context.otherPlans"].exists, "the context line is text, not a button")
+        XCTAssertFalse(eatOut.buttons["home.plan.secondaryLink"].exists)
+        XCTAssertFalse(eatOut.buttons["home.recommendation.more"].exists,
+                       "Home must not propose another dish for an evening already settled")
+        XCTAssertEqual(eatOut.buttons.matching(identifier: "home.planner.link").count, 1, "the planner link belongs to neither mode")
     }
 
     /// An entirely empty week states the absence once and can be acted on,
