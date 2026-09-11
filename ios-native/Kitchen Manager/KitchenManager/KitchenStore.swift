@@ -2142,6 +2142,11 @@ final class KitchenStore: ObservableObject {
         var copy = weeklyPlan
         copy.startDate = nextStart
         copy.createdAt = Date()
+        // A copy is a new menu, so it has never been added to the meal plan. It
+        // must not inherit the original's materialization receipt: those ids
+        // belong to meals already standing on the original's own days, and a
+        // finished receipt would leave the copy unable to be added at all.
+        copy.materialization = nil
         for dayIndex in copy.days.indices {
             for mealIndex in copy.days[dayIndex].meals.indices {
                 for recipeIndex in copy.days[dayIndex].meals[mealIndex].recipes.indices {

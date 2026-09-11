@@ -150,7 +150,7 @@ Happy path from S0:
    recipe write; an exact id already present with the same content is reused, and one present with
    conflicting content fails explicitly. Failure → S0 with an honest error; retry is safe.
 4. **Allocate + commit the pending receipt.** Build the exact `MealPlanItem` values (ids allocated
-   now), write `{state: .pending, planIDs, recipeIDs, startedAt}` together with the updated
+   now), write `{state: .pending, planIDs, recipeIDs, planDates, startedAt}` together with the updated
    `isSavedToLibrary` flags through an **observable** draft write (§5). Failure → S0 with an honest
    error; nothing was added to the plan; recipes from step 3 remain (OD-3).
 5. **Batch.** One atomic canonical write of exactly those items. Failure → **S1**; error copy
@@ -189,7 +189,9 @@ legacy payloads decode with `materialization == nil`.
     struct WeeklyMaterializationReceipt: Codable, Hashable {
         var state: WeeklyMaterializationState
         var planIDs: [UUID]      // exact MealPlanItem ids, in creation order
-        var recipeIDs: [String]  // recipes prepared for this attempt, for retry reuse
+        var recipeIDs: [String]  // canonical recipe per intended meal, parallel to planIDs
+        var planDates: [Date]?   // intended Planner day per meal, parallel to planIDs;
+                                 // nil means the mapping was never recorded
         var startedAt: Date
         var completedAt: Date?
     }

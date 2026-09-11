@@ -75,9 +75,24 @@ nonisolated struct WeeklyMaterializationReceipt: Codable, Hashable {
     /// ascending, then meal, then dish). A retry reuses these rather than
     /// allocating replacements, which is what keeps a retry from duplicating.
     var planIDs: [UUID]
-    /// Recipes prepared for this attempt, pre-existing and newly persisted
-    /// alike, so a retry reuses them instead of creating near-copies.
+    /// The canonical recipe behind each intended meal, parallel to `planIDs`
+    /// and the same length — `recipeIDs[i]` belongs to `planIDs[i]`, duplicates
+    /// included — so a retry reuses those recipes instead of creating
+    /// near-copies.
     var recipeIDs: [String]
+    /// The normalized Planner day each intended meal belongs on, parallel to
+    /// `planIDs` and `recipeIDs`.
+    ///
+    /// Without this the receipt could not describe its own mapping: the same
+    /// recipe on Monday and on Tuesday produces an identical id sequence, so a
+    /// draft whose days had changed would still look like a match and a retry
+    /// would write the approved ids onto whatever days the draft now shows.
+    /// Recovery has to be self-describing rather than depend on the screen
+    /// happening to offer no way to move a dish.
+    ///
+    /// `nil` means a receipt written before this was recorded. Such a receipt
+    /// cannot prove its mapping, so a pending one is treated as stale.
+    var planDates: [Date]?
     var startedAt: Date
     var completedAt: Date?
 
@@ -85,12 +100,14 @@ nonisolated struct WeeklyMaterializationReceipt: Codable, Hashable {
         state: WeeklyMaterializationState,
         planIDs: [UUID],
         recipeIDs: [String],
+        planDates: [Date]?,
         startedAt: Date,
         completedAt: Date? = nil
     ) {
         self.state = state
         self.planIDs = planIDs
         self.recipeIDs = recipeIDs
+        self.planDates = planDates
         self.startedAt = startedAt
         self.completedAt = completedAt
     }
@@ -165,6 +182,290 @@ struct WeeklyMealPlan: Codable, Hashable {
 
     /// Days actually present in the plan, for the same reason.
     var dayCount: Int { days.count }
+}
+
+// MARK: - Materialization candidates and outcomes
+
+/// One dish of the draft, resolved to everything a canonical meal needs.
+///
+/// The sequence of these *is* the materialization: day ascending, then meal,
+/// then the dish's own position in its meal. Nothing here comes from dictionary
+/// iteration, because the receipt records ids against this order and a retry has
+/// to land on the same dishes.
+nonisolated struct WeeklyMenuCandidate: Equatable {
+    /// The draft dish this came from, for reporting which one went wrong.
+    let dishID: String
+    let dishName: String
+    let dayIndex: Int
+    let mealIndex: Int
+    /// The civil day, already normalized the way the Planner stores dates.
+    let date: Date
+    /// Resolved from the canonical recipe, never from the draft's own copy.
+    let recipeID: String
+    let recipeName: String
+    /// The exact id the meal will carry.
+    let planID: UUID
+}
+
+/// What a member is about to append onto, when they already planned something.
+nonisolated struct WeeklyMaterializationCollision: Equatable {
+    /// Distinct target days that already hold ordinary meals.
+    let dayCount: Int
+    let dates: [Date]
+    /// Ordinary meals already standing on those days.
+    let existingMealCount: Int
+}
+
+/// Every way materializing a menu can end.
+///
+/// Deliberately not a `Bool` or a notice string: the screen has to tell a member
+/// whose recipe went missing apart from one whose disk is full, and tell both
+/// apart from a menu that is already on the plan. Collapsing them would put the
+/// wrong sentence in front of all three.
+nonisolated enum WeeklyMaterializationOutcome: Equatable {
+    /// The exact intended meals are durable and the receipt says so.
+    case materialized([MealPlanItem])
+    /// The meals are durable — the member's schedule really did change — but the
+    /// receipt could not be updated to say so. Reopening repairs it.
+    case materializedNeedsReceiptRepair([MealPlanItem])
+    /// A previous attempt had already written the meals; only the receipt was
+    /// behind, and it has now been finalized. Nothing was appended.
+    case receiptRepaired
+    /// This draft is already on the plan. It cannot be added twice.
+    case alreadyMaterialized
+    /// Target days already hold ordinary meals. Nothing was written; call again
+    /// with `confirmedAppend` once the member has agreed.
+    case confirmationRequired(WeeklyMaterializationCollision)
+    /// A dish points at a recipe that is no longer in the library.
+    case missingLocalRecipe(dishName: String)
+    /// A generated recipe's id is taken by different content.
+    case recipeIdentityConflict(recipeID: String)
+    case recipePersistenceFailed
+    case receiptPersistenceFailed
+    case planPersistenceFailed
+    /// Some of the intended meals are present and some are not. Only the member
+    /// can say which they meant, so nothing is written.
+    case partialRecoveryRequired(present: [UUID], missing: [UUID])
+    /// The draft changed after the receipt was written, so the recorded ids can
+    /// no longer be matched to dishes without guessing.
+    case staleReceipt
+    /// Nothing to materialize.
+    case emptyDraft
+
+    var materializedItems: [MealPlanItem]? {
+        switch self {
+        case .materialized(let items), .materializedNeedsReceiptRepair(let items): return items
+        default: return nil
+        }
+    }
+
+    /// Whether the member's schedule actually changed. True for the repair case
+    /// too: the meals are durable, and only the bookkeeping lagged.
+    var didChangeSchedule: Bool {
+        materializedItems != nil
+    }
+}
+
+// MARK: - Materializer
+
+/// Turns a generated menu into the meals the Planner and Home already read.
+///
+/// Pure resolution, deliberately separate from the writes: every dish is
+/// resolved and every id allocated before anything touches the disk, so a
+/// problem with the menu is reported before a menu is half-written.
+@MainActor
+enum WeeklyMenuMaterializer {
+    enum ResolutionFailure: Error, Equatable {
+        case missingLocalRecipe(dishName: String)
+        case recipeIdentityConflict(recipeID: String)
+
+        var outcome: WeeklyMaterializationOutcome {
+            switch self {
+            case .missingLocalRecipe(let dishName): return .missingLocalRecipe(dishName: dishName)
+            case .recipeIdentityConflict(let recipeID): return .recipeIdentityConflict(recipeID: recipeID)
+            }
+        }
+    }
+
+    struct Preparation {
+        let candidates: [WeeklyMenuCandidate]
+        /// Generated recipes the library does not hold yet, in candidate order
+        /// and deduplicated by id.
+        let recipesToPersist: [Recipe]
+    }
+
+    /// Resolves the whole draft, or fails before a single write.
+    static func prepare(
+        plan: WeeklyMealPlan,
+        recipeStore: RecipeStore,
+        calendar: Calendar = .current
+    ) throws -> Preparation {
+        let start = calendar.startOfDay(for: plan.startDate)
+        var candidates: [WeeklyMenuCandidate] = []
+        var toPersist: [Recipe] = []
+        var pendingIDs = Set<String>()
+
+        for day in plan.days.sorted(by: { $0.dayIndex < $1.dayIndex }) {
+            // Adding days to a start-of-day date is the same arithmetic the
+            // result screen's own headers use, so the meal lands on the day the
+            // member was looking at.
+            let raw = calendar.date(byAdding: .day, value: day.dayIndex, to: start) ?? start
+            let date = MealPlanItem.normalizedPlannerDate(for: raw, calendar: calendar)
+
+            for meal in day.meals.sorted(by: { $0.mealIndex < $1.mealIndex }) {
+                for dish in meal.recipes {
+                    let resolved = try resolve(dish: dish, recipeStore: recipeStore)
+                    if resolved.needsPersisting, pendingIDs.insert(resolved.recipe.id).inserted {
+                        toPersist.append(resolved.recipe)
+                    }
+                    candidates.append(
+                        WeeklyMenuCandidate(
+                            dishID: dish.id,
+                            dishName: dish.title,
+                            dayIndex: day.dayIndex,
+                            mealIndex: meal.mealIndex,
+                            date: date,
+                            recipeID: resolved.recipe.id,
+                            recipeName: resolved.recipe.title,
+                            planID: UUID()
+                        )
+                    )
+                }
+            }
+        }
+
+        return Preparation(candidates: candidates, recipesToPersist: toPersist)
+    }
+
+    private struct Resolved {
+        let recipe: Recipe
+        let needsPersisting: Bool
+    }
+
+    private static func resolve(
+        dish: WeeklyMealPlanRecipe,
+        recipeStore: RecipeStore
+    ) throws -> Resolved {
+        // A dish that named an existing recipe must still name one. The library
+        // is editable, so this is re-checked now rather than trusted from
+        // generation time — and a miss stops everything instead of writing a
+        // meal that opens onto nothing.
+        if dish.source != .ai, let existingID = dish.existingRecipeID {
+            guard let canonical = recipeStore.recipe(id: existingID) else {
+                throw ResolutionFailure.missingLocalRecipe(dishName: dish.title)
+            }
+            return Resolved(recipe: canonical, needsPersisting: false)
+        }
+
+        let generated = WeeklyMenuPlannerStore.domainRecipe(from: dish)
+
+        // Already stored under this exact id. Reuse it only if it is the same
+        // recipe: an earlier attempt that failed later leaves exactly this, and
+        // reusing it is what keeps a retry from creating near-copies. Different
+        // content under the same id is refused rather than overwritten — it may
+        // be the member's own recipe.
+        if let stored = recipeStore.userRecipes.first(where: { $0.id == generated.id }) {
+            guard RecipeStore.fingerprint(for: stored) == RecipeStore.fingerprint(for: generated) else {
+                throw ResolutionFailure.recipeIdentityConflict(recipeID: generated.id)
+            }
+            return Resolved(recipe: stored, needsPersisting: false)
+        }
+
+        // The same generated dish listed twice in one menu is one recipe; the
+        // caller collapses it, saving it once.
+        return Resolved(recipe: generated, needsPersisting: true)
+    }
+
+    /// Builds the meals, optionally reusing ids a receipt already recorded.
+    ///
+    /// `plannedServings` is left unstated: the menu's headcount describes the
+    /// household it was generated for, not how much of each dish to cook.
+    static func items(for candidates: [WeeklyMenuCandidate]) -> [MealPlanItem] {
+        candidates.map { candidate in
+            MealPlanItem(
+                id: candidate.planID,
+                recipeID: candidate.recipeID,
+                recipeName: candidate.recipeName,
+                date: candidate.date,
+                plannedServings: nil
+            )
+        }
+    }
+
+    /// Rebuilds the meals a pending receipt already committed to.
+    ///
+    /// Identity, recipe and day all come from the receipt, so a retry restores
+    /// what was approved rather than what the draft happens to say now. Only the
+    /// display name comes from the draft, and only once `receiptMatches` has
+    /// proved the two describe the same meals.
+    ///
+    /// `nil` when the receipt cannot describe its own mapping.
+    static func items(
+        from receipt: WeeklyMaterializationReceipt,
+        candidates: [WeeklyMenuCandidate]
+    ) -> [MealPlanItem]? {
+        guard receiptMatches(receipt, candidates: candidates),
+              let planDates = receipt.planDates else { return nil }
+        return receipt.planIDs.enumerated().map { index, planID in
+            MealPlanItem(
+                id: planID,
+                recipeID: receipt.recipeIDs[index],
+                recipeName: candidates[index].recipeName,
+                date: planDates[index],
+                plannedServings: nil
+            )
+        }
+    }
+
+    /// Whether a receipt still describes this draft, well enough to reuse its
+    /// ids without guessing.
+    ///
+    /// Every mapping-relevant field has to agree: how many meals were intended,
+    /// which recipe each one was for, and which day each one belonged on. The
+    /// dates are what make the check complete — the same recipe on two days
+    /// gives an identical id sequence, so recipes alone would let an edited
+    /// menu pass and move approved meals onto different days.
+    ///
+    /// A receipt with no recorded dates cannot prove its mapping at all, so it
+    /// never matches.
+    static func receiptMatches(
+        _ receipt: WeeklyMaterializationReceipt,
+        candidates: [WeeklyMenuCandidate]
+    ) -> Bool {
+        guard let planDates = receipt.planDates else { return false }
+        return receipt.planIDs.count == candidates.count
+            && receipt.recipeIDs.count == candidates.count
+            && planDates.count == candidates.count
+            && receipt.recipeIDs == candidates.map(\.recipeID)
+            && planDates == candidates.map(\.date)
+    }
+
+    /// Distinct target days that already carry ordinary meals.
+    ///
+    /// Special Plans are a different kind of entry and never count as a clash:
+    /// hosting a dinner is not the same as having already planned this dish.
+    static func collision(
+        for candidates: [WeeklyMenuCandidate],
+        plans: [MealPlanItem],
+        calendar: Calendar = .current
+    ) -> WeeklyMaterializationCollision? {
+        var days: [Date] = []
+        var existing = 0
+
+        for date in candidates.map(\.date) where !days.contains(date) {
+            let onThatDay = plans.filter { calendar.isDate($0.date, inSameDayAs: date) }
+            guard !onThatDay.isEmpty else { continue }
+            days.append(date)
+            existing += onThatDay.count
+        }
+
+        guard !days.isEmpty else { return nil }
+        return WeeklyMaterializationCollision(
+            dayCount: days.count,
+            dates: days.sorted(),
+            existingMealCount: existing
+        )
+    }
 }
 
 // MARK: - Request DTOs
@@ -853,6 +1154,280 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         hasUnsavedChanges = true
     }
 
+    // MARK: - Materialization
+    //
+    // The whole point of the feature: turning the generated menu into the meals
+    // the Planner and Home already read, and being able to say truthfully
+    // afterwards whether that happened.
+    //
+    // The order below is the contract. Recipes are durable before any meal
+    // references them; the intended ids are durable before the meals are
+    // written; and the receipt is only marked done once the meals are really
+    // there. Every step that can fail leaves a state the next launch can read.
+
+    @Published private(set) var isMaterializing = false
+
+    /// Adds the whole menu to the meal plan.
+    ///
+    /// Call once; if the answer is `.confirmationRequired`, call again with
+    /// `confirmedAppend: true` after the member agrees. A draft that was already
+    /// materialized, or half-materialized, routes to the recovery paths instead.
+    @discardableResult
+    func materialize(
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore,
+        confirmedAppend: Bool = false,
+        calendar: Calendar = .current,
+        now: Date = Date()
+    ) -> WeeklyMaterializationOutcome {
+        guard let draft = generatedPlan, draft.dishCount > 0 else { return .emptyDraft }
+
+        // Every write below is synchronous on the main actor, so this cannot be
+        // re-entered; the flag exists so the screen can show the attempt.
+        isMaterializing = true
+        defer { isMaterializing = false }
+
+        let preparation: WeeklyMenuMaterializer.Preparation
+        do {
+            preparation = try WeeklyMenuMaterializer.prepare(
+                plan: draft, recipeStore: recipeStore, calendar: calendar
+            )
+        } catch let failure as WeeklyMenuMaterializer.ResolutionFailure {
+            return failure.outcome
+        } catch {
+            return .recipePersistenceFailed
+        }
+
+        switch WeeklyMaterializationStatus.resolve(receipt: draft.materialization, plans: kitchenStore.plans) {
+        case .materialized:
+            // The status says every intended meal is there. If the receipt still
+            // says pending, a previous attempt wrote the meals and only failed
+            // to record it — so finish the bookkeeping rather than claiming the
+            // menu was already handled, and never append a second time.
+            if draft.materialization?.state == .pending {
+                return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
+            }
+            return .alreadyMaterialized
+
+        case .partiallyPresent(let present, let missing):
+            return .partialRecoveryRequired(present: present, missing: missing)
+
+        case .pending(let missing):
+            // The member already agreed to append when this receipt was written;
+            // asking again during recovery would be asking twice for one act.
+            guard let receipt = draft.materialization,
+                  let intended = WeeklyMenuMaterializer.items(
+                      from: receipt, candidates: preparation.candidates
+                  ) else {
+                // The draft no longer describes the meals this receipt approved,
+                // so which id belongs on which day is unknowable. Say so rather
+                // than move someone's meals.
+                return .staleReceipt
+            }
+            return write(
+                draft: draft,
+                preparation: preparation,
+                items: intended,
+                appending: missing,
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore,
+                calendar: calendar,
+                now: now
+            )
+
+        case .notStarted:
+            if !confirmedAppend,
+               let collision = WeeklyMenuMaterializer.collision(
+                   for: preparation.candidates, plans: kitchenStore.plans, calendar: calendar
+               ) {
+                // Nothing has been written, and nothing will be until the member
+                // has seen what they are adding to.
+                return .confirmationRequired(collision)
+            }
+            return write(
+                draft: draft,
+                preparation: preparation,
+                items: WeeklyMenuMaterializer.items(for: preparation.candidates),
+                appending: nil,
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore,
+                calendar: calendar,
+                now: now
+            )
+        }
+    }
+
+    /// Recovery choice: put back only the meals that are missing.
+    ///
+    /// Uses their original ids, dates and dishes, so the result is the menu the
+    /// member agreed to rather than a fresh copy of it.
+    @discardableResult
+    func materializeMissingMeals(
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore,
+        calendar: Calendar = .current,
+        now: Date = Date()
+    ) -> WeeklyMaterializationOutcome {
+        guard let draft = generatedPlan, let receipt = draft.materialization else { return .emptyDraft }
+        guard receipt.state == .pending else { return .alreadyMaterialized }
+
+        isMaterializing = true
+        defer { isMaterializing = false }
+
+        let preparation: WeeklyMenuMaterializer.Preparation
+        do {
+            preparation = try WeeklyMenuMaterializer.prepare(
+                plan: draft, recipeStore: recipeStore, calendar: calendar
+            )
+        } catch let failure as WeeklyMenuMaterializer.ResolutionFailure {
+            return failure.outcome
+        } catch {
+            return .recipePersistenceFailed
+        }
+
+        // Each missing meal is rebuilt from the receipt's own mapping — its id,
+        // its recipe and the day it was approved for — not from whatever the
+        // draft says today.
+        guard let intended = WeeklyMenuMaterializer.items(
+            from: receipt, candidates: preparation.candidates
+        ) else { return .staleReceipt }
+
+        let present = Set(kitchenStore.plans.map(\.id))
+        let missing = receipt.planIDs.filter { !present.contains($0) }
+        guard !missing.isEmpty else { return finalize(draft: draft, kitchenStore: kitchenStore, now: now) }
+
+        return write(
+            draft: draft,
+            preparation: preparation,
+            items: intended,
+            appending: missing,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore,
+            calendar: calendar,
+            now: now
+        )
+    }
+
+    /// Recovery choice: leave the plan as the member has it now.
+    ///
+    /// The menu counts as handled and will not offer to add itself again. The
+    /// meals they removed stay removed.
+    @discardableResult
+    func acceptCurrentSchedule(
+        kitchenStore: KitchenStore,
+        now: Date = Date()
+    ) -> WeeklyMaterializationOutcome {
+        guard let draft = generatedPlan, draft.materialization != nil else { return .emptyDraft }
+        return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
+    }
+
+    // MARK: Write order
+
+    /// Recipes, then the intended ids, then the meals, then the receipt.
+    ///
+    /// `appending` names the subset to write when a previous attempt already
+    /// wrote the rest; `nil` means all of them.
+    private func write(
+        draft: WeeklyMealPlan,
+        preparation: WeeklyMenuMaterializer.Preparation,
+        items: [MealPlanItem],
+        appending: [UUID]?,
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore,
+        calendar: Calendar,
+        now: Date
+    ) -> WeeklyMaterializationOutcome {
+        // 1. Every recipe a meal will point at becomes durable first. A meal
+        //    referencing a recipe that was never saved is the dangling state
+        //    this whole feature exists to stop.
+        if !preparation.recipesToPersist.isEmpty {
+            do {
+                try recipeStore.saveUserRecipes(preparation.recipesToPersist)
+            } catch UserRecipeBatchError.idConflict(let id) {
+                return .recipeIdentityConflict(recipeID: id)
+            } catch {
+                return .recipePersistenceFailed
+            }
+        }
+
+        // 2. The intended meals become durable before the meals themselves do,
+        //    so an attempt interrupted after this point can be finished rather
+        //    than guessed at. The receipt is built from the very items about to
+        //    be written — id, recipe and day for each one — so it describes its
+        //    own mapping instead of leaning on the draft still looking the same.
+        var pending = draft
+        pending.materialization = WeeklyMaterializationReceipt(
+            state: .pending,
+            planIDs: items.map(\.id),
+            recipeIDs: items.map(\.recipeID),
+            planDates: items.map(\.date),
+            startedAt: draft.materialization?.startedAt ?? now
+        )
+        markPersistedRecipes(in: &pending, ids: Set(preparation.recipesToPersist.map(\.id)))
+        guard kitchenStore.commitWeeklyPlan(pending) else { return .receiptPersistenceFailed }
+        publish(pending)
+
+        // 3. One batch, all of it or none of it.
+        let wanted = appending.map { subset in
+            items.filter { subset.contains($0.id) }
+        } ?? items
+        // The caller's calendar, not the device's: the dates were resolved in
+        // it, and re-normalizing them in another one would shift the meals.
+        switch kitchenStore.appendPlans(wanted, calendar: calendar) {
+        case .saved:
+            break
+        case .rejected, .persistenceFailed:
+            // The receipt stays pending and keeps its ids, which is what makes
+            // the next attempt a retry rather than a second menu.
+            return .planPersistenceFailed
+        }
+
+        // 4. Only now is it true to say the menu is on the plan.
+        let outcome = finalize(draft: pending, kitchenStore: kitchenStore, now: now)
+        if case .receiptRepaired = outcome { return .materialized(items) }
+        return .materializedNeedsReceiptRepair(items)
+    }
+
+    /// Marks the receipt done. Failing here does not undo the meals.
+    private func finalize(
+        draft: WeeklyMealPlan,
+        kitchenStore: KitchenStore,
+        now: Date
+    ) -> WeeklyMaterializationOutcome {
+        guard let receipt = draft.materialization else { return .emptyDraft }
+        var finalized = draft
+        finalized.materialization = WeeklyMaterializationReceipt(
+            state: .materialized,
+            planIDs: receipt.planIDs,
+            recipeIDs: receipt.recipeIDs,
+            planDates: receipt.planDates,
+            startedAt: receipt.startedAt,
+            completedAt: now
+        )
+        guard kitchenStore.commitWeeklyPlan(finalized) else { return .materializedNeedsReceiptRepair([]) }
+        publish(finalized)
+        return .receiptRepaired
+    }
+
+    private func publish(_ plan: WeeklyMealPlan) {
+        generatedPlan = plan
+        hasUnsavedChanges = false
+    }
+
+    /// Records which generated recipes are now in the library, so a retry knows
+    /// not to offer them again.
+    private func markPersistedRecipes(in plan: inout WeeklyMealPlan, ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        for dayIndex in plan.days.indices {
+            for mealIndex in plan.days[dayIndex].meals.indices {
+                for recipeIndex in plan.days[dayIndex].meals[mealIndex].recipes.indices
+                where ids.contains(plan.days[dayIndex].meals[mealIndex].recipes[recipeIndex].id) {
+                    plan.days[dayIndex].meals[mealIndex].recipes[recipeIndex].isSavedToLibrary = true
+                }
+            }
+        }
+    }
+
     func savePlan(kitchenStore: KitchenStore) {
         guard let generatedPlan else { return }
         kitchenStore.saveWeeklyPlan(generatedPlan)
@@ -1053,7 +1628,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         )
     }
 
-    private static func domainRecipe(from recipe: WeeklyMealPlanRecipe) -> Recipe {
+    static func domainRecipe(from recipe: WeeklyMealPlanRecipe) -> Recipe {
         Recipe(
             id: recipe.existingRecipeID ?? recipe.id,
             title: recipe.title,

@@ -76,22 +76,46 @@ end so red is expected and attributable.
 
 ## Phase 3: Slice B — materializer and state machine (after A)
 
-- [ ] T010 [B] `KitchenManager/WeeklyMenuPlanner.swift`: `WeeklyMenuMaterializer.prepare(plan:recipeStore:calendar:)`
-  — resolve `.local` ids against `RecipeStore` and throw `missingRecipe(title:)` on a miss; build
+- [x] T010 [B] `KitchenManager/WeeklyMenuPlanner.swift`: `WeeklyMenuMaterializer.prepare(plan:recipeStore:calendar:)`
+  — resolve `.local` ids against `RecipeStore` and throw `missingLocalRecipe(dishName:)` on a miss; build
   `.ai` recipes via `domainRecipe` (`baseServings` nil); date from `startOfDay(startDate) + dayIndex`
   then Planner normalization; `plannedServings: nil`; allocate each `MealPlanItem.id` here.
   (FR-004, FR-005, FR-006)
-- [ ] T011 [B] `WeeklyMenuPlannerStore`: `isMaterializing` + `materialize(kitchenStore:recipeStore:)`
-  implementing data-model §3 in order — refuse when the status is not `.notStarted`/`.pending`;
-  collision detection over `kitchenStore.plans` surfaced to the view for one confirmation;
-  `saveUserRecipes` → `commitWeeklyPlan` (pending receipt + `isSavedToLibrary`) → `appendPlans` →
-  `commitWeeklyPlan` (materialized). Retry from `.pending` reuses the receipt's exact ids. Delete
-  `addRecipeToTodayPlan`, `addDayToTodayPlan` and `savePlan`. (FR-002, FR-007, FR-008, FR-010, FR-011)
-- [ ] T012 [B] `WeeklyMenuPlannerStore`: regeneration and `duplicateWeeklyPlanForNextWeek` clear the
-  receipt; a successful receipt is never carried to a new draft. (FR-013)
-- [ ] T013 [B] new `KitchenManagerTests/WeeklyMenuMaterializationTests.swift`: every quickstart Slice B
-  case, plus `weeklyPlan`-alone-yields-no-Planner-entries and today's items visible through
-  `todayPlans`. (SC-001, SC-002, SC-003, SC-005)
+- [x] T011 [B] `WeeklyMenuPlannerStore`: `isMaterializing` + `materialize(kitchenStore:recipeStore:confirmedAppend:calendar:now:)`
+  implementing data-model §3 in order — collision detection over `kitchenStore.plans` surfaced to the
+  caller for one confirmation; `saveUserRecipes` → `commitWeeklyPlan` (pending receipt +
+  `isSavedToLibrary`) → `appendPlans` → `commitWeeklyPlan` (materialized). Retry from `.pending`
+  reuses the receipt's exact ids; a pending receipt whose ids are all present finalizes without
+  appending. Plus the two recovery primitives `materializeMissingMeals` and `acceptCurrentSchedule`,
+  and `WeeklyMaterializationOutcome` covering every distinguishable end state.
+  (FR-002, FR-007, FR-008, FR-010)
+  Deferred to Slice C: deleting `addRecipeToTodayPlan`, `addDayToTodayPlan` and `savePlan`, which are
+  still the UI's only wiring (FR-011).
+- [x] T012 [B] Regeneration already yields a receipt-free draft, because `makePlan` builds a fresh
+  `WeeklyMealPlan`. `KitchenStore.duplicateWeeklyPlanForNextWeek` did **not**: it copied the receipt,
+  so a duplicated menu would have refused to be added at all. It now clears `materialization`.
+  (FR-013)
+- [x] T013 [B] new `KitchenManagerTests/WeeklyMenuMaterializationTests.swift` — 21 tests covering
+  resolution, dates and order, collision, the write order, every failure window, retry and relaunch,
+  partial recovery, receipt integrity and the copied-menu case. (SC-001, SC-002, SC-003, SC-005)
+
+### Slice B implementation notes (2026-09-10)
+
+- Two bugs the tests caught. `appendPlans` was being called without the caller's calendar, so an
+  already-normalized date was re-normalized in the device timezone and the meal moved a day. And a
+  pending receipt whose ids were all present reported `alreadyMaterialized` instead of finalizing,
+  which would have stranded the receipt after a failed finalize write.
+- Receipt integrity binds days as well as recipes. An earlier revision checked only candidate count
+  and the `recipeIDs` sequence, which the owner correctly rejected: the same recipe on two days gives
+  an identical id sequence, so a draft whose days had moved would still have passed and the retry
+  would have written the approved ids onto the draft's current days. The receipt now carries
+  `planDates` parallel to `planIDs` and `recipeIDs`, integrity requires all three to match, and retry
+  and partial recovery rebuild each meal from that mapping rather than from the current draft. A
+  pending receipt with no recorded dates is stale, not assumed correct.
+- `materializedNeedsReceiptRepair` means the member's schedule really did change; only the
+  bookkeeping lagged. Reopening finalizes the receipt and never appends again.
+- The result screen is untouched, so `savePlan` and the manual add-today actions still exist and the
+  materializer has no production caller yet. Slice C wires the CTA and removes them.
 
 ## Phase 4: Slice C — result surface truth (after B)
 

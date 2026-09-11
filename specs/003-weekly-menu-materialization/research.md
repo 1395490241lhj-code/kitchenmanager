@@ -142,6 +142,21 @@ onto the draft's `dayIndex` — a second-schedule reading. Removed as part of R1
 `RestockSuggestionSource.label` is unreachable (the reason string is hardcoded at the call site);
 left alone beyond the case rename.
 
+## R11b — The receipt binds days, not just recipes
+
+**Decision**: the receipt carries `planDates` parallel to `planIDs` and `recipeIDs`, and integrity
+requires all three sequences to match the current draft.
+
+**Rationale**: identity and recipe alone cannot describe the mapping. The same recipe on Monday and
+Tuesday produces the id sequence `[R, R]` either way, so a draft whose days moved would still pass
+and a retry would write the approved ids onto the draft's current days — meals silently relocated
+without anyone approving it. Relying on the result screen currently offering no way to move a dish
+is not a durable guarantee; persistence recovery has to be self-describing.
+
+**Alternatives**: storing whole `MealPlanItem`s in the receipt (rejected: a second schedule model);
+recipe names or positional heuristics (rejected: guessing). A pending receipt that predates the
+field is treated as stale rather than assumed correct.
+
 ## R11 — Decision number is taken, never reserved (OD-10)
 
 **Decision**: at Slice E, re-read `Decisions.md` and take the actual next number — D-041 if nothing

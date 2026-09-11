@@ -58,8 +58,12 @@ final class WeeklyMaterializationReceiptTests: XCTestCase {
         WeeklyMaterializationReceipt(
             state: state,
             planIDs: planIDs,
-            // Parallel to planIDs, one canonical recipe per intended plan.
+            // Both arrays are parallel to planIDs: one canonical recipe and one
+            // intended day per meal.
             recipeIDs: planIDs.map { _ in "weekly-ai-1" },
+            planDates: planIDs.enumerated().map { index, _ in
+                Date(timeIntervalSince1970: 1_700_000_000 + TimeInterval(index) * 86_400)
+            },
             startedAt: Date(timeIntervalSince1970: 1_700_000_002),
             completedAt: completedAt
         )
@@ -114,6 +118,23 @@ final class WeeklyMaterializationReceiptTests: XCTestCase {
 
         XCTAssertNil(decoded.materialization, "an old menu is simply one that was never materialized")
         XCTAssertEqual(decoded.servings, 2)
+
+        // A receipt written before days were recorded decodes too, with no
+        // mapping. Nothing is invented for it; see the materialization tests for
+        // what happens when such a receipt is still pending.
+        let receiptWithoutDates = """
+        {
+          "state": "pending",
+          "planIDs": ["E621E1F8-C36C-495A-93FC-0C247A3E6E5F"],
+          "recipeIDs": ["weekly-ai-1"],
+          "startedAt": 700000002
+        }
+        """.data(using: .utf8)!
+        let legacyReceipt = try JSONDecoder().decode(
+            WeeklyMaterializationReceipt.self, from: receiptWithoutDates
+        )
+        XCTAssertNil(legacyReceipt.planDates)
+        XCTAssertEqual(legacyReceipt.planIDs.count, 1)
     }
 
     func testAPendingReceiptSurvivesAStoreReopen() throws {
@@ -126,6 +147,11 @@ final class WeeklyMaterializationReceiptTests: XCTestCase {
 
         XCTAssertEqual(reloaded.materialization?.state, .pending)
         XCTAssertEqual(reloaded.materialization?.planIDs, ids, "the exact ids are the whole point")
+        XCTAssertEqual(
+            reloaded.materialization?.planDates, saved.materialization?.planDates,
+            "and the day each one belongs on, or the mapping could not be proved later"
+        )
+        XCTAssertEqual(reloaded.materialization?.recipeIDs.count, ids.count)
         XCTAssertNil(reloaded.materialization?.completedAt)
         XCTAssertEqual(reloaded, saved)
     }
@@ -141,6 +167,7 @@ final class WeeklyMaterializationReceiptTests: XCTestCase {
 
         XCTAssertEqual(reloaded.materialization?.state, .materialized)
         XCTAssertEqual(reloaded.materialization?.completedAt, completed)
+        XCTAssertEqual(reloaded.materialization?.planDates, saved.materialization?.planDates)
         XCTAssertEqual(reloaded, saved)
     }
 

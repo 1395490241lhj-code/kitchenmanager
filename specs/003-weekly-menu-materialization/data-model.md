@@ -18,10 +18,15 @@ No SwiftData schema change. The receipt is one optional field inside the existin
         var planIDs: [UUID]
         /// The canonical recipe id behind each intended plan, in the same
         /// candidate order as `planIDs` and of the same length — `recipeIDs[i]`
-        /// belongs to `planIDs[i]`, duplicates included. Parallel rather than a
-        /// set so a retry can prove the draft still corresponds to the receipt
-        /// before reusing those ids.
+        /// belongs to `planIDs[i]`, duplicates included.
         var recipeIDs: [String]
+        /// The normalized Planner day each intended meal belongs on, parallel to
+        /// `planIDs` and `recipeIDs`. Recipes alone cannot prove the mapping:
+        /// the same recipe on two days yields an identical id sequence, so a
+        /// draft whose days changed would still look like a match and a retry
+        /// would move approved meals. `nil` marks a receipt written before this
+        /// was recorded, whose mapping is therefore unproven.
+        var planDates: [Date]?
         var startedAt: Date
         var completedAt: Date?
     }
@@ -31,11 +36,20 @@ No SwiftData schema change. The receipt is one optional field inside the existin
 
 Invariants:
 
-- `planIDs.count` and `recipeIDs.count` both equal the draft's dish count at the moment the receipt
-  was written, and both follow the same candidate order.
-- A retry checks that correspondence before reusing the ids: same candidate count and the same
-  `recipeIDs` sequence. A draft that no longer matches is stale, and the mapping from old ids onto
-  new dishes is never guessed.
+- `planIDs.count`, `recipeIDs.count` and `planDates.count` all equal the draft's dish count at the
+  moment the receipt was written, and all three follow the same candidate order.
+- A retry checks that correspondence before reusing the ids: matching candidate count, `recipeIDs`
+  sequence **and** `planDates` sequence. Any mapping-relevant difference — an added, removed,
+  reordered or moved dish, a changed `startDate`, disagreeing array lengths, or a pending receipt
+  with no recorded dates — is stale. The mapping from old ids onto new dishes is never guessed, no
+  replacement ids are allocated, and nothing is remapped by recipe name.
+- Retry and partial recovery rebuild each meal from the receipt's own mapping (`planIDs[i]`,
+  `recipeIDs[i]`, `planDates[i]`); the draft supplies only the display name, and only after the
+  integrity check has passed.
+- Decode: `planDates` is absent from any receipt written before it existed, and decodes as `nil`. A
+  **pending** receipt with `nil` dates is stale, because its mapping was never proven. A
+  **materialized** receipt still short-circuits, since it claims no mapping to re-derive. No
+  SwiftData migration is involved — the field lives in the existing JSON payload.
 - `planIDs` are allocated **before** the canonical batch and never regenerated on retry.
 - Regeneration and `复制到下一个 7 天` produce a draft with `materialization == nil`; a successful
   receipt is never carried onto a new draft.
