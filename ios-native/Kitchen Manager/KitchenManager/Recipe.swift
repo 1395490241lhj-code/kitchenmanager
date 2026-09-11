@@ -450,6 +450,62 @@ final class RecipeStore: ObservableObject {
         }
     }
 
+    /// Saves a set of generated recipes in one durable write, reusing any that
+    /// are already stored under the same id.
+    ///
+    /// Weekly materialization prepares every recipe a menu needs before it
+    /// writes a single plan row, and it may have to do that twice: if the plan
+    /// write fails, the recipes it already saved stay in the library, and the
+    /// retry must reuse them rather than create near-copies. So an id that is
+    /// already present carrying the same content is a success, not a duplicate.
+    ///
+    /// An id that is present carrying *different* content is refused. Overwriting
+    /// it would silently replace a recipe the member may have written themselves,
+    /// and there is no safe way to tell which one they meant. Identity here is
+    /// exact — id, then content equality to confirm it — never a name match or a
+    /// likeness score.
+    ///
+    /// Deliberately narrower than `saveUserRecipe`: it does not apply the
+    /// content and source duplicate rules across *different* ids. Those exist to
+    /// stop a member importing the same page twice; deciding which recipe a
+    /// generated dish should point at is the caller's job, and it happens before
+    /// this is called.
+    ///
+    /// Nothing is deleted, ever, so a failure later in the caller's sequence
+    /// leaves these recipes intact and reusable.
+    func saveUserRecipes(_ recipes: [Recipe]) throws {
+        guard !recipes.isEmpty else { return }
+
+        let stored = Dictionary(userRecipes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var additions: [Recipe] = []
+        var seen: [String: Recipe] = [:]
+
+        for recipe in recipes {
+            // Already in the library, or named twice in this request. Same
+            // content means the same recipe, so reuse it and write nothing.
+            if let existing = stored[recipe.id] ?? seen[recipe.id] {
+                guard Self.fingerprint(for: existing) == Self.fingerprint(for: recipe) else {
+                    throw UserRecipeBatchError.idConflict(id: recipe.id)
+                }
+                continue
+            }
+            seen[recipe.id] = recipe
+            additions.append(recipe)
+        }
+
+        // Every requested recipe was already durable. Writing the array back
+        // unchanged would be a write that claims a change nobody made.
+        guard !additions.isEmpty else { return }
+
+        let updated = additions.reversed() + userRecipes
+        do {
+            try userRecipePersistence.replaceRecipes(with: Array(updated))
+            userRecipes = Array(updated)
+        } catch {
+            throw UserRecipeBatchError.persistenceFailed
+        }
+    }
+
     func containsImportedSource(_ url: String) -> Bool {
         let normalized = Self.normalizedSourceURL(url)
         guard !normalized.isEmpty else { return false }
@@ -527,6 +583,28 @@ enum UserRecipeSaveError: LocalizedError {
             return "这份菜谱已经保存过了。"
         case .sourceAlreadyImported:
             return "这个来源链接已经导入过了。"
+        case .persistenceFailed:
+            return "无法将菜谱保存到设备，请稍后重试。"
+        }
+    }
+}
+
+/// Why a batch of generated recipes could not be stored.
+///
+/// Separate from `UserRecipeSaveError` because the batch answers a different
+/// question. `alreadySaved` is the right answer when a member imports the same
+/// page twice; it is the wrong answer when a retry re-offers recipes it already
+/// stored, which is a success.
+enum UserRecipeBatchError: LocalizedError, Equatable {
+    /// An id is already stored, carrying different content. Refused rather than
+    /// overwritten: the stored recipe may be the member's own.
+    case idConflict(id: String)
+    case persistenceFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .idConflict:
+            return "菜谱编号与已有菜谱冲突，未做改动。"
         case .persistenceFailed:
             return "无法将菜谱保存到设备，请稍后重试。"
         }

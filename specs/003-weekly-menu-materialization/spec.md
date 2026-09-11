@@ -147,7 +147,8 @@ Happy path from S0:
 2. **Collision check.** Compute target dates; if any holds existing ordinary meals, show one
    confirmation (OD-5) and stop unless confirmed.
 3. **Prepare recipes.** Persist every `.ai` dish not already in the library through **one** batch
-   recipe write; ids already present are reused. Failure → S0 with an honest error; retry is safe.
+   recipe write; an exact id already present with the same content is reused, and one present with
+   conflicting content fails explicitly. Failure → S0 with an honest error; retry is safe.
 4. **Allocate + commit the pending receipt.** Build the exact `MealPlanItem` values (ids allocated
    now), write `{state: .pending, planIDs, recipeIDs, startedAt}` together with the updated
    `isSavedToLibrary` flags through an **observable** draft write (§5). Failure → S0 with an honest
@@ -363,7 +364,9 @@ Unit:
 - Materializer mapping: `dayIndex` → date incl. Sunday→Monday span and a DST day; `.local` id reuse;
   `.ai` → user recipe under the draft id with `baseServings == nil`; missing `.local` refused before
   any write (OD-2); `plannedServings == nil` (OD-4); no provenance fields.
-- Batch recipe save: one write; already-present ids reused; in-batch fingerprint duplicates collapse.
+- Batch recipe save: one write; an exact id already present with matching content is reused; the same
+  id with conflicting content is refused rather than overwritten; identical dishes inside one request
+  collapse.
 - Receipt + status: pending written before the batch; `.materialized` after; classification for
   notStarted / pending-none / pending-all / pending-subset / materialized; a materialized receipt is
   not re-verified after a Planner deletion; regeneration and duplicate clear the receipt.
@@ -436,8 +439,11 @@ manual add-today actions are absent; empty draft disables the CTA.
 - **FR-002** Materialization MUST write canonical plans only through FR-001 and MUST show
   `已加入用餐计划` only after the exact intended ids are durably present.
 - **FR-003** Every `.ai` dish MUST be persisted as an ordinary user recipe (same draft id, no
-  provenance, `baseServings` nil) through one batch recipe write before the plan batch; already-present
-  ids MUST be reused rather than treated as failure.
+  provenance, `baseServings` nil) through one batch recipe write before the plan batch. Reuse is
+  **safe exact-identity reuse, not unconditional id reuse**: an already-present exact recipe id MAY
+  be reused only when the canonical recipe stored at that id safely represents the same intended
+  recipe. When the same exact id exists with conflicting content, the batch MUST fail explicitly and
+  MUST NOT overwrite it, silently allocate a replacement, or match by recipe name.
 - **FR-004** A `.local` dish whose recipe no longer resolves MUST fail materialization honestly,
   naming the dish, with no write, no silent recreation, no name matching, no reclassification and no
   dangling `recipeID` (OD-2).

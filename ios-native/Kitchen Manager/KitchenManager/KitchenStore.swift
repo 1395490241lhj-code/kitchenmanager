@@ -624,6 +624,58 @@ nonisolated struct PlanRemoval: Equatable {
     let index: Int
 }
 
+/// Why a canonical batch was refused before it ever reached persistence.
+///
+/// Separate from `PlanMutationOutcome.notFound`: these name a structurally
+/// invalid *request*, not a stale reference. Each case carries the offending
+/// ids so a caller can say which rows it got wrong instead of guessing.
+nonisolated enum PlanBatchRejection: Equatable {
+    /// Nothing to write. A batch is a deliberate act, so an empty one is a
+    /// caller mistake rather than a vacuous success.
+    case empty
+    /// The same `MealPlanItem.id` appears more than once in one request.
+    case duplicateIDsInBatch([UUID])
+    /// The request reuses an id that `plans` already holds. Appending it would
+    /// collide with `TodayPlanRecord`'s unique `id`, and `replacePlans` would
+    /// silently collapse the pair into one row.
+    case idsAlreadyPresent([UUID])
+}
+
+/// Outcome of a canonical *batch* append.
+///
+/// Deliberately not `PlanMutationOutcome`: that type's three cases have no room
+/// for a refused precondition, and widening it would change a shipped contract
+/// three Planner call sites switch over exhaustively.
+///
+/// `.persistenceFailed` carries the same guarantee as the single-item
+/// contract — nothing was published, so `plans` still holds the pre-batch array.
+/// `.rejected` carries a stronger one: nothing was even attempted.
+nonisolated enum PlanBatchOutcome: Equatable {
+    case saved([MealPlanItem])
+    case rejected(PlanBatchRejection)
+    case persistenceFailed
+
+    var items: [MealPlanItem]? {
+        guard case .saved(let items) = self else { return nil }
+        return items
+    }
+
+    var didPersist: Bool {
+        guard case .saved = self else { return false }
+        return true
+    }
+
+    var didFailToPersist: Bool {
+        guard case .persistenceFailed = self else { return false }
+        return true
+    }
+
+    var rejection: PlanBatchRejection? {
+        guard case .rejected(let reason) = self else { return nil }
+        return reason
+    }
+}
+
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
@@ -1397,6 +1449,57 @@ final class KitchenStore: ObservableObject {
         return .saved(item)
     }
 
+    /// Appends a batch of fully formed ordinary meals in one durable write.
+    ///
+    /// The caller supplies whole `MealPlanItem` values, ids included, because
+    /// weekly materialization has to be able to *retry with the same ids* after
+    /// a failed write: the ids are recorded in a receipt before this is ever
+    /// called, so allocating them here would make recovery impossible.
+    ///
+    /// Deliberately not an overload of `addPlans(_ additions:)`. That one
+    /// deduplicates against today for the one-tap paths; this one must not
+    /// deduplicate at all, and two methods sharing a name would leave a reader
+    /// unable to tell which rule applies.
+    ///
+    /// All of the requested rows or none: one `commitPlans`, which persists
+    /// before publishing. Structural problems are refused up front, so a
+    /// `.rejected` result means nothing was even attempted.
+    @discardableResult
+    func appendPlans(
+        _ items: [MealPlanItem],
+        calendar: Calendar = .current
+    ) -> PlanBatchOutcome {
+        guard !items.isEmpty else { return .rejected(.empty) }
+
+        var seen = Set<UUID>()
+        var repeated: [UUID] = []
+        for item in items where !seen.insert(item.id).inserted {
+            if !repeated.contains(item.id) { repeated.append(item.id) }
+        }
+        guard repeated.isEmpty else { return .rejected(.duplicateIDsInBatch(repeated)) }
+
+        // An id already in `plans` cannot be appended: `TodayPlanRecord.id` is
+        // unique and `replacePlans` uniques its incoming array by id, so the
+        // pair would silently become one row. Refusing here is what stops a
+        // retry from overwriting the rows a previous attempt already wrote.
+        let present = Set(plans.map(\.id))
+        let colliding = items.map(\.id).filter { present.contains($0) }
+        guard colliding.isEmpty else { return .rejected(.idsAlreadyPresent(colliding)) }
+
+        // Only the date is touched, so `plannedServings` passes through exactly
+        // as the caller stated it — `nil` stays `nil`. Normalization lives here
+        // rather than at the call site so there is one implementation of what a
+        // Planner date means.
+        let normalized = items.map { item -> MealPlanItem in
+            var copy = item
+            copy.date = MealPlanItem.normalizedPlannerDate(for: item.date, calendar: calendar)
+            return copy
+        }
+
+        guard commitPlans(plans + normalized) else { return .persistenceFailed }
+        return .saved(normalized)
+    }
+
     /// Moves a plan to another day and restates its target, in one write.
     ///
     /// `id`, `recipeID`, `recipeName` and `isCooked` are untouched by
@@ -1994,6 +2097,36 @@ final class KitchenStore: ObservableObject {
 
     func saveWeeklyPlan(_ plan: WeeklyMealPlan) {
         weeklyPlan = plan
+    }
+
+    /// Persists the generated menu first and publishes only on success.
+    ///
+    /// `saveWeeklyPlan` publishes immediately and writes from `didSet`, where a
+    /// failure can only become `weeklyPlanNotice` copy while the in-memory draft
+    /// keeps a change the disk never took. That is tolerable for an ordinary
+    /// edit and wrong for a materialization receipt: the whole point of writing
+    /// the intended plan ids *before* the canonical batch is that a caller can
+    /// trust they are durable. A receipt that was only published would leave an
+    /// interrupted materialization unrecoverable.
+    ///
+    /// Returns whether the write happened. The publish is suppressed so `didSet`
+    /// does not immediately repeat the write that just succeeded — the same
+    /// idiom `commitPlans` uses.
+    @discardableResult
+    func commitWeeklyPlan(_ plan: WeeklyMealPlan) -> Bool {
+        do {
+            try weeklyPlanPersistence.replacePlan(with: plan)
+        } catch {
+            weeklyPlanNotice = "周菜单保存失败，请稍后重试。"
+            #if DEBUG
+            print("[WeeklyPlanPersistence] save failed: \(error)")
+            #endif
+            return false
+        }
+        suppressWeeklyPlanPersistence = true
+        weeklyPlan = plan
+        suppressWeeklyPlanPersistence = false
+        return true
     }
 
     func deleteWeeklyPlan() {

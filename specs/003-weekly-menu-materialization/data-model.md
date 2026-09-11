@@ -16,8 +16,11 @@ No SwiftData schema change. The receipt is one optional field inside the existin
         /// The exact MealPlanItem ids this attempt will create / has created,
         /// in draft order (day ascending, then meal, then dish).
         var planIDs: [UUID]
-        /// Recipe ids prepared for this attempt (pre-existing and newly persisted),
-        /// so a retry reuses them instead of creating duplicates.
+        /// The canonical recipe id behind each intended plan, in the same
+        /// candidate order as `planIDs` and of the same length — `recipeIDs[i]`
+        /// belongs to `planIDs[i]`, duplicates included. Parallel rather than a
+        /// set so a retry can prove the draft still corresponds to the receipt
+        /// before reusing those ids.
         var recipeIDs: [String]
         var startedAt: Date
         var completedAt: Date?
@@ -28,7 +31,11 @@ No SwiftData schema change. The receipt is one optional field inside the existin
 
 Invariants:
 
-- `planIDs.count` equals the draft's dish count at the moment the receipt was written.
+- `planIDs.count` and `recipeIDs.count` both equal the draft's dish count at the moment the receipt
+  was written, and both follow the same candidate order.
+- A retry checks that correspondence before reusing the ids: same candidate count and the same
+  `recipeIDs` sequence. A draft that no longer matches is stale, and the mapping from old ids onto
+  new dishes is never guessed.
 - `planIDs` are allocated **before** the canonical batch and never regenerated on retry.
 - Regeneration and `复制到下一个 7 天` produce a draft with `materialization == nil`; a successful
   receipt is never carried onto a new draft.
@@ -105,7 +112,9 @@ Write order and what is durable after each step:
     }
 
     // RecipeStore
-    func saveUserRecipes(_ recipes: [Recipe]) throws   // one replaceRecipes; existing ids reused
+    func saveUserRecipes(_ recipes: [Recipe]) throws   // one replaceRecipes; safe exact-identity reuse
+
+    enum UserRecipeBatchError: Error { case idConflict(id: String), persistenceFailed }
 
 `appendPlans` (named apart from D-040's deduplicating `addPlans(_ additions:)`) preserves caller ids exactly, normalizes each item's own `date` through
 `MealPlanItem.normalizedPlannerDate`, appends in the given order, allows duplicate

@@ -456,4 +456,188 @@ final class PlannerMealCRUDTests: XCTestCase {
         let once = MealPlanItem.normalizedPlannerDate(for: target, calendar: calendar)
         XCTAssertEqual(MealPlanItem.normalizedPlannerDate(for: once, calendar: calendar), once)
     }
+
+    // MARK: - Canonical batch append
+    //
+    // Weekly materialization writes a whole menu at once, with ids it allocated
+    // and recorded *before* the write so an interrupted attempt can be retried
+    // with the same ids. These pin that contract.
+
+    private func plannedMeal(
+        id: UUID = UUID(),
+        recipeID: String = "recipe-1",
+        name: String = "番茄炒蛋",
+        on date: Date,
+        plannedServings: Int? = nil
+    ) -> MealPlanItem {
+        MealPlanItem(
+            id: id,
+            recipeID: recipeID,
+            recipeName: name,
+            date: date,
+            plannedServings: plannedServings
+        )
+    }
+
+    func testAppendKeepsTheExactIdsTheCallerAllocated() {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        let ids = [UUID(), UUID(), UUID()]
+        let items = ids.enumerated().map { index, id in
+            plannedMeal(id: id, recipeID: "r-\(index)", on: day(2026, 3, 18 + index, calendar: calendar))
+        }
+
+        let outcome = store.appendPlans(items, calendar: calendar)
+
+        XCTAssertEqual(outcome.items?.map(\.id), ids)
+        XCTAssertEqual(store.plans.map(\.id), ids, "a retry has to be able to find these again by id")
+    }
+
+    func testAppendWritesEveryRowInTheRequestedOrderAfterWhatIsAlreadyThere() {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        store.addPlan(recipe: recipe(id: "existing", title: "既有"), on: day(2026, 3, 18, calendar: calendar), calendar: calendar)
+
+        let outcome = store.appendPlans(
+            [
+                plannedMeal(recipeID: "b", name: "B", on: day(2026, 3, 19, calendar: calendar)),
+                plannedMeal(recipeID: "a", name: "A", on: day(2026, 3, 20, calendar: calendar))
+            ],
+            calendar: calendar
+        )
+
+        XCTAssertTrue(outcome.didPersist)
+        XCTAssertEqual(
+            store.plans.map(\.recipeID), ["existing", "b", "a"],
+            "existing rows keep their place and the batch keeps its own order"
+        )
+    }
+
+    func testAppendNormalizesEachDateAndLeavesAnUnstatedTargetUnstated() {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        let target = day(2026, 3, 18, calendar: calendar)
+
+        store.appendPlans([plannedMeal(on: target)], calendar: calendar)
+
+        XCTAssertEqual(store.plans[0].date, MealPlanItem.normalizedPlannerDate(for: target, calendar: calendar))
+        XCTAssertNil(store.plans[0].plannedServings, "nobody stated a target for this dish")
+    }
+
+    func testAppendAllowsTheSameDishTwiceOnOneDay() {
+        let calendar = self.calendar
+        let (store, _) = makeStore()
+        let date = day(2026, 3, 18, calendar: calendar)
+
+        let outcome = store.appendPlans(
+            [plannedMeal(on: date), plannedMeal(on: date)],
+            calendar: calendar
+        )
+
+        XCTAssertTrue(outcome.didPersist, "a repeated dish is a real plan, not an accident to dedup")
+        XCTAssertEqual(store.plans.count, 2)
+    }
+
+    func testAppendRefusesARequestThatRepeatsOneId() {
+        let calendar = self.calendar
+        let persistence = ToggleableTodayPlanPersistence()
+        let (store, _) = makeStore(todayPlan: persistence)
+        let writesBefore = persistence.replaceCallCount
+        let shared = UUID()
+
+        let outcome = store.appendPlans(
+            [
+                plannedMeal(id: shared, on: day(2026, 3, 18, calendar: calendar)),
+                plannedMeal(id: shared, on: day(2026, 3, 19, calendar: calendar))
+            ],
+            calendar: calendar
+        )
+
+        XCTAssertEqual(outcome.rejection, .duplicateIDsInBatch([shared]))
+        XCTAssertTrue(store.plans.isEmpty)
+        XCTAssertEqual(persistence.replaceCallCount - writesBefore, 0, "a refused batch never reaches the disk")
+    }
+
+    func testAppendRefusesAnIdThatIsAlreadyOnThePlan() {
+        let calendar = self.calendar
+        let persistence = ToggleableTodayPlanPersistence()
+        let (store, _) = makeStore(todayPlan: persistence)
+        store.addPlan(recipe: recipe(), on: day(2026, 3, 18, calendar: calendar), calendar: calendar)
+        let existing = store.plans[0]
+        let writesBefore = persistence.replaceCallCount
+
+        let outcome = store.appendPlans(
+            [plannedMeal(id: existing.id, on: day(2026, 3, 20, calendar: calendar))],
+            calendar: calendar
+        )
+
+        XCTAssertEqual(outcome.rejection, .idsAlreadyPresent([existing.id]))
+        XCTAssertEqual(store.plans, [existing], "the row that was already there is untouched")
+        XCTAssertEqual(persistence.replaceCallCount - writesBefore, 0)
+    }
+
+    func testAppendRefusesAnEmptyRequest() {
+        let persistence = ToggleableTodayPlanPersistence()
+        let (store, _) = makeStore(todayPlan: persistence)
+        let writesBefore = persistence.replaceCallCount
+
+        XCTAssertEqual(store.appendPlans([]).rejection, .empty)
+        XCTAssertEqual(persistence.replaceCallCount - writesBefore, 0)
+    }
+
+    func testAFailedBatchAppendsNothingAtAll() {
+        let calendar = self.calendar
+        let persistence = ToggleableTodayPlanPersistence()
+        let (store, _) = makeStore(todayPlan: persistence)
+        store.addPlan(recipe: recipe(id: "existing"), on: day(2026, 3, 18, calendar: calendar), calendar: calendar)
+        let before = store.plans
+        persistence.shouldFail = true
+
+        let outcome = store.appendPlans(
+            (0..<3).map { plannedMeal(recipeID: "r-\($0)", on: day(2026, 3, 19, calendar: calendar)) },
+            calendar: calendar
+        )
+
+        XCTAssertTrue(outcome.didFailToPersist)
+        XCTAssertEqual(store.plans, before, "all of the menu or none of it — never three rows out of three")
+    }
+
+    func testASuccessfulBatchIsOneDurableWrite() {
+        let calendar = self.calendar
+        let persistence = ToggleableTodayPlanPersistence()
+        let (store, _) = makeStore(todayPlan: persistence)
+        let writesBefore = persistence.replaceCallCount
+
+        store.appendPlans(
+            (0..<4).map { plannedMeal(recipeID: "r-\($0)", on: day(2026, 3, 18 + $0, calendar: calendar)) },
+            calendar: calendar
+        )
+
+        XCTAssertEqual(store.plans.count, 4)
+        XCTAssertEqual(persistence.plans.count, 4, "the disk holds the same four")
+        XCTAssertEqual(
+            persistence.replaceCallCount - writesBefore, 1,
+            "a menu is one logical mutation, so it is one write"
+        )
+    }
+
+    func testARetryAfterAFailedBatchReusesTheSameIds() {
+        let calendar = self.calendar
+        let persistence = ToggleableTodayPlanPersistence()
+        let (store, _) = makeStore(todayPlan: persistence)
+        // The ids a receipt would have recorded before the first attempt.
+        let ids = [UUID(), UUID()]
+        let items = ids.enumerated().map { index, id in
+            plannedMeal(id: id, recipeID: "r-\(index)", on: day(2026, 3, 18 + index, calendar: calendar))
+        }
+        persistence.shouldFail = true
+        XCTAssertTrue(store.appendPlans(items, calendar: calendar).didFailToPersist)
+
+        persistence.shouldFail = false
+        let retry = store.appendPlans(items, calendar: calendar)
+
+        XCTAssertTrue(retry.didPersist)
+        XCTAssertEqual(store.plans.map(\.id), ids, "the retry recreates those exact rows")
+        XCTAssertEqual(store.plans.count, 2, "and does not double up")
+    }
 }

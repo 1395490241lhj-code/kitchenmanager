@@ -44,6 +44,100 @@ struct WeeklyMealPlanShoppingItem: Identifiable, Codable, Hashable {
     var reason: String?
 }
 
+// MARK: - Materialization receipt
+//
+// The generated menu is a draft. Turning it into real Planner meals writes a
+// batch of canonical `MealPlanItem`s, and that write has to survive being
+// interrupted: the app can be killed between persisting the plans and recording
+// that it did so. The receipt is how a later launch tells those cases apart.
+//
+// It records the *exact* ids the batch will create, before the batch runs.
+// Identity by id is the only thing that can prove which rows came from this
+// menu: `(recipeID, date)` is not unique — the same dish twice on one day is a
+// legitimate plan, and an equivalent meal may already exist for unrelated
+// reasons — so matching on it could neither confirm nor deny a materialization.
+//
+// This is recovery metadata for the draft. It is not a second schedule, and it
+// adds no provenance to `MealPlanItem`: a materialized meal is an ordinary meal.
+
+nonisolated enum WeeklyMaterializationState: String, Codable {
+    /// Ids are allocated and durable; the canonical batch is not yet confirmed.
+    case pending
+    /// The exact ids were durably written to `KitchenStore.plans`.
+    case materialized
+}
+
+nonisolated struct WeeklyMaterializationReceipt: Codable, Hashable {
+    /// How far this attempt got. Never inferred from the plans array — see
+    /// `WeeklyMaterializationStatus.resolve(receipt:plans:)` for why.
+    var state: WeeklyMaterializationState
+    /// The exact `MealPlanItem` ids this attempt creates, in draft order (day
+    /// ascending, then meal, then dish). A retry reuses these rather than
+    /// allocating replacements, which is what keeps a retry from duplicating.
+    var planIDs: [UUID]
+    /// Recipes prepared for this attempt, pre-existing and newly persisted
+    /// alike, so a retry reuses them instead of creating near-copies.
+    var recipeIDs: [String]
+    var startedAt: Date
+    var completedAt: Date?
+
+    init(
+        state: WeeklyMaterializationState,
+        planIDs: [UUID],
+        recipeIDs: [String],
+        startedAt: Date,
+        completedAt: Date? = nil
+    ) {
+        self.state = state
+        self.planIDs = planIDs
+        self.recipeIDs = recipeIDs
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+    }
+}
+
+/// What a receipt and the current canonical plans say, together.
+///
+/// Derived, never stored: storing it would give two places to disagree about
+/// whether a menu is on the plan.
+nonisolated enum WeeklyMaterializationStatus: Equatable {
+    case notStarted
+    case pending(missing: [UUID])
+    case partiallyPresent(present: [UUID], missing: [UUID])
+    case materialized
+
+    static func resolve(
+        receipt: WeeklyMaterializationReceipt?,
+        plans: [MealPlanItem]
+    ) -> WeeklyMaterializationStatus {
+        guard let receipt else { return .notStarted }
+
+        // A finalized receipt is deliberately never re-verified against `plans`.
+        // Deleting a materialized meal in the Planner is an ordinary thing to do,
+        // and re-checking presence would make the old menu look unsaved again and
+        // offer to recreate the very rows the member just removed.
+        guard receipt.state == .pending else { return .materialized }
+
+        // A pending receipt with no ids is degenerate — an empty draft never
+        // reaches materialization. Reporting it as pending keeps it retryable and
+        // honest rather than claiming a menu that was never written.
+        guard !receipt.planIDs.isEmpty else { return .pending(missing: []) }
+
+        let present = Set(plans.map(\.id))
+        let found = receipt.planIDs.filter { present.contains($0) }
+        let missing = receipt.planIDs.filter { !present.contains($0) }
+
+        if found.isEmpty { return .pending(missing: missing) }
+        if missing.isEmpty { return .materialized }
+
+        // A partial set cannot come from the batch itself, which is all-or-none.
+        // It means something later removed some of these rows, so it is an
+        // exceptional case for the caller to resolve — never a cue to recreate
+        // the missing ones, which may have been deleted on purpose.
+        return .partiallyPresent(present: found, missing: missing)
+    }
+}
+
 struct WeeklyMealPlan: Codable, Hashable {
     var startDate: Date
     var days: [WeeklyMealPlanDay]
@@ -51,6 +145,12 @@ struct WeeklyMealPlan: Codable, Hashable {
     var servings: Int
     var summary: String?
     var createdAt: Date
+    /// Recovery metadata for turning this draft into canonical Planner meals.
+    ///
+    /// `nil` for a draft that has never been materialized, and for every menu
+    /// stored before this existed: the synthesized decoder reads an absent key as
+    /// `nil`, so old `WeeklyPlanRecord` payloads keep decoding unchanged.
+    var materialization: WeeklyMaterializationReceipt?
 
     /// The number of dishes this plan actually contains, always counted from
     /// the plan's own contents.

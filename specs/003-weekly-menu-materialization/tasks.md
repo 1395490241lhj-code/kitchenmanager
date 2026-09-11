@@ -16,25 +16,46 @@ end so red is expected and attributable.
 
 ## Phase 1: Slice A — store contracts
 
-- [ ] T001 [A] `KitchenManager/KitchenStore.swift`: add `PlanBatchOutcome` / `PlanBatchRejection` and
+- [x] T001 [A] `KitchenManager/KitchenStore.swift`: add `PlanBatchOutcome` / `PlanBatchRejection` and
   `appendPlans(_ items: [MealPlanItem], calendar:) -> PlanBatchOutcome` (named apart from D-040's
   deduplicating `addPlans(_ additions:)`) — preserve caller ids, normalize
   each item's date via `MealPlanItem.normalizedPlannerDate`, append in order, allow duplicate
   `(recipeID, date)`, reject `empty` / `duplicateIDsInBatch` / `idsAlreadyPresent` before any write,
   commit once through `commitPlans`. Leave `PlanMutationOutcome` untouched. (FR-001, FR-005)
-- [ ] T002 [P] [A] `KitchenManager/KitchenStore.swift`: add `commitWeeklyPlan(_:) -> Bool`
-  (persist-before-publish with suppressed republish, mirroring `commitPlans`); remove
-  `saveWeeklyPlan` if T011 leaves it without a caller. (FR-009)
-- [ ] T003 [P] [A] `KitchenManager/Recipe.swift`: add `RecipeStore.saveUserRecipes(_:)` — one
-  `replaceRecipes`; ids already present reused; in-batch fingerprint duplicates collapse; throws only
-  on persistence failure. (FR-003)
-- [ ] T004 [P] [A] `KitchenManager/WeeklyMenuPlanner.swift`: add `WeeklyMaterializationState`,
-  `WeeklyMaterializationReceipt`, `WeeklyMealPlan.materialization`, and the pure
-  `WeeklyMaterializationStatus.status(receipt:plans:)` classifier per data-model §2. (FR-008)
-- [ ] T005 [A] Tests: batch contracts in `PlannerMealCRUDTests` (ids, dates, order, duplicates,
+- [x] T002 [P] [A] `KitchenManager/KitchenStore.swift`: add `commitWeeklyPlan(_:) -> Bool`
+  (persist-before-publish with suppressed republish, mirroring `commitPlans`). Removing
+  `saveWeeklyPlan` stays open until T011 (Slice B) takes away its last caller. (FR-009)
+- [x] T003 [P] [A] `KitchenManager/Recipe.swift`: add `RecipeStore.saveUserRecipes(_:)` — one
+  `replaceRecipes`; an id already present carrying the same content is reused; in-batch duplicates
+  collapse; throws `UserRecipeBatchError.persistenceFailed`, plus `.idConflict(id:)` when a present
+  id carries different content (owner implementation constraint §8: refuse rather than overwrite,
+  never match by name). (FR-003)
+- [x] T004 [P] [A] `KitchenManager/WeeklyMenuPlanner.swift`: add `WeeklyMaterializationState`,
+  `WeeklyMaterializationReceipt`, `WeeklyMealPlan.materialization`, and the pure classifier
+  `WeeklyMaterializationStatus.resolve(receipt:plans:)` per data-model §2. (FR-008)
+- [x] T005 [A] Tests: batch contracts in `PlannerMealCRUDTests` (ids, dates, order, duplicates,
   three rejections, `FailingTodayPlanPersistence` → unchanged `plans`, existing rows and Special Plans
   untouched); `commitWeeklyPlan` failure; receipt round-trip and legacy decode in
   `WeeklyPlanPersistenceTests`; `saveUserRecipes` batch behaviour. (SC-001, SC-002, SC-003)
+
+### Slice A implementation notes (2026-09-10)
+
+- Two audited persistence fixes were required for the receipt to mean anything.
+  `SwiftDataWeeklyPlanPersistence.replacePlan` and `SwiftDataUserRecipePersistence.replaceRecipes`
+  both mutate live SwiftData records through `update(from:)` on a context they own outright, and
+  neither rolled back on a failed `save()` — so a failed write left those objects holding payloads
+  the database never took, and the next `loadPlan()` / `loadRecipes()` on that context would return
+  them as if stored. Both now roll back, matching the contract
+  `SwiftDataTodayPlanPersistence.replacePlans` already had.
+- `replaceRecipes` also built its sort-order map with `Dictionary(uniqueKeysWithValues:)`, which
+  traps at runtime on a repeated id while the line above it tolerated one. Changed to
+  `uniquingKeysWith:` (first position wins), matching the neighbouring dictionary.
+- `saveUserRecipes` is narrower than `saveUserRecipe` on purpose: it does not apply the content and
+  source duplicate rules across *different* ids. Deciding which recipe a generated dish points at is
+  the materializer's job (Slice B).
+- FR-003 wording was corrected by the owner after Slice A review: reuse is **safe exact-identity
+  reuse**, not unconditional id reuse. spec.md FR-003, research.md R2 and data-model.md now say so,
+  and the implementation already matched.
 
 ## Phase 2: Slice R — restock migration (parallel with A/B)
 

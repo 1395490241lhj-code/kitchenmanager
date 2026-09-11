@@ -43,19 +43,39 @@ final class SwiftDataUserRecipePersistence: UserRecipePersistenceProtocol {
         }
     }
 
-    func replaceRecipes(with recipes: [Recipe]) throws {
+   func replaceRecipes(with recipes: [Recipe]) throws {
         let incoming = Dictionary(recipes.map { ($0.id, $0) }, uniquingKeysWith: { existing, _ in existing })
-        let order = Dictionary(uniqueKeysWithValues: recipes.enumerated().map { ($0.element.id, $0.offset) })
-        let existing = try context.fetch(FetchDescriptor<UserRecipeRecord>())
-        for record in existing {
-            guard let recipe = incoming[record.id] else { context.delete(record); continue }
-            try record.update(from: recipe, sortIndex: order[record.id] ?? 0)
+        // `uniquingKeysWith` rather than `uniqueKeysWithValues`: the latter traps
+        // at runtime on a repeated id, and `incoming` above already tolerates
+        // one, so the two lines disagreed about whether a duplicate was fatal.
+        // First position wins, matching `incoming`'s first-value-wins rule.
+        let order = Dictionary(
+            recipes.enumerated().map { ($0.element.id, $0.offset) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        // Rolls back on failure, the same contract
+        // `SwiftDataTodayPlanPersistence.replacePlans` uses. This type owns its
+        // `ModelContext` outright (created in `init`, never shared), and
+        // `update(from:)` mutates live records in it, so a failed save would
+        // otherwise leave those objects holding payloads the database never took
+        // and hand them back from the next `loadRecipes()`. Both `update(from:)`
+        // and `UserRecipeRecord(recipe:sortIndex:)` can also throw mid-loop while
+        // encoding, which leaves the same debris.
+        do {
+            let existing = try context.fetch(FetchDescriptor<UserRecipeRecord>())
+            for record in existing {
+                guard let recipe = incoming[record.id] else { context.delete(record); continue }
+                try record.update(from: recipe, sortIndex: order[record.id] ?? 0)
+            }
+            let existingIDs = Set(existing.map(\.id))
+            for recipe in recipes where !existingIDs.contains(recipe.id) {
+                context.insert(try UserRecipeRecord(recipe: recipe, sortIndex: order[recipe.id] ?? 0))
+            }
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
         }
-        let existingIDs = Set(existing.map(\.id))
-        for recipe in recipes where !existingIDs.contains(recipe.id) {
-            context.insert(try UserRecipeRecord(recipe: recipe, sortIndex: order[recipe.id] ?? 0))
-        }
-        try context.save()
     }
 
     func deleteAll() throws {

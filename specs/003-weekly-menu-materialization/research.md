@@ -25,8 +25,11 @@ reporting empty input as an empty success (rejected: a vacuous success reads lik
 
 ## R2 — Recipes first, in one batch; residue is kept (OD-3)
 
-**Decision**: `RecipeStore.saveUserRecipes([Recipe])` → one `replaceRecipes`; ids already present are
-reused; in-batch fingerprint duplicates collapse to the first.
+**Decision**: `RecipeStore.saveUserRecipes([Recipe])` → one `replaceRecipes`. Reuse is **safe
+exact-identity reuse**: an id already present is reused only when the stored recipe carries the same
+content, and the same id carrying conflicting content fails explicitly rather than being overwritten
+or silently replaced. Identical dishes inside one request collapse to the first. Identity is exact —
+id, then content equality to confirm it — never a name match or a likeness score.
 
 **Rationale**: `RecipeStore` and `KitchenStore` own separate `ModelContext`s on the shared container
 and SwiftData offers no cross-context transaction, so the honest guarantee is per-store. Recipes must

@@ -203,4 +203,142 @@ final class RecipeStoreTests: XCTestCase {
             XCTAssertNotNil(store.errorMessage)
         }
     }
+
+    // MARK: - Batch save for generated recipes
+    //
+    // Weekly materialization prepares every recipe a menu needs before it writes
+    // a single plan row, and may have to repeat that after a failed plan write.
+    // So an id it already stored is a reuse, not a duplicate — while an id that
+    // belongs to someone else's recipe is refused rather than overwritten.
+
+    /// Succeeds until `shouldFail` is set, so a test can build real state and
+    /// then fail exactly the write it is about.
+    private final class ToggleableUserRecipePersistence: UserRecipePersistenceProtocol {
+        struct ExpectedFailure: Error {}
+        var recipes: [Recipe] = []
+        var shouldFail = false
+        var replaceCallCount = 0
+
+        func loadRecipes() throws -> [Recipe] { recipes }
+        func storedRecordCount() throws -> Int { recipes.count }
+        func replaceRecipes(with recipes: [Recipe]) throws {
+            replaceCallCount += 1
+            if shouldFail { throw ExpectedFailure() }
+            self.recipes = recipes
+        }
+        func deleteAll() throws { recipes = [] }
+    }
+
+    private func makeInjectedStore(
+        _ persistence: UserRecipePersistenceProtocol
+    ) -> RecipeStore {
+        RecipeStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            userRecipePersistence: persistence,
+            recipePreferencePersistence: KitchenPersistenceFactory.isolatedInMemory().recipePreferences
+        )
+    }
+
+    func test_saveUserRecipes_persistsEveryGeneratedRecipeInOneWrite() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+        let writesBefore = persistence.replaceCallCount
+
+        try store.saveUserRecipes([
+            recipe(id: "weekly-ai-1", title: "番茄炒蛋"),
+            recipe(id: "weekly-ai-2", title: "青椒肉丝")
+        ])
+
+        XCTAssertEqual(Set(store.userRecipes.map(\.id)), ["weekly-ai-1", "weekly-ai-2"])
+        XCTAssertEqual(Set(persistence.recipes.map(\.id)), ["weekly-ai-1", "weekly-ai-2"], "the disk agrees")
+        XCTAssertEqual(persistence.replaceCallCount - writesBefore, 1, "one batch is one write")
+        XCTAssertNotNil(store.recipe(id: "weekly-ai-1"), "a plan row can reference it immediately")
+    }
+
+    func test_saveUserRecipes_failedPersistenceKeepsTheLibraryUnchanged() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+        try store.saveUserRecipes([recipe(id: "weekly-ai-1", title: "番茄炒蛋")])
+        persistence.shouldFail = true
+
+        XCTAssertThrowsError(try store.saveUserRecipes([recipe(id: "weekly-ai-2", title: "青椒肉丝")])) { error in
+            XCTAssertEqual(error as? UserRecipeBatchError, .persistenceFailed)
+        }
+
+        XCTAssertEqual(store.userRecipes.map(\.id), ["weekly-ai-1"], "nothing is published that was not stored")
+        XCTAssertEqual(persistence.recipes.map(\.id), ["weekly-ai-1"])
+    }
+
+    func test_saveUserRecipes_retryReusesTheRecipesAnEarlierAttemptAlreadyStored() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+        let prepared = [
+            recipe(id: "weekly-ai-1", title: "番茄炒蛋"),
+            recipe(id: "weekly-ai-2", title: "青椒肉丝")
+        ]
+        try store.saveUserRecipes(prepared)
+        let writesAfterFirst = persistence.replaceCallCount
+
+        // The plan write failed, so materialization runs the recipe step again
+        // with exactly the same recipes.
+        XCTAssertNoThrow(try store.saveUserRecipes(prepared))
+
+        XCTAssertEqual(store.userRecipes.count, 2, "reuse, not a second copy")
+        XCTAssertEqual(
+            persistence.replaceCallCount - writesAfterFirst, 0,
+            "everything was already durable, so there is nothing to write"
+        )
+    }
+
+    func test_saveUserRecipes_refusesAnIdThatBelongsToADifferentRecipe() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+        let mine = recipe(id: "weekly-ai-1", title: "我的红烧肉", ingredients: ["五花肉 500g"], steps: ["炖"])
+        try store.saveUserRecipe(mine)
+        let writesBefore = persistence.replaceCallCount
+
+        let collision = recipe(id: "weekly-ai-1", title: "番茄炒蛋", ingredients: ["番茄 2个"], steps: ["炒熟"])
+        XCTAssertThrowsError(try store.saveUserRecipes([collision])) { error in
+            XCTAssertEqual(error as? UserRecipeBatchError, .idConflict(id: "weekly-ai-1"))
+        }
+
+        XCTAssertEqual(store.recipe(id: "weekly-ai-1")?.title, "我的红烧肉", "the stored recipe is never overwritten")
+        XCTAssertEqual(persistence.replaceCallCount - writesBefore, 0, "and nothing is written")
+    }
+
+    func test_saveUserRecipes_refusesARequestThatRepeatsOneIdWithDifferentContent() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+
+        XCTAssertThrowsError(
+            try store.saveUserRecipes([
+                recipe(id: "weekly-ai-1", title: "番茄炒蛋", ingredients: ["番茄 2个"]),
+                recipe(id: "weekly-ai-1", title: "青椒肉丝", ingredients: ["青椒 3个"])
+            ])
+        ) { error in
+            XCTAssertEqual(error as? UserRecipeBatchError, .idConflict(id: "weekly-ai-1"))
+        }
+
+        XCTAssertTrue(store.userRecipes.isEmpty)
+    }
+
+    func test_saveUserRecipes_collapsesAnIdenticalDishListedTwiceInOneMenu() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+        let dish = recipe(id: "weekly-ai-1", title: "番茄炒蛋")
+
+        try store.saveUserRecipes([dish, dish])
+
+        XCTAssertEqual(store.userRecipes.map(\.id), ["weekly-ai-1"])
+    }
+
+    func test_saveUserRecipes_anEmptyRequestWritesNothing() throws {
+        let persistence = ToggleableUserRecipePersistence()
+        let store = makeInjectedStore(persistence)
+        let writesBefore = persistence.replaceCallCount
+
+        XCTAssertNoThrow(try store.saveUserRecipes([]))
+
+        XCTAssertEqual(persistence.replaceCallCount - writesBefore, 0, "a menu of only existing recipes needs no write")
+    }
 }
