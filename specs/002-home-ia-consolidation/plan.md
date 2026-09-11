@@ -1,21 +1,31 @@
 # Implementation Plan: Home IA Consolidation
 
-**Branch**: `codex/002-home-ia-consolidation` | **Date**: 2026-09-10 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/002-home-ia-consolidation` | **Date**: 2026-09-10 | **Reconciled**: 2026-09-11
+| **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `specs/002-home-ia-consolidation/spec.md` (clarified 2026-09-10)
+**Input**: Feature specification from `specs/002-home-ia-consolidation/spec.md`, re-derived on
+2026-09-11 against `main` = `a7b7d8f` (D-041 shipped). Audit evidence re-read at `eb894a8`.
 
-**Status**: Sealed for implementation planning. No code has been changed. Slices A and C may start
-once the user authorizes implementation; Slices B/D additionally require D-041 recorded.
+**Status**: Sealed for implementation planning. No product code has been changed; every task is
+unstarted. Slices A and C may start once the user authorizes implementation; Slices B, D and E
+additionally require the next available Home IA Decision recorded (FR-022).
 
 ## Summary
 
-Reduce native iOS Home to one discovery entry and no aggregator, add Special Plan today to the
-primary-task precedence, rehome per-meal quick completion and today's shopping derivation to
-Planner, remove `全部做完`, replace the eat-out / prep plan link with a factual context line, and
-reduce `TodayPlanDetailView` to the capabilities it still truthfully hosts (today rows, `做好了`,
-the AI weekly generator). Full retirement of that view is **blocked** by weekly materialization
-(spec §2.1, §11) and is not part of this plan. All work is deletion or rerouting over existing
-screens; the only new Planner controls are a one-item `更多` overflow and row-level `做好了`.
+Move the three ordinary-meal capabilities that only `TodayPlanDetailView` owns into Planner —
+per-meal `做好了`, initiating `生成今日购物清单`, and hosting the AI weekly generator — remove
+`全部做完` and the legacy alert-delete, reduce Home to one discovery entry and one planning
+destination with no aggregator, add Special Plan today to the primary-task precedence, and then
+delete `TodayPlanDetailView` and the code only it kept alive.
+
+The retirement is inside this feature. D-041 shipped weekly materialization on `a7b7d8f`, so a
+Planner-hosted generator no longer misrepresents what `加入用餐计划` does; the truthfulness gate
+that previously blocked the move is satisfied by construction. Nothing in this feature is deferred
+to a later one.
+
+All work is deletion, rerouting or thin hosting over existing screens. The only new Planner
+controls are a toolbar overflow menu, row-level `做好了` actions, and a generator host that passes
+one callback. No generation, materialization, recovery or persistence logic is written here.
 
 ## Technical Context
 
@@ -29,30 +39,31 @@ screens; the only new Planner controls are a one-item `更多` overflow and row-
 
 **Target Platform**: iOS (iPhone)
 
-**Project Type**: native mobile app
+**Performance Goals**: not applicable — presentation, routing and hosting only
 
-**Performance Goals**: not applicable — presentation and routing only
+**Constraints**: visual/IA freeze except removal-caused layout; Chinese copy verbatim from the
+spec; D-021 three-layer order and leaf identifiers preserved; D-040 delete contract is the only
+delete; D-041 owns everything inside `WeeklyMenuPlanner.swift` and this feature does not touch it
 
-**Constraints**: visual/IA freeze except removal-caused layout; Chinese copy verbatim from spec;
-D-021 three-layer order and leaf identifiers preserved; D-040 delete contract is the only delete;
-no bridge for the weekly generator
-
-**Scale/Scope**: four slices over `HomeView.swift`, `HomePrimaryTask.swift`, `PlannerView.swift`;
-~10 test files; vault + D-041 at seal. `KitchenStore.swift` untouched.
+**Scale/Scope**: six slices over `HomeView.swift`, `HomePrimaryTask.swift`,
+`HomeDashboardSummary.swift`, `PlannerView.swift`; ~12 test files; two new UI-test files.
+`KitchenStore.swift` is touched only by Slice E's proven-dead deletions.
+`WeeklyMenuPlanner.swift` is not modified at all.
 
 ## Constitution Check
 
 | Principle | Status | Notes |
 |---|---|---|
-| I. Evidence Before Assumption | SATISFIED | Every Home control, `TodayPlanDetailView` capability, Planner row action, store API caller, tab entry point and the weekly generator's user-visible copy re-read on `1a7475b`. Vault anchor == HEAD, tree clean. |
-| II. Bounded Change and Scope Discipline | SATISFIED | Out-of-scope is explicit; retirement and materialization deferred rather than bridged; dead-code cleanup deferred (FR-013). |
-| III. Canonical Authority and Decision Integrity | SATISFIED (with gate) | D-031 decisions 3–4 superseded and 5 narrowed by **D-041**, to be recorded before Slices B/D (FR-016). D-031 text is not rewritten. |
-| IV. Trust Before Automation and Data Safety | SATISFIED (design) | `做好了` keeps the consumption confirmation; `全部做完` removal strengthens meal↔consumption linkage; legacy alert-delete removed in favour of the D-040 undo contract; no new automation. |
-| V. Validation Proportional to Risk | PLANNED | Per-slice focused suites (quickstart.md); full native suite at the end. |
-| VI. Authorization Is Never Implied | SATISFIED | Tasks describe code/tests only; commit, push, vault write-back remain explicit user actions. |
-| VII. Convergence Includes Reconciliation | REQUIRED | Slice F reconciles spec/plan/tasks, produces the AGENTS.md final report and the vault write-back list. |
+| I. Evidence Before Assumption | SATISFIED | Re-audited at `eb894a8` on top of `main` = `a7b7d8f`: every Home control, `TodayPlanDetailView` capability with line evidence, Planner row action, store API caller, weekly-generator API surface and callback contract, and the Monday-first week anchor. The 2026-09-10 conclusions that fresher evidence contradicts are marked superseded in place rather than carried forward. |
+| II. Bounded Change and Scope Discipline | SATISFIED | Scope is Home IA plus the Planner hosting needed to retire one view. Generation/materialization internals, AI provenance, recipe-residue cleanup, `planNotice` and `KitchenStore` decomposition stay out and are recorded as follow-ups. |
+| III. Canonical Authority and Decision Integrity | SATISFIED (with gate) | D-031 decisions 3–4 are superseded and decision 5 narrowed by the next available Home IA Decision, recorded before Slices B/D/E (FR-022). D-031 text is not rewritten. D-040 and D-041 are respected, not reinterpreted: the delete contract and the materialization contract are consumed as they shipped. No number is reserved in advance. |
+| IV. Trust Before Automation and Data Safety | SATISFIED (design) | `做好了` keeps the consumption confirmation; removing `全部做完` strengthens the meal↔consumption linkage; the legacy delete that could not report a failed persist is replaced by D-040's outcome-returning delete with Undo; the generator host adds no automation and cannot write plans itself. |
+| V. Validation Proportional to Risk | PLANNED | Per-slice focused suites (quickstart.md), a zero-reference proof per deleted symbol in Slice E, and the full native suite plus release check in Slice F. |
+| VI. Authorization Is Never Implied | SATISFIED | Tasks describe code and tests only. Commit, push, vault write-back and the Decision record remain explicit user actions. |
+| VII. Convergence Includes Reconciliation | REQUIRED | Slice F reconciles spec/plan/tasks against shipped behaviour, produces the AGENTS.md §7 final report and the vault write-back list. |
 
-Post-design re-check: unchanged; the design adds no entities and no persistence.
+Post-design re-check: unchanged. The design adds no entities and no persistence; the one new
+cross-surface contract (the generator callback) is consumed exactly as D-041 published it.
 
 ## Project Structure
 
@@ -60,51 +71,66 @@ Post-design re-check: unchanged; the design adds no entities and no persistence.
 
 ```text
 specs/002-home-ia-consolidation/
-├── spec.md              # WHAT/WHY, clarifications, audits, state matrices, verdict C
+├── spec.md              # WHAT/WHY, governing decisions, audits, state matrix, verdict B
 ├── plan.md              # This file
-├── research.md          # Design decisions with alternatives; D-041 draft text
+├── research.md          # Design decisions with alternatives; unnumbered Decision draft
 ├── data-model.md        # Presentation-only entities; no schema change
 ├── quickstart.md        # Validation commands per slice
 ├── tasks.md             # Sliced task list
 └── checklists/requirements.md
 ```
 
-contracts/: skipped — no external interface.
+contracts/: skipped — no external interface. The one internal contract consumed here
+(`onMaterialized` / `WeeklyMaterializationSummary`) is owned by 003 and documented in D-041.
 
 ### Source Code (repository root)
 
 ```text
 ios-native/Kitchen Manager/
 ├── KitchenManager/
-│   ├── HomeView.swift              # remove +, SmartImportSheet, refresh, viewAll/moreLink → 更多推荐, secondaryLink → context line; Special Plan primary; reduce TodayPlanDetailView
-│   ├── HomePrimaryTask.swift       # .specialPlanToday + Special Plan input; suppressed-plan line model
-│   ├── PlannerView.swift           # 做好了 (leading swipe / context / AX); 更多 overflow; .shoppingToday route; initialPath
-│   └── (KitchenStore.swift, WeeklyMenuPlanner.swift, ShoppingListGenerator.swift, RecipeCookingFlow.swift untouched)
+│   ├── PlannerView.swift           # A: 做好了 (swipe/context/AX); 更多 overflow; shopping + weekly routes; generator host + reveal; initial-path seed
+│   ├── HomeView.swift              # C: remove +/SmartImportSheet, AI 换几道, 更多推荐. B: remove both TodayPlanDetail routes, context line. D: .specialPlanToday section. E: delete TodayPlanDetailView
+│   ├── HomePrimaryTask.swift       # B: otherPlansLine model. D: .specialPlanToday + Special Plan input
+│   ├── HomeDashboardSummary.swift  # D: Special Plan input plumbing, if the projection is where it belongs
+│   ├── KitchenStore.swift          # E only: delete markAllTodayCooked / removePlan(_ plan:) after proof
+│   └── (WeeklyMenuPlanner.swift, ShoppingListGenerator.swift, RecipeCookingFlow.swift, PlannerProjection.swift untouched)
 ├── KitchenManagerTests/
-│   ├── HomePrimaryTaskTests.swift  # Special Plan precedence + context-line copy cases
-│   └── KitchenStoreTests.swift / PlannerMealCRUDTests.swift  # completion parity
+│   ├── HomePrimaryTaskTests.swift          # context-line copy, Special Plan precedence, exhaustive combinations
+│   ├── PlannerMealCRUDTests.swift / KitchenStoreTests.swift   # completion parity
+│   └── TodayPlanPersistenceTests.swift     # E: retire the removePlan(_ plan:) caller
 └── KitchenManagerUITests/
+    ├── PlannerQuickCompleteUITests.swift   # new, Slice A
+    ├── PlannerWeeklyHostUITests.swift      # new, Slice A
     ├── HomeDashboardUITests.swift, PlannerUITests.swift, RuntimeAccessibilityP1UITests.swift
     ├── ClipboardRecipeImportUITests.swift, ManualEntryExpiryUITests.swift, ReceiptCompactListUITests.swift
-    ├── ComponentMealUITests.swift, ProductionDesignLanguageUITests.swift, Phase1DArtDirectionUITests.swift
-    └── PlannerQuickCompleteUITests.swift  # new, Slice A
+    └── ComponentMealUITests.swift, ProductionDesignLanguageUITests.swift, HomeVisualGateUITests.swift
 ```
 
-**Structure Decision**: no new modules; `HomeView.swift` shrinks by `SmartImportSheet` and part of
-`TodayPlanDetailView`; one new focused UI-test file.
+**Structure Decision**: no new modules. `HomeView.swift` shrinks by `SmartImportSheet` and all of
+`TodayPlanDetailView` (about 220 lines); `PlannerView.swift` gains row actions, an overflow menu
+and one generator host; two new focused UI-test files.
 
-## Slices (derived from dependencies)
+## Slices (derived from dependencies in the current code)
 
 | Slice | Content | Depends on | Independently testable by |
 |---|---|---|---|
-| **A — Planner parity** | Planner `做好了` (FR-001/002); Planner `更多` → `生成今日购物清单` (FR-003); `PlannerRoute.shoppingToday`; `PlannerView(initialPath:)` | — | PlannerQuickCompleteUITests, PlannerUITests, completion-parity unit test |
-| **C — Home reduction** | remove `+` / `SmartImportSheet` (FR-005); `更多推荐` in both modes (FR-008); remove `AI 换几道` (FR-009); reroute import tests | — (parallel with A) | HomeDashboardUITests, tab reachability tests, RuntimeAccessibilityP1UITests |
-| **B — Plan-link canonicalization + TodayPlanDetail reduction** | remove `home.plan.secondaryLink`; OD-4/5 context line (FR-006/007); reduce `TodayPlanDetailView` (FR-004/012) | **D-041 recorded** (FR-016); sequenced after C (same file) | HomeDashboardUITests, PlannerUITests rewritten cases, TodayPlanDetail reduction UI test |
-| **D — Special Plan today** | `.specialPlanToday` (FR-010); `查看聚餐` → Planner at plan (FR-011); Special Plan context line on suppressed days | A (initialPath), B (context-line model); **D-041 recorded** | HomePrimaryTaskTests (exhaustive), new HomeDashboardUITests seeds |
-| **F — Reconciliation** | spec/plan/tasks reconcile; final report; vault write-back list (D-041, Product & IA, Current Status, Next Actions) | all | — |
+| **A — Planner capability parity** | `做好了` on three input paths (FR-001/002); `更多` overflow with `生成今日购物清单` (FR-003); weekly-generator host passing `onMaterialized` plus the start-date week reveal (FR-004/005) and truthful entry copy (FR-006); Planner initial-path seed for FR-013 | — | PlannerQuickCompleteUITests, PlannerWeeklyHostUITests, PlannerUITests, completion-parity unit test |
+| **C — Home reduction** | remove `+` / `SmartImportSheet` (FR-007); `更多推荐` in both modes (FR-008); remove `AI 换几道` (FR-009); reroute the import-entry tests | — (parallel with A) | HomeDashboardUITests, tab reachability tests, RuntimeAccessibilityP1UITests |
+| **B — Canonical routing** | Home's only planning destination is `用餐计划` (FR-010): remove `home.plan.secondaryLink` and both `home.today.plan.viewAll` branches; suppressed-plan context line (FR-011) | **A** (capabilities must already live in Planner or they become unreachable) + Decision recorded (FR-022); sequenced after C because both edit `HomeView.swift` | HomeDashboardUITests, PlannerUITests rewritten cases, HomePrimaryTaskTests |
+| **D — Special Plan today** | `.specialPlanToday` with the approved precedence (FR-012); `查看聚餐` → Planner at that plan (FR-013); Special Plan context line on suppressed days | A (initial-path seed), B (context-line model), Decision recorded | HomePrimaryTaskTests (exhaustive), new HomeDashboardUITests seeds |
+| **E — `TodayPlanDetailView` retirement** | delete the view, its route and identifiers (FR-016); zero-reference proof then deletion of dead store symbols (FR-017); retarget or remove obsolete tests and the fixture (FR-018); Home carries no `weeklyPlan` reference (FR-019) | A (parity) and B (no live route) are the real gates; sequenced after D because both edit `HomeView.swift` | reference gate, PlannerUITests, RuntimeAccessibilityP1UITests, HomeDashboardUITests |
+| **F — Validation and reconciliation** | full suite + release check; reconcile spec/plan/tasks; final report; vault write-back list | all | — |
 
-Removed from this plan: former Slice E (retirement) — reclassified C, see spec §11; it becomes
-the first slice of the weekly-materialization feature.
+Execution order: **A ∥ C → B → D → E → F**.
+
+Two ordering facts worth stating plainly, because getting them wrong breaks the product:
+
+- **A must precede B.** B removes Home's only routes into `TodayPlanDetailView`. If the weekly
+  generator, `生成今日购物清单` and `做好了` do not already live in Planner at that point, they
+  become unreachable rather than re-homed.
+- **E must follow A and B.** Deleting the view before parity would drop capabilities; deleting it
+  while a Home route still points at it would not compile. E is not deferred anywhere: it is the
+  last code slice of this feature.
 
 ## Complexity Tracking
 
