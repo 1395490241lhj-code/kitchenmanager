@@ -174,9 +174,9 @@ field is treated as stale rather than assumed correct.
 **Decision**: at Slice E, re-read `Decisions.md` and take the actual next number — D-041 if nothing
 lands first. 002 rebases to the number after.
 
-**Draft Decision text (number assigned at reconciliation):**
+**Decision text (D-041, the number read from canonical `Decisions.md` at reconciliation):**
 
-> **D-0xx — Weekly menu materialization writes canonical Planner meals under an exact-identity
+> **D-041 — Weekly menu materialization writes canonical Planner meals under an exact-identity
 > receipt.** The generated menu is a rolling N-day draft (N ≤ 7) starting at its own `startDate`; it
 > may span two Planner weeks and is never described as `本周`. Its single canonical action resolves
 > recipes, allocates the exact `MealPlanItem` ids, persists a pending receipt on the draft, writes all

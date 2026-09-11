@@ -6,9 +6,9 @@ description: "Task list for Weekly Menu → Canonical Planner Materialization �
 
 **Input**: `specs/003-weekly-menu-materialization/`
 
-**Prerequisites**: spec sealed with OD-1…OD-11 (spec `## Clarifications`). T001–T018 are implemented
-and committed; implementation of the open tasks (T019–T022) still requires explicit user
-authorization (constitution VI).
+**Prerequisites**: spec sealed with OD-1…OD-11 (spec `## Clarifications`). All 22 tasks are
+implemented and committed; each slice was authorized explicitly by the owner before it started
+(constitution VI).
 
 **Tests**: requested by the acceptance scenarios; the tests that change by design are listed at the
 end so red is expected and attributable.

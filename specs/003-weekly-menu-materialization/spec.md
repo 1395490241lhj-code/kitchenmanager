@@ -4,7 +4,7 @@
 
 **Created**: 2026-09-10
 
-**Status**: Sealed under OD-1…OD-11. Slices A, B, C and R implemented on the feature branch; Slices D and E open.
+**Status**: Sealed under OD-1…OD-11 and complete. Every slice — A, B, C, R, the D validation pass and the E reconciliation — is implemented; the contracts are recorded canonically as D-041.
 
 **Input**: Owner brief “003 — Weekly Menu → Canonical Planner Materialization” and the owner clarifications of 2026-09-10, on `main` = `1a7475b` (D-040 Planner CRUD sealed). Prerequisite for completing 002 (Home IA consolidation), whose local spec branch (`4e6623a`) is untouched.
 
@@ -172,7 +172,9 @@ the receipt pending rather than returning to S0.
 
 S3 recovery: state the fact (`用餐计划中只保留了这份菜单的一部分。你可以重新加入缺少的菜品，或保留现在的安排。`) and offer two explicit actions —
 `重新加入缺少的 N 道` (one batch using only the missing exact ids) and `保留当前安排` (finalize the
-receipt without writing, for the member who deliberately removed meals in Planner). The wording is
+receipt without writing, for the member who deliberately removed meals in Planner). Because
+`保留当前安排` writes nothing to the plan, a failed receipt write there is a plain failure and says
+so; it must not borrow the "meals are durable, record lagged" success. The wording is
 the member's, not the system's: nothing about receipts or ids reaches the screen. No automatic repair,
 because a missing id is equally consistent with a legitimate Planner deletion.
 
@@ -536,8 +538,10 @@ manual add-today actions are absent; empty draft disables the CTA.
   Home or Planner code change.
 - **SC-006** With an unmaterialized draft as the only source, no global restock suggestion is
   plan-derived.
-- **SC-007** Focused unit + UI suites pass; the full native suite shows no new failures beyond the
-  documented Settings baseline red.
+- **SC-007** Focused unit + UI suites pass, and the full native suite introduces no feature
+  regression. Any red must be attributed with its own evidence — a reproduction on the integration
+  base for a baseline red, or an isolated retry on the same tree for an infrastructure flake — the
+  way D-037 and D-040 recorded theirs. An unattributed red blocks integration.
 
 ## Out of Scope
 

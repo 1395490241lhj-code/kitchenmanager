@@ -84,4 +84,6 @@ $XB -parallel-testing-enabled NO
 npm run ios:release:check
 ```
 
-Compare against the documented Settings baseline red only.
+Attribute every red with its own evidence: reproduce a baseline red on the integration base, and
+prove an infrastructure flake by an isolated retry on the same tree. An unattributed red blocks
+integration.

@@ -2,8 +2,8 @@
 
 **Branch**: `codex/003-weekly-menu-materialization` | **Date**: 2026-09-10 | **Spec**: [spec.md](spec.md)
 
-**Status**: Sealed under OD-1…OD-11. Slices A, B, C and R implemented on the feature branch;
-Slices D and E open, each still requiring explicit user authorization.
+**Status**: Sealed under OD-1…OD-11 and complete. Slices A, B, C, R, D and E are all implemented,
+each authorized explicitly by the owner before it started.
 
 ## Summary
 
@@ -49,9 +49,9 @@ materializer, state machine, copy, CTA, action removal, host callback), `Invento
 | II. Bounded Change | SATISFIED | Home, 002, Special Plan, sync, provenance, record deletion excluded; the restock migration is in scope because OD-9 requires it and its exact cost is measured (spec §8). |
 | III. Canonical Authority | SATISFIED (with gate) | D-040's single write path, `nil`-servings meaning and no-dedup-on-explicit-dates rule are reused, not overturned; `PlanMutationOutcome` is left untouched by using a separate batch outcome type; the Decision number is taken at reconciliation, never reserved (OD-10, FR-018). |
 | IV. Trust Before Automation and Data Safety | SATISFIED (design) | Append-only with confirmation; atomic plan batch; honest recipe-residue disclosure; no success copy without durable exact ids; no automatic repair of a partial set; a materialized receipt never reopens after a user's own Planner deletion. |
-| V. Validation Proportional to Risk | PLANNED | Persistence-failure fixtures at each boundary, id-collision rejection, receipt state machine, relaunch, restock migration, full suite (quickstart). |
+| V. Validation Proportional to Risk | SATISFIED | Persistence-failure fixtures at each boundary, id-collision rejection, receipt state machine, relaunch, restock migration, full suite (quickstart). |
 | VI. Authorization Is Never Implied | SATISFIED | Tasks are proposals; commit/push/vault remain explicit user actions. |
-| VII. Convergence | REQUIRED | Slice E reconciles, re-reads the next Decision number, and produces the final report and vault list. |
+| VII. Convergence | SATISFIED | Slice E reconciled the artifacts against the code, re-read `Decisions.md` at reconciliation time and took D-041, and produced the final report and the vault update list. |
 | Additional constraint — specs describe WHAT/WHY | ACCEPTED WITH RATIONALE | spec §4–§5, FR-001 and FR-009 carry Swift signatures because the owner brief asked for the exact receipt, batch and store contracts as owner decisions (spec Input, OD-7); they are contract facts under D-040's single write path, reviewable in one place, not implementation choices left to this plan. `data-model.md` remains the owner of signatures. Recorded here so the deviation is accepted explicitly rather than only self-certified in the requirements checklist. |
 
 Post-design re-check: unchanged. One optional Codable field, two additive store APIs, one enum case

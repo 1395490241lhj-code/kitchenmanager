@@ -88,7 +88,6 @@ materialized meal in Planner, and re-checking would re-offer the action and recr
 | Status | CTA | Draft editing | Extra affordance |
 |---|---|---|---|
 | `.notStarted` | `加入用餐计划` (disabled when the draft has no dishes) | full | — |
-| in flight | disabled, progress | disabled | — |
 | `.pending` | `加入用餐计划` again (same ids) | per-dish actions visible, disabled (ids already committed to) | the failure was named in the `未能加入用餐计划` alert |
 | `.partiallyPresent` | none | disabled | `重新加入缺少的 N 道` and `保留当前安排` |
 | `.materialized` | `已加入用餐计划`, disabled | hidden (`查看菜谱` stays) | the host's own `查看用餐计划`, if it offers one; the callback does not fire on reopen |
