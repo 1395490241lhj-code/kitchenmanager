@@ -58,9 +58,7 @@ private struct CookingFlowModifier: ViewModifier {
             .sheet(item: $confirming) { active in
                 CookConsumptionConfirmationView(
                     title: active.recipe.title,
-                    planIDs: active.plan.map {
-                        kitchenStore.hasConsumedPlan($0.id) ? [] : [$0.id]
-                    } ?? [],
+                    planIDs: active.plan.map { [$0.id] } ?? [],
                     recipeID: active.recipe.id,
                     recipeName: active.recipe.title,
                     // A planned dish deducts against its plan; a recipe cooked

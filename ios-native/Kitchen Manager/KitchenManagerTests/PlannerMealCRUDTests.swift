@@ -641,3 +641,147 @@ final class PlannerMealCRUDTests: XCTestCase {
         XCTAssertEqual(store.plans.count, 2, "and does not double up")
     }
 }
+
+// Shared confirmation contract used by Planner, Today detail and cooking mode.
+extension PlannerMealCRUDTests {
+    private func confirmationFixture() throws -> (KitchenStore, RecipeStore, MealPlanItem, MealPlanItem) {
+        let (kitchen, _) = makeStore()
+        let library = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dish = recipe()
+        try library.saveUserRecipe(dish)
+        kitchen.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
+        let a = try XCTUnwrap(kitchen.addPlan(recipe: dish, on: Date()).value)
+        let b = try XCTUnwrap(kitchen.addPlan(recipe: dish, on: a.date).value)
+        return (kitchen, library, a, b)
+    }
+
+    private func confirmation(_ ids: [UUID], kitchen: KitchenStore, library: RecipeStore) -> CookConsumptionStore {
+        let confirmation = CookConsumptionStore()
+        confirmation.buildDrafts(planIDs: ids, kitchenStore: kitchen, recipeStore: library)
+        return confirmation
+    }
+
+    private func confirm(_ request: CookConsumptionStore, _ ids: [UUID], kitchen: KitchenStore, library: RecipeStore) -> Bool {
+        request.confirm(planIDs: ids, recipeID: "recipe-1", recipeName: "番茄炒蛋",
+                        kitchenStore: kitchen, recipeStore: library)
+    }
+
+    func testExactConfirmationConsumesOnceAndCompletesOnlySelectedDuplicateMeal() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        let request = confirmation([b.id], kitchen: kitchen, library: library)
+        XCTAssertTrue(confirm(request, [b.id], kitchen: kitchen, library: library))
+        kitchen.markPlanCooked(b)
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 8)
+        XCTAssertEqual(kitchen.consumptionRecords.first?.planIDs, [b.id])
+        XCTAssertFalse(kitchen.plans.first { $0.id == a.id }!.isCooked)
+        XCTAssertTrue(kitchen.plans.first { $0.id == b.id }!.isCooked)
+        XCTAssertFalse(kitchen.hasConsumedPlan(a.id))
+    }
+
+    func testAlreadyConsumedPendingPlanCanConfirmAndCompleteWithoutDeductingAgain() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        let first = confirmation([a.id], kitchen: kitchen, library: library)
+        XCTAssertTrue(confirm(first, [a.id], kitchen: kitchen, library: library))
+        XCTAssertFalse(kitchen.plans[0].isCooked, "consumption layer does not own cooked state")
+        for _ in 0..<2 {
+            let repeated = confirmation([a.id], kitchen: kitchen, library: library)
+            XCTAssertEqual(repeated.alreadySatisfiedTitle([a.id], kitchenStore: kitchen), "确认完成这道菜")
+            XCTAssertTrue(confirm(repeated, [a.id], kitchen: kitchen, library: library))
+            kitchen.markPlanCooked(a)
+        }
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 8)
+        XCTAssertEqual(kitchen.consumptionRecords.count, 1)
+        XCTAssertTrue(kitchen.plans[0].isCooked)
+        XCTAssertFalse(kitchen.plans.first { $0.id == b.id }!.isCooked)
+    }
+
+    func testMixedAndPluralConfirmationCountExactPlansNotRecipes() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        XCTAssertTrue(confirm(confirmation([a.id], kitchen: kitchen, library: library), [a.id], kitchen: kitchen, library: library))
+        let mixed = confirmation([a.id, b.id], kitchen: kitchen, library: library)
+        XCTAssertNil(mixed.alreadySatisfiedTitle([a.id, b.id], kitchenStore: kitchen))
+        XCTAssertTrue(confirm(mixed, [a.id, b.id], kitchen: kitchen, library: library))
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 6)
+        XCTAssertEqual(kitchen.consumptionRecords.count, 2)
+        let allSatisfied = confirmation([a.id, b.id], kitchen: kitchen, library: library)
+        XCTAssertEqual(allSatisfied.alreadySatisfiedTitle([a.id, b.id], kitchenStore: kitchen), "确认完成这些菜")
+        XCTAssertTrue(confirm(allSatisfied, [a.id, b.id], kitchen: kitchen, library: library))
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 6)
+        XCTAssertEqual(kitchen.consumptionRecords.count, 2)
+    }
+
+    func testMissingExactTargetFailsEvenAlongsideASatisfiedTarget() throws {
+        let (kitchen, library, a, _) = try confirmationFixture()
+        XCTAssertTrue(confirm(confirmation([a.id], kitchen: kitchen, library: library), [a.id], kitchen: kitchen, library: library))
+        let ids = [a.id, UUID()]
+        let request = confirmation(ids, kitchen: kitchen, library: library)
+        XCTAssertNil(request.alreadySatisfiedTitle(ids, kitchenStore: kitchen))
+        var callbackCalled = false
+        if confirm(request, ids, kitchen: kitchen, library: library) { callbackCalled = true }
+        XCTAssertFalse(callbackCalled)
+        XCTAssertFalse(request.didConfirm)
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 8)
+        XCTAssertEqual(kitchen.consumptionRecords.count, 1)
+        XCTAssertFalse(kitchen.plans[0].isCooked)
+    }
+
+    func testMissingRecipePreservesExplicitCompleteWithoutDeduction() throws {
+        let (kitchen, library, _, _) = try confirmationFixture()
+        let missing = MealPlanItem(recipeID: "missing", recipeName: "缺失菜谱", date: Date())
+        kitchen.plans.append(missing)
+        let request = confirmation([missing.id], kitchen: kitchen, library: library)
+        XCTAssertEqual(request.unresolvedPlanNames, ["缺失菜谱"])
+        XCTAssertTrue(confirm(request, [missing.id], kitchen: kitchen, library: library))
+        kitchen.markPlanCooked(missing)
+        XCTAssertTrue(kitchen.hasConsumedPlan(missing.id))
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 10)
+        XCTAssertTrue(kitchen.plans.last!.isCooked)
+    }
+
+    func testCancelPreparedNormalAndAlreadySatisfiedRequestsDoesNotMutate() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        _ = confirmation([a.id], kitchen: kitchen, library: library)
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 10)
+        XCTAssertTrue(kitchen.consumptionRecords.isEmpty)
+        XCTAssertFalse(kitchen.plans[0].isCooked)
+        XCTAssertTrue(confirm(confirmation([a.id], kitchen: kitchen, library: library), [a.id], kitchen: kitchen, library: library))
+        _ = confirmation([a.id], kitchen: kitchen, library: library)
+        _ = confirmation([b.id], kitchen: kitchen, library: library)
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 8)
+        XCTAssertEqual(kitchen.consumptionRecords.count, 1)
+        XCTAssertTrue(kitchen.plans.allSatisfy { !$0.isCooked })
+    }
+
+    func testEmptyRequestCannotReportSuccess() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        XCTAssertFalse(confirm(confirmation([], kitchen: kitchen, library: library), [], kitchen: kitchen, library: library))
+    }
+
+    func testStaleSheetAfterPartialExternalConsumptionConsumesOnlyRemainingPlans() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        let stale = confirmation([a.id, b.id], kitchen: kitchen, library: library)
+        XCTAssertTrue(confirm(confirmation([a.id], kitchen: kitchen, library: library), [a.id], kitchen: kitchen, library: library))
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 8)
+        XCTAssertTrue(confirm(stale, [a.id, b.id], kitchen: kitchen, library: library),
+                      "the stale sheet must still succeed: A is already satisfied, B is consumed normally")
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 6, "B is deducted exactly once; A gets no second deduction")
+        XCTAssertEqual(kitchen.consumptionRecords.count, 2)
+        XCTAssertEqual(kitchen.consumptionRecords.first?.planIDs, [b.id])
+        XCTAssertTrue(kitchen.hasConsumedPlan(a.id))
+        XCTAssertTrue(kitchen.hasConsumedPlan(b.id))
+    }
+
+    func testPlanDeletedWhileSheetOpenFailsWithoutMutation() throws {
+        let (kitchen, library, a, b) = try confirmationFixture()
+        let stale = confirmation([a.id, b.id], kitchen: kitchen, library: library)
+        kitchen.removePlan(b)
+        XCTAssertNil(stale.alreadySatisfiedTitle([a.id, b.id], kitchenStore: kitchen))
+        var callbackCalled = false
+        if confirm(stale, [a.id, b.id], kitchen: kitchen, library: library) { callbackCalled = true }
+        XCTAssertFalse(callbackCalled)
+        XCTAssertFalse(stale.didConfirm)
+        XCTAssertEqual(kitchen.inventory.first?.quantity, 10)
+        XCTAssertTrue(kitchen.consumptionRecords.isEmpty)
+        XCTAssertTrue(kitchen.plans.contains { $0.id == a.id })
+    }
+}

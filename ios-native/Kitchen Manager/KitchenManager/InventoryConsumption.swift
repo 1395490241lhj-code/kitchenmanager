@@ -349,6 +349,21 @@ final class CookConsumptionStore: ObservableObject {
     private let planner = InventoryConsumptionPlanner()
     private let restockEngine = RestockSuggestionEngine()
     private var isDirectRecipeConsumption = false
+    private var preparedPlanIDs: Set<UUID> = []
+    private var preparedUnconsumedIDs: Set<UUID> = []
+
+    /// A no-deduction confirmation is proved by exact, still-existing targets,
+    /// never by an empty ingredient list or matching recipe names.
+    func allTargetsAlreadySatisfied(_ planIDs: [UUID], kitchenStore: KitchenStore) -> Bool {
+        !planIDs.isEmpty && planIDs.allSatisfy { id in
+            kitchenStore.plans.contains { $0.id == id } && kitchenStore.hasConsumedPlan(id)
+        }
+    }
+
+    func alreadySatisfiedTitle(_ planIDs: [UUID], kitchenStore: KitchenStore) -> String? {
+        guard allTargetsAlreadySatisfied(planIDs, kitchenStore: kitchenStore) else { return nil }
+        return Set(planIDs).count == 1 ? "确认完成这道菜" : "确认完成这些菜"
+    }
 
     func buildDrafts(
         planIDs: [UUID],
@@ -357,13 +372,15 @@ final class CookConsumptionStore: ObservableObject {
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore
     ) {
+        preparedPlanIDs = Set(planIDs)
+        preparedUnconsumedIDs = Set(planIDs.filter { !kitchenStore.hasConsumedPlan($0) })
         var inputs: [InventoryConsumptionPlanner.RecipeConsumptionInput] = []
         var unresolved: [String] = []
         isDirectRecipeConsumption = recipe != nil && planIDs.isEmpty
         if let recipe, isDirectRecipeConsumption {
             inputs.append(.init(recipe: recipe, servings: servings))
         }
-        for id in planIDs where !kitchenStore.hasConsumedPlan(id) {
+        for id in planIDs where preparedUnconsumedIDs.contains(id) {
             guard let plan = kitchenStore.plans.first(where: { $0.id == id }) else { continue }
             guard let recipe = recipeStore.recipe(id: plan.recipeID) else {
                 unresolved.append(plan.recipeName)
@@ -413,8 +430,30 @@ final class CookConsumptionStore: ObservableObject {
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore
     ) -> Bool {
+        // Bool means semantic confirmation success. An existing receipt can
+        // satisfy a valid exact target without another write; invalid targets
+        // and failed persistence must never trigger the caller's completion.
+        guard Set(planIDs) == preparedPlanIDs,
+              planIDs.allSatisfy({ id in kitchenStore.plans.contains { $0.id == id } }) else { return false }
+        if allTargetsAlreadySatisfied(planIDs, kitchenStore: kitchenStore) {
+            didConfirm = true
+            return true
+        }
         let unconsumedPlanIDs = planIDs.filter { !kitchenStore.hasConsumedPlan($0) }
         guard isDirectRecipeConsumption || !unconsumedPlanIDs.isEmpty else { return false }
+        // Re-evaluate at mutation time. The sheet may have been open while
+        // another valid path consumed part of this request (or an undo
+        // released a plan): stale merged drafts would deduct an
+        // already-handled share again, so a changed target set is re-planned
+        // fresh against the current inventory. Edited quantities are
+        // discarded only in that divergent case, because their merged basis
+        // no longer matches what is being consumed.
+        if Set(unconsumedPlanIDs) != preparedUnconsumedIDs, !isDirectRecipeConsumption {
+            buildDrafts(planIDs: unconsumedPlanIDs, kitchenStore: kitchenStore, recipeStore: recipeStore)
+            // The request identity stays pinned to what the caller asked for,
+            // so a retry after a persistence failure keeps working.
+            preparedPlanIDs = Set(planIDs)
+        }
         let record = kitchenStore.applyConsumption(
             drafts,
             planIDs: unconsumedPlanIDs,
@@ -459,6 +498,12 @@ struct CookConsumptionConfirmationView: View {
             List {
                 if store.didConfirm {
                     confirmedSection
+                } else if alreadySatisfiedTitle != nil {
+                    Section {
+                        Text("食材消耗已经记录，本次确认不会再次扣减库存。")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
                 } else {
                     Section {
                         // States what confirming does and how a mistake is
@@ -497,7 +542,7 @@ struct CookConsumptionConfirmationView: View {
                     }
                 }
             }
-            .navigationTitle(store.didConfirm ? "已完成" : "确认本次食材消耗")
+            .navigationTitle(store.didConfirm ? "已完成" : (alreadySatisfiedTitle ?? "确认本次食材消耗"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if store.didConfirm {
@@ -509,7 +554,7 @@ struct CookConsumptionConfirmationView: View {
                         Button("取消") { dismiss() }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("更新冰箱") {
+                        Button(alreadySatisfiedTitle == nil ? "更新冰箱" : "确认完成") {
                             guard store.confirm(
                                 planIDs: planIDs,
                                 recipeID: recipeID,
@@ -532,6 +577,10 @@ struct CookConsumptionConfirmationView: View {
                 )
             }
         }
+    }
+
+    private var alreadySatisfiedTitle: String? {
+        store.alreadySatisfiedTitle(planIDs, kitchenStore: kitchenStore)
     }
 
     @ViewBuilder

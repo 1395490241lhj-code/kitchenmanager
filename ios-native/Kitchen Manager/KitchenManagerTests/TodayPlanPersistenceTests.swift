@@ -316,7 +316,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
         let second = CookConsumptionStore()
         second.buildDrafts(planIDs: [plan.id], kitchenStore: kitchenStore, recipeStore: recipeStore)
         XCTAssertTrue(second.drafts.isEmpty)
-        XCTAssertFalse(second.confirm(
+        XCTAssertTrue(second.confirm(
             planIDs: [plan.id],
             recipeID: savedRecipe.id,
             recipeName: savedRecipe.title,

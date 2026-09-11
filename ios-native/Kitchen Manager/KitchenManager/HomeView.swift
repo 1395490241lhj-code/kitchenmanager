@@ -2241,7 +2241,7 @@ struct TodayPlanDetailView: View {
             case .cook(let plan):
                 CookConsumptionConfirmationView(
                     title: plan.recipeName,
-                    planIDs: kitchenStore.hasConsumedPlan(plan.id) ? [] : [plan.id],
+                    planIDs: [plan.id],
                     recipeID: plan.recipeID,
                     recipeName: plan.recipeName
                 ) {
@@ -2251,9 +2251,7 @@ struct TodayPlanDetailView: View {
             case .cookAll:
                 CookConsumptionConfirmationView(
                     title: "今日 \(kitchenStore.pendingTodayPlans.count) 道菜",
-                    planIDs: kitchenStore.pendingTodayPlans
-                        .map(\.id)
-                        .filter { !kitchenStore.hasConsumedPlan($0) },
+                    planIDs: kitchenStore.pendingTodayPlans.map(\.id),
                     recipeID: nil,
                     recipeName: "今日 \(kitchenStore.pendingTodayPlans.count) 道菜"
                 ) {
