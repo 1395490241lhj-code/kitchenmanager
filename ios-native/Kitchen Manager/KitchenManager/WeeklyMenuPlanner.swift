@@ -315,8 +315,9 @@ nonisolated enum WeeklyMaterializationOutcome: Equatable {
         }
     }
 
-    /// Whether the member's schedule actually changed. True for the repair case
-    /// too: the meals are durable, and only the bookkeeping lagged.
+    /// Whether the member's schedule actually changed. True for the repair
+    /// case too, which is only ever reached after the meals are durable and
+    /// carries the items that were written.
     var didChangeSchedule: Bool {
         materializedItems != nil
     }
@@ -1038,7 +1039,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     @Published var generatedPlan: WeeklyMealPlan?
     @Published var errorMessage: String?
     @Published private(set) var replacingRecipeID: String?
-    @Published private(set) var hasUnsavedChanges = false
 
     private let service = WeeklyMenuPlannerService()
     private var generationTask: Task<AIWeeklyMenuResponse, Error>?
@@ -1049,7 +1049,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     func loadSavedPlanIfNeeded(from kitchenStore: KitchenStore) {
         guard generatedPlan == nil else { return }
         generatedPlan = kitchenStore.weeklyPlan
-        hasUnsavedChanges = false
     }
 
     func generatePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async {
@@ -1100,7 +1099,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
                 servings: input.servings,
                 existingStartDate: existingStartDate
             )
-            hasUnsavedChanges = true
         } catch is CancellationError {
         } catch {
             guard activeRequestID == requestID else { return }
@@ -1161,7 +1159,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             }
             plan.days[dayIdx].meals[mealIdx].recipes[recipeIdx] = Self.makeRecipe(from: newDTO, recipeStore: recipeStore)
             generatedPlan = plan
-            hasUnsavedChanges = true
         } catch is CancellationError {
         } catch {
             guard activeReplaceRequestID == requestID else { return }
@@ -1189,7 +1186,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             plan.days[toDayIdx].meals[0].recipes.append(recipe)
         }
         generatedPlan = plan
-        hasUnsavedChanges = true
     }
 
     func removeRecipe(_ recipeID: String, dayIndex: Int, mealIndex: Int) {
@@ -1200,14 +1196,12 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         }
         plan.days[dayIdx].meals[mealIdx].recipes.removeAll { $0.id == recipeID }
         generatedPlan = plan
-        hasUnsavedChanges = true
     }
 
     func removeShoppingItems(at offsets: IndexSet) {
         guard var plan = generatedPlan else { return }
         plan.shoppingItems.remove(atOffsets: offsets)
         generatedPlan = plan
-        hasUnsavedChanges = true
     }
 
     // MARK: - Materialization
@@ -1261,7 +1255,10 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             // to record it — so finish the bookkeeping rather than claiming the
             // menu was already handled, and never append a second time.
             if draft.materialization?.state == .pending {
+                // The meals are already there; only the record lagged, so a
+                // failed write here is exactly that and nothing more.
                 return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
+                    ? .receiptRepaired : .receiptPersistenceFailed
             }
             return .alreadyMaterialized
 
@@ -1350,7 +1347,10 @@ final class WeeklyMenuPlannerStore: ObservableObject {
 
         let present = Set(kitchenStore.plans.map(\.id))
         let missing = receipt.planIDs.filter { !present.contains($0) }
-        guard !missing.isEmpty else { return finalize(draft: draft, kitchenStore: kitchenStore, now: now) }
+        guard !missing.isEmpty else {
+            return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
+                ? .receiptRepaired : .receiptPersistenceFailed
+        }
 
         return write(
             draft: draft,
@@ -1380,10 +1380,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         guard case .materialized = WeeklyMaterializationStatus.resolve(
             receipt: receipt, plans: kitchenStore.plans
         ) else { return false }
-        if case .receiptRepaired = finalize(draft: draft, kitchenStore: kitchenStore, now: now) {
-            return true
-        }
-        return false
+        return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
     }
 
     /// Recovery choice: leave the plan as the member has it now.
@@ -1399,7 +1396,10 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         // Settling a menu is done once. A finalized receipt has nothing left to
         // accept, and reporting a repair would read as a second completion.
         guard receipt.state == .pending else { return .alreadyMaterialized }
+        // Nothing is appended on this path, so a failed receipt write is a
+        // plain failure — never the "meals are there, record lagged" case.
         return finalize(draft: draft, kitchenStore: kitchenStore, now: now)
+            ? .receiptRepaired : .receiptPersistenceFailed
     }
 
     // MARK: Write order
@@ -1467,18 +1467,23 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         }
 
         // 4. Only now is it true to say the menu is on the plan.
-        let outcome = finalize(draft: pending, kitchenStore: kitchenStore, now: now)
-        if case .receiptRepaired = outcome { return .materialized(items) }
-        return .materializedNeedsReceiptRepair(items)
+        return finalize(draft: pending, kitchenStore: kitchenStore, now: now)
+            ? .materialized(items)
+            : .materializedNeedsReceiptRepair(items)
     }
 
-    /// Marks the receipt done. Failing here does not undo the meals.
+    /// Marks the receipt done, and says only whether that write stuck.
+    ///
+    /// A `Bool`, because what a failure *means* belongs to the caller. After
+    /// `appendPlans` the meals are durable and a lost receipt is bookkeeping;
+    /// from 保留当前安排 nothing was written at all, and reporting the same
+    /// success there would tell the member their menu was added when it was not.
     private func finalize(
         draft: WeeklyMealPlan,
         kitchenStore: KitchenStore,
         now: Date
-    ) -> WeeklyMaterializationOutcome {
-        guard let receipt = draft.materialization else { return .emptyDraft }
+    ) -> Bool {
+        guard let receipt = draft.materialization else { return false }
         var finalized = draft
         finalized.materialization = WeeklyMaterializationReceipt(
             state: .materialized,
@@ -1488,14 +1493,13 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             startedAt: receipt.startedAt,
             completedAt: now
         )
-        guard kitchenStore.commitWeeklyPlan(finalized) else { return .materializedNeedsReceiptRepair([]) }
+        guard kitchenStore.commitWeeklyPlan(finalized) else { return false }
         publish(finalized)
-        return .receiptRepaired
+        return true
     }
 
     private func publish(_ plan: WeeklyMealPlan) {
         generatedPlan = plan
-        hasUnsavedChanges = false
     }
 
     /// Records which generated recipes are now in the library, so a retry knows
@@ -1548,7 +1552,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             }
         }
         generatedPlan = plan
-        hasUnsavedChanges = true
     }
 
     private func makeRequest(
@@ -2036,7 +2039,7 @@ struct WeeklyMenuResultView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这份生成的菜单将被删除。已经加入用餐计划的菜品不受影响。")
+            Text("这份生成的菜单将被删除，已加入用餐计划的菜品不受影响。")
         }
         .alert(
             "暂时无法生成菜单",

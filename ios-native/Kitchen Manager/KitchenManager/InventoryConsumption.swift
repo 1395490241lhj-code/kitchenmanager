@@ -165,7 +165,7 @@ struct InventoryConsumptionPlanner {
 // Deterministic rules only — no AI call. The scheduled-meal source reuses
 // ShoppingListGenerator directly instead of a second ingredient-gap calculator.
 
-enum RestockSuggestionSource: String, Codable {
+enum RestockSuggestionSource: String {
     case lowStock
     case consumed
     /// Meals standing in `KitchenStore.plans`. Never the weekly generator's

@@ -43,7 +43,7 @@ final class SwiftDataUserRecipePersistence: UserRecipePersistenceProtocol {
         }
     }
 
-   func replaceRecipes(with recipes: [Recipe]) throws {
+    func replaceRecipes(with recipes: [Recipe]) throws {
         let incoming = Dictionary(recipes.map { ($0.id, $0) }, uniquingKeysWith: { existing, _ in existing })
         // `uniquingKeysWith` rather than `uniqueKeysWithValues`: the latter traps
         // at runtime on a repeated id, and `incoming` above already tolerates

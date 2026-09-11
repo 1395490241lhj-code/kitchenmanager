@@ -321,4 +321,3 @@ final class WeeklyMenuMaterializationUITests: XCTestCase {
         XCTAssertTrue(reveal(keep, in: app), "both choices stay reachable — \(diagnostics(keep, in: app))")
     }
 }
-

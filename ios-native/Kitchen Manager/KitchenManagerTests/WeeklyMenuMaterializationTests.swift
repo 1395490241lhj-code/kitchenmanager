@@ -847,6 +847,33 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         )
     }
 
+    func testKeepingTheCurrentArrangementSaysSoWhenTheWriteFails() throws {
+        // 保留当前安排 appends nothing. If the menu record then refuses to save,
+        // the member's schedule did not change at all, so this must not borrow
+        // the "meals are there, record lagged" success — that would claim an
+        // addition that never happened and wake the host on a failure.
+        let harness = makeHarness()
+        let receipt = try pendingReceiptAfterAFailedPlanWrite(harness)
+        let planDates = try XCTUnwrap(receipt.planDates)
+        harness.kitchen.appendPlans([
+            MealPlanItem(id: receipt.planIDs[0], recipeID: "weekly-ai-1", recipeName: "番茄炒蛋", date: planDates[0])
+        ])
+        let reopened = reopen(harness)
+        harness.weekly.shouldFail = true
+
+        let outcome = reopened.acceptCurrentSchedule(kitchenStore: harness.kitchen)
+
+        XCTAssertEqual(outcome, .receiptPersistenceFailed)
+        XCTAssertNil(outcome.materializedItems, "nothing was added, so nothing may be reported as added")
+        XCTAssertFalse(outcome.didChangeSchedule)
+        XCTAssertNil(hostSummary(outcome, harness), "a failure never completes the planning action")
+        XCTAssertEqual(harness.kitchen.plans.count, 1, "and the plan is untouched")
+
+        // The receipt is still pending, so the member can settle it later.
+        harness.weekly.shouldFail = false
+        XCTAssertEqual(reopened.acceptCurrentSchedule(kitchenStore: harness.kitchen), .receiptRepaired)
+    }
+
     func testNoFailureOrCancelTellsTheHost() throws {
         // Collision awaiting confirmation.
         let occupied = makeHarness()
@@ -904,4 +931,3 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         return try XCTUnwrap(harness.weekly.plan?.materialization)
     }
 }
-

@@ -14,7 +14,7 @@ import SwiftData
         let records = try context.fetch(FetchDescriptor<WeeklyPlanRecord>(sortBy: [SortDescriptor(\.startDate, order: .reverse)]))
         return try records.first?.weeklyPlan()
     }
-   func replacePlan(with plan: WeeklyMealPlan?) throws {
+    func replacePlan(with plan: WeeklyMealPlan?) throws {
         // Rolls back on any failure, the same contract
         // `SwiftDataTodayPlanPersistence.replacePlans` uses and for the same
         // reason. This type owns its `ModelContext` outright (created in `init`,

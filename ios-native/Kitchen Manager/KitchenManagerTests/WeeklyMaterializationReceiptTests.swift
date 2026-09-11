@@ -273,4 +273,3 @@ final class WeeklyMaterializationReceiptTests: XCTestCase {
         XCTAssertEqual(persistence.plan, attempted)
     }
 }
-
