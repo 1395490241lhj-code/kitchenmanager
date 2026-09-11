@@ -59,20 +59,43 @@ end so red is expected and attributable.
 
 ## Phase 2: Slice R — restock migration (parallel with A/B)
 
-- [ ] T006 [P] [R] new `KitchenManager/PlannedMealHorizon.swift`: pure
-  `upcoming(plans:from:days:calendar:)` returning pending (not cooked) meals from the reference day
-  through `+forwardDays`, date ascending, with `forwardDays = 6` as a named constant. (FR-015)
-- [ ] T007 [R] `KitchenManager/InventoryConsumption.swift`: replace the `kitchenStore.weeklyPlan`
-  branch of `RestockSuggestionEngine.generate` with `PlannedMealHorizon.upcoming(plans:)` fed to
-  `ShoppingGenerationSource.todayPlans`; rename `RestockSuggestionSource.weeklyPlan` →
-  `.plannedMeals` and its label; reason string `本周计划需要` → `用餐计划需要`. No
-  `ShoppingListGenerator` change. (FR-015)
-- [ ] T008 [P] [R] `KitchenManager/KitchenStore.swift`: delete the dead `todaysWeeklyMeals()` (no
+- [x] T006 [P] [R] new `KitchenManager/PlannedMealHorizon.swift`: pure
+  `upcoming(plans:from:forwardDays:calendar:)` returning pending (not cooked) meals from the
+  reference day through `+forwardDays`, in the order `plans` already holds them, with
+  `defaultForwardDays = 6` as a named constant. (FR-015)
+- [x] T007 [R] `KitchenManager/InventoryConsumption.swift` + `ShoppingListGenerator.swift`: replace
+  the `kitchenStore.weeklyPlan` branch of `RestockSuggestionEngine.generate` with
+  `PlannedMealHorizon.upcoming(plans:)` fed to a new
+  `ShoppingGenerationSource.plannedMeals([MealPlanItem])` case (label `用餐计划`, resolving through
+  the existing `.todayPlans` branch body); rename `RestockSuggestionSource.weeklyPlan` →
+  `.plannedMeals`; reason string `本周计划需要` → `未来 7 天计划需要`. (FR-015)
+- [x] T008 [P] [R] `KitchenManager/KitchenStore.swift`: delete the dead `todaysWeeklyMeals()` (no
   callers; it maps today onto the draft, a second-schedule reading). (FR-016)
-- [ ] T009 [R] `KitchenManagerTests/RestockSuggestionEngineTests.swift`: an unmaterialized draft alone
+- [x] T009 [R] new `KitchenManagerTests/PlannedMealHorizonTests.swift` (window edges, cooked meals,
+  order, week crossing, DST) plus `RestockSuggestionEngineTests.swift`: an unmaterialized draft alone
   yields no plan-derived suggestion; canonical pending meals in the horizon do, with reason
-  `用餐计划需要`; cooked meals and out-of-horizon meals excluded; the two existing absence assertions
-  (`PreparedComponentTests`, `QuickMealPreparedUsageTests`) still pass. (SC-006)
+  `未来 7 天计划需要`; cooked, deleted and out-of-horizon meals excluded; a missing recipe reference is
+  skipped rather than fatal; the two existing absence assertions (`PreparedComponentTests`,
+  `QuickMealPreparedUsageTests`) still pass. (SC-006)
+
+### Slice R implementation notes (2026-09-11)
+
+- `.todayPlans` was **not** widened. The sealed plan reused it for the seven-day set; the owner gate
+  rejected that, because the name would then be false and every imported row would read `今日计划`.
+  A new `.plannedMeals([MealPlanItem])` case resolves through the same branch body and labels its
+  imports `用餐计划`; the horizon lives in `PlannedMealHorizon` and the restock caller, never in the
+  enum. Cost: one case, one label line, one pattern addition.
+- `RestockSuggestionSource.label` was deleted with the rename. It was unreachable (both surfaces
+  render `suggestion.reason`, built at the call site), and keeping it would have meant inventing a
+  second copy of the reason string in a property nobody reads.
+- No new observation: `plans` is already `@Published`, the Inventory section reads restock through a
+  computed property, and the cook-confirmation sheet recomputes after applying consumption. Adding,
+  removing or cooking a meal moves the suggestions with no polling.
+- The horizon filters rather than sorts, so the projection keeps the canonical array order.
+  `PlannerProjection`'s presentation sort is not duplicated here, and restock aggregates by
+  ingredient anyway.
+- Special Plans stay out (spec Out of Scope); `.todayPlans`, its `今日计划` label and Home's shopping
+  behaviour are untouched.
 
 ## Phase 3: Slice B — materializer and state machine (after A)
 
@@ -195,8 +218,8 @@ end so red is expected and attributable.
 - [ ] T022 [E] Reconcile artifacts; AGENTS.md §7 report; verify with `git diff --stat main` that no
   Home, `TodayPlanDetailView`, 002 spec, Special Plan or sync file changed (FR-017). VAULT UPDATE
   list: the new Decision, `Current Status.md`, `Next Actions.md` (002's weekly-generator gate flips
-  to NO; `TodayPlanDetailView` retirement unblocked; the `.todayPlans` case-name rename and the
-  `TodayPlanDetailView` entry-row subtitle recorded as follow-ups), `Product & IA.md`,
+  to NO; `TodayPlanDetailView` retirement unblocked; the `TodayPlanDetailView` entry-row subtitle
+  recorded as a follow-up), `Product & IA.md`,
   `Architecture.md`. Commit / push / vault writes remain user-authorized.
 
 ## Dependencies

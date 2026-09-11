@@ -121,21 +121,28 @@ purpose, so any id list would either claim rows that do not exist or need bookke
 ## R10 — Restock derives from canonical plans (OD-9)
 
 **Decision**: the global branch in `RestockSuggestionEngine` stops reading `kitchenStore.weeklyPlan`
-and instead expands **pending** ordinary meals from today through today + 6 days, fed to the existing
-`ShoppingGenerationSource.todayPlans([MealPlanItem])` case. The source case renames `.weeklyPlan` →
-`.plannedMeals`; the reason becomes `用餐计划需要`. The slice is a pure `PlannedMealHorizon` projection
-taking `plans:` as a parameter, matching the existing Home projections.
+and instead expands **pending** ordinary meals from today through today + 6 days, fed to a new
+`ShoppingGenerationSource.plannedMeals([MealPlanItem])` case. The restock source case renames
+`.weeklyPlan` → `.plannedMeals`; the reason becomes `未来 7 天计划需要`. The slice is a pure
+`PlannedMealHorizon` projection taking `plans:` as a parameter, matching the existing Home projections.
 
-**Measured scope (OD-9 asked for the exact dependency)**: two production files plus one small new
-file; **no `ShoppingListGenerator` change** — `.todayPlans` contains no date logic, no `isCooked`
-filter and no today check, and the restock engine builds its own `RestockSuggestion` values without
-reading `sourceLabel`, so nothing is mislabelled `今日计划`. **No existing test breaks**: no test
+**Why a new generator case instead of reusing `.todayPlans`** (owner gate): `.todayPlans` means today,
+and Home still uses it that way. Passing a seven-day set through it would make the name a lie and
+label the resulting shopping items `今日计划`. The new case resolves through the same branch body — a
+`MealPlanItem` becomes a recipe identically either way — and only its label differs (`用餐计划`), so
+the cost is one enum case and one label line.
+
+**Measured scope (OD-9 asked for the exact dependency)**: three production files plus one small new
+file. The `ShoppingListGenerator` change is three lines — the new case, its label, and adding it to
+the existing `.todayPlans` branch pattern — because a `MealPlanItem` list carries no date logic, no
+`isCooked` filter and no today check in there; the horizon stays with the caller. **No existing test
+breaks**: no test
 seeds a `weeklyPlan` before calling the engine, the two absence assertions stay true, and the
 accessibility seed clears local data first.
 
-**Known naming residue**: the generator case is still called `.todayPlans` while now also carrying a
-multi-day slice. Renaming it would force a `sourceLabel` decision for Home's today generation
-(`今日计划`), which is 002's surface. Recorded as a follow-up rather than bundled here.
+**Naming residue closed**: an earlier draft of this decision reused `.todayPlans` for the multi-day
+slice and recorded the misleading name as a follow-up. The owner rejected that trade, so the slice
+ships its own case and Home's `今日计划` label is untouched. No follow-up remains.
 
 **Kept as draft state**: backup/restore, guest-merge `weeklyPlanCount`, migration and
 `clearAllLocalData` continue to carry `weeklyPlan`; that does not make it a schedule. The in-flow
@@ -144,8 +151,8 @@ multi-day slice. Renaming it would force a `sourceLabel` decision for Home's tod
 
 **Dead code found during the audit**: `KitchenStore.todaysWeeklyMeals()` has no callers and maps today
 onto the draft's `dayIndex` — a second-schedule reading. Removed as part of R10.
-`RestockSuggestionSource.label` is unreachable (the reason string is hardcoded at the call site);
-left alone beyond the case rename.
+`RestockSuggestionSource.label` is unreachable (the reason string is hardcoded at the call site) and
+is deleted along with the case rename, rather than left holding a second copy of the copy.
 
 ## R11b — The receipt binds days, not just recipes
 

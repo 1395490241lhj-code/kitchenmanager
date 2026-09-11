@@ -344,7 +344,12 @@ struct ShoppingGenerationDraft {
 
 enum ShoppingGenerationSource {
     case recipe(Recipe, servings: Int)
+    /// Today's meals, and only today's.
     case todayPlans([MealPlanItem])
+    /// Canonical scheduled meals the caller picked out of `KitchenStore.plans`.
+    /// Which ones, and over what stretch of days, is the caller's decision —
+    /// this case carries no date rule of its own.
+    case plannedMeals([MealPlanItem])
     case weeklyPlan(WeeklyMealPlan)
     case selectedRecipes([Recipe], servings: Int)
 }
@@ -549,7 +554,9 @@ struct ShoppingListGenerator {
                 []
             )
 
-        case .todayPlans(let plans):
+        // Both carry canonical `MealPlanItem` rows the caller already chose.
+        // They differ in which rows, never in how a row turns into a recipe.
+        case .todayPlans(let plans), .plannedMeals(let plans):
             var warnings: [String] = []
             let resolved: [PlannedRecipeUsage] = plans.compactMap { plan in
                 guard let recipe = recipeStore.recipe(id: plan.recipeID) else {
@@ -722,6 +729,7 @@ final class ShoppingListGenerationStore: ObservableObject {
         switch source {
         case .recipe: return "菜谱"
         case .todayPlans: return "今日计划"
+        case .plannedMeals: return "用餐计划"
         case .weeklyPlan: return "生成的菜单"
         case .selectedRecipes: return "菜谱"
         case .none: return "手动添加"

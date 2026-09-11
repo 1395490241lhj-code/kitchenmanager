@@ -75,9 +75,9 @@ ios-native/Kitchen Manager/
 │   ├── KitchenStore.swift              # appendPlans(_:) batch + PlanBatchOutcome; commitWeeklyPlan; delete dead todaysWeeklyMeals()
 │   ├── Recipe.swift                    # RecipeStore.saveUserRecipes(_:) with id reuse
 │   ├── WeeklyMenuPlanner.swift         # receipt + status, WeeklyMenuMaterializer, state machine, copy, CTA, action removal, onMaterialized
-│   ├── InventoryConsumption.swift      # restock derives from canonical plans; .weeklyPlan → .plannedMeals; 用餐计划需要
+│   ├── InventoryConsumption.swift      # restock derives from canonical plans; .weeklyPlan → .plannedMeals; 未来 7 天计划需要
 │   ├── PlannedMealHorizon.swift        # new: pure forward-horizon slice over [MealPlanItem]
-│   ├── ShoppingListGenerator.swift     # two strings in the .weeklyPlan branch (sourceLabel + empty-draft warning)
+│   ├── ShoppingListGenerator.swift     # two strings in the .weeklyPlan branch (sourceLabel + empty-draft warning); + .plannedMeals case
 │   └── PlannerRegressionFixture.swift  # DEBUG fixture states for stubbed result / collision / failure / pending receipt
 ├── KitchenManagerTests/
 │   ├── PlannerMealCRUDTests.swift              # batch contracts
@@ -100,7 +100,7 @@ it and it follows the existing `plans:`-parameter projection convention.
 | **A — Store contracts** | `appendPlans(_:)` + `PlanBatchOutcome`/`PlanBatchRejection` (FR-001); `commitWeeklyPlan` (FR-009); `saveUserRecipes` (FR-003); receipt types + persistence round-trip (FR-008) | — | PlannerMealCRUDTests, WeeklyPlanPersistenceTests, recipe-store tests |
 | **B — Materializer + state machine** | pure mapping (FR-005/006), OD-2 refusal (FR-004), collision detection (FR-007), ordered writes and recovery classification (FR-002/008/010/013) | A | WeeklyMenuMaterializationTests |
 | **C — Result surface truth** | single CTA and its states, frozen/pending/recovery presentation, copy per §9 (FR-012), removal of both manual actions (FR-011), regenerate/duplicate confirmations (FR-013), `onMaterialized` (FR-014; a host-supplied `查看用餐计划` is deferred to 002), accessibility identifiers | B | WeeklyMenuMaterializationUITests |
-| **R — Restock migration** | `PlannedMealHorizon`; restock derives from canonical plans; `.weeklyPlan` → `.plannedMeals`; `用餐计划需要`; remove dead `todaysWeeklyMeals()` (FR-015/016) | — (parallel with A/B) | RestockSuggestionEngineTests |
+| **R — Restock migration** | `PlannedMealHorizon`; restock derives from canonical plans; new `ShoppingGenerationSource.plannedMeals` so `.todayPlans` keeps meaning today; `.weeklyPlan` → `.plannedMeals`; `未来 7 天计划需要`; remove dead `todaysWeeklyMeals()` (FR-015/016) | — (parallel with A/B) | PlannedMealHorizonTests, RestockSuggestionEngineTests |
 | **D — Validation** | UI suites, relaunch, full native suite (SC-005/007) | C, R | quickstart |
 | **E — Reconciliation** | artifacts; next Decision number re-read (FR-018); final report; vault list | D | — |
 

@@ -192,22 +192,33 @@ and `isCooked: false`. No provenance field exists on either type.
 ## 6. Restock migration (OD-9)
 
     // new pure projection
-    enum PlannedMealHorizon {
-        static let forwardDays = 6   // today through today + 6, inclusive
+    nonisolated enum PlannedMealHorizon {
+        static let defaultForwardDays = 6   // today through today + 6, inclusive
         static func upcoming(
             plans: [MealPlanItem],
             from reference: Date = Date(),
-            days: Int = forwardDays,
+            forwardDays: Int = defaultForwardDays,
             calendar: Calendar = .current
-        ) -> [MealPlanItem]          // pending (not cooked) meals inside the window, date ascending
+        ) -> [MealPlanItem]   // pending (not cooked) meals inside the window, in the order plans holds them
     }
 
-    // RestockSuggestionSource
-    case plannedMeals   // was .weeklyPlan
+    // ShoppingGenerationSource
+    case plannedMeals([MealPlanItem])   // new; .todayPlans keeps meaning today
 
-`RestockSuggestionEngine` feeds `PlannedMealHorizon.upcoming(plans:)` into the existing
-`ShoppingGenerationSource.todayPlans([MealPlanItem])` case (no `ShoppingListGenerator` change) and
-emits the reason `用餐计划需要`. The draft is no longer read by any global surface.
+    // RestockSuggestionSource
+    case plannedMeals   // was .weeklyPlan; the dead `label` property is gone
+
+Civil days, not 24-hour multiples: both ends run through `calendar.startOfDay`, so a day that gains
+or loses an hour is still one day. That makes it exactly as timezone-stable as the normalized dates
+`MealPlanItem` already stores — no claim beyond that. Order is the caller's array order, not a new
+sort: this is a filter, and Restock aggregates by ingredient anyway.
+
+`RestockSuggestionEngine` feeds `PlannedMealHorizon.upcoming(plans:)` into
+`ShoppingGenerationSource.plannedMeals([MealPlanItem])` and emits the reason `未来 7 天计划需要`. It
+never reads the draft, the receipt, or how a plan was created: a meal in `plans` counts, and a meal
+deleted from `plans` stops counting on the next recomputation. Both restock surfaces recompute
+through the existing observable store — `plans` is `@Published`, and the Inventory section reads it
+through a computed property — so no new observation machinery is involved.
 
 ## 7. Unchanged
 

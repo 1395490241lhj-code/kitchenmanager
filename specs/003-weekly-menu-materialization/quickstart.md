@@ -45,7 +45,7 @@ $XB -only-testing:KitchenManagerTests/RestockSuggestionEngineTests \
 ```
 
 Must include: an unmaterialized draft alone produces no plan-derived suggestion; canonical pending
-meals inside the horizon do, with reason `用餐计划需要`; cooked meals and meals outside the horizon are
+meals inside the horizon do, with reason `未来 7 天计划需要`; cooked meals and meals outside the horizon are
 excluded; `ShoppingScalingTests.testWeeklyHouseholdHeadcountNeverScales` still passes (the in-flow
 `.weeklyPlan` source survives).
 
@@ -71,9 +71,10 @@ rg -n '本周菜单|本周概览|保存本周计划|已保存本周计划|本周
    "ios-native/Kitchen Manager/KitchenManager" && echo "STALE" || echo "clean"
 ```
 
-Expected `clean` once Slice R lands, apart from the by-design residue T018 records: the Recipes
-tab's own `加入今日计划` (`RecipeViews.swift`, `AddRecipeViews.swift`) and the Shopping regression
-fixture's historical `本周菜单` seed. Note `today.plan.weeklyMenu.link` and its `HomeView.swift` row copy are **not** in
+Expected `clean` apart from three by-design residues, all outside the weekly flow: the Recipes tab's
+own `加入今日计划` (`RecipeViews.swift`, `AddRecipeViews.swift`), the Shopping regression fixture's
+historical `本周菜单` seed, and Home's own `已在今天` toast (`HomeView.swift`), which 003 must not
+edit. Everything the weekly generator and global restock own is gone as of Slice R. Note `today.plan.weeklyMenu.link` and its `HomeView.swift` row copy are **not** in
 this gate: 003 does not edit Home (FR-017).
 
 ## Final gate

@@ -2158,18 +2158,6 @@ final class KitchenStore: ObservableObject {
         return copy
     }
 
-    /// The saved weekly plan's dishes that correspond to today's date, if any.
-    func todaysWeeklyMeals() -> [WeeklyMealPlanRecipe] {
-        guard let weeklyPlan else { return [] }
-        let calendar = Calendar.current
-        let start = calendar.startOfDay(for: weeklyPlan.startDate)
-        guard let offset = calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: Date())).day,
-              let day = weeklyPlan.days.first(where: { $0.dayIndex == offset }) else {
-            return []
-        }
-        return day.meals.flatMap(\.recipes)
-    }
-
     /// R1 defence-in-depth: persist only the rows this publish actually
     /// changed, instead of replaying the whole in-memory array.
     ///

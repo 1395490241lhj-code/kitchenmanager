@@ -296,4 +296,46 @@ final class ShoppingListGeneratorTests: XCTestCase {
         XCTAssertEqual(draft.recipeCount, 0)
         XCTAssertEqual(draft.warnings, ["没有找到可用的菜谱"])
     }
+
+    // MARK: - Planned meals
+
+    func test_plannedMeals_resolveExactlyAsTodayPlansDo() {
+        let sample = Recipe.samples[0]
+        let item = MealPlanItem(recipeID: sample.id, recipeName: sample.title)
+
+        let asToday = generator.generate(
+            source: .todayPlans([item]), inventory: [], existingShoppingItems: [], recipeStore: recipeStore
+        )
+        let asPlanned = generator.generate(
+            source: .plannedMeals([item]), inventory: [], existingShoppingItems: [], recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(asPlanned.recipeCount, asToday.recipeCount)
+        XCTAssertEqual(asPlanned.missingItems.map(\.displayName), asToday.missingItems.map(\.displayName))
+        XCTAssertEqual(asPlanned.warnings, asToday.warnings)
+    }
+
+    func test_plannedMeals_skipAMealWhoseRecipeIsGone_andSayWhich() {
+        let draft = generator.generate(
+            source: .plannedMeals([MealPlanItem(recipeID: "missing-id", recipeName: "消失的菜")]),
+            inventory: [], existingShoppingItems: [], recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(draft.recipeCount, 0)
+        XCTAssertTrue(draft.warnings.contains { $0.contains("消失的菜") })
+    }
+
+    func test_plannedMeals_importedItemsSayTheyCameFromTheMealPlan() {
+        let store = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let sample = Recipe.samples[0]
+        let generationStore = ShoppingListGenerationStore()
+        generationStore.generate(
+            source: .plannedMeals([MealPlanItem(recipeID: sample.id, recipeName: sample.title)]),
+            kitchenStore: store,
+            recipeStore: recipeStore
+        )
+
+        XCTAssertGreaterThan(generationStore.importSelectedItems(into: store), 0)
+        XCTAssertTrue(store.shoppingItems.allSatisfy { $0.source == "用餐计划" })
+    }
 }

@@ -34,5 +34,5 @@
 
 - Clarification session 2026-09-10: 11 owner decisions integrated; no open questions.
 - Decision numbering: nothing is reserved; the next available number is taken at reconciliation (FR-018, OD-10).
-- Disclosed residuals: the `ShoppingGenerationSource.todayPlans` case name is now broader than its label, and the `TodayPlanDetailView` entry-row subtitle (`已安排 N 天`) lives in `HomeView.swift`, which 003 must not edit (FR-017). Both are recorded as follow-ups for whichever of 002/003 lands second.
+- Disclosed residuals: the `TodayPlanDetailView` entry-row subtitle (`已安排 N 天`) lives in `HomeView.swift`, which 003 must not edit (FR-017), recorded as a follow-up for whichever of 002/003 lands second. The earlier `ShoppingGenerationSource.todayPlans` naming residue is closed: Slice R adds its own `.plannedMeals` case instead of widening the today case.
 

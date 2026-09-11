@@ -162,23 +162,16 @@ struct InventoryConsumptionPlanner {
 
 // MARK: - Restock suggestions
 //
-// Deterministic rules only — no AI call. The weekly-plan source reuses
+// Deterministic rules only — no AI call. The scheduled-meal source reuses
 // ShoppingListGenerator directly instead of a second ingredient-gap calculator.
 
 enum RestockSuggestionSource: String, Codable {
     case lowStock
     case consumed
-    case weeklyPlan
+    /// Meals standing in `KitchenStore.plans`. Never the weekly generator's
+    /// draft: a menu nobody added to the plan has not been scheduled.
+    case plannedMeals
     case pantryStaple
-
-    var label: String {
-        switch self {
-        case .lowStock: return "库存偏低"
-        case .consumed: return "做饭后用完"
-        case .weeklyPlan: return "本周计划需要"
-        case .pantryStaple: return "常备已用完"
-        }
-    }
 }
 
 struct RestockSuggestion: Identifiable {
@@ -222,9 +215,14 @@ struct RestockSuggestionEngine {
             )
         }
 
-        if let plan = kitchenStore.weeklyPlan {
+        // Only what is actually scheduled. A generated menu sitting on the
+        // result screen has not been added to anything, so it must not change
+        // what the kitchen says it needs to buy; that screen's own
+        // 生成购物清单 is where a draft turns into shopping, explicitly.
+        let upcoming = PlannedMealHorizon.upcoming(plans: kitchenStore.plans)
+        if !upcoming.isEmpty {
             let draft = ShoppingListGenerator().generate(
-                source: .weeklyPlan(plan),
+                source: .plannedMeals(upcoming),
                 inventory: kitchenStore.inventory,
                 existingShoppingItems: kitchenStore.shoppingItems,
                 recipeStore: recipeStore
@@ -233,8 +231,8 @@ struct RestockSuggestionEngine {
                 let key = IngredientNormalizer.matchKey(item.displayName)
                 guard suggestions[key] == nil else { continue }
                 suggestions[key] = RestockSuggestion(
-                    id: "weekly-\(key)", name: item.displayName, suggestedQuantity: item.missingQuantity, unit: item.unit,
-                    reason: "本周计划需要", source: .weeklyPlan
+                    id: "planned-\(key)", name: item.displayName, suggestedQuantity: item.missingQuantity, unit: item.unit,
+                    reason: "未来 7 天计划需要", source: .plannedMeals
                 )
             }
         }

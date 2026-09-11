@@ -310,15 +310,18 @@ site).
 
 Disposition: the global branch stops reading the draft and derives from canonical `plans` —
 **pending** (not cooked) ordinary meals from today through today + 6 days, a forward horizon giving
-comparable reach to the old draft without inventing a week boundary. Those items feed the existing
-`ShoppingGenerationSource.todayPlans([MealPlanItem])` case, which contains no date logic, no
-`isCooked` filter and no today check, so **no `ShoppingListGenerator` change is required**; the restock
-engine builds its own `RestockSuggestion` values and never reads `sourceLabel`, so nothing is
-mislabelled `今日计划`. The source case renames `.weeklyPlan` → `.plannedMeals` and the reason becomes
-`用餐计划需要`. The date slice is a small pure projection so it is testable without the store.
+comparable reach to the old draft without inventing a week boundary. Those items feed a new
+`ShoppingGenerationSource.plannedMeals([MealPlanItem])` case: `.todayPlans` keeps meaning today and
+must not be handed a seven-day set, so the honest move is a second caller-supplied case rather than a
+broadened old one. It resolves identically (same branch body) and labels imports `用餐计划`; the
+horizon itself stays in `PlannedMealHorizon` and the restock caller, never inside the enum. The
+restock source case renames `.weeklyPlan` → `.plannedMeals` and the reason becomes
+`未来 7 天计划需要` — the window, not a dish count, and no `本周` because the window crosses week
+boundaries. The date slice is a small pure projection so it is testable without the store.
 
-Scope impact reported as OD-9 requires: two production files (`InventoryConsumption.swift`, plus one
-new pure projection), no `ShoppingListGenerator` change, and **no existing test breaks** — no test in
+Scope impact reported as OD-9 requires: three production files (`InventoryConsumption.swift`,
+`ShoppingListGenerator.swift` for the new case and its label, `KitchenStore.swift` for the dead
+helper) plus one new pure projection, and **no existing test breaks** — no test in
 the repo seeds a `weeklyPlan` and then calls the engine, the two absence assertions stay true, and
 the accessibility seed clears local data first. Inside the draft/result flow the draft is still used
 explicitly for `生成购物清单` (OD-9 boundary A), which keeps `ShoppingGenerationSource.weeklyPlan` and
@@ -328,8 +331,8 @@ Post-feature role of `weeklyPlan` / `WeeklyPlanRecord`: resumable generated draf
 receipt + in-flow shopping source. Not a schedule; Planner reads only `plans`. Backup, guest-merge
 counts, migration and `clearAllLocalData` keep carrying it as draft state. The dead
 `KitchenStore.todaysWeeklyMeals()` (no callers) is removed as part of ending the second-schedule
-reading; `RestockSuggestionSource.label` is left alone unless the rename makes it trivially
-correctable.
+reading, and `RestockSuggestionSource.label` goes with the case rename: it was unreachable, and
+keeping it would mean writing the reason string a second time in a property nobody reads.
 
 ## 9. Copy contract (OD-6 + OD-11)
 
@@ -358,7 +361,7 @@ correctable.
 | delete alert body `已保存的本周计划将被删除，此操作无法撤销。` | `这份生成的菜单将被删除，已加入用餐计划的菜品不受影响。` |
 | shopping import source `本周菜单` (`addShoppingItems`) and `sourceLabel(.weeklyPlan)` | `生成的菜单` |
 | generator warning `本周计划中没有安排菜品` | `这份菜单里没有菜品` |
-| restock reason `本周计划需要` | `用餐计划需要` (and the source case renames, §8) |
+| restock reason `本周计划需要` | `未来 7 天计划需要` (and the source case renames, §8) |
 
 Entry-row copy in `TodayPlanDetailView` (`AI 生成一周菜单` / `查看已生成的一周菜单`, subtitle
 `已安排 N 天 · M 道菜`) lives in `HomeView.swift` and is **not** changed by 003, which must not edit
@@ -387,7 +390,7 @@ Unit:
 - Failure ordering (§3): each step's failure leaves the documented state; retry from S1 reuses ids
   and produces no duplicates; recipe residue after a plan failure is present and reusable (OD-3).
 - Restock: suggestions derive from canonical pending plans in the horizon, not from an
-  unmaterialized draft; a draft alone yields no restock suggestion; reason reads `用餐计划需要`.
+  unmaterialized draft; a draft alone yields no restock suggestion; reason reads `未来 7 天计划需要`.
 - Legacy: `weeklyPlan` alone never yields Planner entries; legacy payloads decode with no receipt.
 
 UI (stubbed weekly response + `PlannerRegressionFixture` states): materialize → success copy →
@@ -433,7 +436,7 @@ manual add-today actions are absent; empty draft disables the CTA.
    `补货建议` section and the cook-confirmation sheet show no plan-derived suggestion and no
    `本周计划需要` copy.
 2. **Given** canonical upcoming meals, **Then** plan-derived suggestions appear with reason
-   `用餐计划需要`.
+   `未来 7 天计划需要`.
 
 ### Edge Cases
 
@@ -491,8 +494,12 @@ manual add-today actions are absent; empty draft disables the CTA.
   a finished menu, on passive receipt repair, or on any failure or cancel path; its summary
   carries only the covered date range, never ids.
 - **FR-015** Global restock/inventory surfaces MUST derive scheduled-plan semantics from canonical
-  `plans`, MUST NOT read the unmaterialized draft, and MUST NOT show `本周计划需要`; the draft/result
-  flow MAY still use the draft explicitly for its own shopping generation (OD-9).
+  `plans` alone — pending (not cooked) ordinary meals from today through today + 6 days, seven civil
+  days inclusive, compared through a `Calendar` — MUST NOT read the unmaterialized draft, MUST NOT
+  inspect the materialization receipt or how a plan was created, and MUST NOT show `本周计划需要`;
+  the draft/result flow MAY still use the draft explicitly for its own shopping generation (OD-9).
+  `ShoppingGenerationSource.todayPlans` MUST keep meaning today; the canonical scheduled set MUST
+  arrive through its own case (`.plannedMeals`), which carries no date rule of its own.
 - **FR-016** Legacy `weeklyPlan` MUST remain a resumable draft + receipt + in-flow shopping source;
   Planner MUST NOT read it; no migration, record deletion or backup-format change.
 - **FR-017** No Home, `TodayPlanDetailView`, 002 spec, Special Plan, sync, provenance or visual change.
@@ -506,7 +513,11 @@ manual add-today actions are absent; empty draft disables the CTA.
 - **WeeklyMaterializationReceipt / State / Status** — §4.
 - **PlanBatchOutcome / PlanBatchRejection** — §5.
 - **Recipe** (user) — created from `.ai` dishes; no new fields.
-- **RestockSuggestionSource** — `.weeklyPlan` → `.plannedMeals`.
+- **RestockSuggestionSource** — `.weeklyPlan` → `.plannedMeals`; the dead `label` property goes
+  with it (the reason string is built at the call site).
+- **ShoppingGenerationSource** — + `.plannedMeals([MealPlanItem])`, caller-supplied canonical meals;
+  `.todayPlans` unchanged.
+- **PlannedMealHorizon** — new pure projection over `[MealPlanItem]`; §6 of data-model.
 
 ## Success Criteria *(mandatory)*
 
@@ -533,7 +544,8 @@ manual add-today actions are absent; empty draft disables the CTA.
 Special Plan Home precedence / CRUD; Home navigation hierarchy and any `HomeView.swift` edit;
 quantity-aware sufficiency; sync; AI provenance; provider redesign; visual redesign; deleting
 `WeeklyPlanRecord`, its migration or the backup format; a Planner-week shopping source; hosting the
-generator from Planner (002).
+generator from Planner (002). Special Plans stay outside the restock horizon: their ingredients keep
+whatever path they have today, and 003 is about the draft / canonical ordinary-plan boundary only.
 
 ## Assumptions
 
