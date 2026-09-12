@@ -47,7 +47,7 @@ The product spans four surfaces:
 - **Express server** — static hosting, AI/scraping/media, auth and sync APIs;
 - **Supabase** — Auth, Postgres, RLS, controlled sync RPC (development environment only).
 
-**Identify the target client before applying any product or UI conclusion.** Do not transfer client-specific wording or behavior from one client to another. Canonical example — the recommendation refresh action is `AI 换几道` on iOS and `换一批 ›` on the PWA. They are different clients, not two names for one control.
+**Identify the target client before applying any product or UI conclusion.** Do not transfer client-specific wording or behavior from one client to another. Canonical example — recommendation-browser regeneration remains `AI 换几道` on iOS; Home-level `AI 换几道` is retired. The PWA recommendation refresh action is `换一批 ›`. They are different clients, not two names for one control.
 
 ### 2.2 Always read, before meaningful work
 
@@ -127,9 +127,11 @@ These are stable, not immutable forever. Currently stable:
 - **iOS Home is a stateful Today surface** — `Today Context → one Primary Task → Needs Attention`,
   with a fixed `今天` navigation title and the page's state carried by the primary task's own
   heading. Decision Mode when no Today Plan exists; Execution Mode once one does, where
-  recommendation is demoted to the secondary `想再加一道` rather than removed. Primary-task
-  precedence: `.mealPrep` → dinner `eatOut` → explicit Today Plan → `.quick` → ordinary recipe
-  recommendation. See the Home V2 IA entry in `Decisions.md`;
+  recommendation is demoted to the secondary `更多推荐` rather than removed. Regeneration
+  remains inside the recommendation browser; Home-level `AI 换几道` is retired. Primary-task
+  precedence: mealPrep → dinner eatOut → Special Plan today → ordinary meal plan → quick →
+  recommendation. Do not infer a meal slot from Special Plan `scheduledAt`.
+  See the Home V2 IA entry and D-042 in `Decisions.md`;
 - recommendation-first Home IA, **as narrowed by the Home V2 IA Decision** — it continues to
   protect the empty-plan state (Home must actively help decide, never just report an empty plan)
   and no longer requires recommendation to hold equal weight once a plan exists;
