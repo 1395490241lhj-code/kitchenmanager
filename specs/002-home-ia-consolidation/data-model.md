@@ -42,7 +42,7 @@ the ordinary-plan branch, so precedence reads `.mealPrep` → dinner `eatOut` �
 |---|---|
 | input | `resolve` gains today's Special Plans. Home does not read `SpecialPlan` anywhere today, so this is new input plumbing rather than a rewiring of existing state |
 | primary plan id | the id of the Special Plan that won precedence, so the CTA can open Planner at exactly that plan (FR-013) |
-| `additionalSpecialPlanCount` | how many further Special Plans fall on today, for the detail fragment `今天还有 N 场` |
+| (none) | A further-same-day-events count was considered for the detail fragment `今天还有 N 场` and dropped by owner copy ruling — Home is not a same-day Special Plan schedule summary; later events stay reachable through Planner |
 | `otherPlansLine: String?` | the suppressed-ordinary-plan context line: `今天另有 N 道计划` when any is pending, `今天另有 N 道计划 · 已完成` when all are complete, `nil` when none exist (FR-011). Rendered as static text — no chevron, no button trait, no navigation |
 | `secondaryPlanCount` | keeps its meaning as a count; it no longer drives a link, because the link it used to drive is removed (FR-010) |
 
@@ -128,4 +128,3 @@ cannot distinguish the 8th of one month from the 8th of another.
 | D — Special Plan today | `HomePrimaryTaskKind.specialPlanToday`, Special Plan inputs, `home.specialPlan.open` |
 | E — `TodayPlanDetailView` retirement | §3 removals with per-symbol zero-reference proofs |
 | F — validation, reconciliation, seal | none |
-

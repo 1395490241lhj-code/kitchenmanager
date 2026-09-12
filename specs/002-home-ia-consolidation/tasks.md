@@ -127,26 +127,28 @@ Nothing may remove a Home route to `TodayPlanDetailView` before this checkpoint 
 
 ## Phase 4: Slice D — Special Plan today (after B; Decision recorded)
 
-- [ ] T025 [D] `KitchenManager/HomePrimaryTask.swift`: add `.specialPlanToday`; extend `resolve`
+- [x] T025 [D] `KitchenManager/HomePrimaryTask.swift`: add `.specialPlanToday`; extend `resolve`
   with today's Special Plans sorted by `scheduledAt`, branching after the `eatOut` check and
-  before the ordinary-plan check. Title = plan title; detail `HH:mm · N 人` / `已完成` / suffix
-  `· 今天还有 N 场`; expose the primary plan id; `otherPlansLine` applies; suppressed-plan line
-  `今天有聚餐 · HH:mm <title>` for `.mealPrepBoard` / `.eatOut`. Plumb `kitchenStore.specialPlans`
-  through to the call site, which does not read them today. (FR-012)
-- [ ] T026 [P] [D] `KitchenManagerTests/HomePrimaryTaskTests.swift`: the eight §9 states, plus the
+  before the ordinary-plan check. Title = plan title; detail `HH:mm · N 人`, with `· 已完成` as
+  a suffix when every dish is cooked (owner copy ruling: no `待开始` — the time communicates
+  pending; no same-day count — later events stay reachable through Planner); expose the primary
+  plan id; `otherPlansLine` applies; suppressed-plan line `今天有聚餐 · HH:mm <title>`, plus
+  ` · 已完成` when the event is completed, for `.mealPrepBoard` / `.eatOut`. Plumb
+  `kitchenStore.specialPlans` through to the call site, which does not read them today. (FR-012)
+- [x] T026 [P] [D] `KitchenManagerTests/HomePrimaryTaskTests.swift`: the eight §9 states, plus the
   exhaustive combination test extended with the Special Plan dimension, asserting every prior
   result is unchanged. (SC-007)
-- [ ] T027 [D] `KitchenManager/HomeView.swift`: primary section for `.specialPlanToday` using the
+- [x] T027 [D] `KitchenManager/HomeView.swift`: primary section for `.specialPlanToday` using the
   existing `HomePrimaryHeader` plus one prominent CTA `查看聚餐` (identifier
   `home.specialPlan.open`) that opens the Planner sheet seeded at that plan's detail route; render
   the `home.context.specialPlan` static line on prep / eat-out days. No new card style; no
   `更多推荐` in this kind. (FR-013, FR-020)
-- [ ] T028 [D] `HomeDashboardUITests`: DEBUG seeds for Special Plan today (single, multiple,
+- [x] T028 [D] `HomeDashboardUITests`: DEBUG seeds for Special Plan today (single, multiple,
   completed, with eat-out, with prep, with ordinary plans pending and all cooked) and the §9
   assertions; the section-order test still passes on leaf identifiers. Note that the existing
   `UITEST_SEED_SPECIAL_PLAN` fixture also seeds an ordinary meal, so a Special-Plan-only seed is
   needed rather than reuse. (US5, FR-021, SC-001)
-- [ ] T029 [D] Run the quickstart Slice D commands; record results. (SC-007)
+- [x] T029 [D] Run the quickstart Slice D commands; record results. (SC-007)
 
 ## Phase 5: Slice E — `TodayPlanDetailView` retirement (after A and B; sequenced after D)
 
@@ -229,4 +231,3 @@ C ──┘
 | `TodayPlanPersistenceTests` | E: retire the `removePlan(_ plan:)` caller |
 | `PlannerMealDeleteUITests` | unchanged — must survive the `移出计划` string cleanup |
 | `ProductionDesignLanguageUITests`, `Phase1DArtDirectionUITests`, `HomeVisualGateUITests` | unchanged (`home.today.plan.start` semantics do not move) |
-

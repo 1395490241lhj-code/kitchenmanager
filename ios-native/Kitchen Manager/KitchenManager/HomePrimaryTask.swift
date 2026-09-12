@@ -23,6 +23,9 @@ import Foundation
 nonisolated enum HomePrimaryTaskKind: Equatable {
     /// Tonight is already settled outside the household. There is no task.
     case eatOut
+    /// A Special Plan (聚餐) is scheduled for today. Home names it and hands
+    /// its navigation to Planner (D-042); it owns no detail surface itself.
+    case specialPlanToday
     /// A Today Plan exists and is the thing to do. Execution mode.
     case planExecution
     /// Nothing is decided yet, so Home proposes a recipe. Decision mode.
@@ -41,6 +44,10 @@ struct HomePrimaryTask: Equatable {
     let title: String
     /// The qualifier beside the heading: 还没决定 / 已完成 1/2 / 已安排外食.
     let detail: String?
+    /// The concrete event the primary task names, when one exists. Home uses
+    /// it only to route 查看聚餐 through Planner navigation (D-042); it owns no
+    /// detail surface itself.
+    let specialPlanID: UUID?
     /// Plans that exist but are *not* the primary task, still pending. Home
     /// must not offer a prominent 开始准备 alongside a contradicting primary
     /// task — 今晚外食 and 开始准备番茄炒蛋 cannot both be the page's headline
@@ -49,6 +56,11 @@ struct HomePrimaryTask: Equatable {
     let secondaryPlanCount: Int
     /// Every ordinary plan today, used only to word `otherPlansLine`.
     let totalPlanCount: Int
+    /// Today event facts for the context lines, decided once in `resolve`
+    /// alongside everything else. Private so the memberwise shape the tests
+    /// and call sites already use stays unchanged.
+    private let event: SpecialPlan?
+    private let eventTime: String?
 
     /// Decision mode: the full recommendation card is the primary content.
     var isDecisionMode: Bool { kind == .recipeRecommendation }
@@ -62,14 +74,43 @@ struct HomePrimaryTask: Equatable {
     /// exist or when the plans *are* the primary task. Never the misleading
     /// 今日计划已全部完成 — a Special Plan may still be pending.
     var otherPlansLine: String? {
-        guard kind == .mealPrepBoard || kind == .eatOut, totalPlanCount > 0 else { return nil }
+        guard kind == .mealPrepBoard || kind == .eatOut || kind == .specialPlanToday,
+              totalPlanCount > 0 else { return nil }
         return secondaryPlanCount > 0
             ? "今天另有 \(totalPlanCount) 道计划"
             : "今天另有 \(totalPlanCount) 道计划 · 已完成"
     }
+
+    /// D-042 / FR-011: the mirrored fact for the inverse day — a prep or
+    /// eat-out task owns the primary position and today Special Plan is
+    /// reduced to one non-interactive line. Built here so Home only renders
+    /// a ready-made string, the way `otherPlansLine` already works.
+    var specialPlanLine: String? {
+        guard kind == .mealPrepBoard || kind == .eatOut,
+              let event, let eventTime else { return nil }
+        // Same owner copy ruling as the primary detail: completion is a
+        // suffix on the factual context, never a replacement.
+        let completed = !event.dishes.isEmpty && event.dishes.allSatisfy(\.isCooked)
+        return "今天有聚餐 · \(eventTime) \(event.title)\(completed ? " · 已完成" : "")"
+    }
 }
 
 extension HomePrimaryTask {
+    /// A compact clock time for the Special Plan day: HH:mm. Calendar and
+    /// time zone come from the supplied calendar on purpose — the same
+    /// convention `PlannerProjection` and `SpecialPlanDetailView` already
+    /// render with, and no new contract beyond it.
+    private static func eventTimeText(
+        _ date: Date,
+        calendar: Calendar
+    ) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
     /// What 需要处理 should actually draw, given what the primary region is
     /// already showing.
     ///
@@ -107,22 +148,48 @@ extension HomePrimaryTask {
     ///    it is why a quick day with a plan shows the plan.
     /// 4. **A quick day** proposes an assembly.
     /// 5. Otherwise Home proposes a recipe.
+    ///
+    /// D-042 inserts one rule between the third and the fourth: a Special
+    /// Plan scheduled for today — a concrete event the household is hosting
+    /// today — outranks the ordinary plan it displaces for the day, the
+    /// quick-day assembly, and a plain recommendation. It sits under both
+    /// prep and eat-out because those two already answer the page question
+    /// and reduce the event to a context fact. Same-day eligibility is a
+    /// civil-day comparison on the supplied calendar; no meal slot is ever
+    /// inferred from the clock time.
     static func resolve(
         dayType: DayType,
         dinnerIntent: MealIntent,
         planState: HomeTodayPlanState,
         totalPlanCount: Int,
-        completedPlanCount: Int
+        completedPlanCount: Int,
+        specialPlans: [SpecialPlan] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
     ) -> HomePrimaryTask {
         let pendingPlanCount = max(0, totalPlanCount - completedPlanCount)
+        // Today events only — civil-day comparison on the supplied calendar,
+        // then earliest wins; equal timestamps fall back to model order, the
+        // same stable order the store published array carries.
+        let todayPlans = specialPlans
+            .filter { calendar.isDate($0.scheduledAt, inSameDayAs: now) }
+            .enumerated()
+            .sorted { ($0.element.scheduledAt, $0.offset) < ($1.element.scheduledAt, $1.offset) }
+            .map(\.element)
+
+        let event = todayPlans.first
+        let eventTime = event.map { Self.eventTimeText($0.scheduledAt, calendar: calendar) }
 
         if dayType == .mealPrep {
             return HomePrimaryTask(
                 kind: .mealPrepBoard,
                 title: "今天备的菜",
                 detail: "先吃快到期的",
+                specialPlanID: nil,
                 secondaryPlanCount: pendingPlanCount,
-                totalPlanCount: totalPlanCount
+                totalPlanCount: totalPlanCount,
+                event: event,
+                eventTime: eventTime
             )
         }
 
@@ -131,8 +198,34 @@ extension HomePrimaryTask {
                 kind: .eatOut,
                 title: "今晚",
                 detail: "已安排外食",
+                specialPlanID: nil,
                 secondaryPlanCount: pendingPlanCount,
-                totalPlanCount: totalPlanCount
+                totalPlanCount: totalPlanCount,
+                event: event,
+                eventTime: eventTime
+            )
+        }
+
+        if let event {
+            let eventDetail: String
+            // Owner copy ruling: the scheduled time already communicates
+            // pending (no 待开始); later same-day events stay on Planner,
+            // not in Home copy; completion is a suffix, not a replacement.
+            let isCompleted = !event.dishes.isEmpty && event.dishes.allSatisfy(\.isCooked)
+            var parts: [String] = []
+            if let eventTime { parts.append(eventTime) }
+            parts.append("\(event.peopleCount) 人")
+            if isCompleted { parts.append("已完成") }
+            eventDetail = parts.joined(separator: " · ")
+            return HomePrimaryTask(
+                kind: .specialPlanToday,
+                title: event.title,
+                detail: eventDetail,
+                specialPlanID: event.id,
+                secondaryPlanCount: pendingPlanCount,
+                totalPlanCount: totalPlanCount,
+                event: event,
+                eventTime: eventTime
             )
         }
 
@@ -141,8 +234,11 @@ extension HomePrimaryTask {
                 kind: .planExecution,
                 title: "今天做这些",
                 detail: "已完成 \(completedPlanCount)/\(totalPlanCount)",
+                specialPlanID: nil,
                 secondaryPlanCount: 0,
-                totalPlanCount: totalPlanCount
+                totalPlanCount: totalPlanCount,
+                event: nil,
+                eventTime: nil
             )
         }
 
@@ -151,8 +247,11 @@ extension HomePrimaryTask {
                 kind: .quickMeal,
                 title: "今天怎么吃",
                 detail: nil,
+                specialPlanID: nil,
                 secondaryPlanCount: 0,
-                totalPlanCount: 0
+                totalPlanCount: 0,
+                event: nil,
+                eventTime: nil
             )
         }
 
@@ -163,8 +262,11 @@ extension HomePrimaryTask {
             kind: .recipeRecommendation,
             title: dayType == .cooking ? "今天做什么" : "今天怎么吃",
             detail: dayType == .cooking ? "还没决定" : nil,
+            specialPlanID: nil,
             secondaryPlanCount: 0,
-            totalPlanCount: 0
+            totalPlanCount: 0,
+            event: nil,
+            eventTime: nil
         )
     }
 }

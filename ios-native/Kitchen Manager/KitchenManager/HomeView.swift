@@ -44,6 +44,10 @@ struct HomeView: View {
     /// meal and special plan beyond today. Home's only unconditional route to
     /// it, and the only one there is — see D-031.
     @State private var isShowingPlanner = false
+    /// Where in the Planner sheet a deep link should land, set just before
+    /// presenting. Empty by default: the 用餐计划 row always opens the plain
+    /// current-week sheet.
+    @State private var plannerInitialPath: [PlannerRoute] = []
     @State private var isShowingRecommendations = false
     @State private var isShowingPreparedComponents = false
     @State private var selectedPlan: MealPlanItem?
@@ -145,7 +149,11 @@ struct HomeView: View {
             dinnerIntent: dayRhythmStore.intent(for: .dinner),
             planState: dashboard.todayPlanState,
             totalPlanCount: dashboard.totalPlanCount,
-            completedPlanCount: dashboard.completedPlanCount
+            completedPlanCount: dashboard.completedPlanCount,
+            // D-042: the one input Home previously never read. Passed in,
+            // never fetched here — the projection stays a pure function and
+            // `HomeDashboardSummary` stays free of Special Plan data.
+            specialPlans: kitchenStore.specialPlans
         )
         let homeRecommendation = recommendationStore.recommendedRecipes.first { recommendation in
             !kitchenStore.todayPlans.contains { $0.recipeID == recommendation.recipe.id }
@@ -165,6 +173,7 @@ struct HomeView: View {
                     eatOutSlots: MealSlot.allCases.filter { dayRhythmStore.intent(for: $0) == .eatOut },
                     incomingCarryover: incomingCarryoverSummaries,
                     otherPlansLine: primaryTask.otherPlansLine,
+                    specialPlanLine: primaryTask.specialPlanLine,
                     onOpenDayRhythm: { activeSheet = .todayRhythm }
                 )
 
@@ -248,7 +257,14 @@ struct HomeView: View {
         // Home is now its only entry point, so this is also the only place that
         // shape is decided.
         .sheet(isPresented: $isShowingPlanner) {
-            PlannerView()
+            // D-042: 查看聚餐 opens the same sheet, seeded through Planner
+            // own initial-path mechanism so the route belongs to Planner and
+            // no Home-owned detail surface appears. Reset after dismissal so
+            // the plain 用餐计划 row never inherits a stale deep link.
+            PlannerView(initialPath: plannerInitialPath)
+        }
+        .onChange(of: isShowingPlanner) { _, isShowing in
+            if !isShowing { plannerInitialPath = [] }
         }
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
@@ -605,6 +621,26 @@ struct HomeView: View {
             case .eatOut:
                 HomeEatOutPrimary()
 
+            case .specialPlanToday:
+                // D-042 / FR-013: the event is the primary task, its one
+                // action hands navigation to Planner at that plan. The
+                // visual language is the existing primary-region one —
+                // same KitchenButtonStyle role the plan card uses — not a
+                // new event-card system. 更多推荐 stays absent in this
+                // kind; showsRecommendationLink already gates on
+                // planExecution only.
+                Button {
+                    if let id = task.specialPlanID {
+                        plannerInitialPath = [.specialPlan(id)]
+                    }
+                    isShowingPlanner = true
+                } label: {
+                    Label("查看聚餐", systemImage: "person.3")
+                        .font(.callout.weight(.semibold))
+                }
+                .buttonStyle(KitchenButtonStyle(role: .primary))
+                .accessibilityIdentifier("home.specialPlan.open")
+
             case .planExecution:
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
@@ -853,6 +889,10 @@ private struct HomeTodayContext: View {
     /// position (D-042 / FR-011). A fact about today, so it is stated here as
     /// text: no chevron, no button, no second planning route.
     let otherPlansLine: String?
+    /// Today Special Plan when a prep or eat-out task owns the primary
+    /// position (D-042 / FR-011). Same contract as `otherPlansLine`: a fact,
+    /// never a second navigation entry.
+    let specialPlanLine: String?
     let onOpenDayRhythm: () -> Void
 
     private var dateText: String { HomeDatePresentation.text(for: .now) }
@@ -911,6 +951,12 @@ private struct HomeTodayContext: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home.context.otherPlans")
+            }
+            if let specialPlanLine {
+                Text(specialPlanLine)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home.context.specialPlan")
             }
             if shouldShowHousehold, let householdName {
                 Label(householdName, systemImage: "person.2")
@@ -1732,9 +1778,10 @@ private struct HomeModuleIssues: View {
             shouldShowHousehold: false,
             dayType: .flexible,
             eatOutSlots: [],
-            incomingCarryover: [],
-            otherPlansLine: nil,
-            onOpenDayRhythm: {}
+           incomingCarryover: [],
+           otherPlansLine: nil,
+            specialPlanLine: nil,
+           onOpenDayRhythm: {}
         )
         HomeNeedsAttentionSection(items: [], additionalCount: 0, onSelect: { _ in }, onViewAll: {})
     }
@@ -1851,9 +1898,10 @@ private struct HomeModuleIssues: View {
             shouldShowHousehold: true,
             dayType: .cooking,
             eatOutSlots: [.lunch, .dinner],
-            incomingCarryover: [MealPortionCopy.targetDaySummary(2)],
-            otherPlansLine: nil,
-            onOpenDayRhythm: {}
+           incomingCarryover: [MealPortionCopy.targetDaySummary(2)],
+           otherPlansLine: nil,
+            specialPlanLine: nil,
+           onOpenDayRhythm: {}
         )
         TodayPlanSummaryCard(
             dashboard: HomeDashboardSummary(

@@ -585,6 +585,64 @@ struct ContentView: View {
             navigationStore.selectedTab = .today
         }
         .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY") else { return }
+            // Slice D Home seeds: the event is anchored to TODAY by design,
+            // so Home must project it as the primary task regardless of the
+            // weekday the suite runs on. Variant flags compose on top of the
+            // single base plan, mirroring the eight §9 states the tests need.
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            let arguments = ProcessInfo.processInfo.arguments
+            let calendar = Calendar.current
+            let todayStart = calendar.startOfDay(for: Date())
+            var plan = SpecialPlan(
+                title: "家宴",
+                scheduledAt: calendar.date(byAdding: .hour, value: 18, to: todayStart) ?? todayStart,
+                peopleCount: 6,
+                notes: "Slice D",
+                requestText: "今天 18:00 家里聚餐，6 个人",
+                usesHomeInventory: true,
+                dishes: [
+                    SpecialPlanDish(recipeID: "sample-mapotofu", recipeName: "麻婆豆腐"),
+                    SpecialPlanDish(recipeID: "sample-tomato-eggs", recipeName: "番茄炒鸡蛋")
+                ]
+            )
+            plan.createdAt = Date()
+            plan.updatedAt = plan.createdAt
+            if arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY_COMPLETED") {
+                for index in plan.dishes.indices { plan.dishes[index].isCooked = true }
+            }
+            kitchenStore.addSpecialPlan(plan)
+            if arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY_MULTI") {
+                var late = SpecialPlan(
+                    title: "火锅局",
+                    scheduledAt: calendar.date(byAdding: .hour, value: 20, to: todayStart) ?? todayStart,
+                    peopleCount: 5,
+                    usesHomeInventory: true,
+                    dishes: [SpecialPlanDish(recipeID: "sample-mapotofu", recipeName: "麻婆豆腐")]
+                )
+                late.createdAt = Date()
+                late.updatedAt = late.createdAt
+                kitchenStore.addSpecialPlan(late)
+            }
+            let wantsOrdinaryPlans = arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY_WITH_ORDINARY")
+                || arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY_ALL_COOKED")
+            if wantsOrdinaryPlans {
+                kitchenStore.addPlans(Recipe.samples.prefix(2).map { (recipe: $0, plannedServings: 2) })
+                if arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY_ALL_COOKED") {
+                    for item in kitchenStore.todayPlans {
+                        kitchenStore.setPlanCooked(item.id, isCooked: true)
+                    }
+                } else if let first = kitchenStore.todayPlans.first {
+                    kitchenStore.setPlanCooked(first.id, isCooked: true)
+                }
+            }
+            if arguments.contains("UITEST_SEED_SPECIAL_PLAN_TODAY_EAT_OUT") {
+                dayRhythmStore.setIntent(.eatOut, for: .dinner)
+            }
+            navigationStore.selectedTab = .today
+        }
+        .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_INVENTORY") else { return }
             kitchenStore.clearAllLocalData()
             let now = Date()

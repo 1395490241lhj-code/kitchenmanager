@@ -125,8 +125,9 @@ Manual checks, one per §9 row:
 
 - Ordinary day with one Special Plan today → primary task names the plan with time and headcount
   and offers `查看聚餐`, which opens Planner at that plan's own detail (FR-013).
-- Several Special Plans today → earliest is primary, detail carries `今天还有 N 场`.
-- All dishes cooked → the plan stays primary with `已完成`.
+- Several Special Plans today → earliest is primary; its detail states time and headcount only
+  (owner copy ruling: no same-day count on Home).
+- All dishes cooked → the plan stays primary with `已完成` as a suffix on the time/guest detail.
 - Prep day or eat-out dinner with a Special Plan → primary task unchanged, Special Plan reduced to
   one non-interactive context line.
 - Ordinary plans present on a Special Plan day → the suppressed-plan line only.

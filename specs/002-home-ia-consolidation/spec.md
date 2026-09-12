@@ -365,7 +365,8 @@ Definitions, from current data:
   is inferred from the time.
 - Primary candidate when several = earliest `scheduledAt`; ties broken by array order.
 - “Completed” = `dishes` non-empty and every `dish.isCooked`. A Special Plan with no dishes is
-  pending. A completed Special Plan **stays** the primary task with detail `已完成`.
+  pending. A completed Special Plan **stays** the primary task with detail `18:00 · 6 人 · 已完成`
+  — completion is a suffix on the time/guest facts, never a replacement (owner copy ruling).
 - Special Plan completion is a per-dish flag with no inventory consumption. This feature does not
   change that.
 - Suppressed ordinary plans on any of these days are stated by the GD-5 / OD-4 / OD-5 context line
@@ -380,8 +381,8 @@ Home does not read `SpecialPlan` at all today, and `HomeDashboardSummary` is not
 | dinner eatOut + Special Plan | `.eatOut` (unchanged) | 已安排外食 | none | as above | the member's own `eatOut` wins by approved precedence |
 | ordinary meal + Special Plan | **`.specialPlanToday`** | `18:30 · 6 人` | `查看聚餐` → Planner at that plan | `今天另有 N 道计划` | the ordinary plan loses prominent `开始做饭` for the day; `更多推荐` not shown |
 | quick + Special Plan | `.specialPlanToday` | as above | `查看聚餐` | none | Special Plan outranks quick |
-| multiple Special Plans | `.specialPlanToday` for earliest | `12:00 · 4 人 · 今天还有 1 场` | `查看聚餐` | per ordinary plans | the rest are reachable via Planner; no second link |
-| completed Special Plan | `.specialPlanToday` | `已完成` | `查看聚餐` | per ordinary plans | remains today's context |
+| multiple Special Plans | `.specialPlanToday` for earliest | `12:00 · 4 人` | `查看聚餐` | per ordinary plans | the rest are reachable via Planner; no second link; no same-day count in Home copy |
+| completed Special Plan | `.specialPlanToday` | `18:00 · 6 人 · 已完成` | `查看聚餐` | per ordinary plans | remains today's context; completion is a suffix |
 | Special Plan, no ordinary meal | `.specialPlanToday` | time · people | `查看聚餐` | none | no recommendation card |
 | ordinary plans all completed, Special Plan pending | `.specialPlanToday` | time · people | `查看聚餐` | `今天另有 N 道计划 · 已完成` | never `今日计划已全部完成` |
 
@@ -417,7 +418,7 @@ Discovery entry · Removed vs today.
 | dinner eatOut, stale plan | date row + `今晚外食` + `今天另有 N 道计划` | `今晚 · 已安排外食` | none | — | `用餐计划` | none | `+`, `今日仍有 N 道计划 ›` |
 | Special Plan today | date row (+ plan line if ordinary plans) | `.specialPlanToday` | `查看聚餐` | — | `用餐计划` | none | — |
 | multiple Special Plans | date row | earliest | `查看聚餐` | — | `用餐计划` | none | — |
-| completed Special Plan | date row | `已完成` | `查看聚餐` | — | `用餐计划` | none | — |
+| completed Special Plan | date row | `18:00 · 6 人 · 已完成` | `查看聚餐` | — | `用餐计划` | none | — |
 | attention / no attention | — | — | — | named rows / one healthy line | — | — | unchanged |
 | clipboard prompt | — | — | — | `粘贴导入` / `忽略` | — | — | unchanged (still the only Home import path) |
 | persistence / error notices | — | — | — | module issue rows; recommendation error/notice | — | — | unchanged; `planNotice` still has no reader (follow-up) |
@@ -540,9 +541,11 @@ consequences as cooking in-app, from the surface that owns plans.
 1. **Given** an ordinary day with a Special Plan scheduled today and no eat-out / prep state,
    **Then** the primary task names the plan with its time and headcount and offers `查看聚餐`,
    which opens Planner at that plan.
-2. **Given** several Special Plans today, **Then** the earliest is primary and the detail says
-   `今天还有 N 场`.
-3. **Given** every dish cooked, **Then** the plan remains primary with `已完成`.
+2. **Given** several Special Plans today, **Then** the earliest is primary; its detail states
+   time and headcount only, later same-day events stay reachable through 用餐计划 / Planner, and
+   Home states no same-day count.
+3. **Given** every dish cooked, **Then** the plan remains primary with `已完成` as a suffix on
+   the time/guest detail.
 4. **Given** a prep day or eat-out dinner, **Then** the Special Plan is a single non-interactive
    context line and the primary task is unchanged.
 5. **Given** ordinary plans on a Special Plan day, **Then** the context line reads
@@ -567,7 +570,8 @@ consequences as cooking in-app, from the surface that owns plans.
 - Materialization summary whose range is a single day: Planner reveals that one week.
 - Materialization summary whose `startDate` is in a past week: the rule still applies — reveal the
   week containing `startDate` — and the member can page forward.
-- Special Plan today with zero dishes: pending, primary, detail without `已完成`.
+- Special Plan today with zero dishes: pending, primary, detail states time/headcount without
+  `已完成` and without a `待开始` status (owner copy ruling: the time communicates pending).
 - Special Plan today deleted while Home is visible: Home recomputes and falls through to the next
   precedence rule.
 - Special Plan today at 00:00 or 23:59: still today by local calendar day.
@@ -701,11 +705,12 @@ consequences as cooking in-app, from the surface that owns plans.
 
 - Product copy is Simplified Chinese. Strings used: `更多推荐`, `做好了` (existing), `更多`,
   `生成今日购物清单` (existing), `AI 生成一周菜单` / `查看已生成的一周菜单` (existing), `查看聚餐`,
-  `今天有聚餐`, `今天还有 N 场`, `今天另有 N 道计划`, `今天另有 N 道计划 · 已完成`.
+  `今天有聚餐`, `今天另有 N 道计划`, `今天另有 N 道计划 · 已完成`. `今天还有 N 场` was
+  considered and dropped by owner copy ruling: Home is not a same-day Special Plan schedule
+  summary.
 - FR-006's replacement subtitle is expected to read `已生成 N 天 · M 道菜`, reusing the word the
   adjacent entry label already uses. Exact copy is owner-adjustable; the requirement is that it
   must not claim an unmaterialized draft is scheduled.
 - The recommendation browser's regenerate label stays `AI 换几道` (already there; D-038 host
   treatment).
 - No schema, migration, sync, provider, flag or entitlement change.
-

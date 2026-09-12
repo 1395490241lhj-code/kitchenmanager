@@ -278,6 +278,125 @@ final class HomeDashboardUITests: XCTestCase {
                       "the displaced plans are on Planner")
     }
 
+    // MARK: - Special Plan today (D-042 / FR-012)
+
+    /// §9 row 3 / row 7: the event owns the primary slot with its approved
+    /// copy, and the CTA routes through Planner at that plan — no Home-owned
+    /// detail surface, no second planning route, no 今天的计划 revival.
+    func testSpecialPlanTodayBecomesThePrimaryTaskAndOpensPlannerAtIt() throws {
+        let app = launch("UITEST_SEED_SPECIAL_PLAN_TODAY")
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "家宴")
+        XCTAssertEqual(app.staticTexts["home.primary.detail"].label, "18:00 · 6 人")
+        XCTAssertFalse(app.buttons["home.recommendation.more"].exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1,
+                       "the general planning row is still exactly one")
+        attachScreenshot(of: app, named: "home-special-plan-today")
+
+        let cta = app.buttons["home.specialPlan.open"]
+        XCTAssertTrue(cta.waitForExistence(timeout: 5))
+        XCTAssertEqual(cta.label, "查看聚餐")
+        makeHittable(cta, in: app)
+        cta.tap()
+        // initialPath seeds the stack at the detail, so the root bar stays in
+        // the back stack; the visible bar is the event title itself.
+        XCTAssertTrue(app.navigationBars["家宴"].waitForExistence(timeout: 5),
+                      "Planner is seeded straight to that plan detail")
+        XCTAssertFalse(app.navigationBars.staticTexts["今天的计划"].exists)
+        attachScreenshot(of: app, named: "home-special-plan-planner-detail")
+    }
+
+    /// §9 row 5: several same-day events; earliest is primary and the rest
+    /// are one factual count. Row 3: ordinary plans suppressed to the
+    /// existing context line while the event is primary.
+    func testSpecialPlanMultipleAndSuppressedOrdinaryPlans() throws {
+        let app = launch(
+            "UITEST_SEED_SPECIAL_PLAN_TODAY",
+            "UITEST_SEED_SPECIAL_PLAN_TODAY_MULTI",
+            "UITEST_SEED_SPECIAL_PLAN_TODAY_WITH_ORDINARY"
+        )
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "家宴")
+        // Owner copy ruling: later same-day events stay on Planner; the
+        // primary detail describes the winning event only.
+        XCTAssertEqual(app.staticTexts["home.primary.detail"].label, "18:00 · 6 人")
+        XCTAssertFalse(app.buttons["home.today.plan.start"].exists,
+                       "the ordinary plan loses its prominent action for the day")
+
+        let context = app.staticTexts["home.context.otherPlans"]
+        XCTAssertTrue(context.exists)
+        XCTAssertEqual(context.label, "今天另有 2 道计划")
+        XCTAssertFalse(app.buttons["home.context.otherPlans"].exists, "the context line is not a button")
+        attachScreenshot(of: app, named: "home-special-plan-with-ordinary")
+    }
+
+    /// §9 row 6: a cooked event must not disappear or reopen the decision.
+    func testACompletedSpecialPlanStaysThePrimaryTask() throws {
+        let app = launch("UITEST_SEED_SPECIAL_PLAN_TODAY", "UITEST_SEED_SPECIAL_PLAN_TODAY_COMPLETED")
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "家宴")
+        // Owner copy ruling: completion is a suffix; time and guests stay.
+        XCTAssertEqual(app.staticTexts["home.primary.detail"].label, "18:00 · 6 人 · 已完成")
+        XCTAssertTrue(app.buttons["home.specialPlan.open"].exists, "查看聚餐 stays reachable")
+        XCTAssertFalse(app.staticTexts["今日计划已全部完成"].exists)
+        attachScreenshot(of: app, named: "home-special-plan-completed")
+    }
+
+    /// §9 row 8: ordinary plans all cooked under a pending event.
+    func testAllCookedPlansUnderASpecialPlanStateTheCompletedFact() throws {
+        let app = launch(
+            "UITEST_SEED_SPECIAL_PLAN_TODAY",
+            "UITEST_SEED_SPECIAL_PLAN_TODAY_ALL_COOKED"
+        )
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "家宴")
+        XCTAssertEqual(app.staticTexts["home.primary.detail"].label, "18:00 · 6 人")
+        XCTAssertEqual(app.staticTexts["home.context.otherPlans"].label, "今天另有 2 道计划 · 已完成")
+        XCTAssertFalse(app.staticTexts["今日计划已全部完成"].exists)
+    }
+
+    /// §9 row 1: prep day keeps its board and reduces the event to one
+    /// non-interactive fact line. Neither line navigates.
+    func testPrepDayKeepsItsBoardAndStatesTheEventAsContext() throws {
+        let app = launch(
+            "UITEST_SEED_SPECIAL_PLAN_TODAY",
+            "UITEST_FORCE_MEAL_PREP_DAY"
+        )
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "今天备的菜")
+        let eventLine = app.staticTexts["home.context.specialPlan"]
+        XCTAssertTrue(eventLine.waitForExistence(timeout: 5))
+        XCTAssertEqual(eventLine.label, "今天有聚餐 · 18:00 家宴")
+        XCTAssertFalse(app.buttons["home.context.specialPlan"].exists, "the fact line is not a button")
+        XCTAssertFalse(app.buttons["home.specialPlan.open"].exists, "the suppressed event gets no Home CTA")
+        attachScreenshot(of: app, named: "home-prep-day-with-special-plan")
+    }
+
+    /// §9 row 2: the household's own eat-out dinner wins by approved
+    /// precedence; the event is reduced to the context line.
+    func testEatOutDinnerKeepsItsPrimaryTaskAndStatesTheEventAsContext() throws {
+        let app = launch(
+            "UITEST_SEED_SPECIAL_PLAN_TODAY",
+            "UITEST_SEED_SPECIAL_PLAN_TODAY_EAT_OUT"
+        )
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "今晚")
+        XCTAssertEqual(app.staticTexts["home.primary.detail"].label, "已安排外食")
+        XCTAssertTrue(app.staticTexts["home.context.specialPlan"].exists)
+        XCTAssertFalse(app.buttons["home.specialPlan.open"].exists)
+    }
+
+    /// Owner copy ruling: a completed event under a suppressing day keeps
+    /// the factual context plus the 已完成 suffix, still static text.
+    func testACompletedEventUnderSuppressionStatesCompletionAsContext() throws {
+        let app = launch(
+            "UITEST_SEED_SPECIAL_PLAN_TODAY",
+            "UITEST_SEED_SPECIAL_PLAN_TODAY_COMPLETED",
+            "UITEST_FORCE_MEAL_PREP_DAY"
+        )
+        XCTAssertEqual(app.staticTexts["home.primary.title"].label, "今天备的菜")
+        let eventLine = app.staticTexts["home.context.specialPlan"]
+        XCTAssertTrue(eventLine.waitForExistence(timeout: 5))
+        XCTAssertEqual(eventLine.label, "今天有聚餐 · 18:00 家宴 · 已完成")
+        XCTAssertFalse(app.buttons["home.context.specialPlan"].exists)
+        XCTAssertFalse(app.buttons["home.specialPlan.open"].exists)
+        attachScreenshot(of: app, named: "home-prep-day-completed-special-plan")
+    }
+
     // MARK: - Needs attention
     //
     // Replaces `testMixedInventoryShowsEveryRelevantCategoryAndOpensMatchingFilter`.
