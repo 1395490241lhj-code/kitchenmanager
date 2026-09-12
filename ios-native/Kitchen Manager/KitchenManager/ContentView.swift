@@ -549,13 +549,14 @@ struct ContentView: View {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SPECIAL_PLAN") else { return }
             kitchenStore.clearAllLocalData()
             let calendar = Calendar.current
-            // Anchor the event to this week's Saturday (Monday + 5) so the
-            // planner's default "current week" view always shows it, and the
-            // meal to this week's Monday so Home renders execution mode. Using
-            // today + N would drift into the next week depending on run day.
+            // Keep the event in the current week, but off today so the ordinary
+            // today meal remains Home's primary task on every test run day.
             let todayStart = calendar.startOfDay(for: Date())
             let monday = PlannerProjection.startOfWeek(containing: todayStart, calendar: calendar)
-            let eventDate = calendar.date(byAdding: .day, value: 5, to: monday) ?? monday
+            let saturday = calendar.date(byAdding: .day, value: 5, to: monday) ?? monday
+            let eventDate = calendar.isDate(saturday, inSameDayAs: todayStart)
+                ? calendar.date(byAdding: .day, value: 6, to: monday) ?? monday
+                : saturday
             let scheduled = calendar.date(byAdding: .hour, value: 18, to: eventDate) ?? eventDate
             // The AI-menu tests need the same event with no menu yet, which is
             // the only state that offers 「AI 帮我设计菜单」 as the empty action.
@@ -579,8 +580,7 @@ struct ContentView: View {
             plan.createdAt = Date()
             plan.updatedAt = plan.createdAt
             kitchenStore.addSpecialPlan(plan)
-            // A Monday meal makes Home render the plan card (execution mode),
-            // which is the entry point the smoke test taps.
+            // The Planner routing tests require ordinary-plan execution mode.
             kitchenStore.addPlan(recipe: Recipe.samples[0], plannedServings: 2)
             navigationStore.selectedTab = .today
         }
