@@ -786,16 +786,17 @@ struct ContentView: View {
             navigationStore.selectedTab = .today
         }
         .task {
-            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_ACCESSIBILITY_TODAY_PLAN") else { return }
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_ACCESSIBILITY_PLANNER_MEAL") else { return }
             kitchenStore.clearAllLocalData()
             kitchenStore.addPlan(recipe: Recipe(
-                id: "uitest-accessibility-today-plan",
+                id: "uitest-accessibility-planner-meal",
                 title: "超长名称的番茄牛腩炖土豆配时令蔬菜家庭晚餐",
                 cookingTime: 45,
                 difficulty: "简单",
                 tags: [],
                 ingredients: ["番茄 2 个"],
-                steps: ["炖熟。"]
+                steps: ["炖熟。"],
+                baseServings: 4
             ), plannedServings: 4)
             navigationStore.selectedTab = .today
         }

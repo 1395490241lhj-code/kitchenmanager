@@ -1012,8 +1012,6 @@ final class KitchenStore: ObservableObject {
     var todayPlans: [MealPlanItem] {
         plans.filter { Calendar.current.isDateInToday($0.date) }
     }
-    var pendingTodayPlans: [MealPlanItem] { todayPlans.filter { !$0.isCooked } }
-
     func addInventory(
         name: String,
         quantity: Double,
@@ -1371,20 +1369,6 @@ final class KitchenStore: ObservableObject {
         plans = updated
     }
 
-    func markAllTodayCooked() {
-        let ids = Set(pendingTodayPlans.map(\.id))
-        guard !ids.isEmpty else { return }
-        var updated = plans
-        for index in updated.indices where ids.contains(updated[index].id) {
-            updated[index].isCooked = true
-        }
-        plans = updated
-    }
-
-    func removePlan(_ plan: MealPlanItem) {
-        plans.removeAll { $0.id == plan.id }
-    }
-
     // MARK: - Ordinary meal CRUD (canonical write path)
     //
     // The Planner's create / edit / move / delete operations all route through
@@ -1563,7 +1547,7 @@ final class KitchenStore: ObservableObject {
     }
 
     /// A plan already covered by a non-undone consumption record must not be deducted
-    /// twice (e.g. re-opening "全部做完" after a partial confirmation).
+    /// twice when the same plan is confirmed again.
     func hasConsumedPlan(_ planID: UUID) -> Bool {
         consumptionRecords.contains { !$0.isUndone && $0.planIDs.contains(planID) }
     }

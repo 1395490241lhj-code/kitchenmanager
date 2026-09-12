@@ -190,7 +190,7 @@ final class TodayPlanPersistenceTests: XCTestCase {
         XCTAssertEqual(restarted.plans[0].recipeName, "改名后")
         XCTAssertEqual(restarted.plans[0].plannedServings, 5)
         XCTAssertFalse(restarted.plans[0].isCooked)
-        restarted.removePlan(restarted.plans[0])
+        restarted.removePlan(id: restarted.plans[0].id)
         XCTAssertTrue(try bundle.todayPlan.loadPlans().isEmpty)
 
         restarted.addPlan(recipe: recipe())

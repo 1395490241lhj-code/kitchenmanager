@@ -128,13 +128,11 @@ final class PlannerUITests: XCTestCase {
         let app = launch("UITEST_SEED_SPECIAL_PLAN")
 
         XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 10))
-        XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists, "the card carries no planning route")
         XCTAssertFalse(app.buttons["今天的计划"].exists)
         XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists)
         XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1, "exactly one planning row")
 
         openPlanner(from: app)
-        XCTAssertFalse(app.navigationBars.staticTexts["今天的计划"].exists, "no TodayPlanDetail intermediate surface")
 
         // Today's week is what opens, with today marked and the ordinary meal on it.
         let todayHeader = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.day.' AND label CONTAINS '今天'")).firstMatch

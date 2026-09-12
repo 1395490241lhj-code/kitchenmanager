@@ -18,8 +18,8 @@ struct InventoryConsumptionRecord: Identifiable, Codable, Hashable {
     let date: Date
     var recipeID: String?
     var recipeName: String
-    /// Every `MealPlanItem.id` this record marks as consumed — supports both a single
-    /// dish ("做好了") and a merged batch ("全部做完") without a second record type.
+    /// Every `MealPlanItem.id` this record marks as consumed (the plural exists for
+    /// multi-meal confirmations and for records written before D-042) — no second record type.
     var planIDs: [UUID]
     var items: [InventoryConsumptionRecordItem]
     var isUndone = false

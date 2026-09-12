@@ -38,11 +38,6 @@ struct HomeView: View {
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
-    @State private var isShowingTodayPlan = false
-    /// The planner, reachable from Home on every day. Separate from
-    /// `isShowingTodayPlan`: that one opens today's plan, this one opens every
-    /// meal and special plan beyond today. Home's only unconditional route to
-    /// it, and the only one there is — see D-031.
     @State private var isShowingPlanner = false
     /// Where in the Planner sheet a deep link should land, set just before
     /// presenting. Empty by default: the 用餐计划 row always opens the plain
@@ -250,9 +245,6 @@ struct HomeView: View {
         // could not collapse — the title measured 17.7pt against the 30.0pt
         // large titles one tab away, and sat 31pt higher on the screen.
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
-        .navigationDestination(isPresented: $isShowingTodayPlan) {
-            TodayPlanDetailView()
-        }
         // A sheet, which is the shape the planner has always been presented in.
         // Home is now its only entry point, so this is also the only place that
         // shape is decided.
@@ -274,12 +266,10 @@ struct HomeView: View {
         .navigationDestination(isPresented: $isShowingPreparedComponents) {
             PreparedComponentsView()
         }
-        // Same pattern TodayPlanDetailView already uses for its rows: an
-        // explicit selection + `navigationDestination(item:)`, never
+        // An explicit selection + `navigationDestination(item:)`, never
         // `NavigationLink(value:)` — see the ExpirySheet note above for why
-        // that form is avoided here. The missing-recipe fallback matches
-        // TodayPlanDetailView's so a plan whose recipe is gone still keeps the
-        // plan intact instead of dead-ending.
+        // that form is avoided here. The missing-recipe fallback keeps a
+        // plan whose recipe is gone intact instead of dead-ending.
         .navigationDestination(item: $selectedPlan) { plan in
             if let recipe = recipeStore.recipe(id: plan.recipeID) {
                 RecipeDetailView(recipe: recipe, plan: plan)
@@ -1948,232 +1938,6 @@ private struct HomeModuleIssues: View {
 private extension String {
     var nilIfEmptyHome: String? { isEmpty ? nil : self }
 }
-
-// MARK: - Today plan detail (secondary page)
-
-struct TodayPlanDetailView: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @EnvironmentObject private var kitchenStore: KitchenStore
-    @EnvironmentObject private var recipeStore: RecipeStore
-    @State private var activeSheet: TodayPlanSheet?
-    @State private var planPendingRemoval: MealPlanItem?
-    @State private var isShowingWeeklyPlanner = false
-    @State private var isShowingShoppingGeneration = false
-    @State private var toastMessage: String?
-    @State private var toastStyle: AppFeedbackStyle = .success
-    @State private var selectedRecipePlan: MealPlanItem?
-
-    private enum TodayPlanSheet: Identifiable {
-        case cook(MealPlanItem)
-        case cookAll
-
-        var id: String {
-            switch self {
-            case .cook(let plan): "cook-\(plan.id)"
-            case .cookAll: "cook-all"
-            }
-        }
-    }
-
-    var body: some View {
-        List {
-            if kitchenStore.todayPlans.isEmpty {
-                ContentUnavailableView {
-                    Label("还没有安排今天吃什么", systemImage: "calendar.badge.plus")
-                }
-            } else {
-                Section("今天 \(kitchenStore.todayPlans.count) 道菜") {
-                    ForEach(kitchenStore.todayPlans) { plan in
-                        Group {
-                            if dynamicTypeSize.isAccessibilitySize {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    planDetailButton(plan)
-                                    completionButton(plan)
-                                }
-                            } else {
-                                HStack(spacing: 12) {
-                                    planDetailButton(plan)
-                                    completionButton(plan)
-                                }
-                            }
-                        }
-                        .contextMenu {
-                            Button("移出计划", role: .destructive) { planPendingRemoval = plan }
-                        }
-                    }
-                }
-
-                if !kitchenStore.pendingTodayPlans.isEmpty {
-                    Section {
-                        Button {
-                            activeSheet = .cookAll
-                        } label: {
-                            Label("全部做完", systemImage: "checkmark.circle")
-                                .foregroundStyle(AppTheme.brand)
-                        }
-                    }
-                }
-
-                Section {
-                    Button("生成今日购物清单", systemImage: "cart.badge.plus") {
-                        isShowingShoppingGeneration = true
-                    }
-                }
-            }
-
-            // The AI weekly-menu generator, and only it. The planner used to sit
-            // directly beneath it as 查看本周安排 · 特殊计划 — two adjacent rows
-            // with the same icon, both saying 本周, going to two unrelated
-            // screens. That route was removed in D-031 (Home reaches the planner
-            // in one tap now, on every day), and what is left says plainly that
-            // this is the generator rather than the planner.
-            Section {
-                Button {
-                    isShowingWeeklyPlanner = true
-                } label: {
-                    HStack {
-                        Image(systemName: "calendar.badge.clock")
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading) {
-                            Text(kitchenStore.weeklyPlan == nil ? "AI 生成一周菜单" : "查看已生成的一周菜单")
-                                .font(.subheadline.bold())
-                            Text(weeklyPlanSubtitle)
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .foregroundStyle(.primary)
-                .accessibilityIdentifier("today.plan.weeklyMenu.link")
-            }
-        }
-        .navigationTitle("今天的计划")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $isShowingWeeklyPlanner) {
-            WeeklyMenuPlannerView()
-        }
-        .navigationDestination(isPresented: $isShowingShoppingGeneration) {
-            ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
-        }
-        .navigationDestination(item: $selectedRecipePlan) { plan in
-            if let recipe = recipeStore.recipe(id: plan.recipeID) {
-                RecipeDetailView(recipe: recipe, plan: plan)
-            } else {
-                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
-            }
-        }
-        .sheet(item: $activeSheet) { sheet in
-            switch sheet {
-            case .cook(let plan):
-                CookConsumptionConfirmationView(
-                    title: plan.recipeName,
-                    planIDs: [plan.id],
-                    recipeID: plan.recipeID,
-                    recipeName: plan.recipeName
-                ) {
-                    kitchenStore.markPlanCooked(plan)
-                    showToast("已记录消耗，库存已更新")
-                }
-            case .cookAll:
-                CookConsumptionConfirmationView(
-                    title: "今日 \(kitchenStore.pendingTodayPlans.count) 道菜",
-                    planIDs: kitchenStore.pendingTodayPlans.map(\.id),
-                    recipeID: nil,
-                    recipeName: "今日 \(kitchenStore.pendingTodayPlans.count) 道菜"
-                ) {
-                    kitchenStore.markAllTodayCooked()
-                    showToast("今天的计划已全部完成")
-                }
-            }
-        }
-        .alert(
-            "移出计划？",
-            isPresented: Binding(
-                get: { planPendingRemoval != nil },
-                set: { if !$0 { planPendingRemoval = nil } }
-            ),
-            presenting: planPendingRemoval
-        ) { plan in
-            Button("移出", role: .destructive) { kitchenStore.removePlan(plan) }
-            Button("取消", role: .cancel) {}
-        } message: { plan in
-            Text("「\(plan.recipeName)」将从今天的计划中移出。")
-        }
-        .overlay(alignment: .bottom) {
-            if let toastMessage {
-                FeedbackToast(message: toastMessage, style: toastStyle)
-            }
-        }
-    }
-
-    private func planDetailButton(_ plan: MealPlanItem) -> some View {
-        Button {
-            selectedRecipePlan = plan
-        } label: {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(plan.recipeName)
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份 · 今天" } ?? "今天"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    HStack(spacing: 12) {
-                        Image(systemName: plan.isCooked ? "checkmark.circle.fill" : "fork.knife.circle")
-                            .font(.title2)
-                            .foregroundStyle(plan.isCooked ? AppTheme.success : AppTheme.textSecondary)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(plan.recipeName).font(.headline)
-                            Text(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份 · 今天" } ?? "今天"))
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func completionButton(_ plan: MealPlanItem) -> some View {
-        if !plan.isCooked {
-            Button {
-                activeSheet = .cook(plan)
-            } label: {
-                Text("做好了")
-                    .font(.caption.bold())
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .contentShape(Rectangle())
-            }
-            .tint(AppTheme.brand)
-            .accessibilityIdentifier("today.plan.complete.button")
-        }
-    }
-
-    private var weeklyPlanSubtitle: String {
-        guard let plan = kitchenStore.weeklyPlan else {
-            return "按顿数、人数生成一周安排"
-        }
-        return "已安排 \(plan.dayCount) 天 · \(plan.dishCount) 道菜"
-    }
-
-    private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
-        withAnimation { toastMessage = message; toastStyle = style }
-        Task {
-            try? await Task.sleep(for: .seconds(1.8))
-            await MainActor.run { withAnimation { toastMessage = nil } }
-        }
-    }
-}
-
-// MARK: - Recommendation browser (secondary page)
 
 struct RecipeRecommendationBrowserView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

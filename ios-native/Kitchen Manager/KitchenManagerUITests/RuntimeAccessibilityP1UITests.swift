@@ -18,8 +18,7 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     /// now live on Planner (Slice A), reached through Home's one planning row.
     func testTodayPlanRowAdaptsWithoutClipping() throws {
         for (name, size, _) in sizes {
-            let app = launch("UITEST_SEED_ACCESSIBILITY_TODAY_PLAN", size: size)
-            XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists, "\(name): 首页不应再有 今天的计划")
+            let app = launch("UITEST_SEED_ACCESSIBILITY_PLANNER_MEAL", size: size)
             let planner = app.buttons["home.planner.link"]
             XCTAssertTrue(planner.waitForExistence(timeout: 5))
             XCTAssertTrue(scrollUntilFullyHittable(planner, in: app))

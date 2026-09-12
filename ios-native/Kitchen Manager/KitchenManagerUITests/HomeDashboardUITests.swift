@@ -282,7 +282,7 @@ final class HomeDashboardUITests: XCTestCase {
 
     /// §9 row 3 / row 7: the event owns the primary slot with its approved
     /// copy, and the CTA routes through Planner at that plan — no Home-owned
-    /// detail surface, no second planning route, no 今天的计划 revival.
+    /// detail surface, no second planning route.
     func testSpecialPlanTodayBecomesThePrimaryTaskAndOpensPlannerAtIt() throws {
         let app = launch("UITEST_SEED_SPECIAL_PLAN_TODAY")
         XCTAssertEqual(app.staticTexts["home.primary.title"].label, "家宴")
@@ -301,7 +301,6 @@ final class HomeDashboardUITests: XCTestCase {
         // the back stack; the visible bar is the event title itself.
         XCTAssertTrue(app.navigationBars["家宴"].waitForExistence(timeout: 5),
                       "Planner is seeded straight to that plan detail")
-        XCTAssertFalse(app.navigationBars.staticTexts["今天的计划"].exists)
         attachScreenshot(of: app, named: "home-special-plan-planner-detail")
     }
 
@@ -520,9 +519,6 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["home.today.plan.start"].label, "开始做饭")
         XCTAssertTrue(app.buttons["home.today.plan.viewRecipe"].exists)
-        XCTAssertFalse(app.buttons["home.today.plan.viewAll"].exists)
-        XCTAssertFalse(app.buttons["今天的计划"].exists)
-        XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists)
 
         let more = app.buttons["home.recommendation.more"]
         let planner = app.buttons["home.planner.link"]
@@ -534,7 +530,6 @@ final class HomeDashboardUITests: XCTestCase {
         makeHittable(planner, in: app)
         planner.tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.navigationBars.staticTexts["今天的计划"].exists)
         let todayHeader = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.day.' AND label CONTAINS '今天'")).firstMatch
         XCTAssertTrue(todayHeader.waitForExistence(timeout: 5), "Planner opens on the current week with today marked")
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.'")).firstMatch.exists,

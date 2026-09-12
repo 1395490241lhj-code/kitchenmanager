@@ -152,34 +152,34 @@ Nothing may remove a Home route to `TodayPlanDetailView` before this checkpoint 
 
 ## Phase 5: Slice E — `TodayPlanDetailView` retirement (after A and B; sequenced after D)
 
-- [ ] T030 [E] **Proof before deletion.** Record a zero-reference proof for each symbol proposed
+- [x] T030 [E] **Proof before deletion.** Record a zero-reference proof for each symbol proposed
   for removal: `markAllTodayCooked()`, `removePlan(_ plan:)`, `pendingTodayPlans`, and the view's
   private helpers. A symbol that is not proven dead is not deleted, and the proof is recorded in
   the slice result rather than asserted. (FR-017, SC-011)
-- [ ] T031 [E] `KitchenManager/HomeView.swift`: delete `TodayPlanDetailView` and its private
+- [x] T031 [E] `KitchenManager/HomeView.swift`: delete `TodayPlanDetailView` and its private
   members `TodayPlanSheet`, `planDetailButton`, `completionButton`, `weeklyPlanSubtitle` and
   `showToast`. Deleting the view is what removes `全部做完` and its `.cookAll` sheet from the
   product; the control is not migrated anywhere. (FR-014, FR-016)
-- [ ] T032 [E] `KitchenManager/HomeView.swift`: delete the route — `isShowingTodayPlan`, its
+- [x] T032 [E] `KitchenManager/HomeView.swift`: delete the route — `isShowingTodayPlan`, its
   `.navigationDestination`, and `TodayPlanSummaryCard.onViewPlan` with the preview call sites that
   pass it. (FR-016)
-- [ ] T033 [E] `KitchenManager/KitchenStore.swift`: delete `markAllTodayCooked()` and
+- [x] T033 [E] `KitchenManager/KitchenStore.swift`: delete `markAllTodayCooked()` and
   `removePlan(_ plan:)` per the T030 proof, and retire the remaining test caller in
   `KitchenManagerTests/TodayPlanPersistenceTests.swift`. Do not touch `removePlan(id:)`,
   `restorePlan(_:at:)`, `markPlanCooked` or `hasConsumedPlan`. (FR-014, FR-015, FR-017)
-- [ ] T034 [E] `KitchenManager/KitchenStore.swift`: delete `pendingTodayPlans` **only if** T030
+- [x] T034 [E] `KitchenManager/KitchenStore.swift`: delete `pendingTodayPlans` **only if** T030
   proved it dead once the view and `markAllTodayCooked` are gone; otherwise leave it and say so.
   `ShoppingGenerationSource.todayPlans` is retained — it now serves the Planner entry. (FR-017)
-- [ ] T035 [E] Remove or retarget the obsolete identifiers and tests: `home.today.plan.viewAll`,
+- [x] T035 [E] Remove or retarget the obsolete identifiers and tests: `home.today.plan.viewAll`,
   `today.plan.complete.button`, `today.plan.weeklyMenu.link`; the `今天的计划` navigation-title
   assertions in `HomeDashboardUITests` and `PlannerUITests`; the today-plan completion layout
   assertions in `RuntimeAccessibilityP1UITests`, which move to the Planner row; and the
   `UITEST_SEED_ACCESSIBILITY_TODAY_PLAN` launch fixture in `ContentView.swift`. Preserve the
   `PlannerMealDeleteUITests` cases that match the shared string `移出计划` against Planner's own
   delete. (FR-018)
-- [ ] T036 [E] Confirm Home contains zero `weeklyPlan` references after the deletion, so no Home
+- [x] T036 [E] Confirm Home contains zero `weeklyPlan` references after the deletion, so no Home
   behaviour can treat the draft as schedule truth. (FR-019, SC-009)
-- [ ] T037 [E] Run the quickstart Slice E commands and the reference gate; record results and the
+- [x] T037 [E] Run the quickstart Slice E commands and the reference gate; record results and the
   proofs. The gate covers `全部做完`, so a surviving occurrence anywhere fails the slice.
   (FR-014, SC-008, SC-011)
 

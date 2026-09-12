@@ -774,7 +774,7 @@ extension PlannerMealCRUDTests {
     func testPlanDeletedWhileSheetOpenFailsWithoutMutation() throws {
         let (kitchen, library, a, b) = try confirmationFixture()
         let stale = confirmation([a.id, b.id], kitchen: kitchen, library: library)
-        kitchen.removePlan(b)
+        kitchen.removePlan(id: b.id)
         XCTAssertNil(stale.alreadySatisfiedTitle([a.id, b.id], kitchenStore: kitchen))
         var callbackCalled = false
         if confirm(stale, [a.id, b.id], kitchen: kitchen, library: library) { callbackCalled = true }
