@@ -6,17 +6,15 @@ description: "Task list for Home IA Consolidation — slices A, C, B, D, E, F; T
 
 **Input**: Design documents from `specs/002-home-ia-consolidation/`
 
-**Prerequisites**: spec.md reconciled 2026-09-11 onto `main` = `a7b7d8f`. Implementation of any
-task still requires explicit user authorization (constitution VI). Slices B, D and E additionally
-require the next available Home IA Decision recorded in canonical memory — currently expected
-D-042, but the number is read from `Decisions.md` at write time and is not reserved here
-(FR-022).
+**Prerequisites**: D-041 materialization shipped at `a7b7d8f`; canonical D-042 was recorded
+before B/D/E. A–E are committed through `e51f059`; final-seal authorization covers review,
+validation, reconciliation and gated publication. Checkboxes record evidence, not permission.
 
 **Tests**: requested by the spec's acceptance scenarios; each slice lists the tests that change
 *by design*, so red is expected and attributable.
 
-**Organization**: by slice in dependency order. Every task names its FR / SC trace. All tasks are
-unstarted.
+**Organization**: by slice in dependency order. Every task names its FR / SC trace. T001–T037 are complete; T038–T040 remain evidence-gated. Completed task descriptions retain
+their original execution sequence and are not current work requests.
 
 ## Format: `[ID] [P?] [Slice] Description`
 
@@ -101,7 +99,7 @@ Nothing may remove a Home route to `TodayPlanDetailView` before this checkpoint 
 
 - [x] T018 [B] **Gate**: confirm the next available Home IA Decision is recorded in
   `Decisions.md` by a user-authorized vault write. Read the file at that moment to learn the
-  number — expected to be D-042, but do not assume it. No B, D or E code task starts first.
+  number — recorded as D-042. No B, D or E code task starts first.
   (FR-022)
 - [x] T019 [B] `KitchenManager/HomePrimaryTask.swift`: add `otherPlansLine: String?` —
   `今天另有 N 道计划` when pending > 0, `今天另有 N 道计划 · 已完成` when total > 0 and all are
@@ -188,15 +186,51 @@ weekly generator is reachable only from Planner.
 
 ## Phase 6: Slice F — Validation and reconciliation
 
-- [ ] T038 [F] Full native suite with parallel testing disabled, plus `npm run ios:release:check`;
+- [x] T038 [F] Full native suite with parallel testing disabled, plus `npm run ios:release:check`;
   attribute any red to the documented baseline or fix it. Never infer a pass from an older report.
   (SC-012)
-- [ ] T039 [F] Reconcile spec / plan / tasks against the shipped behaviour; record any remaining
+- [x] T039 [F] Reconcile spec / plan / tasks against the shipped behaviour; record any remaining
   divergence explicitly as a known gap. Verify every FR-001…FR-022 and SC-001…SC-012 is either
   demonstrated or explicitly recorded as unmet. (constitution VII)
-- [ ] T040 [F] Produce the AGENTS.md §7 final report and the VAULT UPDATE list: `Current Status.md`,
+- [x] T040 [F] Produce the AGENTS.md §7 final report and the VAULT UPDATE list: `Current Status.md`,
   `Next Actions.md`, `Product & IA.md` (Home contract, Planner role), `Decisions.md` (the Decision
   recorded at T018). Commit, push and vault writes remain user-authorized. (constitution VI, VII)
+
+### Slice F evidence (2026-09-12, simulator `98D088FB` iPhone 17 Pro iOS 27.0)
+
+**T038.** Full suite, `-parallel-testing-enabled NO`, bundle `FullSuiteR14f.xcresult`: 2042 tests,
+2035 passed, 1 failed, 6 skipped. The 6 skips are the D-009 flag-gated hosted smokes, the same
+skips as the pre-slice baseline. The single red was
+`SpecialPlanNormalSessionUITests/testNormalUserSessionEndToEnd` failing
+`LIVE_PROVIDER_FAILURE at generate: AI 服务暂时不可用。` — that suite is a declared live acceptance
+run against the production AI provider, not a deterministic gate; the focused retry
+(`RetryLiveProviderR14g.xcresult`) executed 1 test, 0 failures, `** TEST SUCCEEDED **`. The three
+earlier Planner reds were fixture-caused, not product-caused: `UITEST_SEED_SPECIAL_PLAN` anchored
+its event to this week's Saturday, so running on Saturday made the Special Plan Home's primary
+task and broke the Decision/execution-mode preconditions. The DEBUG fixture now moves the event
+off today and re-seeds the ordinary today meal; all four targeted Planner/Home cases pass
+(`UITestSeedR14e.xcresult`, 4/4). `npm run ios:release:check` →
+`OK — MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION=1`. Release simulator build `BUILD SUCCEEDED`;
+`strings` over the Release `KitchenManager` binary and `KitchenManagerShareExtension` binary
+returns zero `UITEST_` markers, so every DEBUG fixture hook stays inside its `#if DEBUG` fence.
+
+**T039.** All 22 functional requirements and all 12 success criteria map to at least one completed
+task; `T040` is the only task without an FR/SC trace, which is correct for a reporting task.
+Production reference audit is zero for `TodayPlanDetailView`, `isShowingTodayPlan`,
+`markAllTodayCooked`, `全部做完`, `SmartImportSheet`, `home.today.plan.viewAll`,
+`home.plan.secondaryLink`, `home.recommendation.refresh`, `home.import.add.button`,
+`today.plan.complete.button`, `today.plan.weeklyMenu.link` and
+`UITEST_SEED_ACCESSIBILITY_TODAY_PLAN`; remaining hits are negative regression assertions in
+tests. `HomeView.swift` contains zero `weeklyPlan` references. One known non-route occurrence of
+`今天的计划` survives as descriptive recommendation copy
+(`HomeView.swift`: 「先看看做法，也可以直接加入今天的计划。」) — a sentence, not a control or
+destination. Remaining divergence from the original spec text is recorded in place: the
+`InventoryConsumption.swift` / `RecipeCookingFlow.swift` shared-confirmation repair was authorized
+separately during Slice A and is reflected in `plan.md`; `HomeDashboardSummary.swift` was never
+needed. Known gaps unchanged and still out of scope: no `planNotice` reader, no quantity-aware
+readiness.
+
+**T040.** Final report and VAULT UPDATE list delivered in the Slice F session result.
 
 ## Dependencies
 

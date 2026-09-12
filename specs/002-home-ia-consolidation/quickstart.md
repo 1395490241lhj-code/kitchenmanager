@@ -9,11 +9,10 @@ then F.
 
 - Xcode with an `iPhone 17 Pro` simulator available.
 - Working tree on `codex/002-home-ia-consolidation`.
-- **Slices B, D and E require the next available Home IA Decision to be recorded in canonical
-  memory first** (FR-022) — the one that supersedes D-031 decisions 3–4 and narrows decision 5.
-  The number is assigned only after re-reading `Decisions.md` at write time; D-042 is the
-  currently expected number, and this feature neither reserves it nor pre-writes it. Slices A and
-  C do not depend on it.
+- **Slices B, D and E require the Home IA Decision to be recorded in canonical memory first**
+  (FR-022) — the one that supersedes D-031 decisions 3–4 and narrows decision 5. It was
+  assigned and recorded as D-042 after re-reading `Decisions.md`; the unnumbered draft above
+  is historical. Slices A and C do not depend on it.
 - The full run disables parallel testing; focused runs do not need to.
 
 Common prefix used by every command below:

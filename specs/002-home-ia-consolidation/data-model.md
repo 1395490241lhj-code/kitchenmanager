@@ -3,7 +3,8 @@
 **Feature**: [spec.md](./spec.md) · **Created**: 2026-09-10 · **Reconciled**: 2026-09-11
 
 Presentation-only. This feature adds no schema, no SwiftData model or migration, no sync DTO, no
-persistence contract and no new store API for data. Everything below is either an existing type
+persistence storage contract and no new store API for data. Shared confirmation now preserves
+exact target identity and idempotent success; inventory storage and deductions remain canonical. Everything below is either an existing type
 read as it already is, or a presentation type whose shape changes so Home and Planner can render
 the approved IA.
 
@@ -40,7 +41,7 @@ the ordinary-plan branch, so precedence reads `.mealPrep` → dinner `eatOut` �
 
 | Member | Change |
 |---|---|
-| input | `resolve` gains today's Special Plans. Home does not read `SpecialPlan` anywhere today, so this is new input plumbing rather than a rewiring of existing state |
+| input | `resolve` gains today's Special Plans. Home passes `kitchenStore.specialPlans` directly; the resolver filters by the supplied calendar day |
 | primary plan id | the id of the Special Plan that won precedence, so the CTA can open Planner at exactly that plan (FR-013) |
 | (none) | A further-same-day-events count was considered for the detail fragment `今天还有 N 场` and dropped by owner copy ruling — Home is not a same-day Special Plan schedule summary; later events stay reachable through Planner |
 | `otherPlansLine: String?` | the suppressed-ordinary-plan context line: `今天另有 N 道计划` when any is pending, `今天另有 N 道计划 · 已完成` when all are complete, `nil` when none exist (FR-011). Rendered as static text — no chevron, no button trait, no navigation |
@@ -51,8 +52,8 @@ All existing `HomePrimaryTaskTests` cases carry no Special Plan and keep their r
 
 ### `PlannerRoute`
 
-Today: `specialPlan(UUID)`, `recipe(String)`, `plannedMeal(UUID)` (`PlannerView.swift` L13).
-Gains navigation values for the two screens Planner now hosts:
+Retains `specialPlan(UUID)`, `recipe(String)`, `plannedMeal(UUID)` and adds
+`todayShopping` / `weeklyGenerator` for the two hosted screens:
 
 - the shopping-generation screen, opened with `.todayPlans(kitchenStore.todayPlans)` (FR-003);
 - the weekly generator, `WeeklyMenuPlannerView` with `onMaterialized` passed (FR-004).
@@ -73,7 +74,8 @@ containing the date, anchored by `PlannerProjection.startOfWeek(containing:calen
 
 ## 3. Removed
 
-Production types, members and state removed by this feature:
+Production types, members and state removed by this feature. Line references below identify
+the historical pre-deletion tree, not current definitions:
 
 | Removed | Where | Requirement |
 |---|---|---|
@@ -83,7 +85,7 @@ Production types, members and state removed by this feature:
 | `TodayPlanSummaryCard.onViewPlan` and both call sites | `HomeView.swift` L636, L707 | FR-016 |
 | `KitchenStore.markAllTodayCooked()` | `KitchenStore.swift` L1374 | FR-014, FR-017 |
 | `KitchenStore.removePlan(_ plan:)` and its remaining test caller (`TodayPlanPersistenceTests.swift` L193) | `KitchenStore.swift` L1384 | FR-015, FR-017 |
-| `KitchenStore.pendingTodayPlans` | `KitchenStore.swift` L1015 | FR-017 — **only if** the zero-reference proof shows it dead. Its call sites are four inside the retired view plus `markAllTodayCooked`; the proof runs before the deletion, never instead of it |
+| `KitchenStore.pendingTodayPlans` | `KitchenStore.swift` L1015 | FR-017 — deleted after zero-reference proof; former callers were the retired view and `markAllTodayCooked` |
 
 `KitchenStore.removePlan(id:)` with Undo (D-040) survives as the only ordinary-meal delete
 contract (FR-015). `ShoppingGenerationSource.todayPlans` survives (FR-017).
@@ -104,7 +106,7 @@ L406). New identifiers follow the same inline convention; no registry is introdu
 | `home.today.plan.viewAll` | — (no replacement; `home.planner.link` is the only planning destination) |
 | `today.plan.complete.button` | Planner-side row completion ids |
 | `today.plan.weeklyMenu.link` | Planner-side weekly-generator entry id |
-| — | `home.context.specialPlan` (static text), `home.primary.specialPlan`, `home.specialPlan.open` |
+| — | `home.context.specialPlan` (static text), `home.specialPlan.open`; primary title/detail retain existing IDs |
 | — | Planner-side ids for the row `做好了` paths, the `更多` overflow menu, `生成今日购物清单` and the weekly-generator entry, each written as `planner.<area>.<element>[.<suffix>]` with the per-meal `UUID` suffix the existing row actions already use |
 
 Retained unchanged: `home.planner.link`, `home.primary.title` / `.detail`,

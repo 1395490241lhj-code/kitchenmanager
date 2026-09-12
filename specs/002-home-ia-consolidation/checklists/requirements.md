@@ -52,10 +52,8 @@ gap and it is not verdict C. Every capability it held has a named owner in §2 o
 re-homed to Planner, two removed by explicit owner decision — and each deleted symbol carries a
 zero-reference proof (FR-017).
 
-**Decision number.** Every reference in this feature is to *the next available Home IA Decision*,
-assigned only after re-reading `Decisions.md` at write time. D-042 is the currently expected
-number; this feature does not reserve it, does not pre-write it, and does not own D-041, which
-belongs to 003. The draft in `research.md` stays unnumbered until vault write-back.
+**Decision number.** D-042 is recorded and accepted. Assignment was made after reading the
+canonical record; D-041 belongs to 003. The research draft is historical and remains unnumbered.
 
 **Clarification history.** The 2026-09-10 session is retained in `## Clarifications` for
 provenance. Its nine answers are shown as recorded, and the two things the 2026-09-11 session

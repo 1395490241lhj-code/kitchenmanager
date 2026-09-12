@@ -4,9 +4,10 @@
 
 **Created**: 2026-09-10 · **Reconciled**: 2026-09-11
 
-**Status**: Sealed for planning, reconciled onto `main` = `a7b7d8f` after weekly-menu
-materialization shipped. No product code has been changed by this feature; every implementation
-task below is unstarted.
+**Status**: Implementation complete through Slice E (`e51f059`); final validation and
+publication are in progress. D-042 is recorded and accepted. T001–T037 are complete;
+T038–T040 remain evidence-gated. This package describes the implemented feature contract;
+historical audits below describe the pre-implementation tree only.
 
 **Input**: Owner-approved Home IA direction (2026-09-10 clarifications), re-derived on 2026-09-11
 against shipped Planner ordinary-meal CRUD (D-040) and shipped weekly-menu materialization
@@ -21,7 +22,7 @@ duplicate entry points on native iOS Home**; it is not a visual redesign.
 
 Bounded change delivered by this feature:
 
-1. Give Planner the ordinary-meal capabilities that only `TodayPlanDetailView` has today:
+1. Give Planner the ordinary-meal capabilities formerly owned by `TodayPlanDetailView`:
    per-meal `做好了`, initiating `生成今日购物清单`, and hosting the AI weekly generator.
 2. Remove `全部做完` (not migrated) and the legacy alert-delete (D-040 delete + Undo is the
    only delete).
@@ -57,10 +58,9 @@ below, these win and the earlier answer is marked superseded in place.
   `今日仍有 N 道计划` navigation, a `TodayPlanDetailView` route, or any parallel planning
   destination. Intermediate slices may temporarily keep an old route while parity is being built;
   the delivered feature may not.
-- **GD-4 — the Decision number is assigned at write time.** D-041 belongs to 003. This feature
-  does not own or reserve D-042. Every reference is to the *next available Home IA Decision
-  (currently expected D-042; assigned only after re-reading `Decisions.md` at write time)*, and
-  the draft in `research.md` stays unnumbered until vault write-back.
+- **GD-4 — Decision assignment is complete.** D-041 belongs to 003. The Home IA Decision was
+  assigned as **D-042** after reading the canonical record, and was recorded before B/D/E.
+  The unnumbered research draft is historical; it is not a pending Decision-writing task.
 - **GD-5 — the approved Home IA is unchanged.** Final semantic hierarchy: Today Context → one
   Primary Task → `更多推荐` → `用餐计划` → `需要处理` → factual/status content where
   justified. Retire the Home toolbar `+`, the duplicate `查看全部` / `想再加一道` discovery
@@ -115,7 +115,7 @@ surviving decisions depends on them.
   > ordinary plan > quick > recommendation; earliest `scheduledAt` is primary; no slot inferred
   from time; a completed Special Plan may remain today's context. **Still active.**
 
-## 1. Current Home action map (re-audited on `eb894a8`)
+## 1. Historical Home action map (pre-implementation audit at `eb894a8`)
 
 Source: `KitchenManager/HomeView.swift`, `HomePrimaryTask.swift`, `HomeDashboardSummary.swift`,
 `PlannerView.swift`, `WeeklyMenuPlanner.swift`, `KitchenStore.swift`. “Job” names the user job;
@@ -162,9 +162,9 @@ Findings:
   `HomeDashboardSummary` contain no reference to `SpecialPlan` at all.
 - `更多推荐` does not exist anywhere in `ios-native/` yet.
 
-## 2. `TodayPlanDetailView` — capabilities and their owners
+## 2. Historical `TodayPlanDetailView` inventory — pre-implementation
 
-The view is `HomeView.swift` L2129–2351. It takes no parameters, is pushed by
+This deleted view was `HomeView.swift` L2129–2351. It takes no parameters, is pushed by
 `.navigationDestination(isPresented: $isShowingTodayPlan)` (L254), and is triggered from exactly
 two places: the Today card's `今天的计划` (L636) and `今日仍有 N 道计划` (L707).
 
@@ -208,18 +208,16 @@ the entry is re-homed.
 
 ## 3. Capability rehoming contract
 
-**A. Per-meal `做好了` → Planner ordinary-meal row.** Semantics are fixed: the same
-`MealPlanItem` → the existing `CookConsumptionConfirmationView` (`planIDs` empty when already
-consumed) → existing consumption handling → `markPlanCooked` for that exact plan. Never a bare
-`isCooked` flip. A plan completed from Home cooking, RecipeDetail cooking, or Planner
-quick-complete is indistinguishable afterwards. Planner today has no completion action at all —
-its row shows `已完成` as read-only text (`PlannerView.swift` L377) and completion requires a
-push into `RecipeDetailView` plus a full cooking-mode pass. Placement to evaluate in Slice A:
-**leading swipe `做好了` beside `编辑`** (the leading edge currently holds only `编辑`; the
-trailing edge holds `移出计划`), **plus context menu `做好了`, plus a VoiceOver custom action**,
-matching the delete flow's three-path pattern (L394/404/409). No permanent visible completion
-button. Hidden for cooked rows. If native swipe density proves inappropriate, Slice A reports
-rather than inventing custom controls.
+**A. Per-meal `做好了` → Planner ordinary-meal row.** The same exact `MealPlanItem.id`
+is retained through confirmation, including when consumption is already satisfied. Explicit
+confirmation succeeds after newly persisted consumption or an existing valid consumption record;
+it never deducts an already-satisfied target again. Missing exact targets and persistence failure
+are failures; an existing plan with a missing recipe retains explicit completion without deduction.
+Mixed requests deduct only unresolved consumption; stale sheets re-evaluate satisfied target IDs
+at confirmation. Direct-recipe requests retain their existing semantics. The caller marks only
+the exact plan cooked after semantic success; no bare completion shortcut.
+Planner offers leading swipe `做好了` beside `编辑`, context-menu completion and a VoiceOver
+custom action, hidden for cooked rows. No permanent completion button was added.
 
 **B. `全部做完` → removed.** Not migrated anywhere. `markAllTodayCooked()` (`KitchenStore.swift`
 L1374) loses its only caller and is deleted in Slice E under the zero-reference proof.
@@ -272,7 +270,7 @@ introduced, and Planner never claims that every meal in the range exists — aft
 `保留当前安排` recovery choice some intended meals are deliberately absent, which is exactly why
 the summary carries no ids.
 
-## 4. Canonical Home IA (target of this feature)
+## 4. Canonical Home IA (implemented)
 
 Ordinary execution day:
 
@@ -353,10 +351,8 @@ than a Home `+` at worst. Home `+` is an aggregator only and is retired, not rep
 ## 9. Special Plan today — primary-task contract
 
 Precedence (GD-5, unchanged from the owner's 2026-09-10 answer): `.mealPrep` → dinner `eatOut` →
-**Special Plan today** → ordinary Today Plan → `.quick` → recommendation. The shipped
-`HomePrimaryTask.resolve` (`HomePrimaryTask.swift` L96–150) already runs mealPrep → eatOut →
-`planState != .empty` → quick → recommendation, so this inserts exactly one branch between the
-`dinnerIntent == .eatOut` check and the `planState` check.
+**Special Plan today** → ordinary Today Plan → `.quick` → recommendation. The implemented resolver inserts the Special Plan branch between the dinner eat-out check and
+the ordinary-plan check.
 
 Definitions, from current data:
 
@@ -372,8 +368,8 @@ Definitions, from current data:
 - Suppressed ordinary plans on any of these days are stated by the GD-5 / OD-4 / OD-5 context line
   only.
 
-Home does not read `SpecialPlan` at all today, and `HomeDashboardSummary` is not given
-`specialPlans`, so this is new input plumbing rather than a rewiring of existing state.
+Home now passes `kitchenStore.specialPlans` directly to `HomePrimaryTask.resolve`;
+`HomeDashboardSummary` remains unchanged.
 
 | State | Primary task | Detail | Primary CTA | Context line | Notes |
 |---|---|---|---|---|---|
@@ -395,9 +391,7 @@ already exist.
 entry and Home never shows the words `特殊计划` / `AI 聚餐` / `AI 菜单` / `新建特殊计划`. A
 Special Plan *scheduled for today* becoming the primary task is a today-state, not a navigation
 entry, and its CTA opens Planner (the canonical route). D-031's wording ban is respected by using
-the plan's own title and `聚餐` (the word D-040 already uses). The next available Home IA Decision
-(currently expected D-042; assigned only after re-reading `Decisions.md` at write time) records
-this narrowing before Slice D implements.
+the plan's own title and `聚餐` (the word D-040 already uses). D-042 records this narrowing and was accepted before Slice D.
 
 ## 10. Home state matrix
 
@@ -428,7 +422,7 @@ entry.** No state carries `今天的计划`.
 
 ## 11. `TodayPlanDetailView` final disposition
 
-**Verdict: B — retire inside this feature, after internal capability parity.** The view's only
+**Verdict: B — retired inside this feature, after internal capability parity.** The view's only
 irreplaceable capability was hosting the weekly generator, and D-041 removed that constraint: a
 Planner-hosted generator now tells the truth. No other feature owns this retirement, and no
 additional feature is required.
@@ -442,7 +436,8 @@ Retirement prerequisites, all inside this feature and all preceding Slice E:
 5. the legacy delete is removed; D-040 delete + Undo remains canonical (FR-015);
 6. Home has no remaining route to the view (FR-010).
 
-Slice E then deletes, with a zero-reference proof for each:
+Slice E completed the following deletions. The line numbers and caller counts below are historical
+pre-deletion evidence; both persistence and confirmation test callers now use `removePlan(id:)`:
 
 - `TodayPlanDetailView` (`HomeView.swift` L2129–2351) and its private members `TodayPlanSheet`,
   `planDetailButton`, `completionButton`, `weeklyPlanSubtitle`, `showToast`;
@@ -645,10 +640,9 @@ consequences as cooking in-app, from the surface that owns plans.
   token, typography, card, chip, badge or gradient is added or changed.
 - **FR-021** Section order `Today Context → Primary Task → Needs Attention` and leaf-identifier
   placement MUST be preserved.
-- **FR-022** The next available Home IA Decision (currently expected D-042; assigned only after
-  re-reading `Decisions.md` at write time) — superseding D-031 decisions 3–4 and narrowing
-  decision 5 — MUST be recorded in canonical memory before Slices B, D and E are implemented. This
-  feature MUST NOT assume, reserve or pre-write a specific number.
+- **FR-022** The canonical Home IA Decision MUST be recorded before B/D/E. This prerequisite
+  is satisfied by **D-042**, assigned after reading the canonical record; D-031 decisions 3–4
+  are superseded only in the defined scope and decision 5 narrowed. D-041 remains owned by 003.
 
 ### Key Entities
 
@@ -682,11 +676,11 @@ consequences as cooking in-app, from the surface that owns plans.
 - **SC-009** No Home behaviour treats `weeklyPlan` as schedule truth; Home contains zero
   `weeklyPlan` references.
 - **SC-010** A plan completed from any origin yields identical persisted state (unit test).
-- **SC-011** No production or test reference remains to `SmartImportSheet`, `home.import.*`,
-  `home.recommendation.refresh` / `viewAll` / `moreLink`, `home.plan.secondaryLink`,
-  `home.today.plan.viewAll`, `today.plan.*`, `全部做完`, `今日计划已全部完成`, or the legacy
-  delete alert (`rg` gate in `quickstart.md`), and each deleted store symbol has a recorded
-  zero-reference proof.
+- **SC-011** No live native production definition, control or route remains for the retired
+  surface, bulk completion or identifiers listed in the narrow quickstart audit. Each deleted
+  store symbol has a recorded zero-reference proof. Negative regression assertions and explicitly
+  historical documentation may quote retired names; retained `home.today.plan.start`,
+  `home.today.plan.row.*` and `home.today.plan.viewRecipe` are not retired `today.plan.*` controls.
 - **SC-012** Focused Home / Planner / weekly / accessibility suites pass, and the full native suite
   reports no new failures beyond the documented baseline reds.
 
@@ -708,8 +702,8 @@ consequences as cooking in-app, from the surface that owns plans.
   `今天有聚餐`, `今天另有 N 道计划`, `今天另有 N 道计划 · 已完成`. `今天还有 N 场` was
   considered and dropped by owner copy ruling: Home is not a same-day Special Plan schedule
   summary.
-- FR-006's replacement subtitle is expected to read `已生成 N 天 · M 道菜`, reusing the word the
-  adjacent entry label already uses. Exact copy is owner-adjustable; the requirement is that it
+- FR-006's implemented subtitle reads `已生成 N 天 · M 道菜`, reusing the word the
+  adjacent entry label already uses. The requirement is that it
   must not claim an unmaterialized draft is scheduled.
 - The recommendation browser's regenerate label stays `AI 换几道` (already there; D-038 host
   treatment).

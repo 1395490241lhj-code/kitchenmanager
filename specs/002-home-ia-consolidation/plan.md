@@ -6,9 +6,8 @@
 **Input**: Feature specification from `specs/002-home-ia-consolidation/spec.md`, re-derived on
 2026-09-11 against `main` = `a7b7d8f` (D-041 shipped). Audit evidence re-read at `eb894a8`.
 
-**Status**: Sealed for implementation planning. No product code has been changed; every task is
-unstarted. Slices A and C may start once the user authorizes implementation; Slices B, D and E
-additionally require the next available Home IA Decision recorded (FR-022).
+**Status**: A–E implemented and committed through `e51f059`. D-042 is recorded.
+Final serial tests, Release validation and reconciliation are in progress (T038–T040).
 
 ## Summary
 
@@ -25,7 +24,8 @@ to a later one.
 
 All work is deletion, rerouting or thin hosting over existing screens. The only new Planner
 controls are a toolbar overflow menu, row-level `做好了` actions, and a generator host that passes
-one callback. No generation, materialization, recovery or persistence logic is written here.
+one callback. Generation/materialization/recovery and storage schemas remain unchanged. The separately approved
+shared confirmation repair preserves exact plan IDs and idempotent consumption success.
 
 ## Technical Context
 
@@ -46,7 +46,8 @@ spec; D-021 three-layer order and leaf identifiers preserved; D-040 delete contr
 delete; D-041 owns everything inside `WeeklyMenuPlanner.swift` and this feature does not touch it
 
 **Scale/Scope**: six slices over `HomeView.swift`, `HomePrimaryTask.swift`,
-`HomeDashboardSummary.swift`, `PlannerView.swift`; ~12 test files; two new UI-test files.
+`PlannerView.swift`, `InventoryConsumption.swift`, `RecipeCookingFlow.swift`,
+and DEBUG fixtures; `HomeDashboardSummary.swift` is unchanged; two new UI-test files.
 `KitchenStore.swift` is touched only by Slice E's proven-dead deletions.
 `WeeklyMenuPlanner.swift` is not modified at all.
 
@@ -56,7 +57,7 @@ delete; D-041 owns everything inside `WeeklyMenuPlanner.swift` and this feature 
 |---|---|---|
 | I. Evidence Before Assumption | SATISFIED | Re-audited at `eb894a8` on top of `main` = `a7b7d8f`: every Home control, `TodayPlanDetailView` capability with line evidence, Planner row action, store API caller, weekly-generator API surface and callback contract, and the Monday-first week anchor. The 2026-09-10 conclusions that fresher evidence contradicts are marked superseded in place rather than carried forward. |
 | II. Bounded Change and Scope Discipline | SATISFIED | Scope is Home IA plus the Planner hosting needed to retire one view. Generation/materialization internals, AI provenance, recipe-residue cleanup, `planNotice` and `KitchenStore` decomposition stay out and are recorded as follow-ups. |
-| III. Canonical Authority and Decision Integrity | SATISFIED (with gate) | D-031 decisions 3–4 are superseded and decision 5 narrowed by the next available Home IA Decision, recorded before Slices B/D/E (FR-022). D-031 text is not rewritten. D-040 and D-041 are respected, not reinterpreted: the delete contract and the materialization contract are consumed as they shipped. No number is reserved in advance. |
+| III. Canonical Authority and Decision Integrity | SATISFIED | D-031 decisions 3–4 are superseded and decision 5 narrowed by recorded D-042, accepted before Slices B/D/E (FR-022). D-031 text is not rewritten. D-040 and D-041 are respected, not reinterpreted: the delete contract and the materialization contract are consumed as they shipped. Decision assignment is complete. |
 | IV. Trust Before Automation and Data Safety | SATISFIED (design) | `做好了` keeps the consumption confirmation; removing `全部做完` strengthens the meal↔consumption linkage; the legacy delete that could not report a failed persist is replaced by D-040's outcome-returning delete with Undo; the generator host adds no automation and cannot write plans itself. |
 | V. Validation Proportional to Risk | PLANNED | Per-slice focused suites (quickstart.md), a zero-reference proof per deleted symbol in Slice E, and the full native suite plus release check in Slice F. |
 | VI. Authorization Is Never Implied | SATISFIED | Tasks describe code and tests only. Commit, push, vault write-back and the Decision record remain explicit user actions. |
@@ -73,7 +74,7 @@ cross-surface contract (the generator callback) is consumed exactly as D-041 pub
 specs/002-home-ia-consolidation/
 ├── spec.md              # WHAT/WHY, governing decisions, audits, state matrix, verdict B
 ├── plan.md              # This file
-├── research.md          # Design decisions with alternatives; unnumbered Decision draft
+├── research.md          # Design rationale; historical unnumbered Decision draft
 ├── data-model.md        # Presentation-only entities; no schema change
 ├── quickstart.md        # Validation commands per slice
 ├── tasks.md             # Sliced task list
@@ -91,9 +92,11 @@ ios-native/Kitchen Manager/
 │   ├── PlannerView.swift           # A: 做好了 (swipe/context/AX); 更多 overflow; shopping + weekly routes; generator host + reveal; initial-path seed
 │   ├── HomeView.swift              # C: remove +/SmartImportSheet, AI 换几道, 更多推荐. B: remove both TodayPlanDetail routes, context line. D: .specialPlanToday section. E: delete TodayPlanDetailView
 │   ├── HomePrimaryTask.swift       # B: otherPlansLine model. D: .specialPlanToday + Special Plan input
-│   ├── HomeDashboardSummary.swift  # D: Special Plan input plumbing, if the projection is where it belongs
+│   ├── InventoryConsumption.swift  # shared exact-plan confirmation repair
+│   ├── RecipeCookingFlow.swift     # preserve exact planned target identity
+│   ├── ContentView.swift / PlannerRegressionFixture.swift # DEBUG fixtures
 │   ├── KitchenStore.swift          # E only: delete markAllTodayCooked / removePlan(_ plan:) after proof
-│   └── (WeeklyMenuPlanner.swift, ShoppingListGenerator.swift, RecipeCookingFlow.swift, PlannerProjection.swift untouched)
+│   └── (WeeklyMenuPlanner.swift, ShoppingListGenerator.swift, HomeDashboardSummary.swift, PlannerProjection.swift untouched)
 ├── KitchenManagerTests/
 │   ├── HomePrimaryTaskTests.swift          # context-line copy, Special Plan precedence, exhaustive combinations
 │   ├── PlannerMealCRUDTests.swift / KitchenStoreTests.swift   # completion parity
@@ -135,4 +138,3 @@ Two ordering facts worth stating plainly, because getting them wrong breaks the 
 ## Complexity Tracking
 
 No constitution violations requiring justification.
-

@@ -2,6 +2,15 @@
 
 Only notable changes that have entered `main` are recorded here. Current state belongs in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); detailed evidence belongs in focused documents or Git history.
 
+## 2026-09-12
+
+- Consolidated the native iOS Home information architecture (`be0f495` … `e51f059`). Home now has one planning-management destination, `用餐计划` → Planner, in every state; one discovery control, `更多推荐`; no toolbar `+`; and no Home-level `AI 换几道`. Each retired entry point kept its capability in the surface that owns it — import and add live in Recipes and Inventory, regeneration lives in the recommendation browser.
+- Moved the retained ordinary-meal capabilities to Planner: per-meal `做好了` as a leading swipe action beside the existing delete, `生成今日购物清单` in the toolbar `更多` menu, and hosting for the AI weekly generator, which reveals the materialized week through the shipped `onMaterialized(WeeklyMaterializationSummary)` callback instead of describing a draft as saved.
+- Made a Special Plan scheduled today Home's primary task, between dinner `eatOut` and ordinary plans, with `查看聚餐` opening that plan in Planner. When another task wins, the plan appears as one static, non-interactive context line. The full schedule stays in Planner; Home never summarizes counts.
+- Retired `TodayPlanDetailView` with its route, `全部做完` / `markAllTodayCooked()`, the legacy alert-delete and the zero-reference `removePlan(_ plan:)` overload. Delete and Undo remain D-040's canonical `removePlan(id:)` / `restorePlan(_:at:)` in Planner; no bulk-completion replacement was added.
+- Fixed exact-plan consumption confirmation so a plan whose ingredients were already deducted cannot deduct a second time, and said so truthfully in the confirmation copy. No schema, persistence, sync, provider or AI pipeline change in any of the above.
+- Recorded canonical Decision D-042 (canonical Home and plan navigation).
+
 ## 2026-09-11
 
 - Made the AI weekly menu materialize into the canonical meal plan (`86a65fa` … `e83defd`). `加入用餐计划` now creates real `MealPlanItem` rows in `KitchenStore.plans` with resolved recipe identities and `plannedServings` left unset, in one all-or-none batch, behind a durable receipt that binds each intended plan id to its recipe and its intended date. An interrupted attempt is a retry on the same ids rather than a second menu; a half-present menu asks the member instead of repairing itself; a finished menu never re-materializes, so deleting a meal in Planner stays the member's decision. The result screen states the rolling date range it actually covers, and the manual `把今天加入计划` / per-dish `加入今日计划` paths are gone with their dangling-id hazard.

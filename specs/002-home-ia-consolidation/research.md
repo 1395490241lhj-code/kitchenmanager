@@ -14,7 +14,7 @@ than pretending the original reasoning never happened.
 `.accessibilityAction(named:)`. Each presents the existing `CookConsumptionConfirmationView` for
 that `MealPlanItem` (exact plan IDs always preserved; an already-consumed plan confirms with
 zero deduction through the shared already-satisfied state) and calls `markPlanCooked` — the same
-tail the cooking flow and `TodayPlanDetailView.completionButton` use.
+tail the cooking flow uses; the TodayPlanDetail counterpart has been deleted.
 
 **Rationale**: owner instruction; the leading edge currently carries one action so two is
 Mail-like native density; the trailing edge stays `移出计划`; a permanent button is forbidden; the
@@ -33,8 +33,8 @@ inappropriate at Accessibility sizes.
 `KitchenStore.markAllTodayCooked()` in Slice E once the zero-reference proof passes.
 
 **Rationale**: per-meal completion is the truthful model; bulk completion weakens the
-meal↔consumption relationship; no persisted state depends on it. The store method has exactly one
-caller in the repository — the view being retired — so its cleanup belongs to this feature rather
+meal↔consumption relationship; no persisted state depends on it. The deleted store method had exactly one
+production caller — the retired view — so its cleanup belongs to this feature rather
 than a later one.
 
 **Changed since 2026-09-10**: the cleanup was previously deferred to a future retirement slice
@@ -64,7 +64,7 @@ believe Save scheduled meals into Planner. On `1a7475b` that belief was false, s
 refused. D-041 shipped on `a7b7d8f` and made the belief **true**: `加入用餐计划` resolves recipes,
 commits a receipt, and writes canonical `MealPlanItem`s through one all-or-none
 `KitchenStore.appendPlans` batch. The reason for refusing the move no longer exists, and the
-generator's current host is the view this feature retires.
+generator is now hosted by Planner.
 
 **Changed since 2026-09-10**: this reverses D4 as it was originally written. The old entry
 concluded “stays on `TodayPlanDetailView`; `WeeklyMenuPlanner.swift` is untouched”. The file is
@@ -104,12 +104,11 @@ Special Plan makes it false.
 `scheduledAt`; the branch sits after the `eatOut` check and before `planState != .empty`. Earliest
 wins; completed = non-empty dishes all cooked; completed plans remain primary. Suppressed under
 prep or eat-out, the plan is one context line `今天有聚餐 · <HH:mm> <title>`
-(`home.context.specialPlan`).
+(`home.context.specialPlan`), with ` · 已完成` appended for a completed event.
 
 **Rationale**: keeps the single testable decision point that `HomePrimaryTaskTests` already
 exercises exhaustively; existing combinations are unchanged when the input is empty; no
-persistence. Home reads no `SpecialPlan` today, so this is new input plumbing into
-`HomeView`/`HomePrimaryTask` rather than a rewiring of existing state.
+persistence. Home now passes Special Plans into the resolver; HomeDashboardSummary remains unchanged.
 
 ## D8 — Discovery consolidation reuses the browser's regenerate; `更多推荐` above `用餐计划` (OD-6)
 
@@ -119,8 +118,7 @@ one identifier `home.recommendation.more`; in execution mode the row stays above
 **Rationale**: `recommendation.regenerate.button` already exists in the browser with identical
 behaviour, the same label and richer state handling. Order: `更多推荐` is contextual discovery for
 the current meal task and `用餐计划` is global plan management, so task-local secondary action
-precedes global management. Home-scoped rationale only. `更多推荐` appears nowhere in the codebase
-today, so it is a new string rather than a reused one.
+precedes global management. Home-scoped rationale only. `更多推荐` is now the implemented Home discovery label.
 
 ## D9 — `TodayPlanDetailView` is retired in this feature (classification B)
 
@@ -161,18 +159,17 @@ member's own range); introducing a multi-week view (rejected: unrequested IA cha
 nothing after materialization (rejected: the member would be left on the generator with no
 evidence their meals exist).
 
-## D11 — The Decision number is assigned at write time
+## D11 — Decision assignment completed as D-042
 
-**Decision**: this feature refers to *the next available Home IA Decision (currently expected
-D-042; assigned only after re-reading `Decisions.md` at write time)*. It does not reserve a
-number, and the draft below stays unnumbered until vault write-back.
+**Decision**: D-042 was assigned after reading canonical `Decisions.md` and accepted before
+B/D/E. The unnumbered draft below is preserved only as historical provenance.
 
 **Rationale**: the 2026-09-10 session verified D-040 as the latest Decision and therefore wrote
 D-041 into this spec. 003 then shipped and took D-041 for canonical plan ownership. A spec that
 pins a number ahead of the write is wrong the moment another feature seals first, so the number is
 resolved against `Decisions.md` at the moment of writing, not now.
 
-## Decision draft — unnumbered, for vault write-back at seal
+## Historical Decision draft — unnumbered; superseded by recorded D-042
 
 > **Home keeps one planning route to Planner; Special Plan today may be the primary task**
 >
@@ -191,5 +188,4 @@ resolved against `Decisions.md` at the moment of writing, not now.
 > `更多推荐`, placed above `用餐计划` because task-local discovery precedes global plan management
 > (Home-scoped rationale). `TodayPlanDetailView` is deleted.
 
-Assign the number by re-reading `Decisions.md` immediately before writing; do not carry a number
-forward from this document.
+The assignment described above is complete. No new Decision is requested at seal.
