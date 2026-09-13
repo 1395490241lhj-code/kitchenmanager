@@ -166,16 +166,22 @@ in-memory array equals durable storage.
 - [ ] T030 [US3] Run the five hosted runners via `HostedGuestMergeSmokeTests` against development infrastructure and confirm each reaches its existing final checkpoint with unchanged checkpoint semantics (SC-007)
 - [ ] T031 [US3] Restore every flag to `NO` or its original value, then verify zero marker residue or record the exact residual entity ids (FR-010, SC-008)
 
-**Checkpoint**: hosted evidence collected and the rule is pinned against future drift.
+**Hosted limitation at seal (2026-09-13)**: T030 and T031 stay unchecked. This machine has no
+`Config/Local.xcconfig` and no `TEST_USER_A/B_*` credentials, so all five `HostedGuestMergeSmokeTests`
+cases `XCTSkip` by design — visible in the run, never compiled out. No flag was enabled, no hosted
+run happened, and therefore no residue could be created. Hosted development acceptance remains
+missing evidence rather than a pass.
+
+**Checkpoint**: the drift guard is pinned; hosted evidence is outstanding and documented above.
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T032 Run the full `KitchenManagerTests` and `KitchenManagerUITests` targets and classify any red against a clean baseline
-- [ ] T033 Run the [quickstart.md](./quickstart.md) validation end to end
-- [ ] T034 Produce the required final report per `AGENTS.md` §7, listing unrun tests and their exact next command
-- [ ] T035 Reconcile canonical project memory under `AGENTS.md` §2.5, and record a new Decision only if an actual decision was made
+- [x] T032 Run the full `KitchenManagerTests` and `KitchenManagerUITests` targets and classify any red against a clean baseline
+- [x] T033 Run the [quickstart.md](./quickstart.md) validation end to end
+- [x] T034 Produce the required final report per `AGENTS.md` §7, listing unrun tests and their exact next command
+- [x] T035 Reconcile canonical project memory under `AGENTS.md` §2.5, and record a new Decision only if an actual decision was made
 
 ---
 
@@ -223,4 +229,3 @@ infrastructure.
 - Completion of every task means only that `GuestMergeSmoke` is trustworthy enough to participate
   in the pre-dogfood acceptance gate. It does not mean sync is enabled, Stage 1 or Stage 2 is
   started or approved, production is ready, or production Supabase is provisioned.
-
