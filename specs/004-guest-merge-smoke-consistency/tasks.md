@@ -42,8 +42,8 @@ between Phase 2 and Phase 3.
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm the branch is `codex/004-guest-merge-smoke-consistency` at base `2f436899e8c10cbf1fbb78b98270f5eabb9f2434`, the tree is clean, and `.specify/feature.json` resolves to `specs/004-guest-merge-smoke-consistency`
-- [ ] T002 Re-read D-028 and D-029 in the canonical vault `Decisions.md` and confirm this feature modifies neither, recording the confirmation in [research.md](./research.md) if anything has changed since `2f43689`
+- [x] T001 Confirm the branch is `codex/004-guest-merge-smoke-consistency` at base `2f436899e8c10cbf1fbb78b98270f5eabb9f2434`, the tree is clean, and `.specify/feature.json` resolves to `specs/004-guest-merge-smoke-consistency`
+- [x] T002 Re-read D-028 and D-029 in the canonical vault `Decisions.md` and confirm this feature modifies neither, recording the confirmation in [research.md](./research.md) if anything has changed since `2f43689`
 
 **Checkpoint**: baseline and governing contract confirmed.
 
@@ -118,16 +118,16 @@ in-memory array equals durable storage.
 
 > Write these first and confirm they fail before implementing T012–T016.
 
-- [ ] T010 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting that a conflicting local inventory edit attempted during the duplicate-retry block is refused, leaving no durable row change and no staged outbound mutation (FR-001, FR-002, SC-003)
-- [ ] T011 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting that after each protected block `KitchenStore.inventory` equals the durable inventory (FR-003, SC-002)
+- [x] T010 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting that a conflicting local inventory edit attempted during the duplicate-retry block is refused, leaving no durable row change and no staged outbound mutation (FR-001, FR-002, SC-003)
+- [x] T011 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting that after each protected block `KitchenStore.inventory` equals the durable inventory (FR-003, SC-002)
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] Wrap window W1 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the duplicate-retry block in `runRemainingPhases`, opening before `duplicateAdapter.stageUpsert` and closing after the marker-cleanup coordinator run, covering the requeued `savePending` and both resends, with no scenario-construction local edit inside the span (FR-001, FR-002, FR-007)
-- [ ] T013 [US1] Wrap window W2 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the final pull `finalCoordinator.runOnce` in `runRemainingPhases`
-- [ ] T014 [US1] Wrap window W3 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the simulated second-device `stageUpsert` plus `updateCoordinator.runOnce` in `runProductionRemotePreviewMinimalSmoke`, closing before the stale-confirm assertions so the stale `remoteSnapshotHash` condition, the rejection, the zero staged mutations and the still-ambiguous fresh preview all remain proven (FR-009)
-- [ ] T015 [US1] Wrap window W4 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the staged soft-delete loop and coordinator run inside `bestEffortCleanup`
-- [ ] T016 [US1] Make a failed cleanup reconciliation fail the run on otherwise successful paths in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`, so a locked store is never reported as a clean cleanup (FR-004, FR-010)
+- [x] T012 [US1] Wrap window W1 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the duplicate-retry block in `runRemainingPhases`, opening before `duplicateAdapter.stageUpsert` and closing after the marker-cleanup coordinator run, covering the requeued `savePending` and both resends, with no scenario-construction local edit inside the span (FR-001, FR-002, FR-007)
+- [x] T013 [US1] Wrap window W2 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the final pull `finalCoordinator.runOnce` in `runRemainingPhases`
+- [x] T014 [US1] Wrap window W3 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the simulated second-device `stageUpsert` plus `updateCoordinator.runOnce` in `runProductionRemotePreviewMinimalSmoke`, closing before the stale-confirm assertions so the stale `remoteSnapshotHash` condition, the rejection, the zero staged mutations and the still-ambiguous fresh preview all remain proven (FR-009)
+- [x] T015 [US1] Wrap window W4 in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`: the staged soft-delete loop and coordinator run inside `bestEffortCleanup`
+- [x] T016 [US1] Make a failed cleanup reconciliation fail the run on otherwise successful paths in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`, so a locked store is never reported as a clean cleanup (FR-004, FR-010)
 
 **Checkpoint**: US1 is independently testable — the harness holds the production guarantee.
 
@@ -139,15 +139,15 @@ in-memory array equals durable storage.
 
 **Independent Test**: run the iOS unit test target offline; these tests pass or fail on their own.
 
-- [ ] T017 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: an injected staging failure still unwinds the window and reconciles (FR-003, SC-002)
-- [ ] T018 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: an injected `runOnce` failure still unwinds the window and reconciles (FR-003, SC-002)
-- [ ] T019 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: a cleanup failure does not allow the run to report a clean state (FR-010, SC-008)
-- [ ] T020 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: an injected reconciliation failure leaves the store locked and surfaces a validation failure (FR-004, SC-005)
-- [ ] T021 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: nested or overlapping protected operations do not unlock the window at the inner close (FR-006, SC-006)
-- [ ] T022 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: reconciliation stages zero outbound mutations and writes nothing back to persistence (FR-005, SC-004)
-- [ ] T023 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: the duplicate-retry contract is intact — the identical persisted mutation is resent and observed as a duplicate no-op with no remote version bump (FR-008)
-- [ ] T024 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: the simulated second-device scenario still produces a stale-confirm rejection with zero mutations staged, and a fresh preview that still reports the ambiguous duplicate (FR-009)
-- [ ] T025 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: D-029 rollback semantics are unaffected — no local durable inventory row is deleted by a rollback inside a protected block
+- [x] T017 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: an injected staging failure still unwinds the window and reconciles (FR-003, SC-002)
+- [x] T018 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: an injected `runOnce` failure still unwinds the window and reconciles (FR-003, SC-002)
+- [x] T019 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: a cleanup failure does not allow the run to report a clean state (FR-010, SC-008)
+- [x] T020 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: an injected reconciliation failure leaves the store locked and surfaces a validation failure (FR-004, SC-005)
+- [x] T021 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: nested or overlapping protected operations do not unlock the window at the inner close (FR-006, SC-006)
+- [x] T022 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: reconciliation stages zero outbound mutations and writes nothing back to persistence (FR-005, SC-004)
+- [x] T023 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: the duplicate-retry contract is intact — the identical persisted mutation is resent and observed as a duplicate no-op with no remote version bump (FR-008)
+- [x] T024 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: the simulated second-device scenario still produces a stale-confirm rejection with zero mutations staged, and a fresh preview that still reports the ambiguous duplicate (FR-009)
+- [x] T025 [US2] Test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift`: D-029 rollback semantics are unaffected — no local durable inventory row is deleted by a rollback inside a protected block
 
 **Checkpoint**: every protected block has success and failure coverage.
 
@@ -159,10 +159,10 @@ in-memory array equals durable storage.
 
 **Independent Test**: `npm test` fails when an unprotected call is reintroduced; hosted runners reach their checkpoints when credentials are present.
 
-- [ ] T026 [P] [US3] Extend the guard in `test/ios-native-guest-merge-phase2b1.test.mjs` to fail when a direct persistence-affecting call appears in `GuestMergeSmoke.swift` outside a consistency window, joining the existing `stageDeleteRemovingLocalRecord` call-site rules, and to fail when a scenario-construction `kitchenStore.inventory` assignment appears inside a window (FR-001, FR-007, FR-013, SC-001)
-- [ ] T027 [P] [US3] Run `npm test` and confirm the extended guard passes, then temporarily move one protected call outside its window to confirm the guard actually fails, and restore the file (FR-013, SC-001)
-- [ ] T028 [US3] Verify every committed `.xcconfig` still defaults sync, merge, smoke, dogfood and diagnostics flags to `NO` (FR-012, SC-009)
-- [ ] T029 [US3] Confirm development test-account credentials and gates for `ios-native/Kitchen Manager/KitchenManagerTests/HostedGuestMergeSmokeTests.swift` before any hosted run, enabling flags only in the ignored local configuration
+- [x] T026 [P] [US3] Extend the guard in `test/ios-native-guest-merge-phase2b1.test.mjs` to fail when a direct persistence-affecting call appears in `GuestMergeSmoke.swift` outside a consistency window, joining the existing `stageDeleteRemovingLocalRecord` call-site rules, and to fail when a scenario-construction `kitchenStore.inventory` assignment appears inside a window (FR-001, FR-007, FR-013, SC-001)
+- [x] T027 [P] [US3] Run `npm test` and confirm the extended guard passes, then temporarily move one protected call outside its window to confirm the guard actually fails, and restore the file (FR-013, SC-001)
+- [x] T028 [US3] Verify every committed `.xcconfig` still defaults sync, merge, smoke, dogfood and diagnostics flags to `NO` (FR-012, SC-009)
+- [x] T029 [US3] Confirm development test-account credentials and gates for `ios-native/Kitchen Manager/KitchenManagerTests/HostedGuestMergeSmokeTests.swift` before any hosted run, enabling flags only in the ignored local configuration
 - [ ] T030 [US3] Run the five hosted runners via `HostedGuestMergeSmokeTests` against development infrastructure and confirm each reaches its existing final checkpoint with unchanged checkpoint semantics (SC-007)
 - [ ] T031 [US3] Restore every flag to `NO` or its original value, then verify zero marker residue or record the exact residual entity ids (FR-010, SC-008)
 

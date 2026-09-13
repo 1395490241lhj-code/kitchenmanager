@@ -1146,3 +1146,57 @@ test('UI-5B2B-B2B: restart probes use fixed identifiers, never interpolated ones
   assert.match(b2bProbe, /static let forkIdentity = "uitest\.restart\.forkIdentity"/);
   assert.doesNotMatch(b2bProbe, /accessibilityIdentifier\("uitest\.restart\.[a-zA-Z]*\\\(/);
 });
+
+test('004: every direct persistence-affecting call in GuestMergeSmoke runs inside a consistency window', () => {
+  // Brace-match the bodies of the withInventoryConsistencyWindow(...) { ... }
+  // call sites. The generic definition (…<T>(…) is deliberately not matched.
+  const windows = [];
+  const marker = 'withInventoryConsistencyWindow(';
+  let cursor = 0;
+  for (;;) {
+    const call = guestMergeSmoke.indexOf(marker, cursor);
+    if (call === -1) break;
+    cursor = call + marker.length;
+    const open = guestMergeSmoke.indexOf('{', cursor);
+    if (open === -1) continue;
+    let depth = 0;
+    for (let i = open; i < guestMergeSmoke.length; i += 1) {
+      if (guestMergeSmoke[i] === '{') depth += 1;
+      else if (guestMergeSmoke[i] === '}') {
+        depth -= 1;
+        if (depth === 0) { windows.push([open, i]); break; }
+      }
+    }
+  }
+  assert.ok(windows.length >= 4, `expected at least the four W1-W4 windows, found ${windows.length}`);
+
+  const insideAWindow = index => windows.some(([start, end]) => index > start && index < end);
+  const occurrences = pattern => {
+    const found = [];
+    const regex = new RegExp(pattern, 'g');
+    let match;
+    while ((match = regex.exec(guestMergeSmoke)) !== null) found.push(match.index);
+    return found;
+  };
+
+  // Every direct path that can change durable inventory truth must be wrapped.
+  for (const pattern of ['\\.stageUpsert\\(', '\\.stageDeleteRemovingLocalRecord\\(', '\\.runOnce\\(', '\\.savePending\\(']) {
+    const sites = occurrences(pattern);
+    assert.ok(sites.length > 0, `${pattern} must still exist in the smoke runner`);
+    for (const index of sites) {
+      assert.ok(
+        insideAWindow(index),
+        `${pattern} at offset ${index} must run inside a consistency window`
+      );
+    }
+  }
+
+  // Scenario-construction edits must stay outside: the D-028 edit gate would
+  // silently refuse them inside a window and stop building the scenario.
+  for (const index of occurrences('kitchenStore\\.inventory\\s*=')) {
+    assert.ok(
+      !insideAWindow(index),
+      `a scenario-construction inventory assignment at offset ${index} must stay outside every window`
+    );
+  }
+});

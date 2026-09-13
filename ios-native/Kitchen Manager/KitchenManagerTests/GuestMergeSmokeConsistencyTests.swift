@@ -72,6 +72,10 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(
             uploadedEntities, 6, "the baseline must have confirmed and uploaded its marker dataset"
         )
+        // The duplicate-retry contract still holds inside W1: the requeued
+        // mutation was resent unchanged and the ledger answered duplicate.
+        let duplicates = await server.duplicateResponseCount()
+        XCTAssertGreaterThanOrEqual(duplicates, 1, "the identical resent mutation must still be a duplicate no-op")
     }
 
     /// Phase 2B-2.5. Runs to completion: baseline seeding, a fresh conflicting
@@ -104,6 +108,99 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
     // MARK: Production rollback availability is unchanged
 
     // MARK: Slice A - boundary plumbing semantics
+
+    /// W1 evidence: an ordinary local edit attempted while a protected
+    /// operation is in flight is refused, leaving no durable row behind.
+    func testAConflictingLocalEditIsRefusedInsideAProtectedOperation() async throws {
+        let container = try Self.makeContainer()
+        let kitchenStore = Self.makeKitchenStore(container: container)
+        let durable = SwiftDataInventoryPersistence(container: container)
+        kitchenStore.inventory = [InventoryItem(name: "__w1_existing", quantity: 1, unit: "个", expiryDate: nil)]
+        let before = kitchenStore.inventory
+
+        try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "a protected operation") {
+            kitchenStore.inventory = [
+                InventoryItem(name: "__w1_conflicting_edit", quantity: 9, unit: "个", expiryDate: nil)
+            ]
+            XCTAssertEqual(kitchenStore.inventory, before, "the edit gate must refuse a local edit mid-operation")
+        }
+
+        XCTAssertEqual(
+            try durable.loadInventory().map(\.name), ["__w1_existing"], "the refused edit must leave no durable row"
+        )
+        XCTAssertEqual(kitchenStore.inventory.map(\.name), ["__w1_existing"])
+    }
+
+    /// W2 evidence: a protected operation that changes durable inventory behind
+    /// the store's back leaves memory equal to persistence once it closes.
+    func testProtectedOperationReconcilesMemoryFromDurableInventory() async throws {
+        let container = try Self.makeContainer()
+        let kitchenStore = Self.makeKitchenStore(container: container)
+        let durable = SwiftDataInventoryPersistence(container: container)
+        kitchenStore.inventory = []
+        let pulled = InventoryItem(name: "__w2_pulled", quantity: 3, unit: "个", expiryDate: nil)
+
+        try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "a protected pull") {
+            // Stands in for a coordinator pull writing through its own context.
+            try durable.upsert(pulled)
+            XCTAssertTrue(kitchenStore.inventory.isEmpty, "memory is still stale while the window is open")
+        }
+
+        XCTAssertEqual(kitchenStore.inventory.map(\.id), [pulled.id], "the close reconciles memory from persistence")
+        XCTAssertEqual(try durable.loadInventory().map(\.id), kitchenStore.inventory.map(\.id))
+    }
+
+    /// Reconciliation republishes durable truth without treating it as a user
+    /// edit, so it can never echo a pulled change straight back out.
+    func testReconciliationStagesNoOutboundMutation() async throws {
+        let container = try Self.makeContainer()
+        let persistence = SwiftDataSyncPersistence(modelContainer: container)
+        let kitchenStore = Self.makeKitchenStore(container: container)
+        let durable = SwiftDataInventoryPersistence(container: container)
+        let scope = SyncScope(type: .household, id: householdId)
+        kitchenStore.inventory = []
+        let before = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+
+        try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "a protected pull") {
+            try durable.upsert(InventoryItem(name: "__echo_probe", quantity: 1, unit: "个", expiryDate: nil))
+        }
+
+        let after = try await persistence.pendingMutations(scope: scope, maxAttempts: 5).count
+        XCTAssertEqual(after, before, "reconciliation must never stage an outbound mutation")
+        XCTAssertEqual(kitchenStore.inventory.count, 1, "while still publishing durable truth")
+    }
+
+    /// Case C through a real protected operation: an injected push failure inside
+    /// W1 unwinds the window, reconciliation succeeds, and the operation's own
+    /// error is what the run reports — never a reconciliation error.
+    func testAFailedProtectedOperationStillClosesTheWindowAndKeepsItsOwnError() async throws {
+        let server = SimulatedMergeServer(userID: userIdA, householdID: householdId)
+        await server.failPushes(forNameContaining: "_dup")
+        let runner = GuestMergeSmokeRunner(
+            smokeConfiguration: Self.enabledConfiguration, transportFactory: { _ in server }
+        )
+        let authStoreA = await Self.signedInAuthStore(userID: userIdA)
+        let authStoreB = await Self.signedInAuthStore(userID: userIdB)
+
+        do {
+            _ = try await runner.run(
+                authStoreA: authStoreA,
+                authStoreB: authStoreB,
+                reSignInA: {
+                    _ = await authStoreA.signIn(email: "slice-c@example.com", password: "not-a-real-password")
+                }
+            )
+            XCTFail("the injected push failure must surface")
+        } catch let error as GuestMergeSmokeError {
+            guard case .validationFailed(let detail) = error else {
+                return XCTFail("unexpected smoke error: \(error)")
+            }
+            XCTAssertEqual(
+                detail, "duplicate retry: initial upload did not complete",
+                "the protected body's own failure must survive the window close"
+            )
+        }
+    }
 
     /// The helper delegates to KitchenStore's existing depth-counted window, so
     /// these tests cover only what the helper itself adds. Nesting, the edit
@@ -413,6 +510,8 @@ private actor SimulatedMergeServer: SyncTransport {
     private var entityVersion: [UUID: Int] = [:]
     private var ledger: [UUID: SyncMutationResult] = [:]
     private var latestChange: [UUID: SyncChangeEnvelope] = [:]
+    private var duplicateCount = 0
+    private var failNameFragment: String?
 
     init(userID: UUID, householdID: UUID) {
         self.userID = userID
@@ -420,6 +519,14 @@ private actor SimulatedMergeServer: SyncTransport {
     }
 
     func appliedEntityCount() -> Int { entityVersion.count }
+
+    /// Number of times the idempotency ledger answered an already-applied
+    /// mutation, which is what the duplicate-retry checkpoint depends on.
+    func duplicateResponseCount() -> Int { duplicateCount }
+
+    /// Fails any push batch carrying an item whose name contains the fragment,
+    /// so one specific protected operation can be made to fail deterministically.
+    func failPushes(forNameContaining fragment: String) { failNameFragment = fragment }
 
     func bootstrap() async throws -> SyncBootstrapResponse {
         SyncBootstrapResponse(
@@ -448,12 +555,16 @@ private actor SimulatedMergeServer: SyncTransport {
     }
 
     func sendMutations(scope: SyncScope, mutations requests: [SyncMutation]) async throws -> SyncMutationBatchResponse {
+        if let fragment = failNameFragment, requests.contains(where: { Self.name(of: $0)?.contains(fragment) == true }) {
+            throw SyncError.transport
+        }
         var results: [SyncMutationResult] = []
         for request in requests {
             // Idempotency ledger, keyed on mutationId exactly like the real
             // service: a resent mutation is a duplicate no-op, never a second
             // apply and never a version bump.
             if let original = ledger[request.mutationId] {
+                duplicateCount += 1
                 results.append(SyncMutationResult(
                     mutationId: original.mutationId, entityId: original.entityId,
                     status: .duplicate, version: original.version, sequence: original.sequence,
@@ -516,4 +627,9 @@ private actor SimulatedMergeServer: SyncTransport {
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
     }()
+
+    private static func name(of request: SyncMutation) -> String? {
+        guard case .string(let value)? = request.data?["name"] else { return nil }
+        return value
+    }
 }

@@ -415,32 +415,38 @@ final class GuestMergeSmokeRunner {
         let duplicateMarkerId = UUID()
         cleanupIds.insert(duplicateMarkerId)
         let duplicateItem = InventoryItem(id: duplicateMarkerId, name: markedName("dup"), quantity: 1, unit: "个", expiryDate: nil)
-        let originalMutationId = try await duplicateAdapter.stageUpsert(item: duplicateItem, scope: scope)
-        guard let originalPending = try await persistence.pendingMutation(id: originalMutationId) else {
-            throw GuestMergeSmokeError.validationFailed("duplicate retry setup: original pending mutation not found")
-        }
         let duplicateCoordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transportA)
         let authenticationA = SyncAuthenticationContext(userID: userIdA, isAuthenticated: true)
-        let firstOutcome = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
-        guard firstOutcome == .completed else { throw GuestMergeSmokeError.validationFailed("duplicate retry: initial upload did not complete") }
-        let metadataAfterFirst = try await persistence.metadata(entityType: .inventoryItem, entityId: duplicateMarkerId)
-        guard metadataAfterFirst?.state == .synced else {
-            throw GuestMergeSmokeError.validationFailed("duplicate retry: initial upload did not sync")
-        }
+        // W1: one logical operation — stage, run, requeue the identical
+        // mutation, resend, then remove the marker. Opened before the first
+        // durable write, closed after the last coordinator run. The marker id
+        // bookkeeping above is not a durable write and stays outside.
+        try await Self.withInventoryConsistencyWindow(kitchenStore, "the duplicate-retry operation") {
+            let originalMutationId = try await duplicateAdapter.stageUpsert(item: duplicateItem, scope: scope)
+            guard let originalPending = try await persistence.pendingMutation(id: originalMutationId) else {
+                throw GuestMergeSmokeError.validationFailed("duplicate retry setup: original pending mutation not found")
+            }
+            let firstOutcome = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
+            guard firstOutcome == .completed else { throw GuestMergeSmokeError.validationFailed("duplicate retry: initial upload did not complete") }
+            let metadataAfterFirst = try await persistence.metadata(entityType: .inventoryItem, entityId: duplicateMarkerId)
+            guard metadataAfterFirst?.state == .synced else {
+                throw GuestMergeSmokeError.validationFailed("duplicate retry: initial upload did not sync")
+            }
 
-        try await persistence.savePending(originalPending)
-        let secondOutcome = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
-        guard secondOutcome == .completed else { throw GuestMergeSmokeError.validationFailed("duplicate retry: resend did not complete") }
-        let metadataAfterDuplicate = try await persistence.metadata(entityType: .inventoryItem, entityId: duplicateMarkerId)
-        guard metadataAfterDuplicate?.remoteVersion == metadataAfterFirst?.remoteVersion, metadataAfterDuplicate?.state == .synced else {
-            throw GuestMergeSmokeError.validationFailed("duplicate retry produced a version bump instead of a no-op duplicate")
-        }
-        report.duplicateHandledWithoutASecondRecord = true
+            try await persistence.savePending(originalPending)
+            let secondOutcome = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
+            guard secondOutcome == .completed else { throw GuestMergeSmokeError.validationFailed("duplicate retry: resend did not complete") }
+            let metadataAfterDuplicate = try await persistence.metadata(entityType: .inventoryItem, entityId: duplicateMarkerId)
+            guard metadataAfterDuplicate?.remoteVersion == metadataAfterFirst?.remoteVersion, metadataAfterDuplicate?.state == .synced else {
+                throw GuestMergeSmokeError.validationFailed("duplicate retry produced a version bump instead of a no-op duplicate")
+            }
+            report.duplicateHandledWithoutASecondRecord = true
 
-        // Clean up this dedicated marker immediately — it is not tracked by
-        // any GuestMergeSession's own rollback.
-        _ = try await duplicateAdapter.stageDeleteRemovingLocalRecord(entityId: duplicateMarkerId, scope: scope)
-        _ = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
+            // Clean up this dedicated marker immediately — it is not tracked by
+            // any GuestMergeSession's own rollback.
+            _ = try await duplicateAdapter.stageDeleteRemovingLocalRecord(entityId: duplicateMarkerId, scope: scope)
+            _ = await duplicateCoordinator.runOnce(authentication: authenticationA, scopes: [scope])
+        }
 
         // MARK: 13. Logout mid-run stops further requests.
         await authStoreA.signOut()
@@ -492,7 +498,11 @@ final class GuestMergeSmokeRunner {
 
         // MARK: 17. Final pull sees the delete tombstone(s).
         let finalCoordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transportA)
-        _ = await finalCoordinator.runOnce(authentication: SyncAuthenticationContext(userID: userIdA, isAuthenticated: true), scopes: [scope])
+        // W2: the pull can apply remote changes to durable inventory, so the
+        // run cannot report success unless reconciliation afterwards succeeds.
+        try await Self.withInventoryConsistencyWindow(kitchenStore, "the final pull") {
+            _ = await finalCoordinator.runOnce(authentication: SyncAuthenticationContext(userID: userIdA, isAuthenticated: true), scopes: [scope])
+        }
         for id in createdIds {
             guard try await persistence.metadata(entityType: .inventoryItem, entityId: id)?.deletedAt != nil else {
                 throw GuestMergeSmokeError.validationFailed("final pull did not observe the delete tombstone")
@@ -515,7 +525,7 @@ final class GuestMergeSmokeRunner {
         // would have uploaded. All of it is still throwaway smoke data, so
         // clean up every tracked marker id, not just the ones this run's own
         // session rollback already handles.
-        await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
+        try Self.requireProvenCleanup(await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore))
 
         return report
     }
@@ -628,7 +638,7 @@ final class GuestMergeSmokeRunner {
                 throw GuestMergeSmokeError.validationFailed("rollback did not complete")
             }
 
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
+            try Self.requireProvenCleanup(await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore))
             return true
         } catch {
             // Reuse the same persistence the failed attempt already staged
@@ -760,7 +770,7 @@ final class GuestMergeSmokeRunner {
             }
 
             // 12: zero marker residue on the real backend.
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
+            try Self.requireProvenCleanup(await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore))
             return true
         } catch {
             await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
@@ -924,7 +934,7 @@ final class GuestMergeSmokeRunner {
             }
 
             // 9: zero marker residue on the real backend.
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
+            try Self.requireProvenCleanup(await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore))
             return true
         } catch {
             await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
@@ -1059,13 +1069,18 @@ final class GuestMergeSmokeRunner {
             // itself uses (never a raw HTTP call, no service-role key).
             let adapter = InventorySyncAdapter(persistence: persistence)
             let updatedBaselineItem = InventoryItem(id: baselineId, name: markerName, quantity: 7, unit: "个", expiryDate: nil)
-            _ = try await adapter.stageUpsert(item: updatedBaselineItem, scope: scope)
             let updateCoordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transportA)
-            let updateOutcome = await updateCoordinator.runOnce(
-                authentication: SyncAuthenticationContext(userID: userIdA, isAuthenticated: true), scopes: [scope]
-            )
-            guard updateOutcome == .completed else {
-                throw GuestMergeSmokeError.validationFailed("simulated another-device update did not complete")
+            // W3: stage plus run is the whole simulated-device operation. It
+            // closes here, before the stale-confirm assertions below, which are
+            // exactly what proves the remote condition survived reconciliation.
+            try await Self.withInventoryConsistencyWindow(kitchenStore, "the simulated second-device update") {
+                _ = try await adapter.stageUpsert(item: updatedBaselineItem, scope: scope)
+                let updateOutcome = await updateCoordinator.runOnce(
+                    authentication: SyncAuthenticationContext(userID: userIdA, isAuthenticated: true), scopes: [scope]
+                )
+                guard updateOutcome == .completed else {
+                    throw GuestMergeSmokeError.validationFailed("simulated another-device update did not complete")
+                }
             }
 
             // 8 (section 四 D): confirming against the now-stale plan must be
@@ -1101,7 +1116,7 @@ final class GuestMergeSmokeRunner {
             }
 
             // 10 (section 四 F): zero marker residue on the real backend.
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
+            try Self.requireProvenCleanup(await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore))
             return true
         } catch {
             await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
@@ -1157,9 +1172,23 @@ final class GuestMergeSmokeRunner {
         return value
     }
 
-    /// kitchenStore is the Slice B seam: W4 will open the consistency window
-    /// around this body. Slice A only carries it to every call site so that
-    /// wiring is a call-site-free change.
+    /// A cleanup that cannot be proven clean must never be reported as one.
+    /// Used only on otherwise-successful paths; a run that is already failing
+    /// keeps its original error and simply attempts cleanup.
+    private static func requireProvenCleanup(_ outcome: GuestMergeSmokeCleanupOutcome) throws {
+        guard outcome.isProvenClean else {
+            let residue = outcome.unprovenIds.map(\.uuidString).sorted().joined(separator: ", ")
+            throw GuestMergeSmokeError.validationFailed(
+                "cleanup could not be proven clean (reconciled: \(String(describing: outcome.reconciled)), "
+                + "coordinator: \(String(describing: outcome.coordinatorOutcome)), unproven marker ids: [\(residue)])"
+            )
+        }
+    }
+
+    /// W4: cleanup physically removes local rows and then pulls, so the whole
+    /// body runs inside the consistency window. Non-throwing by contract, so a
+    /// failed reconciliation is folded into the outcome rather than propagated
+    /// — the caller decides whether that failure should fail the run.
     @discardableResult
     private static func bestEffortCleanup(
         entityIds: Set<UUID>, scope: SyncScope, persistence: SwiftDataSyncPersistence,
@@ -1170,16 +1199,23 @@ final class GuestMergeSmokeRunner {
         let adapter = InventorySyncAdapter(persistence: persistence)
         let coordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transport)
         let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
-        for id in entityIds {
-            do {
-                _ = try await adapter.stageDeleteRemovingLocalRecord(entityId: id, scope: scope)
-            } catch {
-                // Was a discarded try?: the id now stays observable as unproven
-                // instead of vanishing into a silent success.
-                outcome.stagingFailedIds.insert(id)
+        do {
+            try await Self.withInventoryConsistencyWindow(kitchenStore, "the smoke cleanup") {
+                for id in entityIds {
+                    do {
+                        _ = try await adapter.stageDeleteRemovingLocalRecord(entityId: id, scope: scope)
+                    } catch {
+                        // Was a discarded try?: the id now stays observable as
+                        // unproven instead of vanishing into a silent success.
+                        outcome.stagingFailedIds.insert(id)
+                    }
+                }
+                outcome.coordinatorOutcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
             }
+            outcome.reconciled = true
+        } catch {
+            outcome.reconciled = false
         }
-        outcome.coordinatorOutcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
         return outcome
     }
 
