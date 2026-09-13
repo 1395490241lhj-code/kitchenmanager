@@ -103,6 +103,162 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
 
     // MARK: Production rollback availability is unchanged
 
+    // MARK: Slice A - boundary plumbing semantics
+
+    /// The helper delegates to KitchenStore's existing depth-counted window, so
+    /// these tests cover only what the helper itself adds. Nesting, the edit
+    /// gate, echo suppression and lock-on-reconciliation-failure are already
+    /// proven against the primitive in KitchenStoreTests and GuestMergeTests.
+    func testConsistencyWindowHelperClosesTheWindowOnSuccess() async throws {
+        let kitchenStore = Self.makeKitchenStore(container: try Self.makeContainer())
+        var bodyRan = false
+
+        try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "slice A unit test") {
+            bodyRan = true
+            XCTAssertTrue(kitchenStore.isInventoryLockedForSync, "the window must be open inside the body")
+        }
+
+        XCTAssertTrue(bodyRan)
+        XCTAssertFalse(kitchenStore.isInventoryLockedForSync, "a successful reconciliation closes the window")
+    }
+
+    func testConsistencyWindowHelperClosesTheWindowWhenTheBodyThrowsAndKeepsTheOriginalError() async throws {
+        let kitchenStore = Self.makeKitchenStore(container: try Self.makeContainer())
+
+        do {
+            try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "slice A unit test") {
+                () async throws -> Void in throw SliceABodyFailure()
+            }
+            XCTFail("the body's error must propagate")
+        } catch is SliceABodyFailure {
+            // The original error, never repackaged as a reconciliation failure.
+        }
+
+        XCTAssertFalse(kitchenStore.isInventoryLockedForSync, "the window must close on the failure path too")
+    }
+
+    /// Proves the helper reuses the existing depth counter instead of inventing
+    /// a parallel lock of its own.
+    func testNestedConsistencyWindowHelpersDoNotUnlockEarly() async throws {
+        let kitchenStore = Self.makeKitchenStore(container: try Self.makeContainer())
+
+        try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "outer") {
+            try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "inner") {
+                XCTAssertTrue(kitchenStore.isInventoryLockedForSync)
+            }
+            XCTAssertTrue(
+                kitchenStore.isInventoryLockedForSync, "the inner close must not release the outer window"
+            )
+        }
+
+        XCTAssertFalse(kitchenStore.isInventoryLockedForSync)
+    }
+
+    /// A defer-based close would discard this; the helper exists so it cannot.
+    func testConsistencyWindowHelperSurfacesAReconciliationFailureAndKeepsTheStoreLocked() async throws {
+        let container = try Self.makeContainer()
+        let failable = FailableInventoryPersistence(wrapping: SwiftDataInventoryPersistence(container: container))
+        let kitchenStore = Self.makeKitchenStore(container: container, inventoryPersistence: failable)
+        failable.failLoads = true
+
+        do {
+            try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "slice A unit test") {
+                () async throws -> Void in
+            }
+            XCTFail("a failed reconciliation must not be swallowed")
+        } catch let error as GuestMergeSmokeError {
+            guard case .validationFailed(let detail) = error else {
+                return XCTFail("unexpected smoke error: \(error)")
+            }
+            XCTAssertTrue(detail.contains("reconciliation failed"), detail)
+        }
+
+        XCTAssertTrue(
+            kitchenStore.isInventoryLockedForSync, "the store stays locked until reconciliation can succeed"
+        )
+    }
+
+    /// Case D: a failed body must never hide an unsafe store. The reconciliation
+    /// failure dominates the visible result while the body's own failure stays
+    /// diagnosable.
+    func testConsistencyWindowHelperReportsReconciliationFailureEvenWhenTheBodyAlsoThrew() async throws {
+        let container = try Self.makeContainer()
+        let failable = FailableInventoryPersistence(wrapping: SwiftDataInventoryPersistence(container: container))
+        let kitchenStore = Self.makeKitchenStore(container: container, inventoryPersistence: failable)
+        var bodyThrew = false
+
+        do {
+            try await GuestMergeSmokeRunner.withInventoryConsistencyWindow(kitchenStore, "slice A unit test") {
+                () async throws -> Void in
+                // The operation moved durable state and then failed, leaving the
+                // closing reconciliation unable to read it back.
+                failable.failLoads = true
+                bodyThrew = true
+                throw SliceABodyFailure()
+            }
+            XCTFail("the failure must propagate")
+        } catch let error as GuestMergeSmokeError {
+            guard case .validationFailed(let detail) = error else {
+                return XCTFail("unexpected smoke error: \(error)")
+            }
+            XCTAssertTrue(detail.contains("reconciliation failed"), "the unsafe state must dominate: \(detail)")
+            XCTAssertTrue(
+                detail.contains("SliceABodyFailure"), "the original body failure must stay diagnosable: \(detail)"
+            )
+        } catch {
+            XCTFail("the reconciliation failure must dominate, got \(error)")
+        }
+
+        XCTAssertTrue(bodyThrew, "the body must actually have failed for this to be case D")
+        XCTAssertTrue(kitchenStore.isInventoryLockedForSync, "the store stays locked until reconciliation succeeds")
+    }
+
+    /// Cleanup is proven clean only after a successful reconciliation. Slice A
+    /// never attempts one, so production cleanup outcomes stay conservatively
+    /// unproven until W4 lands in Slice B.
+    func testCleanupOutcomeIsProvenCleanOnlyAfterASuccessfulReconciliation() {
+        let stagedId = UUID()
+        let failedId = UUID()
+        func outcome(
+            targeted: Set<UUID>, stagingFailed: Set<UUID> = [],
+            run: SyncRunOutcome? = nil, reconciled: Bool? = nil
+        ) -> GuestMergeSmokeCleanupOutcome {
+            var value = GuestMergeSmokeCleanupOutcome(targetedIds: targeted)
+            value.stagingFailedIds = stagingFailed
+            value.coordinatorOutcome = run
+            value.reconciled = reconciled
+            return value
+        }
+
+        let notAttempted = outcome(targeted: [stagedId], run: .completed, reconciled: nil)
+        XCTAssertTrue(notAttempted.completedCleanupSteps)
+        XCTAssertFalse(notAttempted.isProvenClean, "a reconciliation that never ran proves nothing")
+
+        let reconcileFailed = outcome(targeted: [stagedId], run: .completed, reconciled: false)
+        XCTAssertTrue(reconcileFailed.completedCleanupSteps)
+        XCTAssertFalse(reconcileFailed.isProvenClean)
+
+        let proven = outcome(targeted: [stagedId], run: .completed, reconciled: true)
+        XCTAssertTrue(proven.isProvenClean)
+        XCTAssertTrue(proven.unprovenIds.isEmpty)
+
+        let stagingFailed = outcome(
+            targeted: [stagedId, failedId], stagingFailed: [failedId], run: .completed, reconciled: true
+        )
+        XCTAssertFalse(stagingFailed.completedCleanupSteps)
+        XCTAssertFalse(stagingFailed.isProvenClean)
+        XCTAssertEqual(stagingFailed.unprovenIds, [failedId], "a swallowed staging failure stays observable")
+
+        let runFailed = outcome(targeted: [stagedId], run: .failed(.transport), reconciled: true)
+        XCTAssertFalse(runFailed.completedCleanupSteps)
+        XCTAssertFalse(runFailed.isProvenClean)
+        XCTAssertEqual(runFailed.unprovenIds, [stagedId], "a failed run leaves every tracked id unproven")
+
+        let empty = GuestMergeSmokeCleanupOutcome()
+        XCTAssertTrue(empty.completedCleanupSteps, "nothing tracked means no step was left undone")
+        XCTAssertFalse(empty.isProvenClean, "Slice A never claims proof it has not attempted")
+    }
+
     /// Control for the Slice 0b repair: only the seeding configuration steps
     /// aside. A merge completed with the ordinary rollback window is still
     /// returned as the active rollback-capable session, so the harness change
@@ -216,10 +372,12 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
         )
     }
 
-    private static func makeKitchenStore(container: ModelContainer) -> KitchenStore {
+    private static func makeKitchenStore(
+        container: ModelContainer, inventoryPersistence: (any InventoryPersistenceProtocol)? = nil
+    ) -> KitchenStore {
         KitchenStore(
             userDefaults: UserDefaults(suiteName: "guest-merge-slice0-\(UUID().uuidString)")!,
-            inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+            inventoryPersistence: inventoryPersistence ?? SwiftDataInventoryPersistence(container: container),
             shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
             todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
             consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
@@ -227,6 +385,8 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
         )
     }
 }
+
+private struct SliceABodyFailure: Error {}
 
 private final class Slice0AuthService: AuthService {
     private let userID: UUID

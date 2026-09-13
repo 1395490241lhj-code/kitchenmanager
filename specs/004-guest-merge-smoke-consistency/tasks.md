@@ -97,10 +97,10 @@ session, with a default-window control proving ordinary rollback availability is
 
 **CRITICAL**: no window wiring begins until this phase is complete.
 
-- [ ] T006 Add a throwing consistency-window helper to `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` that opens the window via `KitchenStore.beginInventorySyncConsistencyWindow()`, closes it on success, error and early return via `endInventorySyncConsistencyWindow()`, and converts a failed reconciliation into `GuestMergeSmokeError.validationFailed` while preserving any original thrown error
-- [ ] T007 Change the static `bestEffortCleanup` in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` to take the run's `KitchenStore` and return whether reconciliation succeeded, keeping its non-throwing contract
-- [ ] T008 Hoist `let kitchenStore` above the `do` block in `runIdentityForkMinimalSmoke`, `runInventoryCrudSyncMinimalSmoke`, `runInventoryDogfoodMinimalSmoke` and `runProductionRemotePreviewMinimalSmoke` in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`, mirroring the existing `persistence` hoist, so each `catch` can reach it
-- [ ] T009 Update every `bestEffortCleanup` call site in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` — success and `catch` paths in all five runners — to pass `kitchenStore`
+- [x] T006 Add a throwing consistency-window helper to `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` that opens the window via `KitchenStore.beginInventorySyncConsistencyWindow()`, closes it on success, error and early return via `endInventorySyncConsistencyWindow()`, and converts a failed reconciliation into `GuestMergeSmokeError.validationFailed` while preserving any original thrown error
+- [x] T007 Change the static `bestEffortCleanup` in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` to take the run's `KitchenStore` and return whether reconciliation succeeded, keeping its non-throwing contract
+- [x] T008 Hoist `let kitchenStore` above the `do` block in `runIdentityForkMinimalSmoke`, `runInventoryCrudSyncMinimalSmoke`, `runInventoryDogfoodMinimalSmoke` and `runProductionRemotePreviewMinimalSmoke` in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift`, mirroring the existing `persistence` hoist, so each `catch` can reach it
+- [x] T009 Update every `bestEffortCleanup` call site in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` — success and `catch` paths in all five runners — to pass `kitchenStore`
 
 **Checkpoint**: the window primitive is reachable from every direct path, including cleanup. No runner behavior changed yet.
 

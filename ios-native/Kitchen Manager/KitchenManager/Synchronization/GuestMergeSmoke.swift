@@ -96,6 +96,45 @@ nonisolated struct GuestMergeSmokeReport: Equatable, Sendable {
 }
 
 #if DEBUG
+/// What a best-effort cleanup can actually prove, so a later slice can stop
+/// inferring "clean" from a discarded try?. Deliberately not a Bool: "a soft
+/// delete was attempted for every tracked id" is a different claim from "the
+/// household has no residue".
+nonisolated struct GuestMergeSmokeCleanupOutcome: Equatable, Sendable {
+    /// Every marker id this run asked cleanup to remove.
+    var targetedIds: Set<UUID> = []
+    /// Ids whose soft-delete staging threw, so nothing was ever queued for
+    /// them. These used to disappear into a discarded try?.
+    var stagingFailedIds: Set<UUID> = []
+    /// The single coordinator run's outcome, or nil when there was nothing to
+    /// clean up and no run was attempted.
+    var coordinatorOutcome: SyncRunOutcome?
+    /// Filled once cleanup runs inside a consistency window, which is W4 and
+    /// therefore Slice B. Until then nil means reconciliation was not
+    /// attempted — never that it passed.
+    var reconciled: Bool?
+
+    /// The ids cleanup cannot prove it removed.
+    var unprovenIds: Set<UUID> {
+        coordinatorOutcome == .completed ? stagingFailedIds : targetedIds
+    }
+
+    /// Whether every cleanup step *before* reconciliation completed: each
+    /// tracked id staged, and the one coordinator run completed. Says nothing
+    /// about whether local inventory is current.
+    var completedCleanupSteps: Bool {
+        targetedIds.isEmpty || (stagingFailedIds.isEmpty && coordinatorOutcome == .completed)
+    }
+
+    /// Cleanup is proven clean only when its steps completed *and* local
+    /// inventory reconciliation succeeded. A nil reconciled means
+    /// reconciliation was never attempted, which can never prove anything —
+    /// so until W4 wires the window in Slice B this is deliberately false.
+    var isProvenClean: Bool {
+        completedCleanupSteps && reconciled == true
+    }
+}
+
 /// Explicitly invoked from a Debug-only, environment-gated test/developer
 /// entry point — never from App startup, login, or a timer. Every merge
 /// call goes through the real `GuestMergeController` (the exact same code a
@@ -190,7 +229,7 @@ final class GuestMergeSmokeRunner {
                 guestBefore: guestBefore, markedName: markedName, report: report, cleanupIds: &cleanupIds
             )
         } catch {
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             throw error
         }
     }
@@ -476,7 +515,7 @@ final class GuestMergeSmokeRunner {
         // would have uploaded. All of it is still throwaway smoke data, so
         // clean up every tracked marker id, not just the ones this run's own
         // session rollback already handles.
-        await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+        await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
 
         return report
     }
@@ -518,15 +557,17 @@ final class GuestMergeSmokeRunner {
         // cleanup delete to (incorrectly) compute baseVersion 0 against a
         // real, already-versioned remote record.
         let persistence = SwiftDataSyncPersistence(modelContainer: container)
+        // Hoisted above the do for the same reason persistence already is:
+        // the catch path needs it to reconcile during cleanup.
+        let kitchenStore = KitchenStore(
+            userDefaults: UserDefaults(suiteName: "guest-merge-fork-smoke-\(marker)")!,
+            inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+            shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+            todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+            consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+            weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+        )
         do {
-            let kitchenStore = KitchenStore(
-                userDefaults: UserDefaults(suiteName: "guest-merge-fork-smoke-\(marker)")!,
-                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
-                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
-                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
-                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
-                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
-            )
 
             // Baseline: establish a real, already-existing remote counterpart
             // under `sharedId` (as if from another device), then this run's
@@ -587,7 +628,7 @@ final class GuestMergeSmokeRunner {
                 throw GuestMergeSmokeError.validationFailed("rollback did not complete")
             }
 
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             return true
         } catch {
             // Reuse the same persistence the failed attempt already staged
@@ -595,7 +636,7 @@ final class GuestMergeSmokeRunner {
             // anything genuinely created so far, which a fresh throwaway
             // container would not (and would therefore compute a wrong,
             // rejected baseVersion 0 for the cleanup delete).
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             throw error
         }
     }
@@ -634,15 +675,17 @@ final class GuestMergeSmokeRunner {
         )
         let persistence = SwiftDataSyncPersistence(modelContainer: container)
         var cleanupIds: Set<UUID> = []
+        // Hoisted above the do for the same reason persistence already is:
+        // the catch path needs it to reconcile during cleanup.
+        let kitchenStore = KitchenStore(
+            userDefaults: UserDefaults(suiteName: "inventory-crud-smoke-\(marker)")!,
+            inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+            shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+            todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+            consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+            weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+        )
         do {
-            let kitchenStore = KitchenStore(
-                userDefaults: UserDefaults(suiteName: "inventory-crud-smoke-\(marker)")!,
-                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
-                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
-                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
-                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
-                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
-            )
             try await persistence.saveEnrollment(InventorySyncEnrollment(
                 userId: userIdA, householdId: householdId, status: .enrolled, enrolledAt: Date(),
                 mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
@@ -717,10 +760,10 @@ final class GuestMergeSmokeRunner {
             }
 
             // 12: zero marker residue on the real backend.
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             return true
         } catch {
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             throw error
         }
     }
@@ -765,15 +808,17 @@ final class GuestMergeSmokeRunner {
         )
         var persistence = SwiftDataSyncPersistence(modelContainer: container)
         var cleanupIds: Set<UUID> = []
+        // Hoisted above the do for the same reason persistence already is:
+        // the catch path needs it to reconcile during cleanup.
+        let kitchenStore = KitchenStore(
+            userDefaults: UserDefaults(suiteName: "inventory-dogfood-smoke-\(marker)")!,
+            inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+            shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+            todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+            consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+            weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+        )
         do {
-            let kitchenStore = KitchenStore(
-                userDefaults: UserDefaults(suiteName: "inventory-dogfood-smoke-\(marker)")!,
-                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
-                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
-                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
-                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
-                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
-            )
             try await persistence.saveEnrollment(InventorySyncEnrollment(
                 userId: userIdA, householdId: householdId, status: .enrolled, enrolledAt: Date(),
                 mergeSessionId: UUID(), schemaVersion: InventorySyncEnrollment.currentSchemaVersion, updatedAt: Date()
@@ -879,10 +924,10 @@ final class GuestMergeSmokeRunner {
             }
 
             // 9: zero marker residue on the real backend.
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             return true
         } catch {
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             throw error
         }
     }
@@ -926,15 +971,17 @@ final class GuestMergeSmokeRunner {
         )
         let persistence = SwiftDataSyncPersistence(modelContainer: container)
         var cleanupIds: Set<UUID> = []
+        // Hoisted above the do for the same reason persistence already is:
+        // the catch path needs it to reconcile during cleanup.
+        let kitchenStore = KitchenStore(
+            userDefaults: UserDefaults(suiteName: "inventory-remote-preview-smoke-\(marker)")!,
+            inventoryPersistence: SwiftDataInventoryPersistence(container: container),
+            shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
+            todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
+            consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
+            weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
+        )
         do {
-            let kitchenStore = KitchenStore(
-                userDefaults: UserDefaults(suiteName: "inventory-remote-preview-smoke-\(marker)")!,
-                inventoryPersistence: SwiftDataInventoryPersistence(container: container),
-                shoppingListPersistence: SwiftDataShoppingListPersistence(container: container),
-                todayPlanPersistence: SwiftDataTodayPlanPersistence(container: container),
-                consumptionPersistence: SwiftDataConsumptionPersistence(container: container),
-                weeklyPlanPersistence: SwiftDataWeeklyPlanPersistence(container: container)
-            )
 
             // 1 (section 四 A): seed exactly one pre-existing remote marker
             // via the real, authorized production merge-upload path itself
@@ -1054,10 +1101,10 @@ final class GuestMergeSmokeRunner {
             }
 
             // 10 (section 四 F): zero marker residue on the real backend.
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             return true
         } catch {
-            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA)
+            await Self.bestEffortCleanup(entityIds: cleanupIds, scope: scope, persistence: persistence, transport: transportA, userId: userIdA, kitchenStore: kitchenStore)
             throw error
         }
     }
@@ -1066,18 +1113,74 @@ final class GuestMergeSmokeRunner {
     /// id via the same authorized sync boundary used throughout the run (no
     /// service-role key, no physical delete); ids that were never actually
     /// created remotely, or are already deleted, are simply skipped.
+    /// Slice A plumbing: runs one logical smoke operation inside KitchenStore's
+    /// existing D-028 consistency window. The window stays KitchenStore's — this
+    /// only opens and closes the existing depth-counted primitive and never keeps
+    /// a second lock or counter of its own.
+    ///
+    /// A plain begin plus defer { _ = end() } cannot do this job: defer cannot
+    /// throw, so it would close the window and silently discard a failed
+    /// reconciliation, which is exactly the "durable state moved, memory was
+    /// never proven current" condition the boundary exists to surface.
+    ///
+    /// Internal rather than private so the Slice A tests can prove these
+    /// semantics directly. The W1-W4 call sites arrive in Slice B; nothing in
+    /// this file calls it yet.
+    @discardableResult
+    static func withInventoryConsistencyWindow<T>(
+        _ kitchenStore: KitchenStore,
+        _ operation: String,
+        _ body: () async throws -> T
+    ) async throws -> T {
+        kitchenStore.beginInventorySyncConsistencyWindow()
+        let value: T
+        do {
+            value = try await body()
+        } catch {
+            // Closed on the failure path too. If reconciliation also fails the
+            // store cannot be proven current, and that unsafe state has to
+            // dominate the visible result — a failed body must never hide it.
+            // The body's own error is carried along as diagnostic context.
+            guard kitchenStore.endInventorySyncConsistencyWindow() else {
+                throw GuestMergeSmokeError.validationFailed(
+                    "inventory reconciliation failed after \(operation); local inventory cannot be proven current "
+                    + "(the operation itself also failed: \(error))"
+                )
+            }
+            throw error
+        }
+        guard kitchenStore.endInventorySyncConsistencyWindow() else {
+            throw GuestMergeSmokeError.validationFailed(
+                "inventory reconciliation failed after \(operation); local inventory cannot be proven current"
+            )
+        }
+        return value
+    }
+
+    /// kitchenStore is the Slice B seam: W4 will open the consistency window
+    /// around this body. Slice A only carries it to every call site so that
+    /// wiring is a call-site-free change.
+    @discardableResult
     private static func bestEffortCleanup(
         entityIds: Set<UUID>, scope: SyncScope, persistence: SwiftDataSyncPersistence,
-        transport: any SyncTransport, userId: UUID
-    ) async {
-        guard !entityIds.isEmpty else { return }
+        transport: any SyncTransport, userId: UUID, kitchenStore: KitchenStore
+    ) async -> GuestMergeSmokeCleanupOutcome {
+        var outcome = GuestMergeSmokeCleanupOutcome(targetedIds: entityIds)
+        guard !entityIds.isEmpty else { return outcome }
         let adapter = InventorySyncAdapter(persistence: persistence)
         let coordinator = SyncCoordinator(configuration: SyncConfiguration(isEnabled: true), persistence: persistence, transport: transport)
         let authentication = SyncAuthenticationContext(userID: userId, isAuthenticated: true)
         for id in entityIds {
-            _ = try? await adapter.stageDeleteRemovingLocalRecord(entityId: id, scope: scope)
+            do {
+                _ = try await adapter.stageDeleteRemovingLocalRecord(entityId: id, scope: scope)
+            } catch {
+                // Was a discarded try?: the id now stays observable as unproven
+                // instead of vanishing into a silent success.
+                outcome.stagingFailedIds.insert(id)
+            }
         }
-        _ = await coordinator.runOnce(authentication: authentication, scopes: [scope])
+        outcome.coordinatorOutcome = await coordinator.runOnce(authentication: authentication, scopes: [scope])
+        return outcome
     }
 
     private func fetchRemoteInventoryCount(transport: any SyncTransport, scope: SyncScope) async throws -> Int {
