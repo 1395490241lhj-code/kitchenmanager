@@ -57,9 +57,9 @@ the window mechanism, not production behavior, not sync enablement.
 **Independent Test**: drive the affected runners with a fake transport and observe baseline
 seeding reach `.completed` instead of throwing `validationFailed`.
 
-- [ ] T003 [US1] Create `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` with a fake `SyncTransport` and a signed-in `AuthStore` built from a fake auth service, modeled on `SyncSmokeTests.swift` and the `signedInAuthStore(userID:)` helper in `GuestMergeTests.swift`
-- [ ] T004 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting baseline seeding reaches `.completed` rather than throwing `validationFailed`, for all three affected runners (FR-011)
-- [ ] T005 [US1] Repair the three baseline preview call sites in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` — in `runRemainingPhases`, `runIdentityForkMinimalSmoke` and `runProductionRemotePreviewMinimalSmoke` — so the baseline preview carries the real remote fingerprint that production confirmation semantics require, keeping the change inside the DEBUG smoke file and leaving production merge behavior untouched (FR-011)
+- [x] T003 [US1] Create `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` with a fake `SyncTransport` and a signed-in `AuthStore` built from a fake auth service, modeled on `SyncSmokeTests.swift` and the `signedInAuthStore(userID:)` helper in `GuestMergeTests.swift`
+- [x] T004 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting baseline seeding reaches `.completed` rather than throwing `validationFailed`, for all three affected runners (FR-011)
+- [x] T005 [US1] Repair the three baseline preview call sites in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` — in `runRemainingPhases`, `runIdentityForkMinimalSmoke` and `runProductionRemotePreviewMinimalSmoke` — so the baseline preview carries the real remote fingerprint that production confirmation semantics require, keeping the change inside the DEBUG smoke file and leaving production merge behavior untouched (FR-011)
 
 **Checkpoint**: previously unreachable baselines now reach their checkpoints. Commit this slice on its own before any window wiring.
 

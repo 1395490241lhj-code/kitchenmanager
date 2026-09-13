@@ -226,7 +226,10 @@ final class GuestMergeSmokeRunner {
             transportFactory: transportFactory
         )
         baselineController.kitchenStore = kitchenStore
-        await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
+        // Seeds through the real confirmation path, so the baseline preview
+        // must perform the same real remote read the rest of this run does:
+        // confirmMerge refuses any plan that carries no remote fingerprint.
+        await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transportA)
         await baselineController.confirmMerge(authStore: authStoreA)
         guard baselineController.session?.status == .completed else {
             throw GuestMergeSmokeError.validationFailed("baseline seeding did not complete: \(String(describing: baselineController.session?.status))")
@@ -529,7 +532,9 @@ final class GuestMergeSmokeRunner {
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
             baselineController.kitchenStore = kitchenStore
-            await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
+            // The same real remote read the conflicting preview below performs
+            // — a fingerprint-less baseline plan is refused by confirmMerge.
+            await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, remoteTransport: transportA)
             await baselineController.confirmMerge(authStore: authStoreA)
             guard baselineController.session?.status == .completed else {
                 throw GuestMergeSmokeError.validationFailed("baseline seeding did not complete")
@@ -936,7 +941,10 @@ final class GuestMergeSmokeRunner {
                 persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
             )
             baselineController.kitchenStore = kitchenStore
-            await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore)
+            // The same production overload this runner exists to exercise, so
+            // the baseline plan carries the remote fingerprint confirmMerge
+            // requires instead of being refused before it can seed anything.
+            await baselineController.preparePreview(userId: userIdA, householdId: householdId, kitchenStore: kitchenStore, authStore: authStoreA)
             await baselineController.confirmMerge(authStore: authStoreA)
             guard baselineController.session?.status == .completed else {
                 throw GuestMergeSmokeError.validationFailed("baseline marker seeding did not complete")
