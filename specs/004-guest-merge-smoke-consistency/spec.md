@@ -32,6 +32,13 @@ frozen as a **prerequisite harness-integrity repair** — required to reach the 
 checkpoints at all, and deliberately not part of the window mechanism. See FR-011 and
 `research.md` §3.
 
+Implementing that repair uncovered a second prerequisite of the same kind. Once a baseline
+confirms, its completed session keeps the default 24-hour rollback window, and
+`activeGuestMergeSession` deliberately keeps returning a session inside that window, so the next
+`preparePreview` in the same runner resumes the finished baseline session instead of building the
+fresh scenario preview the smoke needs. That is tracked as FR-014 and `research.md` §6, and it is
+also prerequisite harness integrity rather than consistency-window behavior.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - The harness protects its own direct persistence writes (Priority: P1)
@@ -159,6 +166,16 @@ change against real infrastructure without changing what that infrastructure is.
   permission to broaden this feature. It is not evidence that D-028 was wrong.
 - **FR-012**: No sync, merge, smoke, dogfood or diagnostics flag default may change; every
   committed configuration MUST still default them to `NO`.
+- **FR-014**: A seeding-only baseline controller MUST NOT leave behind a completed session that
+  stays the active rollback-capable session, so the next `preparePreview` in the same runner
+  builds a fresh scenario preview rather than resuming the finished baseline.
+  **Classification: prerequisite harness-integrity repair**, discovered while implementing
+  FR-011. The repair MUST use existing harness configuration rather than altering production
+  session lifecycle: `performConfirmMerge`, `activeGuestMergeSession`, rollback persistence
+  semantics and the default rollback window MUST all stay unchanged, and production callers MUST
+  keep the ordinary rollback window. Like FR-011 this is **not** a new D-028 or D-029 semantic,
+  **not** part of the consistency-window mechanism, **not** production behavior, and **not** sync
+  enablement.
 - **FR-013**: A repository guard MUST fail when a direct persistence-affecting call is added to
   `GuestMergeSmoke.swift` outside a consistency window.
 
@@ -186,6 +203,10 @@ None. This feature introduces no new domain data; `data-model.md` is deliberatel
   ids.
 - **SC-009**: Every committed configuration still defaults sync, merge, smoke, dogfood and
   diagnostics flags to `NO` after the change.
+- **SC-010**: For each affected runner the baseline confirms, its session completes, it is not
+  retained as the active rollback-capable session, and the next preview is a fresh scenario
+  preview — while a default-window control still exposes a completed merge as the active
+  rollback-capable session.
 
 ## Assumptions
 
@@ -212,5 +233,4 @@ Completion means: `GuestMergeSmoke` is trustworthy enough to participate in the 
 acceptance gate. Completion does **not** mean sync is enabled, dogfood has started, production is
 ready, production Supabase exists, or that Stage 1 or Stage 2 is approved. Actual enablement
 remains a separate owner-controlled rollout step.
-
 

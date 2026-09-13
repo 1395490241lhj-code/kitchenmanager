@@ -12,15 +12,18 @@ import SwiftData
 /// These tests deliberately assert nothing about inventory consistency
 /// windows. W1-W4 belong to a later slice.
 ///
-/// Slice 0 repairs only the remote-fingerprint defect. Every run below now
-/// confirms its baseline and continues, and each one stops one checkpoint
-/// later on a second, independent pre-existing harness defect: a completed
-/// merge session keeps a 24-hour rollback window, and activeGuestMergeSession
-/// deliberately keeps returning a session inside that window, so the next
-/// preparePreview in the same runner resumes the finished baseline session
-/// instead of building a fresh preview. That defect is outside Slice 0's
-/// frozen scope. These tests therefore pin the exact checkpoint each runner
-/// now reaches, so repairing it later has to update them deliberately.
+/// Slice 0b repaired the second prerequisite found while doing that: a
+/// seeding-only baseline controller is now built with a zero rollback window,
+/// so its completed session no longer stays the active rollback-capable one and
+/// the next preview in the same runner is the fresh scenario preview the smoke
+/// needs. Production and default callers keep the ordinary 24-hour window,
+/// which the default-window control test below pins directly.
+///
+/// Simulator boundary: SimulatedMergeServer models one identity and one
+/// household, which is everything the fork and production-preview runners need.
+/// The full Phase 2B-2 matrix therefore ends at its User B account-isolation
+/// checkpoint, and that limit is deliberate — this suite does not fake
+/// multi-identity support just to make the run finish.
 @MainActor
 final class GuestMergeSmokeConsistencyTests: XCTestCase {
     private let userIdA = UUID()
@@ -29,10 +32,11 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
 
     // MARK: Slice 0 — repaired baselines reach their intended checkpoints
 
-    /// The full Phase 2B-2 matrix. Before the repair this failed at its own
-    /// baseline; it now confirms the baseline, uploads the marker dataset and
-    /// stops at the following checkpoint.
-    func testFullSmokeRunGetsPastItsBaselineSeeding() async throws {
+    /// The full Phase 2B-2 matrix. It now confirms its baseline, builds a fresh
+    /// scenario preview, and runs all the way to the account-isolation
+    /// checkpoint, which is the furthest the single-identity simulator can
+    /// truthfully model.
+    func testFullSmokeRunReachesTheAccountIsolationCheckpoint() async throws {
         let server = SimulatedMergeServer(userID: userIdA, householdID: householdId)
         let runner = GuestMergeSmokeRunner(
             smokeConfiguration: Self.enabledConfiguration, transportFactory: { _ in server }
@@ -48,15 +52,20 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
                     _ = await authStoreA.signIn(email: "slice0-a@example.com", password: "not-a-real-password")
                 }
             )
-            XCTFail("the resumed-baseline-session defect still stops this run short")
+            XCTFail("the single-identity simulator cannot model the account-isolation checkpoint")
         } catch let error as GuestMergeSmokeError {
             guard case .validationFailed(let detail) = error else {
                 return XCTFail("unexpected smoke error: \(error)")
             }
-            XCTAssertFalse(
-                detail.hasPrefix("baseline"), "the repaired baseline must no longer be the failure point: \(detail)"
+            XCTAssertFalse(detail.hasPrefix("baseline"), "the baseline must confirm: \(detail)")
+            XCTAssertNotEqual(
+                detail, "preview did not reach previewReady with a saved plan hash",
+                "the scenario preview must be fresh, never a resumed baseline session"
             )
-            XCTAssertEqual(detail, "preview did not reach previewReady with a saved plan hash")
+            XCTAssertEqual(
+                detail, "User B's real bootstrap unexpectedly shares User A's household",
+                "the run must advance to the simulator's single-identity boundary"
+            )
         }
 
         let uploadedEntities = await server.appliedEntityCount()
@@ -65,59 +74,59 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
         )
     }
 
-    /// Phase 2B-2.5. Its baseline seeds one remote counterpart, which now
-    /// confirms; the run then stops at its conflict checkpoint.
-    func testIdentityForkSmokeGetsPastItsBaselineSeeding() async throws {
+    /// Phase 2B-2.5. Runs to completion: baseline seeding, a fresh conflicting
+    /// preview against it, a same-id keepBoth fork, confirmation and rollback.
+    func testIdentityForkSmokeCompletes() async throws {
         let server = SimulatedMergeServer(userID: userIdA, householdID: householdId)
         let runner = GuestMergeSmokeRunner(
             smokeConfiguration: Self.enabledConfiguration, transportFactory: { _ in server }
         )
-
-        do {
-            _ = try await runner.runIdentityForkMinimalSmoke(
-                authStoreA: await Self.signedInAuthStore(userID: userIdA)
-            )
-            XCTFail("the resumed-baseline-session defect still stops this run short")
-        } catch let error as GuestMergeSmokeError {
-            guard case .validationFailed(let detail) = error else {
-                return XCTFail("unexpected smoke error: \(error)")
-            }
-            XCTAssertFalse(
-                detail.hasPrefix("baseline"), "the repaired baseline must no longer be the failure point: \(detail)"
-            )
-            XCTAssertEqual(detail, "expected quantity conflict against the real baseline")
-        }
-
-        let uploadedEntities = await server.appliedEntityCount()
-        XCTAssertGreaterThanOrEqual(uploadedEntities, 1, "the baseline must have confirmed and uploaded its counterpart")
+        let passed = try await runner.runIdentityForkMinimalSmoke(
+            authStoreA: await Self.signedInAuthStore(userID: userIdA)
+        )
+        XCTAssertTrue(passed)
     }
 
-    /// Phase 2B-8. Its baseline seeds through the production preview overload
-    /// this runner exists to exercise, which now confirms; the run then stops
-    /// at its remote-count checkpoint.
-    func testProductionRemotePreviewSmokeGetsPastItsBaselineSeeding() async throws {
+    /// Phase 2B-8. Runs to completion: its baseline seeds through the
+    /// production preview overload this runner exists to exercise, and the
+    /// stale-confirm and fresh-preview stages follow against it.
+    func testProductionRemotePreviewSmokeCompletes() async throws {
         let server = SimulatedMergeServer(userID: userIdA, householdID: householdId)
         let runner = GuestMergeSmokeRunner(
             smokeConfiguration: Self.enabledConfiguration, transportFactory: { _ in server }
         )
+        let passed = try await runner.runProductionRemotePreviewMinimalSmoke(
+            authStoreA: await Self.signedInAuthStore(userID: userIdA)
+        )
+        XCTAssertTrue(passed)
+    }
 
-        do {
-            _ = try await runner.runProductionRemotePreviewMinimalSmoke(
-                authStoreA: await Self.signedInAuthStore(userID: userIdA)
-            )
-            XCTFail("the resumed-baseline-session defect still stops this run short")
-        } catch let error as GuestMergeSmokeError {
-            guard case .validationFailed(let detail) = error else {
-                return XCTFail("unexpected smoke error: \(error)")
-            }
-            XCTAssertFalse(
-                detail.hasPrefix("baseline"), "the repaired baseline must no longer be the failure point: \(detail)"
-            )
-            XCTAssertEqual(detail, "production preview overload did not report a non-zero remote count")
-        }
+    // MARK: Production rollback availability is unchanged
 
-        let uploadedEntities = await server.appliedEntityCount()
-        XCTAssertGreaterThanOrEqual(uploadedEntities, 1, "the baseline marker must have confirmed and uploaded")
+    /// Control for the Slice 0b repair: only the seeding configuration steps
+    /// aside. A merge completed with the ordinary rollback window is still
+    /// returned as the active rollback-capable session, so the harness change
+    /// cannot hide a production rollback regression.
+    func testDefaultRollbackWindowKeepsACompletedMergeActiveWhileZeroWindowDoesNot() async throws {
+        let (defaultPersistence, defaultController) = try await Self.completedMerge(
+            userID: userIdA, householdID: householdId, rollbackWindow: 24 * 60 * 60
+        )
+        XCTAssertEqual(defaultController.session?.status, .completed)
+        let stillActive = try await defaultPersistence.activeGuestMergeSession(
+            userId: userIdA, householdId: householdId, entityType: .inventoryItem
+        )
+        XCTAssertEqual(stillActive?.id, defaultController.session?.id)
+        XCTAssertEqual(stillActive?.status, .completed)
+        XCTAssertNotNil(stillActive?.rollbackAvailableUntil, "the default window must stay rollback-capable")
+
+        let (seedingPersistence, seedingController) = try await Self.completedMerge(
+            userID: userIdA, householdID: householdId, rollbackWindow: 0
+        )
+        XCTAssertEqual(seedingController.session?.status, .completed)
+        let notRetained = try await seedingPersistence.activeGuestMergeSession(
+            userId: userIdA, householdId: householdId, entityType: .inventoryItem
+        )
+        XCTAssertNil(notRetained, "a zero-window seeding session must not remain the active session")
     }
 
     // MARK: Production confirmation semantics are unchanged
@@ -169,6 +178,32 @@ final class GuestMergeSmokeConsistencyTests: XCTestCase {
         let didSignIn = await store.signIn(email: "slice0@example.com", password: "not-a-real-password")
         precondition(didSignIn)
         return store
+    }
+
+    /// Drives one complete merge through the production confirmation path and
+    /// hands back the stack so the caller can inspect session lifecycle.
+    private static func completedMerge(
+        userID: UUID, householdID: UUID, rollbackWindow: TimeInterval
+    ) async throws -> (SwiftDataSyncPersistence, GuestMergeController) {
+        let container = try makeContainer()
+        let persistence = SwiftDataSyncPersistence(modelContainer: container)
+        let kitchenStore = makeKitchenStore(container: container)
+        let server = SimulatedMergeServer(userID: userID, householdID: householdID)
+        let controller = GuestMergeController(
+            persistence: persistence,
+            configuration: InventoryMergeConfiguration(isEnabled: true),
+            transportFactory: { _ in server },
+            rollbackWindow: rollbackWindow
+        )
+        controller.kitchenStore = kitchenStore
+        kitchenStore.inventory = [
+            InventoryItem(name: "__slice0b_control", quantity: 1, unit: "个", expiryDate: nil)
+        ]
+        await controller.preparePreview(
+            userId: userID, householdId: householdID, kitchenStore: kitchenStore, remoteTransport: server
+        )
+        await controller.confirmMerge(authStore: await signedInAuthStore(userID: userID))
+        return (persistence, controller)
     }
 
     private static func makeContainer() throws -> ModelContainer {
@@ -322,5 +357,3 @@ private actor SimulatedMergeServer: SyncTransport {
         return formatter
     }()
 }
-
-

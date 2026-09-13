@@ -24,6 +24,11 @@ protection open before the first durable write, conflicting edit refused, reconc
 success and on every failure path, reconcile failure leaving the store locked, nested windows not
 unlocking early, and zero outbound echo.
 
+The same suite carries the two prerequisite repairs (SC-010): each affected runner's baseline
+confirms and is not retained as the active rollback-capable session, the next preview is a fresh
+scenario preview, and a default-window control still exposes an ordinary completed merge as the
+active rollback-capable session.
+
 ## 2. Call-site guard (always runnable, no network)
 
     npm test

@@ -26,14 +26,17 @@ Most implementation tasks touch the single file `GuestMergeSmoke.swift`, so they
 
 | Slice | Phase | Content | Separate commit |
 |---|---|---|---|
-| **0** | Phase 2 | prerequisite harness-integrity repair: the three baseline fingerprint call sites only, proven by a deterministic test, **no window wiring** | yes — its own first code commit |
+| **0a** | Phase 2 | prerequisite harness-integrity repair: the three baseline fingerprint call sites only, proven by a deterministic test, **no window wiring** | yes — its own first code commit |
+| **0b** | Phase 2b | prerequisite harness-integrity repair discovered while implementing 0a: zero rollback window on the three seeding-only baseline controllers | yes — its own commit, after 0a and before Slice A |
 | **A** | Phase 3 | boundary plumbing so the windows are expressible | yes |
 | **B** | Phase 4 | W1–W4 wiring | yes |
 | **C** | Phase 5 | deterministic correctness evidence | yes |
 | **D** | Phase 6 | hosted development acceptance and final seal | yes |
 
-**Slice 0 MUST NOT be collapsed into Slice B.** It repairs a pre-existing harness defect and is
-not part of the consistency-window mechanism.
+**Slices 0a and 0b MUST NOT be collapsed into Slice B.** They repair pre-existing harness defects
+and are not part of the consistency-window mechanism. Task IDs are never renumbered: Slice 0b was
+discovered after T001–T035 were written, so it carries new IDs T036–T038 even though it executes
+between Phase 2 and Phase 3.
 
 ---
 
@@ -46,7 +49,7 @@ not part of the consistency-window mechanism.
 
 ---
 
-## Phase 2: Slice 0 - Prerequisite harness-integrity repair (Priority: P1, blocking) 🎯
+## Phase 2: Slice 0a - Prerequisite harness-integrity repair (Priority: P1, blocking) 🎯
 
 **Goal**: the three runners whose baseline seeding currently aborts can reach their intended
 checkpoints again. **No consistency-window wiring happens in this slice.**
@@ -61,7 +64,30 @@ seeding reach `.completed` instead of throwing `validationFailed`.
 - [x] T004 [US1] Add a failing test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` asserting baseline seeding reaches `.completed` rather than throwing `validationFailed`, for all three affected runners (FR-011)
 - [x] T005 [US1] Repair the three baseline preview call sites in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` — in `runRemainingPhases`, `runIdentityForkMinimalSmoke` and `runProductionRemotePreviewMinimalSmoke` — so the baseline preview carries the real remote fingerprint that production confirmation semantics require, keeping the change inside the DEBUG smoke file and leaving production merge behavior untouched (FR-011)
 
-**Checkpoint**: previously unreachable baselines now reach their checkpoints. Commit this slice on its own before any window wiring.
+**Checkpoint**: previously unreachable baselines now confirm. Commit this slice on its own before any window wiring.
+
+---
+
+## Phase 2b: Slice 0b - Baseline session lifecycle repair (Priority: P1, blocking) 🎯
+
+**Goal**: a seeding-only baseline no longer stays the active rollback-capable session, so the next
+preview in the same runner is the fresh scenario preview the smoke needs.
+
+**Classification**: prerequisite harness-integrity repair, discovered while implementing Slice 0a.
+Not a D-028 or D-029 behavior change, not production Guest merge behavior, not W1–W4.
+
+**Execution order**: MUST run after Slice 0a (Phase 2) and before Slice A (Phase 3). Task IDs
+continue from T035 rather than being renumbered into position.
+
+**Independent Test**: drive each affected runner with a fake transport and observe the preview
+after baseline seeding produce a fresh scenario preview instead of resuming the completed baseline
+session, with a default-window control proving ordinary rollback availability is unchanged.
+
+- [x] T036 [US1] Construct the three seeding-only baseline controllers in `ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeSmoke.swift` — in `runRemainingPhases`, `runIdentityForkMinimalSmoke` and `runProductionRemotePreviewMinimalSmoke` — with the existing `rollbackWindow` initializer parameter set to zero, leaving its default value, `performConfirmMerge`, `activeGuestMergeSession` and every production caller untouched (FR-014)
+- [x] T037 [US1] Replace the temporary Slice 0a expectations in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` that assert each runner now fails one checkpoint later, proving positive progress instead: baseline confirms, the completed baseline is not retained as the active session, and the next preview is a fresh scenario preview; document the single-identity simulator boundary for the full Phase 2B-2 runner rather than faking multi-identity support (FR-014, SC-010)
+- [x] T038 [US1] Add a default-window control test in `ios-native/Kitchen Manager/KitchenManagerTests/GuestMergeSmokeConsistencyTests.swift` proving an ordinary completed merge is still returned as the active rollback-capable session, so the harness repair cannot hide a production rollback regression (FR-014, SC-010)
+
+**Checkpoint**: every affected runner advances past the baseline session blocker, and production rollback availability is proven unchanged. Commit this slice on its own before any window wiring.
 
 ---
 
@@ -156,8 +182,9 @@ in-memory array equals durable storage.
 ## Dependencies & Execution Order
 
 - **Phase 1 Setup**: no dependencies.
-- **Phase 2 Slice 0**: depends on Phase 1. Independent of all window work; ships as its own commit.
-- **Phase 3 Slice A**: depends on Phase 2. **Blocks W1–W4.** T006 → T007 → T008 → T009 are sequential, all in one file.
+- **Phase 2 Slice 0a**: depends on Phase 1. Independent of all window work; ships as its own commit.
+- **Phase 2b Slice 0b**: depends on Phase 2. Also independent of all window work; ships as its own commit. T036 → T037 → T038.
+- **Phase 3 Slice A**: depends on Phase 2b. **Blocks W1–W4.** T006 → T007 → T008 → T009 are sequential, all in one file.
 - **Phase 4 Slice B**: depends on Phase 3. Tests T010–T011 precede implementation T012–T016, which are sequential in `GuestMergeSmoke.swift`.
 - **Phase 5 Slice C**: depends on Slice B existing; all tasks live in one test file and are sequential.
 - **Phase 6 Slice D**: T026 and T027 depend only on Slice B and can run alongside Slice C. T029 → T030 → T031 are strictly ordered and start only after Slice C is green.

@@ -223,7 +223,11 @@ final class GuestMergeSmokeRunner {
         ]
         let baselineController = GuestMergeController(
             persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
-            transportFactory: transportFactory
+            transportFactory: transportFactory,
+            // Seeding only: a zero rollback window stops this finished session
+            // from remaining the active rollback-capable one, so the scenario
+            // preview below is fresh rather than a resumed baseline.
+            rollbackWindow: 0
         )
         baselineController.kitchenStore = kitchenStore
         // Seeds through the real confirmation path, so the baseline preview
@@ -529,7 +533,9 @@ final class GuestMergeSmokeRunner {
             // own local copy conflicts on quantity under the *same* id.
             kitchenStore.inventory = [InventoryItem(id: sharedId, name: "__guest_merge_smoke_\(marker)_fork", quantity: 2, unit: "个", expiryDate: nil)]
             let baselineController = GuestMergeController(
-                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+                // Seeding only — zero rollback window, as in runRemainingPhases.
+                transportFactory: transportFactory, rollbackWindow: 0
             )
             baselineController.kitchenStore = kitchenStore
             // The same real remote read the conflicting preview below performs
@@ -938,7 +944,9 @@ final class GuestMergeSmokeRunner {
             cleanupIds.insert(baselineId)
             kitchenStore.inventory = [InventoryItem(id: baselineId, name: markerName, quantity: 2, unit: "个", expiryDate: nil)]
             let baselineController = GuestMergeController(
-                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true), transportFactory: transportFactory
+                persistence: persistence, configuration: InventoryMergeConfiguration(isEnabled: true),
+                // Seeding only — zero rollback window, as in runRemainingPhases.
+                transportFactory: transportFactory, rollbackWindow: 0
             )
             baselineController.kitchenStore = kitchenStore
             // The same production overload this runner exists to exercise, so

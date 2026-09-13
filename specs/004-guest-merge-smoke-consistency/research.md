@@ -155,6 +155,42 @@ plan with no remote fingerprint must never be confirmable. The defect is that th
 such a plan and then tries to confirm it. Nothing here implies D-028 or the fingerprint gate was
 wrong, and no production merge behavior changes.
 
+## 6. Late discovery — the completed baseline session stays active
+
+**Classification: prerequisite harness-integrity repair**, of the same kind as §3 and discovered
+while implementing it. Numbered §6 so the earlier sections keep the numbers the committed spec
+already cites.
+
+Once §3's repair let the baselines confirm, all three runners stopped at their *next* checkpoint
+for one shared reason. `performConfirmMerge` sets
+`current.rollbackAvailableUntil = Date().addingTimeInterval(rollbackWindow)` on completion
+(`GuestMergeController.swift:836`, default 24 hours), and `activeGuestMergeSession` deliberately
+keeps returning a `.completed` session while `now <= deadline`
+(`SyncPersistence.swift`), so a routine re-preview does not orphan a rollback. The next
+`preparePreview` in the same runner therefore resumes the finished baseline session, and the
+regenerate branch cannot help because it only applies to `.detected`, `.previewReady` and
+`.awaitingConfirmation`. The smoke's own comment claiming a completed session is never returned
+again is stale under that contract.
+
+**Decision**: construct the three seeding-only baseline controllers with `rollbackWindow` zero.
+**Rationale**: `rollbackWindow` is already an injected initializer parameter with a 24-hour
+default (`GuestMergeController.swift:141`), the three baseline controllers are used for exactly
+four statements each and are never rolled back, and production callers in `ContentView.swift`
+pass no override, so the default is untouched. The harness configures its own seeding controller
+correctly instead of weakening production behavior.
+
+**Alternatives rejected**: deleting the completed session, clearing rollback metadata after
+confirmation, special-casing `activeGuestMergeSession` for DEBUG, or teaching `preparePreview` to
+ignore a completed session. Each changes production session lifecycle or bypasses a lifecycle
+check to work around a harness misconfiguration.
+
+**Audit before implementing** (all six conditions verified against the code at `02c565d`):
+the three `baselineController` instances are constructed, given a `kitchenStore`, previewed,
+confirmed and status-checked, then never referenced again; no later assertion depends on the
+baseline being rollback-capable, and no runner rolls back a baseline session; each runner builds
+a separate controller for the behavior under test; `rollbackWindow` is injected; production
+callers keep the default; and `activeGuestMergeSession` needs no change.
+
 ## 4. Test feasibility
 
 Deterministic runner-level tests are possible; this was verified rather than assumed.
@@ -181,5 +217,4 @@ exercise the reconciliation-failure path.
 an established, proven pattern instead of inventing a second mechanism.
 **Alternatives considered**: a new test file — rejected, it would split one file's call-site rules
 across two guards.
-
 

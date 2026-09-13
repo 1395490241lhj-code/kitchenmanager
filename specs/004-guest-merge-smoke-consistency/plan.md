@@ -132,13 +132,15 @@ reconciliation succeeded so the success-path caller can refuse to report a clean
 
 ### Implementation sequence (frozen at spec review)
 
-`Slice 0` → `Slice A` → `Slice B` → `Slice C` → `Slice D`. Slice 0 is the prerequisite
-harness-integrity repair and MUST stay independently reviewable as its own first code commit; it
-MUST NOT be collapsed into the W1–W4 wiring of Slice B.
+`Slice 0a` → `Slice 0b` → `Slice A` → `Slice B` → `Slice C` → `Slice D`. Slices 0a and 0b are
+prerequisite harness-integrity repairs and MUST each stay independently reviewable as their own
+code commit; neither MUST be collapsed into the W1–W4 wiring of Slice B. Slice 0b was discovered
+while implementing Slice 0a and MUST execute after it and before Slice A.
 
 | Slice | Content | Phase in [tasks.md](./tasks.md) |
 |---|---|---|
-| 0 | baseline fingerprint repair at three call sites, proven by a deterministic test, no window wiring | Phase 2 |
+| 0a | baseline fingerprint repair at three call sites, proven by a deterministic test, no window wiring | Phase 2 |
+| 0b | seeding-baseline session lifecycle repair: zero rollback window on the three seeding-only controllers, so the next preview is a fresh scenario preview | Phase 2b |
 | A | boundary plumbing: runner helper, cleanup signature and result, `kitchenStore` hoist, call sites | Phase 3 |
 | B | W1–W4 wiring, scenario-construction edits kept outside | Phase 4 |
 | C | deterministic failure, overlap, echo and scenario-preservation evidence | Phase 5 |
@@ -160,5 +162,4 @@ PWA. D-028 and D-029 semantics, and all flag defaults.
 - **The baseline repair changes what the baseline preview does** (it now performs a real remote
   read). This matches what every other preview in the file already does; hosted acceptance is the
   check.
-
 
