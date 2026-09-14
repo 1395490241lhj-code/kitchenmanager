@@ -136,15 +136,15 @@ after a failed write is reliable (`research.md` R5).
 
 ## Phase 7: Validation and seal
 
-- [ ] T039 Run the focused suites from `quickstart.md`, including the existing
+- [x] T039 Run the focused suites from `quickstart.md`, including the existing
       `SettingsExperienceUITests` unchanged, and record real counts
-- [ ] T040 Compare compiler warnings for every touched file against a clean-baseline build and
+- [x] T040 Compare compiler warnings for every touched file against a clean-baseline build and
       report the delta
-- [ ] T041 Re-check the package against the out-of-scope list in `spec.md`: no clear-local-data
+- [x] T041 Re-check the package against the out-of-scope list in `spec.md`: no clear-local-data
       change, no sync, no payload expansion, no encryption, no cloud backup, no global persistence
       refactor. Remove or defer anything that crept in
-- [ ] T042 Confirm no requirement, task or member-facing string claims atomicity
-- [ ] T043 Produce the `AGENTS.md` final report and decide the vault write-back, without
+- [x] T042 Confirm no requirement, task or member-facing string claims atomicity
+- [x] T043 Produce the `AGENTS.md` final report and decide the vault write-back, without
       committing, pushing or reconciling anything not explicitly authorised
 
 ## Traceability
@@ -185,6 +185,25 @@ after a failed write is reliable (`research.md` R5).
 the backup validation gate. T003 is deliberately still open: this slice needed only a
 zero-write spy, and the per-call failure seam it describes is first required by the phases that
 inject write failures.
+
+**Feature complete, unpushed.** All 43 tasks are checked. Final gate on iPhone 17 Pro / iOS 27.0
+with parallel testing disabled: 199 unit tests and the existing `SettingsExperienceUITests` 10/10,
+all passing, plus the Phase 6 workflow suite 8/8. Touched files added zero compiler warnings. The
+two Node source-contract suites that read the changed Swift files report 15 pass / 4 fail both on
+this tree and on a clean `dbb7bce` export - the same four names, so they are the known baseline
+reds and not introduced here. No Release build was run; nothing in T039-T043 asks for one.
+
+**A real defect this gate caught, and the fix.** Phase 4 defaulted the convenience initialiser to
+the production Application Support recovery slot. Application Support survives between test runs,
+so a copy left by one run blocked every later restore that used that initialiser - three existing
+suites went red with `outstandingSnapshotPresent`. The default is now isolated, matching the
+persistence bundle's own nil-means-isolated rule, and production names the real slot explicitly at
+the composition root in `ContentView`. This is a correction to my own Phase 4 wiring, not a change
+to the approved contract.
+
+**Deferred, unchanged**: clear-local-data aggregation, cloud backup, scheduled backup, encryption
+and signing, sync/GuestMerge/Supabase, adding recipes to the payload, merge-style restore, true
+cross-domain atomicity, and historical version migration beyond v1.
 
 **Phase 6 complete**: choosing a file no longer restores anything. The flow is read, validate,
 preview, explicit destructive confirmation, restore, then one result worded for what actually

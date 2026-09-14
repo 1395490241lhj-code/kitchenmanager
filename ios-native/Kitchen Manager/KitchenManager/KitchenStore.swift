@@ -863,10 +863,12 @@ final class KitchenStore: ObservableObject {
             weeklyPlanPersistence: persistence.weeklyPlan,
             preparedComponentPersistence: persistence.preparedComponents,
             specialPlanPersistence: persistence.specialPlans,
-            // Production default, resolved here rather than in the parameter
-            // list: a default argument is evaluated outside the actor, and
-            // this store is main-actor isolated like everything it serves.
-            recoverySnapshot: recoverySnapshot ?? .applicationSupport()
+            // Isolated unless a caller supplies the real one, exactly like the
+            // persistences above. The app's single production slot lives in
+            // Application Support and survives between runs, so defaulting to it
+            // here would make every test share — and block — one another.
+            // Production wires it explicitly at the composition root.
+            recoverySnapshot: recoverySnapshot
         )
     }
 

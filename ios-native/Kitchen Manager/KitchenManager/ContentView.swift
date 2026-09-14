@@ -56,10 +56,16 @@ struct KitchenManagerApp: App {
         // ended up in an isolated in-memory container that dies with the app.
         #if DEBUG
         let kitchenStoreInstance = isolatedFixture
-            ? KitchenStore(userDefaults: recipeTestDefaults, persistence: persistence)
-            : KitchenStore(persistence: persistence)
+            ? KitchenStore(userDefaults: recipeTestDefaults, persistence: persistence, recoverySnapshot: .applicationSupport())
+            : KitchenStore(persistence: persistence, recoverySnapshot: .applicationSupport())
         #else
-        let kitchenStoreInstance = KitchenStore(persistence: persistence)
+        // The production recovery slot is named here, at the composition root,
+        // for the same reason the persistence bundle is: a default would let
+        // the app reach production half-wired, or a test reach production at all.
+        let kitchenStoreInstance = KitchenStore(
+            persistence: persistence,
+            recoverySnapshot: .applicationSupport()
+        )
         #endif
         #if DEBUG
         // The generic account fixture resets local data and adds 测试库存 under a
