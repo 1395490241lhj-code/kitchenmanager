@@ -114,25 +114,25 @@ after a failed write is reliable (`research.md` R5).
 
 ## Phase 6: Preview, confirmation and presentation (US2, US3)
 
-- [ ] T030 [US2] Present the validated backup before any write: creation date, per-domain counts,
+- [x] T030 [US2] Present the validated backup before any write: creation date, per-domain counts,
       and the statement that restore replaces backup-scoped local data (FR-007, FR-008)
-- [ ] T031 [US2] Name user recipes, favourites and frequent records as unchanged in that surface
+- [x] T031 [US2] Name user recipes, favourites and frequent records as unchanged in that surface
       (FR-009)
-- [ ] T032 [US2] Require explicit confirmation using the platform's destructive treatment, with
+- [x] T032 [US2] Require explicit confirmation using the platform's destructive treatment, with
       abandonment leaving zero mutation (FR-010, FR-011, FR-012)
-- [ ] T033 [US3] Present the five outcomes distinguishably, with proven recovery and unproven
+- [x] T033 [US3] Present the five outcomes distinguishably, with proven recovery and unproven
       state reading differently, and offer the recovery action and export on an unproven outcome
       (FR-016, FR-019)
-- [ ] T034 Normalise file-picker dismissal to a non-error outcome with no mutation and no alert
+- [x] T034 Normalise file-picker dismissal to a non-error outcome with no mutation and no alert
       (FR-028, `research.md` R6)
-- [ ] T035 Review all new member-facing copy against FR-021: no merge, no atomic, no promise of
+- [x] T035 Review all new member-facing copy against FR-021: no merge, no atomic, no promise of
       full recoverability
-- [ ] T036 [P] [US2] UI tests: selecting a valid file alone mutates nothing; the preview's counts
+- [x] T036 [P] [US2] UI tests: selecting a valid file alone mutates nothing; the preview's counts
       match the payload; cancelling mutates nothing; confirmation is required (SC-002, SC-003)
-- [ ] T037 [P] [US3] UI tests: each outcome is distinguishable; the replacement warning and the
+- [x] T037 [P] [US3] UI tests: each outcome is distinguishable; the replacement warning and the
       outcome message are readable at AXXXL without truncation and are announced under VoiceOver
       (SC-004, SC-007)
-- [ ] T038 [P] Test: dismissing the picker produces no error surface (SC-008)
+- [x] T038 [P] Test: dismissing the picker produces no error surface (SC-008)
 
 ## Phase 7: Validation and seal
 
@@ -185,6 +185,23 @@ after a failed write is reliable (`research.md` R5).
 the backup validation gate. T003 is deliberately still open: this slice needed only a
 zero-write spy, and the per-call failure seam it describes is first required by the phases that
 inject write failures.
+
+**Phase 6 complete**: choosing a file no longer restores anything. The flow is read, validate,
+preview, explicit destructive confirmation, restore, then one result worded for what actually
+happened. The five outcomes read differently, and proven recovery and uncertain state are never
+the same message.
+
+**Outstanding recovery copy now has an owner**: while one exists, Backup & Restore shows it with
+two actions — restore from it through the same validated pipeline, or export it as an ordinary
+backup file. That also closes the Phase 4/5 fail-closed edge honestly: if a successful restore's
+cleanup ever fails, the copy is visible and actionable rather than an invisible future blocker.
+Restoring from the copy reuses it rather than preparing a new copy over it, because taking a
+fresh copy of the uncertain current kitchen would overwrite the only way back with the very thing
+it exists to undo.
+
+**Legacy date truth carried through**: `validateCandidate` reads `exportedAt` from the encoded
+object, not from the decoded payload, so a file that never had the key shows 「这个备份没有记录时间」
+rather than the decoder's substituted date. v1 acceptance rules are unchanged.
 
 **Phase 5 complete**: a restore now classifies itself into the five outcomes and records the
 result on `KitchenStore.lastRestoreOutcome`. It still throws for every non-success outcome, so no

@@ -1949,6 +1949,27 @@ final class KitchenStore: ObservableObject {
     /// remain seven independent commits; what is guaranteed is a successful
     /// restore or a truthful result.
     func restoreBackupData(_ data: Data) throws {
+        try performRestore(data, reusingOutstandingRecoveryCopy: false)
+    }
+
+    /// Puts the outstanding recovery copy back, through the same pipeline.
+    ///
+    /// Not a bypass: the copy is validated like any candidate, the same outcome
+    /// contract applies, and the same domains are written in the same order.
+    /// The one difference is that no new copy is prepared over it — the copy
+    /// being restored *is* the good state, and taking a fresh copy of the
+    /// uncertain current kitchen would overwrite the only way back with the
+    /// thing it is there to undo. If this restore fails, the copy survives for
+    /// another attempt.
+    func restoreFromRecoverySnapshot() throws {
+        guard let data = try recoverySnapshot.outstandingSnapshot() else {
+            lastRestoreOutcome = .preparationFailed
+            throw KitchenRecoverySnapshotError.storageUnavailable
+        }
+        try performRestore(data, reusingOutstandingRecoveryCopy: true)
+    }
+
+    private func performRestore(_ data: Data, reusingOutstandingRecoveryCopy reusing: Bool) throws {
         // R1b — same reason as `applyConsumption`. A restore is a whole-table
         // replacement, so running it against a table a sync is concurrently
         // writing would discard the sync's rows outright. Nothing has been
@@ -1974,11 +1995,13 @@ final class KitchenStore: ObservableObject {
         // in memory as the recovery target, so the target is exactly the
         // pre-restore backup scope rather than seven separate assumptions.
         let previous = currentBackupPayload()
-        do {
-            try recoverySnapshot.prepare(try JSONEncoder().encode(previous))
-        } catch {
-            lastRestoreOutcome = .preparationFailed
-            throw error
+        if !reusing {
+            do {
+                try recoverySnapshot.prepare(try JSONEncoder().encode(previous))
+            } catch {
+                lastRestoreOutcome = .preparationFailed
+                throw error
+            }
         }
 
         if let failure = writeBackupScope(backup) {

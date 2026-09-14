@@ -703,6 +703,18 @@ struct ContentView: View {
         }
         // Clears everything and stays put. `UITEST_SEED_EMPTY_INVENTORY` also
         // switches to the inventory tab, which is wrong for a Home empty state.
+        // UI-test-only seed for the feature 005 safe-restore workflow: puts a
+        // known, validated backup into the store's own recovery slot so the
+        // production "import前的数据副本" entry opens the real preview on it.
+        // The presentation and the restore pipeline are production code.
+        .task {
+            guard SafeRestoreFixture.isEnabled else { return }
+            kitchenStore.clearAllLocalData()
+            kitchenStore.addInventory(name: "本机土豆", quantity: 1, unit: "个", expiryDate: nil)
+            try? kitchenStore.recoverySnapshot.resolve()
+            try? kitchenStore.recoverySnapshot.prepare(try SafeRestoreFixture.candidateData())
+            navigationStore.selectedTab = .settings
+        }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_EMPTY_KITCHEN") else { return }
             kitchenStore.clearAllLocalData()

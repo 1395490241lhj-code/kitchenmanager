@@ -1920,12 +1920,27 @@ struct SettingsView: View {
     }
 }
 
+/// What the member is being asked to decide about, once a file has been proven
+/// to be a supported backup. Held only in view state: selecting a file is not
+/// authorising a restore, so nothing here has touched persistence.
+private struct PendingRestoreCandidate: Identifiable {
+    let id = UUID()
+    let candidate: KitchenBackupValidator.Candidate
+    /// Where it came from: restoring the outstanding recovery copy and
+    /// restoring a file the member picked are different actions.
+    let isRecoveryCopy: Bool
+}
+
 struct BackupRestoreView: View {
     @EnvironmentObject private var store: KitchenStore
     @State private var isExporting = false
     @State private var isImporting = false
     @State private var exportDocument = KitchenBackupDocument()
+    @State private var exportFilename = "KitchenManager-Backup"
     @State private var message: String?
+    @State private var pending: PendingRestoreCandidate?
+    @State private var resultTitle: String?
+    @State private var resultDetail = ""
 
     var body: some View {
         List {
@@ -1933,6 +1948,7 @@ struct BackupRestoreView: View {
                 Button("导出厨房备份", systemImage: "square.and.arrow.up") {
                     do {
                         exportDocument = KitchenBackupDocument(data: try store.exportBackupData())
+                        exportFilename = "KitchenManager-Backup"
                         isExporting = true
                     } catch {
                         message = "暂时无法生成备份。"
@@ -1941,7 +1957,13 @@ struct BackupRestoreView: View {
                 Button("导入厨房备份", systemImage: "square.and.arrow.down") {
                     isImporting = true
                 }
+                .accessibilityIdentifier("backup.import.button")
             }
+
+            if store.recoverySnapshot.hasOutstandingSnapshot {
+                recoveryCopySection
+            }
+
             Section {
                 Text("备份包含库存与常备规则、用餐与聚餐计划、每周菜单、备餐、购物清单和消耗记录，不包含用户菜谱、收藏和常做记录。导入会替换备份范围内的本机数据。")
                     .font(.footnote)
@@ -1954,24 +1976,215 @@ struct BackupRestoreView: View {
             isPresented: $isExporting,
             document: exportDocument,
             contentType: .json,
-            defaultFilename: "KitchenManager-Backup"
+            defaultFilename: exportFilename
         ) { result in
-            if case .failure = result { message = "备份导出没有完成。" }
+            // Dismissing the save sheet is a normal action, not a failure.
+            if case .failure(let error) = result, !Self.isCancellation(error) {
+                message = "备份导出没有完成。"
+            }
         }
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.json]) { result in
-            do {
-                let url = try result.get()
-                let accessed = url.startAccessingSecurityScopedResource()
-                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
-                try store.restoreBackupData(Data(contentsOf: url))
-                message = "厨房数据已恢复。"
-            } catch {
-                message = error.localizedDescription
-            }
+            handlePickedFile(result)
+        }
+        .sheet(item: $pending) { candidate in
+            RestorePreviewSheet(pending: candidate) { runRestore(candidate) }
         }
         .alert("备份与恢复", isPresented: Binding(
             get: { message != nil },
             set: { if !$0 { message = nil } }
         )) { Button("好", role: .cancel) {} } message: { Text(message ?? "") }
+        .alert(resultTitle ?? "", isPresented: Binding(
+            get: { resultTitle != nil },
+            set: { if !$0 { resultTitle = nil } }
+        )) { Button("好", role: .cancel) {} } message: { Text(resultDetail) }
+    }
+
+    /// Shown only while a recovery copy is outstanding, which is exactly when a
+    /// member needs to be able to do something about it. Nothing removes this
+    /// copy on their behalf, and a copy that is outstanding is never invisible.
+    @ViewBuilder
+    private var recoveryCopySection: some View {
+        Section {
+            Button("用这份副本恢复") { openRecoveryCopy() }
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("backup.recovery.restore")
+            Button("导出这份副本") { exportRecoveryCopy() }
+                .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                .accessibilityIdentifier("backup.recovery.export")
+        } header: {
+            Text("导入前的数据副本")
+        } footer: {
+            Text("上一次导入在本机保留了一份导入前的数据副本。可以用它恢复，或先导出留存。")
+                .accessibilityIdentifier("backup.recovery.footer")
+        }
+    }
+
+    // MARK: - Choosing a file is not authorising a restore
+
+    private func handlePickedFile(_ result: Result<URL, Error>) {
+        let url: URL
+        do {
+            url = try result.get()
+        } catch {
+            // Cancelling the picker is a normal outcome on every iOS version,
+            // however the platform chooses to report it.
+            if !Self.isCancellation(error) { message = "无法读取这个文件。" }
+            return
+        }
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            pending = PendingRestoreCandidate(
+                candidate: try KitchenBackupValidator.validateCandidate(data),
+                isRecoveryCopy: false
+            )
+        } catch {
+            // A file that cannot be used never reaches the preview, and nothing
+            // has been written.
+            presentResult(for: .validationFailed, error: error)
+        }
+    }
+
+    private func openRecoveryCopy() {
+        do {
+            guard let data = try store.recoverySnapshot.outstandingSnapshot() else { return }
+            pending = PendingRestoreCandidate(
+                candidate: try KitchenBackupValidator.validateCandidate(data),
+                isRecoveryCopy: true
+            )
+        } catch {
+            message = "这份副本暂时无法读取。"
+        }
+    }
+
+    private func exportRecoveryCopy() {
+        do {
+            guard let data = try store.recoverySnapshot.outstandingSnapshot() else { return }
+            exportDocument = KitchenBackupDocument(data: data)
+            exportFilename = "KitchenManager-导入前副本"
+            isExporting = true
+        } catch {
+            message = "这份副本暂时无法读取。"
+        }
+    }
+
+    // MARK: - Only an explicit confirmation restores
+
+    private func runRestore(_ candidate: PendingRestoreCandidate) {
+        pending = nil
+        do {
+            if candidate.isRecoveryCopy {
+                try store.restoreFromRecoverySnapshot()
+            } else {
+                try store.restoreBackupData(try JSONEncoder().encode(candidate.candidate.payload))
+            }
+            presentResult(for: store.lastRestoreOutcome ?? .success, error: nil)
+        } catch {
+            presentResult(for: store.lastRestoreOutcome ?? .validationFailed, error: error)
+        }
+    }
+
+    /// One result per outcome, worded for what actually happened. A restore
+    /// that was put back and a restore whose state could not be checked never
+    /// read the same.
+    private func presentResult(for outcome: KitchenRestoreOutcome, error: Error?) {
+        switch outcome {
+        case .success:
+            resultTitle = "数据已恢复"
+            resultDetail = "备份范围内的本机数据已替换。用户菜谱、收藏和常做记录没有改动。"
+        case .validationFailed:
+            resultTitle = "无法导入这个文件"
+            resultDetail = (error as? LocalizedError)?.errorDescription
+                ?? "这个文件不是可用的 Kitchen Manager 备份。"
+        case .preparationFailed:
+            resultTitle = "导入未开始"
+            resultDetail = (error as? LocalizedError)?.errorDescription
+                ?? "导入没有开始，本机数据没有改动。"
+        case .failedAndRecovered:
+            resultTitle = "导入未完成，数据已还原"
+            resultDetail = "导入中途失败，导入前的本机数据已经还原并核对一致。"
+        case .failedUnsafe:
+            resultTitle = "导入未完成，数据待确认"
+            resultDetail = "导入中途失败，本机数据无法完全核对。导入前的副本仍保留在「导入前的数据副本」中。"
+        }
+    }
+
+    /// The picker reports cancellation differently across iOS versions, so the
+    /// UI decides rather than depending on the platform's shape.
+    private static func isCancellation(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSCocoaErrorDomain && nsError.code == NSUserCancelledError
+    }
+}
+
+/// The decision surface: what is about to be replaced, what is not, and two
+/// clearly different ways out. Native `Form` throughout — this is a safety
+/// step, not a dashboard.
+private struct RestorePreviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let pending: PendingRestoreCandidate
+    let onConfirm: () -> Void
+
+    @State private var isConfirming = false
+
+    private var payload: KitchenBackupPayload { pending.candidate.payload }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent("备份时间") {
+                        if let exportedAt = pending.candidate.exportedAt {
+                            Text(exportedAt.formatted(date: .abbreviated, time: .shortened))
+                        } else {
+                            // The oldest real v1 files carry no export date. The
+                            // tolerant decoder substitutes one; showing that as
+                            // the backup's own date would be inventing metadata.
+                            Text("这个备份没有记录时间")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("restorePreview.date")
+                } footer: {
+                    Text("恢复会替换备份范围内的本机数据。")
+                        .accessibilityIdentifier("restorePreview.replacementWarning")
+                }
+
+                Section("将被替换的数据") {
+                    ForEach(KitchenBackupDomain.restoreOrder, id: \.self) { domain in
+                        LabeledContent(domain.title, value: domain.summary(in: payload))
+                            .accessibilityIdentifier("restorePreview.count." + domain.rawValue)
+                    }
+                }
+
+                Section {
+                    Button("替换本机数据", role: .destructive) { isConfirming = true }
+                        .frame(minHeight: ChromeMetrics.minimumRowHeight)
+                        .accessibilityIdentifier("restorePreview.confirm")
+                } footer: {
+                    Text("用户菜谱、收藏和常做记录不会被更改。")
+                        .accessibilityIdentifier("restorePreview.excluded")
+                }
+            }
+            .navigationTitle(pending.isRecoveryCopy ? "用副本恢复" : "确认导入")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                        .accessibilityIdentifier("restorePreview.cancel")
+                }
+            }
+            .confirmationDialog(
+                "替换本机数据？",
+                isPresented: $isConfirming,
+                titleVisibility: .visible
+            ) {
+                Button("替换", role: .destructive) { onConfirm() }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("备份范围内的本机数据会被这个备份替换，无法撤销。")
+            }
+        }
     }
 }

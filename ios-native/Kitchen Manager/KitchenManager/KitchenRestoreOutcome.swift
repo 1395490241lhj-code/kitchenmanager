@@ -111,3 +111,36 @@ extension KitchenBackupPayload {
         Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 }
+
+extension KitchenBackupDomain {
+    /// What a member calls this domain.
+    var title: String {
+        switch self {
+        case .inventory: "库存与常备规则"
+        case .shoppingItems: "买菜清单"
+        case .plans: "用餐计划"
+        case .consumptionRecords: "消耗记录"
+        case .weeklyPlan: "每周菜单"
+        case .preparedComponents: "备餐组件"
+        case .specialPlans: "聚餐计划"
+        }
+    }
+
+    /// How much of this domain a candidate carries.
+    ///
+    /// The weekly menu is a single optional value, not a collection, so it is
+    /// reported as present or absent rather than given an invented item count.
+    /// Every other domain counts its own top-level entries, never the objects
+    /// nested inside them.
+    func summary(in payload: KitchenBackupPayload) -> String {
+        switch self {
+        case .inventory: "\(payload.inventory.count) 项"
+        case .shoppingItems: "\(payload.shoppingItems.count) 项"
+        case .plans: "\(payload.plans.count) 项"
+        case .consumptionRecords: "\(payload.consumptionRecords.count) 项"
+        case .weeklyPlan: payload.weeklyPlan == nil ? "无" : "有"
+        case .preparedComponents: "\(payload.preparedComponents.count) 项"
+        case .specialPlans: "\(payload.specialPlans.count) 项"
+        }
+    }
+}
