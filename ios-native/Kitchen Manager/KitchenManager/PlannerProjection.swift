@@ -70,6 +70,22 @@ nonisolated enum PlannerProjection {
         calendar.date(byAdding: .day, value: 7, to: start) ?? start
     }
 
+    /// The day an implicitly created meal starts on: the current day while its
+    /// own week is the one on screen, otherwise the first day of whatever week
+    /// is. A meal created while looking at another week belongs to that week,
+    /// so "today" must never displace it.
+    ///
+    /// Pure on purpose. The Planner's civil day is view state that a clock or a
+    /// time zone can move underneath it; the rule that turns a day into a
+    /// default is not, and it is the half worth pinning in tests.
+    static func defaultCreationDate(
+        inWeekStarting weekStart: Date,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Date {
+        weekStart == startOfWeek(containing: now, calendar: calendar) ? now : weekStart
+    }
+
     /// Deterministic, date-sorted merge of normal meals and special plans within
     /// `[start, start+7)`. Entries have stable identity and a deterministic
     /// chronological order; no mutation, no persistence.

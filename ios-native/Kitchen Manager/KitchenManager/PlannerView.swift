@@ -118,6 +118,7 @@ struct PlannerView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.scenePhase) private var scenePhase
     @State private var path: [PlannerRoute] = []
     /// One active delete-undo opportunity. A later successful delete replaces
     /// it (never queued); the earlier deletion becomes final. Session-scoped.
@@ -134,18 +135,28 @@ struct PlannerView: View {
     /// resurrects a draft the user already dismissed.
     @State private var pendingDraft: (planID: UUID, dishes: [SpecialPlanMenuDraftDish])?
     private let calendar: Calendar
-    private let now: Date
+    /// A fixed clock, when one was supplied. Only DEBUG fixtures and previews
+    /// pass it, and while it is set the Planner's civil day never moves: a
+    /// seeded screen has to render the same day it was seeded for.
+    private let injectedNow: Date?
+    /// The Planner's own civil-day truth, and the only thing here that reads
+    /// the clock after `init`. Captured once, then repaired on the two
+    /// occasions the day can change underneath a living view — the app coming
+    /// back to the foreground, and a significant time change while it is
+    /// already there. No timer, and no `Date()` in rendering.
+    @State private var currentDate: Date
 
     init(
         weekStart: Date? = nil,
-        now: Date = Date(),
+        now: Date? = nil,
         calendar: Calendar = .current,
         initialPath: [PlannerRoute] = []
     ) {
-        let reference = now
+        let reference = now ?? Date()
         self.calendar = calendar
         _path = State(initialValue: initialPath)
-        self.now = reference
+        self.injectedNow = now
+        _currentDate = State(initialValue: reference)
         _weekStart = State(initialValue: weekStart ?? PlannerProjection.startOfWeek(containing: reference, calendar: calendar))
     }
 
@@ -162,7 +173,8 @@ struct PlannerView: View {
                     ToolbarItem(placement: .topBarLeading) {
                         Menu {
                             Button("本周") {
-                                weekStart = PlannerProjection.startOfWeek(containing: now, calendar: calendar)
+                                refreshCurrentDay()
+                                weekStart = PlannerProjection.startOfWeek(containing: currentDate, calendar: calendar)
                             }
                             Button("上一周") {
                                 moveWeek(by: -7)
@@ -204,7 +216,7 @@ struct PlannerView: View {
                         // label: AI is how that composer works, not what the
                         // user is making.
                         Menu {
-                            Button("新建一餐") { sheet = .createMeal }
+                            Button("新建一餐") { createMeal() }
                                 .accessibilityIdentifier("planner.meal.create")
                             Button("新建聚餐") { sheet = .create }
                                 .accessibilityIdentifier("planner.special.create")
@@ -310,6 +322,19 @@ struct PlannerView: View {
         .overlay(alignment: .bottom) {
             toastOverlay
         }
+        // The two ways a living Planner can outlive its own civil day. The
+        // scene phase covers backgrounding before midnight and returning after
+        // it; the significant-time-change notification covers staying
+        // foregrounded through midnight, and carries a time-zone or clock
+        // change for free. Neither polls.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshCurrentDay() }
+        }
+        .onReceive(NotificationCenter.default.publisher(
+            for: UIApplication.significantTimeChangeNotification
+        )) { _ in
+            refreshCurrentDay()
+        }
     }
 
     /// Success toasts carry 撤销 plus a VoiceOver-only dismissal (知道了);
@@ -340,7 +365,7 @@ struct PlannerView: View {
                         .accessibilityIdentifier("planner.week.range")
                         .foregroundStyle(KitchenTheme.textPrimary)
                     Spacer()
-                    if weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) {
+                    if weekStart == PlannerProjection.startOfWeek(containing: currentDate, calendar: calendar) {
                         Text("本周")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -375,7 +400,7 @@ struct PlannerView: View {
                         // Straight into ordinary creation: scheduling the first
                         // meal is what an empty week is for, and 聚餐 stays one
                         // tap away in the toolbar menu.
-                        Button("新建一餐") { sheet = .createMeal }
+                        Button("新建一餐") { createMeal() }
                             .buttonStyle(.borderedProminent)
                             .accessibilityIdentifier("planner.empty.create")
                     }
@@ -398,7 +423,7 @@ struct PlannerView: View {
                                 .plannerRow()
                         }
                     } header: {
-                        let today = calendar.isDate(group.day, inSameDayAs: now)
+                        let today = calendar.isDate(group.day, inSameDayAs: currentDate)
                         Text(PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : ""))
                             .font(.subheadline.weight(today ? .semibold : .regular))
                             .foregroundStyle(today ? Color.primary : Color.secondary)
@@ -570,6 +595,25 @@ struct PlannerView: View {
         }
     }
 
+    /// Re-reads the clock. The single call site for `Date()` after `init`, and
+    /// a no-op while a fixture pins the day.
+    private func refreshCurrentDay() {
+        guard injectedNow == nil else { return }
+        let fresh = Date()
+        // Only the civil day matters here — the marker compares days and a
+        // saved date normalizes to local noon — so a same-day refresh would be
+        // a re-render for nothing.
+        guard !calendar.isDate(fresh, inSameDayAs: currentDate) else { return }
+        currentDate = fresh
+    }
+
+    /// Implicit creation: no day was named, so the default is resolved now
+    /// rather than carried from whenever this Planner was built.
+    private func createMeal() {
+        refreshCurrentDay()
+        sheet = .createMeal
+    }
+
     /// Brings a just-saved meal into view. Creating for another week and moving
     /// a meal to one are the same problem: the result must not land somewhere
     /// the user is not looking.
@@ -610,7 +654,11 @@ struct PlannerView: View {
     }
 
     private var creationDefaultDate: Date {
-        weekStart == PlannerProjection.startOfWeek(containing: now, calendar: calendar) ? now : weekStart
+        PlannerProjection.defaultCreationDate(
+            inWeekStarting: weekStart,
+            now: currentDate,
+            calendar: calendar
+        )
     }
 }
 

@@ -265,6 +265,65 @@ final class PlannerProjectionTests: XCTestCase {
 
     // MARK: - DST / calendar conventions
 
+    // MARK: - Implicit creation date across a civil-day rollover
+
+    /// The Planner holds its current day as view state. When that day advances
+    /// — the app lived through midnight — an implicitly created meal must land
+    /// on the new day, not on the one the Planner was built on.
+    func testImplicitDefaultFollowsTheCurrentDayAcrossMidnight() {
+        let calendar = makeCalendar(timeZone: shanghai)
+        // Wed 2026-09-09, one minute either side of midnight.
+        let weekStart = date(2026, 9, 7, calendar: calendar)
+        let beforeMidnight = date(2026, 9, 9, hour: 23, minute: 59, calendar: calendar)
+        let afterMidnight = date(2026, 9, 10, hour: 0, minute: 1, calendar: calendar)
+
+        let before = PlannerProjection.defaultCreationDate(
+            inWeekStarting: weekStart, now: beforeMidnight, calendar: calendar
+        )
+        let after = PlannerProjection.defaultCreationDate(
+            inWeekStarting: weekStart, now: afterMidnight, calendar: calendar
+        )
+
+        XCTAssertTrue(calendar.isDate(before, inSameDayAs: date(2026, 9, 9, calendar: calendar)))
+        XCTAssertTrue(calendar.isDate(after, inSameDayAs: date(2026, 9, 10, calendar: calendar)),
+                      "a stale current day would still default to the 9th")
+        XCTAssertFalse(calendar.isDate(before, inSameDayAs: after))
+    }
+
+    /// The rollover that also changes the week: Sunday night into Monday. The
+    /// week on screen is no longer the current one, so the default stops being
+    /// "now" and becomes the displayed week's own first day.
+    func testSundayIntoMondayLeavesTheDisplayedWeekOwningTheDefault() {
+        let calendar = makeCalendar(timeZone: shanghai)
+        let weekStart = date(2026, 9, 7, calendar: calendar)
+        let sundayNight = date(2026, 9, 13, hour: 23, minute: 59, calendar: calendar)
+        let mondayMorning = date(2026, 9, 14, hour: 0, minute: 1, calendar: calendar)
+
+        XCTAssertTrue(calendar.isDate(
+            PlannerProjection.defaultCreationDate(inWeekStarting: weekStart, now: sundayNight, calendar: calendar),
+            inSameDayAs: date(2026, 9, 13, calendar: calendar)
+        ))
+        XCTAssertEqual(
+            PlannerProjection.defaultCreationDate(inWeekStarting: weekStart, now: mondayMorning, calendar: calendar),
+            weekStart,
+            "once the current day leaves the displayed week, the week on screen owns the default"
+        )
+    }
+
+    /// An explicitly chosen week is a target, and the current day never
+    /// displaces it — before or after a rollover.
+    func testAnExplicitlyDisplayedWeekKeepsItsOwnDefault() {
+        let calendar = makeCalendar(timeZone: shanghai)
+        let nextWeek = date(2026, 9, 14, calendar: calendar)
+        for now in [date(2026, 9, 9, hour: 23, minute: 59, calendar: calendar),
+                    date(2026, 9, 10, hour: 0, minute: 1, calendar: calendar)] {
+            XCTAssertEqual(
+                PlannerProjection.defaultCreationDate(inWeekStarting: nextWeek, now: now, calendar: calendar),
+                nextWeek
+            )
+        }
+    }
+
     func testWeekAnchorSurvivesDSTTransition() {
         // America/New_York: 2026-03-08 02:00 is the spring-forward.
         let calendar = makeCalendar(timeZone: newYork)
