@@ -63,6 +63,15 @@ final class ProductionDesignLanguageUITests: XCTestCase {
                     let menu = app.buttons["inventory.filter.menu"]
                     XCTAssertTrue(menu.waitForExistence(timeout: 5))
                     XCTAssertGreaterThanOrEqual(menu.frame.height, 43.5)
+                    let originalFrame = menu.frame
+                    menu.tap()
+                    app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "临期")).firstMatch.tap()
+                    XCTAssertTrue((menu.value as? String)?.hasPrefix("临期") == true)
+                    XCTAssertEqual(menu.frame.minY, originalFrame.minY, accuracy: 0.5)
+                    attach(prefix + "-FilterSelected")
+                    menu.tap()
+                    app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "全部")).firstMatch.tap()
+                    XCTAssertTrue((menu.value as? String)?.hasPrefix("全部") == true)
                 } else {
                     let picker = app.segmentedControls["inventory.filter.picker"]
                     let all = picker.buttons["inventory.filter.option.all"]
@@ -108,8 +117,16 @@ final class ProductionDesignLanguageUITests: XCTestCase {
                     let status = app.descendants(matching: .any)["home.hero.status"]
                     XCTAssertTrue(status.waitForExistence(timeout: 5))
                     XCTAssertTrue(status.label.contains("4 道菜"), status.label)
+                    let headerY = toggle.frame.minY
                     toggle.tap()
+                    let remainingDish = app.buttons.matching(NSPredicate(
+                        format: "identifier BEGINSWITH %@", "home.today.plan.row."
+                    )).firstMatch
+                    XCTAssertTrue(remainingDish.waitForExistence(timeout: 3))
+                    XCTAssertEqual(toggle.frame.minY, headerY, accuracy: 0.5)
+                    attach(prefix + "-MenuExpanded")
                     toggle.tap()
+                    XCTAssertTrue(remainingDish.waitForNonExistence(timeout: 3))
                 }
                 attach(prefix + "-Actions")
             }

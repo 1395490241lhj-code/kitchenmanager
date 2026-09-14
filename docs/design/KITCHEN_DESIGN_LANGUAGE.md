@@ -14,6 +14,35 @@ Home semantic precedence is mealPrep → dinner eatOut → Special Plan today �
 
 The prior v1 text below is historical wherever it conflicts with this revision. In particular, old indigo references do not instruct future implementations to restore a separate AI brand; old console/empty-day descriptions do not restore removed repetition. Current code and the canonical vault remain authoritative.
 
+## Motion
+
+Motion is restrained and semantic, never decorative. Prefer SwiftUI system spring
+presets over custom easing curves. `KitchenMotion` lives beside `KitchenTheme`:
+
+| Token | Preset | Purpose |
+|---|---|---|
+| quick | `snappy(duration: 0.2)` | Direct selections and small controls. |
+| standard | `smooth(duration: 0.28)` | Content or local layout state transitions. |
+| emphasis | `smooth(duration: 0.32, extraBounce: 0.05)` | Rare emphasis with a very light spring; unused in this spike. |
+
+Preserve system-native NavigationStack, sheet, tab, picker, toggle and other
+platform transitions. Avoid broad implicit animations over large hierarchies;
+scope animation to the state, property or component that actually changes.
+Read `accessibilityReduceMotion` at the view and pass `nil` for custom motion
+when enabled. Preserve existing accessibility labels, traits and feedback.
+State changes and actions remain immediate and interruptible; never wait for an
+animation to finish before allowing interaction or completing a task.
+
+This spike animates only the Accessibility-size Inventory Menu's current-filter
+text with quick (the segmented Picker stays native), and Home's existing
+remaining-dishes disclosure with standard. AI result appearance gets no extra
+animation: the inspected recommendation flow already uses a native pager, and
+initial Home content loading is not an entrance-animation opportunity.
+
+No whole-screen animation, appearance-only animation, staggered entrance,
+exaggerated bounce, decorative scale or Dribbble-style motion. Existing motion
+outside these two interactions is not globally migrated by this spike.
+
 ## Prior v1 specification — historical where superseded above
 
 **Editorial Structure + Tactile Utility + Semantic Restraint**

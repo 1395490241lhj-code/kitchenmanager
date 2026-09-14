@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// Semantic motion. Call sites pass nil when accessibilityReduceMotion is enabled.
+enum KitchenMotion {
+    static let quick: Animation = .snappy(duration: 0.2)
+    static let standard: Animation = .smooth(duration: 0.28)
+    static let emphasis: Animation = .smooth(duration: 0.32, extraBounce: 0.05)
+}
+
 /// The approved Kitchen Manager visual language for Home and Inventory:
 /// neutral warm canvas, one dominant feature surface, and a single
 /// primary / secondary / utility control hierarchy.

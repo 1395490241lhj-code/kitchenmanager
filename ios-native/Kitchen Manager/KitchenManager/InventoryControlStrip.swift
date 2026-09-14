@@ -26,6 +26,7 @@ struct InventoryControlStrip: View {
     var isSearching = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isConstrained: Bool { focus != .all }
 
@@ -105,6 +106,8 @@ struct InventoryControlStrip: View {
         } label: {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(focus.shortTitle) · \(count(focus)) 项")
+                    .contentTransition(.opacity)
+                    .animation(reduceMotion ? nil : KitchenMotion.quick, value: focus)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(KitchenTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)

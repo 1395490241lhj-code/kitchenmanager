@@ -1403,7 +1403,7 @@ private struct MealMenuModule: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { isExpanded.toggle() }
+                withAnimation(reduceMotion ? nil : KitchenMotion.standard) { isExpanded.toggle() }
             } label: {
                 HStack(spacing: 8) {
                     Text(headerTitle)
@@ -1442,6 +1442,9 @@ private struct MealMenuModule: View {
                 .padding(.top, 4)
             }
         }
+        // Collapsing rows fade inside the shrinking module instead of
+        // spilling over the links below the card.
+        .clipped()
     }
 
     private func dishRow(_ plan: MealPlanItem) -> some View {
