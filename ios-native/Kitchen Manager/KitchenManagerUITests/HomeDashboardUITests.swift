@@ -40,6 +40,14 @@ final class HomeDashboardUITests: XCTestCase {
         app.descendants(matching: .any)[identifier]
     }
 
+    /// Every ordinary plan row currently on Home. Rows are keyed by
+    /// `MealPlanItem.id`, so they can only be matched by prefix.
+    private func planRows(in app: XCUIApplication) -> XCUIElementQuery {
+        app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "home.today.plan.row.")
+        )
+    }
+
     // MARK: - The three layers, in order
     //
     // Replaces `testPlannedDashboardShowsCompactPlanBeforeInlineRecommendation`.
@@ -495,7 +503,10 @@ final class HomeDashboardUITests: XCTestCase {
     func testTodayPlanRowOpensThatRecipeDetailAndReturnsHome() throws {
         let app = launchSeededDashboard()
 
-        let row = app.buttons["home.today.plan.row.sample-mapotofu"]
+        // The seed plans one dish, so the sole plan row is unambiguous. Matched
+        // by prefix rather than by a literal id: a row is identified by its
+        // plan's UUID, which no test can spell in advance.
+        let row = planRows(in: app).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         XCTAssertEqual(row.label, "麻婆豆腐，1 人份，未完成")
         makeHittable(row, in: app)
@@ -507,8 +518,46 @@ final class HomeDashboardUITests: XCTestCase {
 
         app.navigationBars["菜谱详情"].buttons.element(boundBy: 0).tap()
 
-        XCTAssertTrue(app.buttons["home.today.plan.row.sample-mapotofu"].waitForExistence(timeout: 5))
+        XCTAssertTrue(planRows(in: app).firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.navigationBars.staticTexts["菜谱详情"].exists)
+    }
+
+    /// The same dish planned twice on one day is two meals, and
+    /// `KitchenStore.addPlan(recipe:on:)` allows it on purpose. Keying the row
+    /// on the recipe gave the two of them one identifier between them; keying
+    /// it on the plan makes each individually addressable.
+    func testDuplicateRecipePlansOnOneDayGetDistinctRowIdentifiers() throws {
+        let app = launch("UITEST_SEED_HOME_DUPLICATE_RECIPE")
+        XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 5))
+
+        // Three dishes, so the two repeats sit inside the disclosure rather
+        // than on the hero, which is where they can collide.
+        let toggle = app.buttons["home.meal.menu.toggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        makeHittable(toggle, in: app)
+        toggle.tap()
+
+        let rows = planRows(in: app)
+        XCTAssertTrue(rows.element(boundBy: 1).waitForExistence(timeout: 5), "both repeated dishes must render")
+        let identifiers = rows.allElementsBoundByIndex.map(\.identifier)
+        XCTAssertEqual(identifiers.count, 2, "the disclosure holds the two non-lead plans: \(identifiers)")
+        XCTAssertEqual(Set(identifiers).count, 2, "the same dish twice must not share one identifier: \(identifiers)")
+        XCTAssertFalse(
+            identifiers.contains("home.today.plan.row.sample-tomato-eggs"),
+            "rows must not be keyed by recipe id: \(identifiers)"
+        )
+
+        // Distinct is only useful if each one can actually be addressed.
+        for identifier in identifiers {
+            XCTAssertTrue(app.buttons[identifier].exists, "\(identifier) is not individually targetable")
+        }
+
+        // Same dish, own serving target: the rows are two meals, not one drawn
+        // twice.
+        let labels = rows.allElementsBoundByIndex.map(\.label)
+        XCTAssertTrue(labels.allSatisfy { $0.contains("番茄炒鸡蛋") }, "\(labels)")
+        XCTAssertTrue(labels.contains { $0.contains("2 人份") }, "\(labels)")
+        XCTAssertTrue(labels.contains { $0.contains("3 人份") }, "\(labels)")
     }
 
     /// D-042 / FR-010: the execution card carries no planning route. 开始做饭 and

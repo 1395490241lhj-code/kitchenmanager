@@ -933,6 +933,23 @@ struct ContentView: View {
             )
             navigationStore.selectedTab = .today
         }
+        // The same dish planned twice on one day, plus a third, so the menu
+        // disclosure renders two rows that share a recipe. `addPlans` cannot
+        // express this — it deduplicates same-day repeats to protect a double
+        // tap — so the seed uses the canonical dated write, which allows the
+        // duplicate on purpose.
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_HOME_DUPLICATE_RECIPE") else { return }
+            kitchenStore.clearAllLocalData()
+            mealPortionStore.applyUITestResetIfRequested()
+            let today = Date()
+            let lead = Recipe.samples[0]
+            let repeated = Recipe.samples[1]
+            kitchenStore.addPlan(recipe: lead, on: today, plannedServings: 2)
+            kitchenStore.addPlan(recipe: repeated, on: today, plannedServings: 2)
+            kitchenStore.addPlan(recipe: repeated, on: today, plannedServings: 3)
+            navigationStore.selectedTab = .today
+        }
         // Both halves of carryover at once, so a test can prove they are shown
         // in two different places: yesterday's portion is today's food, tonight's
         // reservation is tomorrow's.

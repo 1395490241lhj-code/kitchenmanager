@@ -1131,7 +1131,13 @@ private struct TodayPlanSummaryCard: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(planAccessibilityLabel(leadPlan))
                     .accessibilityHint("打开菜谱并开始准备")
-                    .accessibilityIdentifier("home.today.plan.row.\(leadPlan.recipeID)")
+                    // Keyed by the plan, not by its recipe: the same dish twice
+                    // on one day is a supported plan (`KitchenStore.addPlan(recipe:on:)`
+                    // allows it deliberately), so a recipe id does not identify
+                    // a scheduled meal. One namespace, one meaning — the single
+                    // dish case cannot collide on its own, but it shares this
+                    // identifier with the menu rows below, which can.
+                    .accessibilityIdentifier("home.today.plan.row.\(leadPlan.id.uuidString)")
                 } else {
                     heroView
                 }
@@ -1479,7 +1485,9 @@ private struct MealMenuModule: View {
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel(plan))
         .accessibilityHint("打开菜谱并开始准备")
-        .accessibilityIdentifier("home.today.plan.row.\(plan.recipeID)")
+        // Two rows of the same dish on one day are distinct meals; keying on
+        // the recipe gave them one identifier between them.
+        .accessibilityIdentifier("home.today.plan.row.\(plan.id.uuidString)")
     }
 }
 
