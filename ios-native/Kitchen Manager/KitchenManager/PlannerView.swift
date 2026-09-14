@@ -149,7 +149,14 @@ struct PlannerView: View {
     init(
         weekStart: Date? = nil,
         now: Date? = nil,
-        calendar: Calendar = .current,
+        // Autoupdating, not a snapshot. Every civil-day question here — the
+        // 今天 marker, the implicit creation default, grouping, and the
+        // formatters that read `calendar.timeZone` — has to be answered in the
+        // user's *current* time zone. `Calendar.current` is captured once at
+        // init, so after a system time-zone change it would keep answering in
+        // the old one while `currentDate` refreshed around it. Tests and
+        // fixtures still pass a fixed calendar and stay deterministic.
+        calendar: Calendar = .autoupdatingCurrent,
         initialPath: [PlannerRoute] = []
     ) {
         let reference = now ?? Date()
@@ -599,12 +606,11 @@ struct PlannerView: View {
     /// a no-op while a fixture pins the day.
     private func refreshCurrentDay() {
         guard injectedNow == nil else { return }
-        let fresh = Date()
-        // Only the civil day matters here — the marker compares days and a
-        // saved date normalizes to local noon — so a same-day refresh would be
-        // a re-render for nothing.
-        guard !calendar.isDate(fresh, inSameDayAs: currentDate) else { return }
-        currentDate = fresh
+        // Assigned unconditionally. A significant time change can move the time
+        // zone without moving the civil day, and the day rows are still wrong
+        // afterwards: an autoupdating calendar regroups the same instants under
+        // the new zone, which only happens if the view is invalidated.
+        currentDate = Date()
     }
 
     /// Implicit creation: no day was named, so the default is resolved now

@@ -263,8 +263,6 @@ final class PlannerProjectionTests: XCTestCase {
         XCTAssertTrue(groups.allSatisfy { $0.entries.isEmpty })
     }
 
-    // MARK: - DST / calendar conventions
-
     // MARK: - Implicit creation date across a civil-day rollover
 
     /// The Planner holds its current day as view state. When that day advances
@@ -323,6 +321,59 @@ final class PlannerProjectionTests: XCTestCase {
             )
         }
     }
+
+    // MARK: - Time-zone changes
+
+    /// The Planner stores one calendar for the life of the view. A snapshot
+    /// keeps answering in the time zone it was taken in, so after the user's
+    /// zone changes the civil day it reports is the old one — which is why
+    /// production passes an autoupdating calendar.
+    ///
+    /// Deterministic: `TimeZone.default` is set by the test rather than by
+    /// travelling, and restored before it returns.
+    func testAutoupdatingCalendarFollowsATimeZoneChangeAndASnapshotDoesNot() {
+        let original = NSTimeZone.default
+        defer { NSTimeZone.default = original }
+
+        NSTimeZone.default = shanghai
+        let snapshot = Calendar.current
+        let following = Calendar.autoupdatingCurrent
+        XCTAssertEqual(snapshot.timeZone.identifier, shanghai.identifier)
+        XCTAssertEqual(following.timeZone.identifier, shanghai.identifier)
+
+        NSTimeZone.default = newYork
+        XCTAssertEqual(following.timeZone.identifier, newYork.identifier,
+                       "an autoupdating calendar must follow the user's zone")
+        XCTAssertEqual(snapshot.timeZone.identifier, shanghai.identifier,
+                       "a captured calendar stays in the zone it was captured in")
+    }
+
+    /// The consequence that matters: one instant, two calendars. 2026-09-10
+    /// 08:30 in Shanghai is still 2026-09-09 20:30 in New York, so a stale
+    /// calendar would answer 今天 — and default a new meal — to the wrong
+    /// civil day.
+    func testCivilDayFollowsTheUpdatedZoneForTheImplicitDefault() {
+        let original = NSTimeZone.default
+        defer { NSTimeZone.default = original }
+
+        NSTimeZone.default = shanghai
+        let snapshot = Calendar.current
+        let following = Calendar.autoupdatingCurrent
+        let instant = date(2026, 9, 10, hour: 8, minute: 30, calendar: makeCalendar(timeZone: shanghai))
+
+        NSTimeZone.default = newYork
+        let weekStart = PlannerProjection.startOfWeek(containing: instant, calendar: following)
+        let defaulted = PlannerProjection.defaultCreationDate(
+            inWeekStarting: weekStart, now: instant, calendar: following
+        )
+
+        XCTAssertEqual(following.component(.day, from: defaulted), 9,
+                       "the updated zone puts this instant on the 9th")
+        XCTAssertEqual(snapshot.component(.day, from: defaulted), 10,
+                       "the captured zone still calls it the 10th")
+    }
+
+    // MARK: - DST / calendar conventions
 
     func testWeekAnchorSurvivesDSTTransition() {
         // America/New_York: 2026-03-08 02:00 is the spring-forward.
