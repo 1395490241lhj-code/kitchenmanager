@@ -39,35 +39,35 @@ after a failed write is reliable (`research.md` R5).
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm the branch is `codex/005-safe-backup-restore`, the base is `dbb7bce`, and the
+- [x] T001 Confirm the branch is `codex/005-safe-backup-restore`, the base is `dbb7bce`, and the
       tree is clean before any source change
-- [ ] T002 Re-verify the three premises against current code: `format`/`version` have no readers,
+- [x] T002 Re-verify the three premises against current code: `format`/`version` have no readers,
       every payload field is `decodeIfPresent`-tolerant, and the four named persistences have no
       save-failure cleanup. If any premise has changed, stop and report rather than proceeding
 - [ ] T003 [P] Extend the existing `Failing*Persistence` seam so a test can make a chosen domain
       fail on a chosen call instead of on every call (FR-029)
-- [ ] T004 [P] Add a test helper that asserts all seven backup-scoped domains are byte-identical
+- [x] T004 [P] Add a test helper that asserts all seven backup-scoped domains are byte-identical
       to a captured baseline, for reuse by every zero-mutation assertion
 
 ## Phase 2: Validation gate (US1)
 
-- [ ] T005 [US1] Introduce a validation result that distinguishes unreadable bytes, not-a-Kitchen-
+- [x] T005 [US1] Introduce a validation result that distinguishes unreadable bytes, not-a-Kitchen-
       Manager-backup, and unsupported-version, and carries the creation date and per-domain counts
       a preview needs (FR-001..FR-004, FR-006)
-- [ ] T006 [US1] Reject a payload whose format identifier is not exactly the supported format
+- [x] T006 [US1] Reject a payload whose format identifier is not exactly the supported format
       (FR-002)
-- [ ] T007 [US1] Reject a payload whose version is not exactly the supported version, including
+- [x] T007 [US1] Reject a payload whose version is not exactly the supported version, including
       newer versions, per the strict policy in `research.md` R2 (FR-003)
-- [ ] T008 [US1] Reject a structurally decodable object carrying no recognisable backup content,
+- [x] T008 [US1] Reject a structurally decodable object carrying no recognisable backup content,
       including `{}` (FR-004)
-- [ ] T009 [US1] Route restore through the gate so validation failure returns before any write
+- [x] T009 [US1] Route restore through the gate so validation failure returns before any write
       (FR-005, FR-011)
-- [ ] T010 [P] [US1] Tests: `{}`, unrelated JSON object, wrong format, unsupported version,
+- [x] T010 [P] [US1] Tests: `{}`, unrelated JSON object, wrong format, unsupported version,
       malformed bytes, and a valid v1 file — each asserting the refusal reason and, via T004, zero
       mutation across all seven domains (SC-001, SC-003)
-- [ ] T011 [P] [US1] Test: a legitimately empty but well-formed v1 backup is accepted, not refused,
+- [x] T011 [P] [US1] Test: a legitimately empty but well-formed v1 backup is accepted, not refused,
       and its zero counts are reported honestly (spec Edge Cases)
-- [ ] T012 [P] [US1] Test: a v1 file omitting `preparedComponents` and `specialPlans` is still
+- [x] T012 [P] [US1] Test: a v1 file omitting `preparedComponents` and `specialPlans` is still
       accepted, protecting real shipped v1 files (`research.md` R2)
 
 ## Phase 3: Persistence save-failure cleanup
@@ -178,3 +178,20 @@ after a failed write is reliable (`research.md` R5).
 | SC-007 | T037 |
 | SC-008 | T038 |
 | SC-009 | T017, T028 |
+
+## Slice status
+
+**Completed**: Phase 1 partially (T001, T002, T004) and Phase 2 in full (T005-T012), delivered as
+the backup validation gate. T003 is deliberately still open: this slice needed only a
+zero-write spy, and the per-call failure seam it describes is first required by the phases that
+inject write failures.
+
+**Recorded, not repaired**: T002 re-verified the third premise on this tree — shopping,
+consumption, prepared components and special plans still have no save-failure cleanup, while
+today-plan and weekly-plan do. Phase 3 owns that repair and has not started.
+
+**Discovered during implementation, an input to Phase 6**: the oldest real v1 files omit
+`exportedAt`, so `KitchenBackupPayload` substitutes the decode-time date. The preview required by
+FR-007 must therefore treat a missing backup date honestly rather than presenting today's date as
+the backup's. This does not contradict the spec; research R2 already establishes that v1 files
+omit keys legitimately.

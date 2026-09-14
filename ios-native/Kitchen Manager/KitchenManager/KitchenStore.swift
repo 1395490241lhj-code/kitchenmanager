@@ -1922,12 +1922,12 @@ final class KitchenStore: ObservableObject {
         guard !refuseBulkInventoryChangeIfLocked() else {
             throw KitchenBackupError.inventoryPersistenceFailed
         }
-        let backup: KitchenBackupPayload
-        do {
-            backup = try JSONDecoder().decode(KitchenBackupPayload.self, from: data)
-        } catch {
-            throw KitchenBackupError.invalidFile
-        }
+        // Nothing below this line may run for a file that has not been proven
+        // to be a supported Kitchen Manager backup: every `replace*` that
+        // follows is an irreversible whole-table write, and a tolerant decode
+        // alone would let an unrelated JSON object replace the kitchen with
+        // nothing. Validation is the point of no return for this slice.
+        let backup = try KitchenBackupValidator.validate(data)
         let previousInventory = inventory
         let previousShoppingItems = shoppingItems
         let previousPlans = plans
@@ -2465,6 +2465,8 @@ struct KitchenBackupPayload: Codable {
 
 enum KitchenBackupError: LocalizedError {
     case invalidFile
+    case unrecognizedBackup
+    case unsupportedVersion(Int)
     case inventoryPersistenceFailed
     case shoppingPersistenceFailed
     case todayPlanPersistenceFailed
@@ -2477,6 +2479,12 @@ enum KitchenBackupError: LocalizedError {
         switch self {
         case .invalidFile:
             return "无法读取这个厨房备份文件。"
+        case .unrecognizedBackup:
+            return "这个文件不是 Kitchen Manager 备份。"
+        case .unsupportedVersion(let version):
+            return version > KitchenBackupValidator.supportedVersion
+                ? "这个备份来自更新版本的 Kitchen Manager，当前版本无法读取。"
+                : "这个备份的版本当前无法读取。"
         case .inventoryPersistenceFailed:
             return "备份中的库存暂时无法保存，请稍后重试。"
         case .shoppingPersistenceFailed:
