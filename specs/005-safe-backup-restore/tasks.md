@@ -44,7 +44,7 @@ after a failed write is reliable (`research.md` R5).
 - [x] T002 Re-verify the three premises against current code: `format`/`version` have no readers,
       every payload field is `decodeIfPresent`-tolerant, and the four named persistences have no
       save-failure cleanup. If any premise has changed, stop and report rather than proceeding
-- [ ] T003 [P] Extend the existing `Failing*Persistence` seam so a test can make a chosen domain
+- [x] T003 [P] Extend the existing `Failing*Persistence` seam so a test can make a chosen domain
       fail on a chosen call instead of on every call (FR-029)
 - [x] T004 [P] Add a test helper that asserts all seven backup-scoped domains are byte-identical
       to a captured baseline, for reuse by every zero-mutation assertion
@@ -72,15 +72,15 @@ after a failed write is reliable (`research.md` R5).
 
 ## Phase 3: Persistence save-failure cleanup
 
-- [ ] T013 Shopping list: a failed save MUST NOT leave residue that breaks the immediately
+- [x] T013 Shopping list: a failed save MUST NOT leave residue that breaks the immediately
       following compensating write (FR-025)
-- [ ] T014 Consumption records: same requirement (FR-025)
-- [ ] T015 Prepared components: same requirement (FR-025)
-- [ ] T016 Special plans: same requirement (FR-025)
-- [ ] T017 [P] Regression tests pinning, for each of the four domains, that a write failure
+- [x] T014 Consumption records: same requirement (FR-025)
+- [x] T015 Prepared components: same requirement (FR-025)
+- [x] T016 Special plans: same requirement (FR-025)
+- [x] T017 [P] Regression tests pinning, for each of the four domains, that a write failure
       followed immediately by a compensating write succeeds — the dirty-context regression
       (SC-009)
-- [ ] T018 [P] Test: the three domains that already clean up, and inventory's fresh-context
+- [x] T018 [P] Test: the three domains that already clean up, and inventory's fresh-context
       behaviour, are unchanged by this phase
 
 ## Phase 4: Pre-restore recovery copy
@@ -186,9 +186,18 @@ the backup validation gate. T003 is deliberately still open: this slice needed o
 zero-write spy, and the per-call failure seam it describes is first required by the phases that
 inject write failures.
 
-**Recorded, not repaired**: T002 re-verified the third premise on this tree — shopping,
-consumption, prepared components and special plans still have no save-failure cleanup, while
-today-plan and weekly-plan do. Phase 3 owns that repair and has not started.
+**Phase 3 complete**: shopping, consumption, prepared components and special plans now roll their
+context back on any replace failure, matching today-plan and weekly-plan. T003 is closed by the
+one-shot DEBUG save seam those tests needed.
+
+**Correction to the Phase 3 rationale, from running the tests**: the unique-id collision described
+by `SwiftDataTodayPlanPersistence` and carried into `research.md` R5 did **not** reproduce on this
+SwiftData version — with the cleanup removed, a compensating replace over a dirty context still
+succeeded. The hazard that is real here, verified by removing the cleanup and watching all four
+domains go red, is that a failed replace stays readable from the same context as though it had
+been saved. The requirement FR-025 states is unchanged and still satisfied; only the mechanism
+named in the rationale was narrower than reality. Phase 4 should rely on the proven behaviour
+rather than on the collision story.
 
 **Discovered during implementation, an input to Phase 6**: the oldest real v1 files omit
 `exportedAt`, so `KitchenBackupPayload` substitutes the decode-time date. The preview required by

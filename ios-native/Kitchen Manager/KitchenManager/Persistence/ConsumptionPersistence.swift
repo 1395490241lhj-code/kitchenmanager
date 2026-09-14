@@ -44,24 +44,56 @@ final class SwiftDataConsumptionPersistence: ConsumptionPersistenceProtocol {
         }
     }
 
-    func replaceRecords(with records: [InventoryConsumptionRecord]) throws {
-        let indexedRecords = records.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
-        let incomingByID = Dictionary(indexedRecords, uniquingKeysWith: { _, latest in latest })
-        let existing = try context.fetch(FetchDescriptor<ConsumptionRecordEntity>())
+    #if DEBUG
+    /// One-shot deterministic save failure for the feature 005 context-hygiene
+    /// tests. Full rationale on `SwiftDataShoppingListPersistence`.
+    var failNextReplaceSaveForTesting: Error?
+    #endif
 
-        for entity in existing {
-            guard let (record, index) = incomingByID[entity.id] else {
-                context.delete(entity)
-                continue
-            }
-            try entity.update(from: record, sortIndex: index)
+    private func saveReplacement() throws {
+        #if DEBUG
+        if let injected = failNextReplaceSaveForTesting {
+            failNextReplaceSaveForTesting = nil
+            throw injected
         }
-
-        let existingIDs = Set(existing.map(\.id))
-        for (record, index) in incomingByID.values where !existingIDs.contains(record.id) {
-            context.insert(try ConsumptionRecordEntity(record: record, sortIndex: index))
-        }
+        #endif
         try context.save()
+    }
+
+    func replaceRecords(with records: [InventoryConsumptionRecord]) throws {
+        // Rolls back on any failure, the contract
+        // `SwiftDataTodayPlanPersistence.replacePlans` and
+        // `SwiftDataWeeklyPlanPersistence.replacePlan` already use. This type
+        // owns its `ModelContext` outright, so a failed write would otherwise
+        // leave that context holding this attempt's pending deletes and
+        // inserts; the next call re-fetches, does not see a pending-deleted
+        // row, and inserts a fresh record under the same
+        // `@Attribute(.unique) id` — which collides, so the compensating write
+        // fails too. The whole body is covered rather than just the save
+        // because `ConsumptionRecordEntity.update(from:sortIndex:)` and its initialiser can throw mid-loop while encoding, which leaves the same
+        // debris without a save ever being attempted.
+        do {
+            let indexedRecords = records.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
+            let incomingByID = Dictionary(indexedRecords, uniquingKeysWith: { _, latest in latest })
+            let existing = try context.fetch(FetchDescriptor<ConsumptionRecordEntity>())
+
+            for entity in existing {
+                guard let (record, index) = incomingByID[entity.id] else {
+                    context.delete(entity)
+                    continue
+                }
+                try entity.update(from: record, sortIndex: index)
+            }
+
+            let existingIDs = Set(existing.map(\.id))
+            for (record, index) in incomingByID.values where !existingIDs.contains(record.id) {
+                context.insert(try ConsumptionRecordEntity(record: record, sortIndex: index))
+            }
+            try saveReplacement()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     func upsert(_ record: InventoryConsumptionRecord) throws {

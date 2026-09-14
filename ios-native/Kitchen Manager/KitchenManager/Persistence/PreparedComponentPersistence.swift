@@ -27,24 +27,54 @@ final class SwiftDataPreparedComponentPersistence: PreparedComponentPersistenceP
         return try context.fetch(descriptor).map(\.preparedComponent)
     }
 
-    func replaceComponents(with components: [PreparedComponent]) throws {
-        let indexed = components.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
-        let incomingByID = Dictionary(indexed, uniquingKeysWith: { _, latest in latest })
-        let existing = try context.fetch(FetchDescriptor<PreparedComponentRecord>())
+    #if DEBUG
+    /// One-shot deterministic save failure for the feature 005 context-hygiene
+    /// tests. Full rationale on `SwiftDataShoppingListPersistence`.
+    var failNextReplaceSaveForTesting: Error?
+    #endif
 
-        for record in existing {
-            guard let (component, index) = incomingByID[record.id] else {
-                context.delete(record)
-                continue
-            }
-            record.update(from: component, sortIndex: index)
+    private func saveReplacement() throws {
+        #if DEBUG
+        if let injected = failNextReplaceSaveForTesting {
+            failNextReplaceSaveForTesting = nil
+            throw injected
         }
-
-        let existingIDs = Set(existing.map(\.id))
-        for (component, index) in incomingByID.values where !existingIDs.contains(component.id) {
-            context.insert(PreparedComponentRecord(component: component, sortIndex: index))
-        }
+        #endif
         try context.save()
+    }
+
+    func replaceComponents(with components: [PreparedComponent]) throws {
+        // Rolls back on any failure, the contract
+        // `SwiftDataTodayPlanPersistence.replacePlans` and
+        // `SwiftDataWeeklyPlanPersistence.replacePlan` already use, and for the
+        // same reason. This type owns its `ModelContext` outright, so a failed
+        // write would otherwise leave that context holding this attempt's
+        // pending deletes and inserts. The very next call re-fetches, does not
+        // see a pending-deleted row, and inserts a fresh record under the same
+        // `@Attribute(.unique) id` — which collides, so the compensating write
+        // fails too. Rolling back is what makes an immediate retry safe.
+        do {
+            let indexed = components.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
+            let incomingByID = Dictionary(indexed, uniquingKeysWith: { _, latest in latest })
+            let existing = try context.fetch(FetchDescriptor<PreparedComponentRecord>())
+
+            for record in existing {
+                guard let (component, index) = incomingByID[record.id] else {
+                    context.delete(record)
+                    continue
+                }
+                record.update(from: component, sortIndex: index)
+            }
+
+            let existingIDs = Set(existing.map(\.id))
+            for (component, index) in incomingByID.values where !existingIDs.contains(component.id) {
+                context.insert(PreparedComponentRecord(component: component, sortIndex: index))
+            }
+            try saveReplacement()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     func upsert(_ component: PreparedComponent) throws {

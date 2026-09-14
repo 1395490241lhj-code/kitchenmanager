@@ -40,24 +40,61 @@ final class SwiftDataShoppingListPersistence: ShoppingListPersistenceProtocol {
         return try context.fetch(descriptor).map(\.shoppingItem)
     }
 
-    func replaceShoppingItems(with items: [KitchenShoppingItem]) throws {
-        let indexedItems = items.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
-        let incomingByID = Dictionary(indexedItems, uniquingKeysWith: { _, latest in latest })
-        let existing = try context.fetch(FetchDescriptor<ShoppingItemRecord>())
+    #if DEBUG
+    /// One-shot deterministic save failure, used only by the feature 005
+    /// context-hygiene tests. Throwing *instead of* calling through to
+    /// SwiftData leaves this context holding exactly the pending deletes,
+    /// inserts and updates a real failed `save()` leaves behind, which is the
+    /// state the rollback below has to clean up. There is no other way to
+    /// produce that state on a real context on demand: the ordinary
+    /// `Failing*Persistence` stubs replace the type outright, so they never
+    /// touch a context at all. Consumed on use; production never sets it, and
+    /// the whole seam is compiled out of Release.
+    var failNextReplaceSaveForTesting: Error?
+    #endif
 
-        for record in existing {
-            guard let (item, index) = incomingByID[record.id] else {
-                context.delete(record)
-                continue
-            }
-            record.update(from: item, sortIndex: index)
+    private func saveReplacement() throws {
+        #if DEBUG
+        if let injected = failNextReplaceSaveForTesting {
+            failNextReplaceSaveForTesting = nil
+            throw injected
         }
-
-        let existingIDs = Set(existing.map(\.id))
-        for (item, index) in incomingByID.values where !existingIDs.contains(item.id) {
-            context.insert(ShoppingItemRecord(item: item, sortIndex: index))
-        }
+        #endif
         try context.save()
+    }
+
+    func replaceShoppingItems(with items: [KitchenShoppingItem]) throws {
+        // Rolls back on any failure, the contract
+        // `SwiftDataTodayPlanPersistence.replacePlans` and
+        // `SwiftDataWeeklyPlanPersistence.replacePlan` already use, and for the
+        // same reason. This type owns its `ModelContext` outright, so a failed
+        // write would otherwise leave that context holding this attempt's
+        // pending deletes and inserts. The very next call re-fetches, does not
+        // see a pending-deleted row, and inserts a fresh record under the same
+        // `@Attribute(.unique) id` — which collides, so the compensating write
+        // fails too. Rolling back is what makes an immediate retry safe.
+        do {
+            let indexedItems = items.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
+            let incomingByID = Dictionary(indexedItems, uniquingKeysWith: { _, latest in latest })
+            let existing = try context.fetch(FetchDescriptor<ShoppingItemRecord>())
+
+            for record in existing {
+                guard let (item, index) = incomingByID[record.id] else {
+                    context.delete(record)
+                    continue
+                }
+                record.update(from: item, sortIndex: index)
+            }
+
+            let existingIDs = Set(existing.map(\.id))
+            for (item, index) in incomingByID.values where !existingIDs.contains(item.id) {
+                context.insert(ShoppingItemRecord(item: item, sortIndex: index))
+            }
+            try saveReplacement()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     func upsert(_ item: KitchenShoppingItem) throws {

@@ -31,26 +31,58 @@ final class SwiftDataSpecialPlanPersistence: SpecialPlanPersistenceProtocol {
         return try context.fetch(descriptor).map { try $0.specialPlan() }
     }
 
-    func replacePlans(with plans: [SpecialPlan]) throws {
-        let incomingByID = Dictionary(
-            plans.enumerated().map { ($0.element.id, $0.element) },
-            uniquingKeysWith: { _, latest in latest }
-        )
-        let existing = try context.fetch(FetchDescriptor<SpecialPlanRecord>())
+    #if DEBUG
+    /// One-shot deterministic save failure for the feature 005 context-hygiene
+    /// tests. Full rationale on `SwiftDataShoppingListPersistence`.
+    var failNextReplaceSaveForTesting: Error?
+    #endif
 
-        for record in existing {
-            guard let plan = incomingByID[record.id] else {
-                context.delete(record)
-                continue
-            }
-            try record.update(from: plan)
+    private func saveReplacement() throws {
+        #if DEBUG
+        if let injected = failNextReplaceSaveForTesting {
+            failNextReplaceSaveForTesting = nil
+            throw injected
         }
-
-        let existingIDs = Set(existing.map(\.id))
-        for plan in incomingByID.values where !existingIDs.contains(plan.id) {
-            context.insert(try SpecialPlanRecord(plan: plan))
-        }
+        #endif
         try context.save()
+    }
+
+    func replacePlans(with plans: [SpecialPlan]) throws {
+        // Rolls back on any failure, the contract
+        // `SwiftDataTodayPlanPersistence.replacePlans` and
+        // `SwiftDataWeeklyPlanPersistence.replacePlan` already use. This type
+        // owns its `ModelContext` outright, so a failed write would otherwise
+        // leave that context holding this attempt's pending deletes and
+        // inserts; the next call re-fetches, does not see a pending-deleted
+        // row, and inserts a fresh record under the same
+        // `@Attribute(.unique) id` — which collides, so the compensating write
+        // fails too. The whole body is covered rather than just the save
+        // because `SpecialPlanRecord.update(from:)` and its initialiser can throw mid-loop while encoding, which leaves the same
+        // debris without a save ever being attempted.
+        do {
+            let incomingByID = Dictionary(
+                plans.enumerated().map { ($0.element.id, $0.element) },
+                uniquingKeysWith: { _, latest in latest }
+            )
+            let existing = try context.fetch(FetchDescriptor<SpecialPlanRecord>())
+
+            for record in existing {
+                guard let plan = incomingByID[record.id] else {
+                    context.delete(record)
+                    continue
+                }
+                try record.update(from: plan)
+            }
+
+            let existingIDs = Set(existing.map(\.id))
+            for plan in incomingByID.values where !existingIDs.contains(plan.id) {
+                context.insert(try SpecialPlanRecord(plan: plan))
+            }
+            try saveReplacement()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     func upsert(_ plan: SpecialPlan) throws {
