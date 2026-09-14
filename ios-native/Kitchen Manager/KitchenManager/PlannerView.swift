@@ -134,6 +134,12 @@ struct PlannerView: View {
     /// cleared when that detail leaves the path so a reopened plan never
     /// resurrects a draft the user already dismissed.
     @State private var pendingDraft: (planID: UUID, dishes: [SpecialPlanMenuDraftDish])?
+    /// The weekly generator's store while its route is on the stack. The
+    /// generator owns it and hands it over on appear; this layer is the one
+    /// that knows when the route is genuinely gone, because the generator
+    /// cannot tell being popped from pushing one of its own pickers. Held only
+    /// to end the workflow, never read for display.
+    @State private var activeWeeklyWorkflow: WeeklyMenuPlannerStore?
     private let calendar: Calendar
     /// A fixed clock, when one was supplied. Only DEBUG fixtures and previews
     /// pass it, and while it is set the Planner's civil day never moves: a
@@ -258,7 +264,7 @@ struct PlannerView: View {
                     case .todayShopping:
                         ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
                     case .weeklyGenerator:
-                        WeeklyMenuPlannerView { summary in
+                        WeeklyMenuPlannerView(onWorkflowActive: { activeWeeklyWorkflow = $0 }) { summary in
                             weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
                             path.removeAll()
                         }
@@ -325,9 +331,23 @@ struct PlannerView: View {
                       !current.contains(.specialPlan(pending.planID)) else { return }
                 pendingDraft = nil
             }
+            .onChange(of: path) { previous, current in
+                // Popping the generator abandons the workflow. Its own child
+                // pickers and its result screen never touch the path, so they
+                // leave it running.
+                if previous.contains(.weeklyGenerator), !current.contains(.weeklyGenerator) {
+                    endWeeklyWorkflow()
+                }
+            }
         }
         .overlay(alignment: .bottom) {
             toastOverlay
+        }
+        // Dismissing the Planner sheet abandons the workflow too. This sits on
+        // the stack, not on its root content, so pushes inside the stack do not
+        // trigger it.
+        .onDisappear {
+            endWeeklyWorkflow()
         }
         // The two ways a living Planner can outlive its own civil day. The
         // scene phase covers backgrounding before midnight and returning after
@@ -532,6 +552,14 @@ struct PlannerView: View {
 
     /// Removes through the durable store contract only. The captured removal
     /// is the single active undo token; a later delete replaces it.
+    /// Ends the weekly generation workflow: everything it owns stops, and the
+    /// store goes with the route, so a late answer can neither reach a screen
+    /// the member left nor survive into the next visit.
+    private func endWeeklyWorkflow() {
+        activeWeeklyWorkflow?.abandonWorkflow()
+        activeWeeklyWorkflow = nil
+    }
+
     private func removeMeal(_ id: UUID) {
         let outcome = kitchenStore.removePlan(id: id)
         switch outcome {

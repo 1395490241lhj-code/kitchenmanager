@@ -324,4 +324,25 @@ private struct PlannerRegressionWeeklyResult: View {
             }
     }
 }
+
+/// A stand-in for the weekly generator's network call: waits long enough for a
+/// UI test to navigate around it, honours cancellation exactly like the real
+/// request, then answers with one AI dish per requested day. Selected by the
+/// `UITEST_WEEKLY_STUB_GENERATION` launch argument only.
+enum WeeklyMenuGenerationFixture {
+    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("UITEST_WEEKLY_STUB_GENERATION") }
+
+    static func generate(_ request: AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse {
+        try await Task.sleep(for: .seconds(15))
+        let days: [[String: Any]] = (0..<request.numberOfDays).map { day in
+            ["dayIndex": day,
+             "meals": [["mealIndex": 0, "title": "晚餐",
+                        "recipes": [["name": "测试菜 \(day + 1)", "ingredients": ["番茄 2 个"], "steps": ["炒熟"], "source": "ai"]]]]]
+        }
+        return try JSONDecoder().decode(
+            AIWeeklyMenuResponse.self,
+            from: JSONSerialization.data(withJSONObject: ["days": days])
+        )
+    }
+}
 #endif

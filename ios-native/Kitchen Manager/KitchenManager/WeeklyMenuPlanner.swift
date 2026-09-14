@@ -1040,11 +1040,29 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var replacingRecipeID: String?
 
-    private let service = WeeklyMenuPlannerService()
+    /// The one network call the store makes. Injectable so a test can hold a
+    /// request in flight and finish it on cue; production wires the live
+    /// service, and a DEBUG launch argument can substitute the UI-test stub.
+    private let generate: (AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse
     private var generationTask: Task<AIWeeklyMenuResponse, Error>?
     private var activeRequestID: UUID?
     private var replaceTask: Task<AIWeeklyMenuResponse, Error>?
     private var activeReplaceRequestID: UUID?
+
+    init(generate: ((AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse)? = nil) {
+        if let generate {
+            self.generate = generate
+            return
+        }
+        #if DEBUG
+        if WeeklyMenuGenerationFixture.isEnabled {
+            self.generate = WeeklyMenuGenerationFixture.generate
+            return
+        }
+        #endif
+        let service = WeeklyMenuPlannerService()
+        self.generate = { try await service.generatePlan(request: $0) }
+    }
 
     func loadSavedPlanIfNeeded(from kitchenStore: KitchenStore) {
         guard generatedPlan == nil else { return }
@@ -1087,7 +1105,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             kitchenStore: kitchenStore,
             excludedRecipeNames: excludedRecipeNames
         )
-        let task = Task { try await self.service.generatePlan(request: request) }
+        let task = Task { try await self.generate(request) }
         generationTask = task
 
         do {
@@ -1119,6 +1137,17 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         isGenerating = false
     }
 
+    /// The member left the weekly workflow, so everything it owns stops.
+    /// Cancelling generation alone would leave a per-dish replacement running
+    /// against a draft nobody can reach any more.
+    func abandonWorkflow() {
+        cancelGeneration()
+        replaceTask?.cancel()
+        replaceTask = nil
+        activeReplaceRequestID = nil
+        replacingRecipeID = nil
+    }
+
     func replaceRecipe(
         dayIndex: Int,
         mealIndex: Int,
@@ -1126,10 +1155,10 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         recipeStore: RecipeStore,
         kitchenStore: KitchenStore
     ) async {
-        guard var plan = generatedPlan else { return }
+        guard let plan = generatedPlan else { return }
         guard let dayIdx = plan.days.firstIndex(where: { $0.dayIndex == dayIndex }),
               let mealIdx = plan.days[dayIdx].meals.firstIndex(where: { $0.mealIndex == mealIndex }),
-              let recipeIdx = plan.days[dayIdx].meals[mealIdx].recipes.firstIndex(where: { $0.id == recipeID }) else {
+              plan.days[dayIdx].meals[mealIdx].recipes.contains(where: { $0.id == recipeID }) else {
             return
         }
 
@@ -1148,7 +1177,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             mealsPerDayOverride: 1,
             dishesPerMealOverride: 1
         )
-        let task = Task { try await self.service.generatePlan(request: request) }
+        let task = Task { try await self.generate(request) }
         replaceTask = task
 
         do {
@@ -1157,8 +1186,20 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             guard let newDTO = response.days.first?.meals.first?.recipes.first else {
                 throw WeeklyMenuPlannerError.invalidResponse
             }
-            plan.days[dayIdx].meals[mealIdx].recipes[recipeIdx] = Self.makeRecipe(from: newDTO, recipeStore: recipeStore)
-            generatedPlan = plan
+            // Patch the *live* draft, never the copy captured before the await:
+            // whatever the member did to other dishes while this request ran
+            // must survive. The target is addressed by its slot (day, meal,
+            // recipe id), the same identity every other draft mutation uses.
+            // If that slot no longer holds the dish — removed or moved
+            // meanwhile — the result is dropped without complaint: nothing
+            // to replace, nothing to resurrect.
+            if var live = generatedPlan,
+               let liveDayIdx = live.days.firstIndex(where: { $0.dayIndex == dayIndex }),
+               let liveMealIdx = live.days[liveDayIdx].meals.firstIndex(where: { $0.mealIndex == mealIndex }),
+               let liveRecipeIdx = live.days[liveDayIdx].meals[liveMealIdx].recipes.firstIndex(where: { $0.id == recipeID }) {
+                live.days[liveDayIdx].meals[liveMealIdx].recipes[liveRecipeIdx] = Self.makeRecipe(from: newDTO, recipeStore: recipeStore)
+                generatedPlan = live
+            }
         } catch is CancellationError {
         } catch {
             guard activeReplaceRequestID == requestID else { return }
@@ -1717,6 +1758,12 @@ private extension String {
 // MARK: - Input view
 
 struct WeeklyMenuPlannerView: View {
+    /// Handed this screen's store while the generator is on the navigation
+    /// stack, so the layer that owns the route can end the workflow when the
+    /// route is genuinely removed. The screen itself cannot tell that moment
+    /// apart from pushing one of its own pickers: `onDisappear` fires for both,
+    /// and `isPresented` still reads true inside it.
+    var onWorkflowActive: ((WeeklyMenuPlannerStore) -> Void)?
     /// Passed straight through to the result screen. Defaults to nothing, so a
     /// host that does not care about navigation is unaffected.
     var onMaterialized: ((WeeklyMaterializationSummary) -> Void)?
@@ -1725,6 +1772,13 @@ struct WeeklyMenuPlannerView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @StateObject private var store = WeeklyMenuPlannerStore()
     @State private var isShowingResult = false
+    /// True while this screen is the one on screen. A pushed picker or the
+    /// result destination turns it false.
+    @State private var isOnScreen = false
+    /// A finished menu waiting for its own screen. Generation can land while a
+    /// picker is open, and pushing the result from under the member would take
+    /// away the screen they are using, so it waits until they come back.
+    @State private var hasResultWaiting = false
 
     var body: some View {
         Form {
@@ -1798,7 +1852,13 @@ struct WeeklyMenuPlannerView: View {
                 Button {
                     Task {
                         await store.generatePlan(recipeStore: recipeStore, kitchenStore: kitchenStore)
-                        if store.generatedPlan != nil { isShowingResult = true }
+                        guard store.generatedPlan != nil else { return }
+                        // Only take over the screen if this is still the screen.
+                        if isOnScreen {
+                            isShowingResult = true
+                        } else {
+                            hasResultWaiting = true
+                        }
                     }
                 } label: {
                     HStack {
@@ -1846,10 +1906,18 @@ struct WeeklyMenuPlannerView: View {
             Text(store.errorMessage ?? "请稍后重试，或者调整人数和偏好。")
         }
         .onAppear {
+            isOnScreen = true
+            onWorkflowActive?(store)
             store.loadSavedPlanIfNeeded(from: kitchenStore)
+            if hasResultWaiting {
+                hasResultWaiting = false
+                // One hop, because this runs while the picker is still popping
+                // and a push issued inside that transition is dropped.
+                DispatchQueue.main.async { isShowingResult = true }
+            }
         }
         .onDisappear {
-            store.cancelGeneration()
+            isOnScreen = false
         }
     }
 
