@@ -85,14 +85,14 @@ after a failed write is reliable (`research.md` R5).
 
 ## Phase 4: Pre-restore recovery copy
 
-- [ ] T019 Capture a durable copy of the backup-scoped data, from the existing export bytes, after
+- [x] T019 Capture a durable copy of the backup-scoped data, from the existing export bytes, after
       confirmation and before the first write (FR-015)
-- [ ] T020 Make the copy's creation a precondition of the point of no return: on failure the
+- [x] T020 Make the copy's creation a precondition of the point of no return: on failure the
       restore does not begin and the outcome is distinct from a validation failure (FR-013, FR-014)
-- [ ] T021 Implement the single-slot lifetime from `research.md` R3: removed on success or proven
+- [x] T021 Implement the single-slot lifetime from `research.md` R3: removed on success or proven
       recovery, retained while an unproven outcome is unresolved, replaced rather than accumulated
       (FR-017)
-- [ ] T022 [P] Tests: the copy exists at the moment of the first write, is removed after success
+- [x] T022 [P] Tests: the copy exists at the moment of the first write, is removed after success
       and after proven recovery, survives a simulated process restart, and a failed creation
       produces zero mutation (SC-003, SC-005)
 
@@ -185,6 +185,23 @@ after a failed write is reliable (`research.md` R5).
 the backup validation gate. T003 is deliberately still open: this slice needed only a
 zero-write spy, and the per-call failure seam it describes is first required by the phases that
 inject write failures.
+
+**Phase 4 complete**: a durable recovery copy is written, read back and validated through the
+Phase 2 gate before the first destructive write, and preparation failure blocks the restore with
+zero writes. One slot, one file, in app-private Application Support; the file's presence is the
+"outstanding" state, `resolve()` is the only authorised removal, and a successful restore is the
+only caller of it.
+
+**Interim consequence to carry into Phase 5**: because failure deliberately leaves the copy
+outstanding, and Phase 5 owns the outcome model that would resolve it, a restore that fails today
+blocks the *next* restore with `outstandingSnapshotPresent`. That is the safe direction — it
+refuses to overwrite the member's only way back — but it is not the finished behaviour. Phase 5
+must drive `resolve()` from a proven-recovered outcome, and Phase 6 must give the member a way to
+act on an unresolved copy.
+
+**Research corrected before building on it**: `research.md` R5 and the `spec.md` problem statement
+no longer assert that a dirty context necessarily causes a unique-id collision. FR-025 is
+unchanged; the four Phase 3 code comments were corrected to the verified behaviour too.
 
 **Phase 3 complete**: shopping, consumption, prepared components and special plans now roll their
 context back on any replace failure, matching today-plan and weekly-plan. T003 is closed by the

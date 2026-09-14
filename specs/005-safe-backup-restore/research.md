@@ -154,6 +154,14 @@ holding that attempt's deletes and inserts, and the next call re-fetches and re-
 `id`, colliding with the record's unique attribute. Every affected record type here declares
 `@Attribute(.unique) id`.
 
+**Corrected by Phase 3 evidence.** That collision is what the today-plan comment claims; it is not
+what this SwiftData version does. With the cleanup removed, a compensating replace over a dirty
+context still succeeded in all four domains. What did reproduce, in all four, is that the failed
+attempt stays readable through the same context as though it had been saved, so a reader between
+the failure and the compensation observes data that was never stored. The requirement (FR-025) is
+unchanged and is still the right one; only the mechanism named above was narrower than reality.
+Later phases must rely on the verified behaviour rather than on the collision story.
+
 This matters to this feature specifically because the compensating restore runs **immediately
 after** the failed write, on that same context. So the repair is not opportunistic cleanup: it is
 a precondition for the recovery contract being meaningful for four of the seven domains.

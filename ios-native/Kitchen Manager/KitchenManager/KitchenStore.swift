@@ -830,6 +830,8 @@ final class KitchenStore: ObservableObject {
     private let weeklyPlanPersistence: WeeklyPlanPersistenceProtocol
     private let preparedComponentPersistence: PreparedComponentPersistenceProtocol
     private let specialPlanPersistence: SpecialPlanPersistenceProtocol
+    /// The durable copy taken before a restore replaces the kitchen.
+    let recoverySnapshot: KitchenRecoverySnapshotStore
 
     /// The composition-root initializer. `nil` on the designated initializer
     /// below is a *test and preview* convenience — it quietly substitutes an
@@ -845,7 +847,8 @@ final class KitchenStore: ObservableObject {
     /// `test/ios-native-kitchen-store-composition.test.mjs`.
     convenience init(
         userDefaults: UserDefaults = .standard,
-        persistence: KitchenPersistenceBundle
+        persistence: KitchenPersistenceBundle,
+        recoverySnapshot: KitchenRecoverySnapshotStore? = nil
     ) {
         self.init(
             userDefaults: userDefaults,
@@ -855,7 +858,11 @@ final class KitchenStore: ObservableObject {
             consumptionPersistence: persistence.consumption,
             weeklyPlanPersistence: persistence.weeklyPlan,
             preparedComponentPersistence: persistence.preparedComponents,
-            specialPlanPersistence: persistence.specialPlans
+            specialPlanPersistence: persistence.specialPlans,
+            // Production default, resolved here rather than in the parameter
+            // list: a default argument is evaluated outside the actor, and
+            // this store is main-actor isolated like everything it serves.
+            recoverySnapshot: recoverySnapshot ?? .applicationSupport()
         )
     }
 
@@ -867,7 +874,8 @@ final class KitchenStore: ObservableObject {
         consumptionPersistence: ConsumptionPersistenceProtocol? = nil,
         weeklyPlanPersistence: WeeklyPlanPersistenceProtocol? = nil,
         preparedComponentPersistence: PreparedComponentPersistenceProtocol? = nil,
-        specialPlanPersistence: SpecialPlanPersistenceProtocol? = nil
+        specialPlanPersistence: SpecialPlanPersistenceProtocol? = nil,
+        recoverySnapshot: KitchenRecoverySnapshotStore? = nil
     ) {
         let defaultBundle: KitchenPersistenceBundle?
         if inventoryPersistence == nil || shoppingListPersistence == nil || todayPlanPersistence == nil || consumptionPersistence == nil || weeklyPlanPersistence == nil || preparedComponentPersistence == nil
@@ -884,6 +892,10 @@ final class KitchenStore: ObservableObject {
         self.weeklyPlanPersistence = weeklyPlanPersistence ?? defaultBundle!.weeklyPlan
         self.preparedComponentPersistence = preparedComponentPersistence ?? defaultBundle!.preparedComponents
         self.specialPlanPersistence = specialPlanPersistence ?? defaultBundle!.specialPlans
+        // Isolated unless a caller supplies the real one, for the same reason
+        // the persistences above are: a preview or a test must never write to,
+        // or be blocked by, the app's single production recovery slot.
+        self.recoverySnapshot = recoverySnapshot ?? .isolated()
         let defaults = userDefaults
         do {
             inventory = try InventoryMigration.migrateIfNeeded(
@@ -1928,6 +1940,12 @@ final class KitchenStore: ObservableObject {
         // alone would let an unrelated JSON object replace the kitchen with
         // nothing. Validation is the point of no return for this slice.
         let backup = try KitchenBackupValidator.validate(data)
+        // The last precondition of the point of no return. A durable copy of
+        // the kitchen as it stands right now has to exist, and be provably
+        // readable, before the first `replace*` below makes the old state
+        // unrecoverable. If it cannot be prepared the restore does not begin at
+        // all, and this throws rather than continuing without a way back.
+        try recoverySnapshot.prepare(try exportBackupData())
         let previousInventory = inventory
         let previousShoppingItems = shoppingItems
         let previousPlans = plans
@@ -2010,6 +2028,14 @@ final class KitchenStore: ObservableObject {
         suppressSpecialPlanPersistence = true
         specialPlans = backup.specialPlans
         suppressSpecialPlanPersistence = false
+        // The restore completed, so the copy has done its job and the slot is
+        // released explicitly. A failure deliberately does not reach this line:
+        // the copy stays outstanding because it is still the only way back.
+        //
+        // If the removal itself fails the slot stays outstanding too, which
+        // blocks the next restore with a stated reason rather than silently
+        // discarding a member's recovery asset.
+        try? recoverySnapshot.resolve()
     }
 
     func toggleShopping(_ item: KitchenShoppingItem) {

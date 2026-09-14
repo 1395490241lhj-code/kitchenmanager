@@ -70,9 +70,9 @@ final class SwiftDataShoppingListPersistence: ShoppingListPersistenceProtocol {
         // same reason. This type owns its `ModelContext` outright, so a failed
         // write would otherwise leave that context holding this attempt's
         // pending deletes and inserts. The very next call re-fetches, does not
-        // see a pending-deleted row, and inserts a fresh record under the same
-        // `@Attribute(.unique) id` — which collides, so the compensating write
-        // fails too. Rolling back is what makes an immediate retry safe.
+        // see a pending-deleted row, and the failed attempt stays readable
+        // through this context as though it had been saved. Rolling back is
+        // what makes the state a reader observes match what is stored.
         do {
             let indexedItems = items.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
             let incomingByID = Dictionary(indexedItems, uniquingKeysWith: { _, latest in latest })

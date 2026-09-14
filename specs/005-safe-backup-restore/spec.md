@@ -34,9 +34,9 @@ The mutation itself is seven sequential `replaceX` calls, each committing on its
 is best-effort and entirely silent (`try?`). Four of the participating persistences -- shopping
 list, consumption records, prepared components and special plans -- hold long-lived contexts
 with no cleanup on save failure, so the compensating write runs against a context still holding
-the failed attempt's deletes and inserts, against records whose `id` is a unique attribute. That
-is the exact failure mode the today-plan persistence documents its own rollback as existing to
-prevent. On failure the in-memory store keeps the old values while persistence may hold a mix,
+the failed attempt's deletes and inserts -- the residue the today-plan persistence documents its
+own rollback as existing to clear. On failure the in-memory store keeps the old values while
+persistence may hold a mix,
 and nothing surfaces that divergence until the next launch.
 
 User recipes, favourites and frequent-recipe records are genuinely outside the payload and are

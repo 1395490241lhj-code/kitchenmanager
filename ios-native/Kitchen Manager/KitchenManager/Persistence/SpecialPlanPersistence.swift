@@ -55,8 +55,9 @@ final class SwiftDataSpecialPlanPersistence: SpecialPlanPersistenceProtocol {
         // leave that context holding this attempt's pending deletes and
         // inserts; the next call re-fetches, does not see a pending-deleted
         // row, and inserts a fresh record under the same
-        // `@Attribute(.unique) id` — which collides, so the compensating write
-        // fails too. The whole body is covered rather than just the save
+        // `@Attribute(.unique) id`, and the failed attempt stays readable
+        // through this context as though it had been saved. The whole body is
+        // covered rather than just the save
         // because `SpecialPlanRecord.update(from:)` and its initialiser can throw mid-loop while encoding, which leaves the same
         // debris without a save ever being attempted.
         do {

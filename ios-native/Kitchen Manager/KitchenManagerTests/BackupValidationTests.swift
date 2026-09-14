@@ -52,7 +52,13 @@ final class BackupValidationTests: XCTestCase {
             specialPlans: base.specialPlans,
             sync: base.sync
         )
-        store = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!, persistence: bundle)
+        // Isolated recovery slot: this suite must not touch, or be blocked by,
+        // the app's single production one.
+        store = KitchenStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            persistence: bundle,
+            recoverySnapshot: .isolated()
+        )
     }
 
     override func tearDown() {
