@@ -1,5 +1,13 @@
 # Phase 1A — Home behavior parity checklist
 
+> **Historical implementation note — superseded by D-042 / 002 Home IA
+> consolidation.** The routes and precedence below describe Home as it was at
+> `8d47132`. Current planning management is the single route `用餐计划` →
+> Planner; `TodayPlanDetailView`, `home.today.plan.viewAll` and
+> `home.plan.secondaryLink` are retired, and `.specialPlanToday` now sits
+> between `.eatOut` and `.planExecution` in the precedence. Read this file as
+> a record of that rollout, not as current guidance.
+
 Baseline: `8d47132`, captured from `HomeView.swift` before the Phase 1
 presentation change. Every row is something a user can reach on Home today.
 The redesign is presentation-only, so each row must still be reachable and

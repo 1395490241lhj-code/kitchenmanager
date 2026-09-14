@@ -124,14 +124,11 @@ nonisolated enum PlannerProjection {
         }
         return (0..<7).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { return nil }
+            // No re-sort: `entries(inWeekStarting:)` already returns the
+            // canonical order and the grouping loop above appends in it. The
+            // sort that used to sit here bound to the `[]` literal rather than
+            // to the lookup, so it only ever sorted an empty array.
             let dayEntries = byDay[day] ?? []
-                .sorted { lhs, rhs in
-                    let l = lhs.sortKey(calendar: calendar)
-                    let r = rhs.sortKey(calendar: calendar)
-                    if l.order != r.order { return l.order < r.order }
-                    if l.time != r.time { return l.time < r.time }
-                    return l.id < r.id
-                }
             return PlannerDayGroup(day: day, entries: dayEntries)
         }
     }

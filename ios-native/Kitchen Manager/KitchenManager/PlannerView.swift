@@ -26,7 +26,6 @@ private enum PlannerSheet: Identifiable {
     case createMeal
     case editMeal(UUID)
     case completeMeal(UUID)
-    case pickRecipe(planID: UUID, planIndex: Int)
 
     var id: String {
         switch self {
@@ -34,7 +33,6 @@ private enum PlannerSheet: Identifiable {
         case .createMeal: "create-meal"
         case .editMeal(let id): "edit-meal-\(id.uuidString)"
         case .completeMeal(let id): "complete-meal-\(id.uuidString)"
-        case .pickRecipe(planID: let id, planIndex: let index): "pick-\(id.uuidString)-\(index)"
         }
     }
 }
@@ -57,7 +55,11 @@ private struct PlannerRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.body.weight(.medium))
-                    .foregroundStyle(.primary)
+                    // A finished meal steps back the way it already does on
+                    // Home: 已完成 in the metadata slot is the same size and
+                    // colour as 2 人份, so on a full week the one row that is
+                    // done looked exactly like the six that are not.
+                    .foregroundStyle(isCooked ? .secondary : .primary)
                 if !detail.isEmpty {
                     Text(detail)
                     .font(.caption)
@@ -79,6 +81,11 @@ private struct PlannerRow: View {
         case .meal: "fork.knife"
         case .specialPlan: "calendar.badge.clock"
         }
+    }
+
+    private var isCooked: Bool {
+        if case .meal(let meal) = entry { return meal.isCooked }
+        return false
     }
 }
 
@@ -283,16 +290,6 @@ struct PlannerView: View {
                             }
                         } else {
                             ContentUnavailableView("这一餐不存在", systemImage: "calendar.badge.exclamationmark")
-                        }
-                    case .pickRecipe(let planID, _):
-                        NavigationStack {
-                            RecipePickerView { recipe in
-                                let dish = SpecialPlanDish(
-                                    recipeID: recipe.id,
-                                    recipeName: recipe.title
-                                )
-                                kitchenStore.addDish(dish, toSpecialPlan: planID)
-                            }
                         }
                     }
                 }
