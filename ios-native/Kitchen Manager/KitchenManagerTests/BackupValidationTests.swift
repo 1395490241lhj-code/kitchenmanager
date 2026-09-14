@@ -284,4 +284,3 @@ final class BackupValidationTests: XCTestCase {
         }
     }
 }
-
