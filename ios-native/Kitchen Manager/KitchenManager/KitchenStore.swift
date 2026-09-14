@@ -832,6 +832,10 @@ final class KitchenStore: ObservableObject {
     private let specialPlanPersistence: SpecialPlanPersistenceProtocol
     /// The durable copy taken before a restore replaces the kitchen.
     let recoverySnapshot: KitchenRecoverySnapshotStore
+    /// How the most recent restore attempt ended. Phase 6 presents it; nothing
+    /// in this slice renders it, and it is the only place the difference
+    /// between a proven recovery and an uncertain one is recorded.
+    @Published private(set) var lastRestoreOutcome: KitchenRestoreOutcome?
 
     /// The composition-root initializer. `nil` on the designated initializer
     /// below is a *test and preview* convenience — it quietly substitutes an
@@ -1915,8 +1919,11 @@ final class KitchenStore: ObservableObject {
         inventory.removeAll { $0.id == id }
     }
 
-    func exportBackupData() throws -> Data {
-        try JSONEncoder().encode(KitchenBackupPayload(
+    /// The current backup scope as one value. The single definition of "what a
+    /// backup covers", shared by export, the pre-restore recovery copy and the
+    /// recovery comparison, so those three can never drift apart.
+    private func currentBackupPayload() -> KitchenBackupPayload {
+        KitchenBackupPayload(
             inventory: inventory,
             plans: plans,
             shoppingItems: shoppingItems,
@@ -1924,118 +1931,221 @@ final class KitchenStore: ObservableObject {
             consumptionRecords: consumptionRecords,
             preparedComponents: preparedComponents,
             specialPlans: specialPlans
-        ))
+        )
     }
 
+    func exportBackupData() throws -> Data {
+        try JSONEncoder().encode(currentBackupPayload())
+    }
+
+    /// Replaces the backup scope, and reports truthfully what happened.
+    ///
+    /// Still throws for every non-success outcome, so existing callers are
+    /// unchanged, but the attempt now also leaves a classified result in
+    /// `lastRestoreOutcome`. The distinction the throw cannot carry — put back
+    /// and proven, versus could not be proven — lives there.
+    ///
+    /// This is not atomic and does not claim to be. Seven independent commits
+    /// remain seven independent commits; what is guaranteed is a successful
+    /// restore or a truthful result.
     func restoreBackupData(_ data: Data) throws {
         // R1b — same reason as `applyConsumption`. A restore is a whole-table
         // replacement, so running it against a table a sync is concurrently
-        // writing would discard the sync's rows outright.
+        // writing would discard the sync's rows outright. Nothing has been
+        // written, so this is a preparation outcome.
         guard !refuseBulkInventoryChangeIfLocked() else {
+            lastRestoreOutcome = .preparationFailed
             throw KitchenBackupError.inventoryPersistenceFailed
         }
         // Nothing below this line may run for a file that has not been proven
-        // to be a supported Kitchen Manager backup: every `replace*` that
-        // follows is an irreversible whole-table write, and a tolerant decode
-        // alone would let an unrelated JSON object replace the kitchen with
-        // nothing. Validation is the point of no return for this slice.
-        let backup = try KitchenBackupValidator.validate(data)
-        // The last precondition of the point of no return. A durable copy of
-        // the kitchen as it stands right now has to exist, and be provably
-        // readable, before the first `replace*` below makes the old state
-        // unrecoverable. If it cannot be prepared the restore does not begin at
-        // all, and this throws rather than continuing without a way back.
-        try recoverySnapshot.prepare(try exportBackupData())
-        let previousInventory = inventory
-        let previousShoppingItems = shoppingItems
-        let previousPlans = plans
-        let previousPreparedComponents = preparedComponents
+        // to be a supported Kitchen Manager backup: every write that follows is
+        // an irreversible whole-table replacement, and a tolerant decode alone
+        // would let an unrelated JSON object replace the kitchen with nothing.
+        let backup: KitchenBackupPayload
         do {
-            try inventoryPersistence.replaceInventory(with: backup.inventory)
-            do {
-                try shoppingListPersistence.replaceShoppingItems(with: backup.shoppingItems)
-            } catch {
-                try? inventoryPersistence.replaceInventory(with: previousInventory)
-                throw KitchenBackupError.shoppingPersistenceFailed
-            }
-            do {
-                try todayPlanPersistence.replacePlans(with: backup.plans)
-            } catch {
-                try? inventoryPersistence.replaceInventory(with: previousInventory)
-                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
-                throw KitchenBackupError.todayPlanPersistenceFailed
-            }
-            do {
-                try consumptionPersistence.replaceRecords(with: backup.consumptionRecords)
-            } catch {
-                try? inventoryPersistence.replaceInventory(with: previousInventory)
-                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
-                try? todayPlanPersistence.replacePlans(with: previousPlans)
-                throw KitchenBackupError.consumptionPersistenceFailed
-            }
-            do {
-                try weeklyPlanPersistence.replacePlan(with: backup.weeklyPlan)
-            } catch {
-                try? inventoryPersistence.replaceInventory(with: previousInventory)
-                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
-                try? todayPlanPersistence.replacePlans(with: previousPlans)
-                try? consumptionPersistence.replaceRecords(with: consumptionRecords)
-                throw KitchenBackupError.weeklyPlanPersistenceFailed
-            }
-            do {
-                try preparedComponentPersistence.replaceComponents(with: backup.preparedComponents)
-            } catch {
-                try? inventoryPersistence.replaceInventory(with: previousInventory)
-                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
-                try? todayPlanPersistence.replacePlans(with: previousPlans)
-                try? consumptionPersistence.replaceRecords(with: consumptionRecords)
-                try? weeklyPlanPersistence.replacePlan(with: weeklyPlan)
-                throw KitchenBackupError.preparedComponentPersistenceFailed
-            }
-            do {
-                try specialPlanPersistence.replacePlans(with: backup.specialPlans)
-            } catch {
-                try? inventoryPersistence.replaceInventory(with: previousInventory)
-                try? shoppingListPersistence.replaceShoppingItems(with: previousShoppingItems)
-                try? todayPlanPersistence.replacePlans(with: previousPlans)
-                try? consumptionPersistence.replaceRecords(with: consumptionRecords)
-                try? weeklyPlanPersistence.replacePlan(with: weeklyPlan)
-                try? preparedComponentPersistence.replaceComponents(with: previousPreparedComponents)
-                throw KitchenBackupError.specialPlanPersistenceFailed
-            }
+            backup = try KitchenBackupValidator.validate(data)
         } catch {
-            if let backupError = error as? KitchenBackupError {
-                throw backupError
-            }
-            throw KitchenBackupError.inventoryPersistenceFailed
+            lastRestoreOutcome = .validationFailed
+            throw error
         }
-        publishDurableInventory(backup.inventory)
+        // The last precondition of the point of no return: a durable copy of
+        // the kitchen as it stands right now, provably readable, before the
+        // first write makes the old state unrecoverable. The same value is kept
+        // in memory as the recovery target, so the target is exactly the
+        // pre-restore backup scope rather than seven separate assumptions.
+        let previous = currentBackupPayload()
+        do {
+            try recoverySnapshot.prepare(try JSONEncoder().encode(previous))
+        } catch {
+            lastRestoreOutcome = .preparationFailed
+            throw error
+        }
+
+        if let failure = writeBackupScope(backup) {
+            try recover(to: previous, after: failure)
+        }
+
+        publishBackupScope(backup)
+        lastRestoreOutcome = .success
+        // The restore completed, so the copy has done its job and the slot is
+        // released. A failed removal leaves it outstanding, which fails the
+        // next restore closed with a stated reason rather than silently
+        // discarding a member's recovery asset — so it is not a silent loss.
+        try? recoverySnapshot.resolve()
+    }
+
+    /// Writes the seven domains in their established order. Returns the domain
+    /// that failed, or `nil` when all seven landed.
+    private func writeBackupScope(_ payload: KitchenBackupPayload) -> KitchenBackupDomain? {
+        for domain in KitchenBackupDomain.restoreOrder {
+            do {
+                try write(domain, from: payload)
+            } catch {
+                return domain
+            }
+        }
+        return nil
+    }
+
+    private func write(_ domain: KitchenBackupDomain, from payload: KitchenBackupPayload) throws {
+        switch domain {
+        case .inventory:
+            try inventoryPersistence.replaceInventory(with: payload.inventory)
+        case .shoppingItems:
+            try shoppingListPersistence.replaceShoppingItems(with: payload.shoppingItems)
+        case .plans:
+            try todayPlanPersistence.replacePlans(with: payload.plans)
+        case .consumptionRecords:
+            try consumptionPersistence.replaceRecords(with: payload.consumptionRecords)
+        case .weeklyPlan:
+            try weeklyPlanPersistence.replacePlan(with: payload.weeklyPlan)
+        case .preparedComponents:
+            try preparedComponentPersistence.replaceComponents(with: payload.preparedComponents)
+        case .specialPlans:
+            try specialPlanPersistence.replacePlans(with: payload.specialPlans)
+        }
+    }
+
+    /// Puts the pre-restore state back, then decides whether that can honestly
+    /// be called recovered. Always throws: a restore that began and failed is
+    /// never a success, whatever the recovery result.
+    private func recover(to previous: KitchenBackupPayload, after failed: KitchenBackupDomain) throws {
+        let compensationFailures = compensate(to: previous, before: failed)
+
+        let stored: KitchenBackupPayload
+        do {
+            stored = try loadBackupScope()
+        } catch let domain as KitchenBackupDomain {
+            // Nothing was published: a half-read must never become half-published
+            // in-memory state, and there is no observable truth to compare, so
+            // this cannot be called recovered.
+            lastRestoreOutcome = .failedUnsafe(.reconciliationFailed(domain))
+            throw failed.persistenceError
+        }
+        // The read succeeded, so this *is* what is stored. Publish it even when
+        // it turns out not to match: presenting the pre-restore arrays after an
+        // uncertain failure would be presenting values that may not be stored.
+        publishBackupScope(stored)
+
+        guard compensationFailures.isEmpty else {
+            // A compensating write that reported failure is uncertainty, and
+            // uncertainty is never upgraded into "recovered" — not even when the
+            // comparison below would have passed.
+            lastRestoreOutcome = .failedUnsafe(.compensationFailed(compensationFailures))
+            throw failed.persistenceError
+        }
+        guard stored.matchesBackupScope(of: previous) else {
+            lastRestoreOutcome = .failedUnsafe(.restoredStateDiffers)
+            throw failed.persistenceError
+        }
+        lastRestoreOutcome = .failedAndRecovered(failed)
+        // Proven, so the copy has done its job. Same reasoning as the success
+        // path for a removal that itself fails.
+        try? recoverySnapshot.resolve()
+        throw failed.persistenceError
+    }
+
+    /// Writes the pre-restore state back to every domain that had already been
+    /// written. The failed domain is skipped: its own write did not land.
+    ///
+    /// Continues past a failure rather than stopping at the first one, so the
+    /// remaining domains still get put back, and returns every domain that
+    /// could not be compensated. Nothing here is discarded with `try?`.
+    private func compensate(
+        to previous: KitchenBackupPayload,
+        before failed: KitchenBackupDomain
+    ) -> [KitchenBackupDomain] {
+        var failures: [KitchenBackupDomain] = []
+        for domain in KitchenBackupDomain.restoreOrder {
+            if domain == failed { break }
+            do {
+                try write(domain, from: previous)
+            } catch {
+                failures.append(domain)
+            }
+        }
+        return failures
+    }
+
+    /// Reads every backup-scoped domain from persistence into locals and
+    /// returns them as one value. Publishes nothing and throws the first domain
+    /// that could not be read, so a partial read can never become partial
+    /// in-memory state.
+    private func loadBackupScope() throws -> KitchenBackupPayload {
+        let loadedInventory: [InventoryItem]
+        do { loadedInventory = try inventoryPersistence.loadInventory() }
+        catch { throw KitchenBackupDomain.inventory }
+        let loadedShopping: [KitchenShoppingItem]
+        do { loadedShopping = try shoppingListPersistence.loadShoppingItems() }
+        catch { throw KitchenBackupDomain.shoppingItems }
+        let loadedPlans: [MealPlanItem]
+        do { loadedPlans = try todayPlanPersistence.loadPlans() }
+        catch { throw KitchenBackupDomain.plans }
+        let loadedConsumption: [InventoryConsumptionRecord]
+        do { loadedConsumption = try consumptionPersistence.loadRecords() }
+        catch { throw KitchenBackupDomain.consumptionRecords }
+        let loadedWeekly: WeeklyMealPlan?
+        do { loadedWeekly = try weeklyPlanPersistence.loadPlan() }
+        catch { throw KitchenBackupDomain.weeklyPlan }
+        let loadedComponents: [PreparedComponent]
+        do { loadedComponents = try preparedComponentPersistence.loadComponents() }
+        catch { throw KitchenBackupDomain.preparedComponents }
+        let loadedSpecial: [SpecialPlan]
+        do { loadedSpecial = try specialPlanPersistence.loadPlans() }
+        catch { throw KitchenBackupDomain.specialPlans }
+        return KitchenBackupPayload(
+            inventory: loadedInventory,
+            plans: loadedPlans,
+            shoppingItems: loadedShopping,
+            weeklyPlan: loadedWeekly,
+            consumptionRecords: loadedConsumption,
+            preparedComponents: loadedComponents,
+            specialPlans: loadedSpecial
+        )
+    }
+
+    /// Publishes a whole backup scope that is already durable truth: bypasses
+    /// the persistence hooks, exactly as the success path has always done.
+    private func publishBackupScope(_ payload: KitchenBackupPayload) {
+        publishDurableInventory(payload.inventory)
         suppressPlanPersistence = true
-        plans = backup.plans
+        plans = payload.plans
         suppressPlanPersistence = false
         suppressShoppingPersistence = true
-        shoppingItems = backup.shoppingItems
+        shoppingItems = payload.shoppingItems
         suppressShoppingPersistence = false
         suppressWeeklyPlanPersistence = true
-        weeklyPlan = backup.weeklyPlan
+        weeklyPlan = payload.weeklyPlan
         suppressWeeklyPlanPersistence = false
         suppressConsumptionPersistence = true
-        consumptionRecords = backup.consumptionRecords
+        consumptionRecords = payload.consumptionRecords
         suppressConsumptionPersistence = false
         suppressPreparedComponentPersistence = true
-        preparedComponents = backup.preparedComponents
+        preparedComponents = payload.preparedComponents
         suppressPreparedComponentPersistence = false
         suppressSpecialPlanPersistence = true
-        specialPlans = backup.specialPlans
+        specialPlans = payload.specialPlans
         suppressSpecialPlanPersistence = false
-        // The restore completed, so the copy has done its job and the slot is
-        // released explicitly. A failure deliberately does not reach this line:
-        // the copy stays outstanding because it is still the only way back.
-        //
-        // If the removal itself fails the slot stays outstanding too, which
-        // blocks the next restore with a stated reason rather than silently
-        // discarding a member's recovery asset.
-        try? recoverySnapshot.resolve()
     }
 
     func toggleShopping(_ item: KitchenShoppingItem) {

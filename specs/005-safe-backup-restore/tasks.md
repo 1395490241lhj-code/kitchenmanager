@@ -98,18 +98,18 @@ after a failed write is reliable (`research.md` R5).
 
 ## Phase 5: Outcome model and state consistency
 
-- [ ] T023 Introduce the five-state outcome from FR-018 and return it from the restore path
-- [ ] T024 Make compensation report its own result so a recovery failure is never discarded
+- [x] T023 Introduce the five-state outcome from FR-018 and return it from the restore path
+- [x] T024 Make compensation report its own result so a recovery failure is never discarded
       (FR-020)
-- [ ] T025 After success, in-memory reflects the restored data (FR-022)
-- [ ] T026 After proven recovery, in-memory equals what is stored (FR-023)
-- [ ] T027 After an unproven outcome, re-establish every backup-scoped domain from persistence,
+- [x] T025 After success, in-memory reflects the restored data (FR-022)
+- [x] T026 After proven recovery, in-memory equals what is stored (FR-023)
+- [x] T027 After an unproven outcome, re-establish every backup-scoped domain from persistence,
       following the existing `reconcileInventoryFromPersistence` shape; if a domain cannot be
       re-read, surface it and keep the recovery path available (FR-024, `research.md` R4)
-- [ ] T028 [P] Tests: inject a write failure in each of the seven domains in turn and assert the
+- [x] T028 [P] Tests: inject a write failure in each of the seven domains in turn and assert the
       resulting outcome, whether recovery was proven, and the post-state of in-memory versus
       persistence (SC-004, SC-009)
-- [ ] T029 [P] Test: user recipes, favourites and frequent records are unchanged across success,
+- [x] T029 [P] Test: user recipes, favourites and frequent records are unchanged across success,
       proven recovery and unproven outcome alike (FR-026, SC-006)
 
 ## Phase 6: Preview, confirmation and presentation (US2, US3)
@@ -185,6 +185,22 @@ after a failed write is reliable (`research.md` R5).
 the backup validation gate. T003 is deliberately still open: this slice needed only a
 zero-write spy, and the per-call failure seam it describes is first required by the phases that
 inject write failures.
+
+**Phase 5 complete**: a restore now classifies itself into the five outcomes and records the
+result on `KitchenStore.lastRestoreOutcome`. It still throws for every non-success outcome, so no
+existing caller changed; the distinction a throw cannot carry — put back and proven, versus could
+not be proven — lives in that result.
+
+**Proof behind "recovered"**: compensate the domains that were written, re-read all seven from
+persistence into locals, publish only after the complete read succeeds, and compare against the
+pre-restore payload by identity and value. Ordering is deliberately excluded from the comparison
+because `loadInventory` re-sorts by creation date and name; perceivable within-domain order is
+carried by persisted sort indexes, which are compared as values. Any compensation failure, any
+unreadable domain, or any mismatch yields `failedUnsafe` — uncertainty is never upgraded.
+
+**Phase 4 interim behaviour resolved**: success and proven recovery both release the slot, so a
+normal restore no longer leaves a blocking copy. An unsafe outcome retains it, and a later attempt
+still fails closed rather than overwriting it. Phase 6 owes the member agency over that asset.
 
 **Phase 4 complete**: a durable recovery copy is written, read back and validated through the
 Phase 2 gate before the first destructive write, and preparation failure blocks the restore with
