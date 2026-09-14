@@ -294,10 +294,22 @@ final class AIRecipeGeneratorStore: ObservableObject {
     @Published private(set) var hasAddedCurrentDraftToPlan = false
     @Published var errorMessage: String?
 
-    private let service = AIGeneratedRecipeService()
+    /// The one network call this store makes. Injectable so a test can drive
+    /// failure and cancellation deterministically; production wires the real
+    /// service.
+    private let generateDraft: (AIGenerateRecipeRequest) async throws -> EditableRecipeDraft
     private var generationTask: Task<EditableRecipeDraft, Error>?
     private var activeRequestID: UUID?
     private var didPrepareInventory = false
+
+    init(generateDraft: ((AIGenerateRecipeRequest) async throws -> EditableRecipeDraft)? = nil) {
+        if let generateDraft {
+            self.generateDraft = generateDraft
+            return
+        }
+        let service = AIGeneratedRecipeService()
+        self.generateDraft = { try await service.generate(request: $0) }
+    }
 
     func prepareInventory(_ inventory: [InventoryItem]) {
         guard !didPrepareInventory else { return }
@@ -331,7 +343,7 @@ final class AIRecipeGeneratorStore: ObservableObject {
             isGenerating = true
             errorMessage = nil
             let previousDraft = generatedDraft
-            let task = Task { try await service.generate(request: request) }
+            let task = Task { try await self.generateDraft(request) }
             generationTask = task
 
             do {
@@ -444,7 +456,33 @@ final class AIRecipeGeneratorStore: ObservableObject {
 #if DEBUG
         print("[AIRecipeGenerator] \(error)")
 #endif
-        errorMessage = "请稍后重试，或者调整食材和要求。"
+        errorMessage = Self.generationErrorMessage(for: error)
+    }
+
+    /// What a failed recipe generation is allowed to say. Only errors written
+    /// for a member speak for themselves; anything else becomes this flow's own
+    /// sentence, so no URLSession text, HTTP body or decoding detail reaches
+    /// the alert.
+    ///
+    /// Unlike the weekly menu, this flow really is about one 菜谱, so the chat
+    /// client's own recipe wording is correct here. `unavailable` stays out:
+    /// it is the catch-all for everything the client did not recognise, and
+    /// the flow's own sentence tells the member more.
+    static func generationErrorMessage(for error: Error) -> String {
+        let fallback = "请稍后重试，或者调整食材和要求。"
+        switch error {
+        case let generator as AIGeneratorError:
+            return generator.localizedDescription
+        case let chat as AIChatServiceError:
+            switch chat {
+            case .rateLimited, .invalidResponse, .emptyResponse:
+                return chat.localizedDescription
+            case .unavailable:
+                return fallback
+            }
+        default:
+            return fallback
+        }
     }
 
     private static func splitIngredientText(_ text: String) -> [String] {

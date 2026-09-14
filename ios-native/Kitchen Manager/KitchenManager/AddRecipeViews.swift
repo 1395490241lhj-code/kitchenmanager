@@ -759,7 +759,45 @@ struct ImportRecipeView: View {
         } catch LinkExtractError.cancelled {
             return
         } catch {
-            extractErrorMessage = error.localizedDescription
+            extractErrorMessage = Self.importErrorMessage(for: error)
+        }
+    }
+
+    /// What a failed link import is allowed to say. Only errors written for a
+    /// member speak for themselves; anything else becomes this flow's own
+    /// sentence, so no status code, backend payload or URLSession text reaches
+    /// the screen.
+    ///
+    /// `LinkExtractError.server` passes because it already translates the
+    /// backend's code into product copy — including the import flow's own
+    /// rate-limit guidance — and never mentions the HTTP status. The remaining
+    /// cases describe the backend rather than the member's link.
+    /// `AIRecipeParseError.server` carries the backend's own words verbatim, so
+    /// it can never pass, whether or not anything reaches it today.
+    static func importErrorMessage(for error: Error) -> String {
+        let fallback = "暂时无法解析这个链接，请稍后重试。"
+        switch error {
+        case let link as LinkExtractError:
+            switch link {
+            case .emptyInput, .server:
+                return link.localizedDescription
+            case .invalidEndpoint, .invalidURL, .invalidResponse, .invalidJSON:
+                return fallback
+            case .cancelled:
+                // Handled before this and never shown.
+                return fallback
+            }
+        case let parse as AIRecipeParseError:
+            switch parse {
+            case .emptyText, .missingRecipe:
+                return parse.localizedDescription
+            case .invalidResponse, .server:
+                return fallback
+            }
+        case let save as UserRecipeSaveError:
+            return save.localizedDescription
+        default:
+            return fallback
         }
     }
 

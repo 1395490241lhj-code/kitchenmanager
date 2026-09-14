@@ -1121,7 +1121,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         } catch {
             guard activeRequestID == requestID else { return }
             generatedPlan = previousPlan
-            errorMessage = WeeklyMenuPlannerError.invalidResponse.localizedDescription
+            errorMessage = Self.generationErrorMessage(for: error)
         }
         if activeRequestID == requestID {
             isGenerating = false
@@ -1135,6 +1135,40 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         generationTask = nil
         activeRequestID = nil
         isGenerating = false
+    }
+
+    /// What a failed weekly generation is allowed to say. Only errors whose
+    /// wording was written for a member may speak for themselves; everything
+    /// else — a URLSession failure, an HTTP body, a decoding error — becomes
+    /// this flow's own sentence, so nothing technical reaches the alert.
+    ///
+    /// `AIChatServiceError` is deliberately split. `rateLimited` carries the
+    /// wait the member actually needs. `unavailable` is the chat client's
+    /// catch-all for anything it did not recognise, so it means "unknown" here
+    /// rather than "the service is down". `invalidResponse` / `emptyResponse`
+    /// talk about 菜谱, which is the wrong noun for a week of menus.
+    static func generationErrorMessage(for error: Error) -> String {
+        let fallback = WeeklyMenuPlannerError.invalidResponse.localizedDescription
+        switch error {
+        case let weekly as WeeklyMenuPlannerError:
+            switch weekly {
+            case .invalidResponse, .emptyPlan, .noRecipesAvailable:
+                return weekly.localizedDescription
+            case .cancelled:
+                // Cancellation is caught before this and never shown; nothing
+                // throws this case today.
+                return fallback
+            }
+        case let chat as AIChatServiceError:
+            switch chat {
+            case .rateLimited:
+                return chat.localizedDescription
+            case .unavailable, .invalidResponse, .emptyResponse:
+                return fallback
+            }
+        default:
+            return fallback
+        }
     }
 
     /// The member left the weekly workflow, so everything it owns stops.

@@ -393,7 +393,7 @@ final class HomeRecommendationStore: ObservableObject {
                 recommendedRecipes = previous
                 repairIndex()
             }
-            recommendationError = recommendationErrorMessage(for: error)
+            recommendationError = Self.recommendationErrorMessage(for: error, hasLocalResults: !recommendedRecipes.isEmpty)
         }
         finishSearch(requestID)
     }
@@ -443,7 +443,7 @@ final class HomeRecommendationStore: ObservableObject {
             guard activeRequestID == requestID else { return }
             recommendedRecipes = previous
             repairIndex()
-            recommendationError = recommendationErrorMessage(for: error)
+            recommendationError = Self.recommendationErrorMessage(for: error, hasLocalResults: !recommendedRecipes.isEmpty)
         }
         finishGeneration(requestID)
     }
@@ -620,11 +620,37 @@ final class HomeRecommendationStore: ObservableObject {
             .filter { query.contains($0) }
     }
 
-    private func recommendationErrorMessage(for error: Error) -> String {
-        if let appleError = error as? AppleRecommendationError {
-            return appleError.localizedDescription
+    /// What a failed recommendation request is allowed to say. Only errors
+    /// written for a member speak for themselves; anything else — a URLSession
+    /// failure, an HTTP body, a decoding error — becomes the existing Home
+    /// sentence, so nothing technical reaches the card.
+    ///
+    /// The on-device policy messages stay because they tell the member what to
+    /// switch to, and `rateLimited` stays because it carries the wait. The rest
+    /// of `AIChatServiceError` does not: `unavailable` is the client's catch-all
+    /// for anything unrecognised, and the other two describe a parsed 菜谱
+    /// rather than a recommendation set.
+    ///
+    /// Whatever the reason, local browsing is only offered while local
+    /// recommendations are actually on screen.
+    static func recommendationErrorMessage(for error: Error, hasLocalResults: Bool) -> String {
+        let localTail = "仍可以继续浏览本地推荐。"
+        let safeMessage: String?
+        switch error {
+        case let appleError as AppleRecommendationError:
+            safeMessage = appleError.localizedDescription
+        case let chat as AIChatServiceError:
+            switch chat {
+            case .rateLimited:
+                safeMessage = chat.localizedDescription
+            case .unavailable, .invalidResponse, .emptyResponse:
+                safeMessage = nil
+            }
+        default:
+            safeMessage = nil
         }
-        return "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
+        guard let safeMessage else { return "AI 推荐暂时不可用，" + localTail }
+        return hasLocalResults ? safeMessage + localTail : safeMessage
     }
 
     private func deduplicated(
