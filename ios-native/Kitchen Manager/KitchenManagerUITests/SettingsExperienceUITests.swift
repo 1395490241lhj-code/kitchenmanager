@@ -1,12 +1,8 @@
 import XCTest
 
-/// UI-5A coverage for the 我的 / Settings information architecture.
-///
-/// Everything here runs in ordinary Guest mode with no credentials: signed-in
-/// lifecycle presentation is deliberately out of scope for UI-5A, so no
-/// deterministic signed-in fixture exists yet. These tests only read and
-/// navigate — the destructive clear-local-data action is opened and then
-/// cancelled, never executed.
+/// Settings navigation and presentation coverage. Guest tests use no credentials;
+/// the signed-in case reuses the existing in-memory account fixture.
+/// Destructive confirmation is opened and cancelled; AI checks are never run.
 final class SettingsExperienceUITests: XCTestCase {
     /// Must stay identical to `SettingsView.guestAccountFooter`.
     private static let guestFooter = "无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
@@ -157,8 +153,9 @@ final class SettingsExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.recipeLibrary.picker"].exists)
 
         // Reminder controls.
-        XCTAssertTrue(app.switches["settings.expiryNotifications.toggle"].exists)
-        XCTAssertTrue(app.switches["settings.stapleNotifications.toggle"].exists)
+        for identifier in ["settings.expiryNotifications.toggle", "settings.stapleNotifications.toggle"] {
+            XCTAssertTrue(scrollUntilVisible(app.switches[identifier], in: app), "\(identifier) 无法滚动到可见位置")
+        }
 
         // Pantry preference, backup, about, and the destructive entry all resolve
         // by scrolling — none is stranded off-screen.
@@ -203,6 +200,7 @@ final class SettingsExperienceUITests: XCTestCase {
         // their original wording and roles.
         let confirm = alert.buttons["清除"]
         let cancel = alert.buttons["取消"]
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "备餐、用餐与聚餐计划、每周菜单")).firstMatch.exists)
         XCTAssertTrue(confirm.exists, "破坏性确认按钮应保持为「清除」")
         XCTAssertTrue(cancel.exists, "取消按钮应保持为「取消」")
 
@@ -295,7 +293,8 @@ final class SettingsExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["settings.account.entry"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[Self.guestFooter].exists, "深色模式下游客说明缺失")
         XCTAssertTrue(app.staticTexts["显示模式"].exists)
-        XCTAssertTrue(app.switches["settings.expiryNotifications.toggle"].exists)
+        attachScreenshot(of: app, named: "settings-guest-dark-top")
+        XCTAssertTrue(scrollUntilVisible(app.switches["settings.expiryNotifications.toggle"], in: app))
 
         let clearButton = app.buttons["settings.cleardata.button"]
         XCTAssertTrue(scrollUntilVisible(clearButton, in: app), "深色模式下清除入口无法滚动到可见位置")
@@ -321,7 +320,52 @@ final class SettingsExperienceUITests: XCTestCase {
         )
         XCTAssertTrue(app.buttons["导出厨房备份"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["导入厨房备份"].exists)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "不包含用户菜谱、收藏和常做记录")).firstMatch.exists)
 
         attachScreenshot(of: app, named: "settings-backup-entry")
     }
+
+    func testAISettingsDisclosesProviderAndDiagnostics() throws {
+        try verifyAISettings(extraArguments: [], screenshotName: "settings-ai-light")
+    }
+
+    func testAISettingsAccessibilityXXXL() throws {
+        try verifyAISettings(extraArguments: [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ], screenshotName: "settings-ai-axxxl")
+    }
+
+    private func verifyAISettings(extraArguments: [String], screenshotName: String) throws {
+        let app = launchSettings(extraArguments: extraArguments)
+        let aiLink = app.buttons["settings.ai.link"]
+        XCTAssertTrue(scrollUntilVisible(aiLink, in: app))
+        XCTAssertEqual(aiLink.label, "AI 设置")
+        XCTAssertGreaterThanOrEqual(aiLink.frame.height, 43.5)
+        XCTAssertFalse(app.buttons["settings.aiRecommendationProvider.picker"].exists)
+        aiLink.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["AI 设置"].waitForExistence(timeout: 5))
+        let picker = app.buttons["settings.aiRecommendationProvider.picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5))
+        XCTAssertTrue(picker.label.contains("菜谱推荐模型"))
+        attachScreenshot(of: app, named: screenshotName)
+        let diagnostics = app.buttons["settings.aiDiagnostics.link"]
+        XCTAssertTrue(scrollUntilVisible(diagnostics, in: app))
+        XCTAssertEqual(diagnostics.label, "AI 服务诊断")
+        diagnostics.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["AI 服务诊断"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Run All Tests"].exists)
+        // Navigation only: never send diagnostic requests.
+    }
+
+    func testSignedInRootUsesExistingAccountFixture() throws {
+        let app = launchSettings(extraArguments: ["UITEST_ACCOUNT_OWNER"])
+        let entry = app.buttons["settings.account.entry"]
+        XCTAssertTrue(entry.label.contains("fixture@example.com"))
+        XCTAssertTrue(entry.label.contains("管理账号与家庭"))
+        attachScreenshot(of: app, named: "settings-signed-in-root")
+        entry.tap()
+        XCTAssertTrue(app.navigationBars.staticTexts["账号"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["厨房主人"].waitForExistence(timeout: 5))
+    }
+
 }

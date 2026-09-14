@@ -1746,28 +1746,40 @@ struct SettingsView: View {
             }
 
             Section("AI") {
-                AIRecommendationProviderSettingsRow()
-
                 NavigationLink {
-                    AIServiceDiagnosticsView(authStore: authStore)
-                } label: {
-                    SettingsRowLabel(symbol: "stethoscope") {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("AI 服务诊断")
-                            Text("检查 App 实际网络、认证和模型请求")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                    Form {
+                        Section("菜谱推荐") {
+                            AIRecommendationProviderSettingsRow()
+                        }
+                        Section {
+                            NavigationLink {
+                                AIServiceDiagnosticsView(authStore: authStore)
+                            } label: {
+                                SettingsRowLabel(symbol: "stethoscope") {
+                                    Text("AI 服务诊断")
+                                }
+                            }
+                            .accessibilityIdentifier("settings.aiDiagnostics.link")
+                        } header: {
+                            Text("故障排查")
+                        } footer: {
+                            Text("AI 无法使用时，可检查网络、登录状态和模型服务。")
                         }
                     }
+                    .navigationTitle("AI 设置")
+                    .navigationBarTitleDisplayMode(.inline)
+                } label: {
+                    SettingsRowLabel(symbol: "sparkles") {
+                        Text("AI 设置")
+                    }
                 }
-                .frame(minHeight: ChromeMetrics.minimumRowHeight)
-                .accessibilityIdentifier("settings.aiDiagnostics.link")
+                .accessibilityIdentifier("settings.ai.link")
             }
 
             Section("关于") {
                 LabeledContent("版本", value: appVersion)
                     .accessibilityIdentifier("settings.about.version")
-                Text("Kitchen Manager 仅在你主动使用导入或 AI 功能时发送必要内容。")
+                Text("联网功能会发送完成操作所需的数据。登录不会自动上传本机厨房数据。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -1814,7 +1826,7 @@ struct SettingsView: View {
                 .accessibilityHidden(true)
         }
         .navigationTitle("我的")
-        .alert("无法开启到期提醒", isPresented: $isShowingPermissionDeniedAlert) {
+        .alert("无法开启提醒", isPresented: $isShowingPermissionDeniedAlert) {
             Button("前往设置") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
@@ -1831,7 +1843,7 @@ struct SettingsView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这会删除本机的库存、常备设置、计划、买菜清单、用户菜谱、收藏和常做记录，无法撤销。远端菜谱库不会被删除。")
+            Text("这会删除本机的库存、常备设置、备餐、用餐与聚餐计划、每周菜单、买菜清单、消耗记录、用户菜谱、收藏和常做记录，无法撤销。远端菜谱库不会被删除。")
         }
         #if DEBUG
         .alert("Run Sync Smoke?", isPresented: $isShowingSyncSmokeConfirmation) {
@@ -1931,7 +1943,7 @@ struct BackupRestoreView: View {
                 }
             }
             Section {
-                Text("备份包含库存、常备规则、计划、购物清单和消耗记录。导入会替换当前厨房数据。")
+                Text("备份包含库存与常备规则、用餐与聚餐计划、每周菜单、备餐、购物清单和消耗记录，不包含用户菜谱、收藏和常做记录。导入会替换备份范围内的本机数据。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

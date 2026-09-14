@@ -62,7 +62,7 @@ struct AIRecommendationProviderSettingsRow: View {
             return AppleFoundationModelCandidateGenerator.availabilityText
                 + "；仅生成菜谱灵感，不用于可靠执行过敏或严格忌口。"
         }
-        return "Gemini 为默认；Groq 沿用现有云端请求路径。"
+        return "Gemini 和 Groq 需要联网，默认使用 Gemini。"
     }
 }
 

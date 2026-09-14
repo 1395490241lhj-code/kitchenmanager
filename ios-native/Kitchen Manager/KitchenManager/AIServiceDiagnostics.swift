@@ -302,7 +302,8 @@ struct AIServiceDiagnosticsView: View {
                 }
             }
         }
-        .navigationTitle("AI Service Diagnostics")
+        .navigationTitle("AI 服务诊断")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) {
             PhotosPicker(selection: $photoItem, matching: .images) { Label("视觉测试图片", systemImage: "photo") }
         }}
