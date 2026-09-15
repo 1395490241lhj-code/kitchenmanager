@@ -206,9 +206,11 @@ final class WeeklyMenuReplaceConcurrencyTests: XCTestCase {
         XCTAssertFalse(h.store.isGenerating)
 
         try h.gate.complete(with: "迟到的菜单")
-        await generation.value
+        // Awaited only to let the cancelled request finish unwinding; what it
+        // reports is irrelevant here, because the assertions below check the
+        // stronger fact that it published nothing at all.
+        _ = await generation.value
         XCTAssertNil(h.store.generatedPlan, "a cancelled generation never publishes its late result")
         XCTAssertNil(h.store.errorMessage, "cancellation is not an error")
     }
 }
-
