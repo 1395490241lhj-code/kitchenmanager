@@ -441,6 +441,14 @@ private struct AIRecipeConfirmationView: View {
 }
 
 struct ImportRecipeView: View {
+    /// The only thing the client truthfully knows while the request is out: it
+    /// is waiting for one. `/api/recipe-import-from-url` answers in a single
+    /// response and reports no intermediate steps, and there is no latency
+    /// evidence to promise a duration from.
+    static let importingStatus = "正在读取链接并整理菜谱…"
+    /// Stops the import and stays here, with the pasted link untouched.
+    static let cancelImportLabel = "取消"
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: RecipeStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -449,21 +457,21 @@ struct ImportRecipeView: View {
     @State private var isImporting = false
     @State private var isSaving = false
     @State private var isSaved = false
-    @State private var importStage: RecipeImportStage?
-    @State private var progressTask: Task<Void, Never>?
     @State private var result: LinkExtractResult?
     @State private var extractErrorMessage: String?
     @State private var saveErrorMessage: String?
     @State private var editableDraft: EditableRecipeDraft?
     @State private var draftWarnings: [String] = []
     @State private var hasAutoStarted = false
-    /// The real network-driving import Task — distinct from `progressTask`,
-    /// which only drives the cosmetic stage animation. Held here so
-    /// `.onDisappear` can actually cancel the in-flight `/api/recipe-import-
-    /// from-url` request instead of merely stopping its progress label.
+    /// The real network-driving import Task. Held here so `.onDisappear` and
+    /// the in-place cancel can actually stop the in-flight
+    /// `/api/recipe-import-from-url` request.
     @State private var importTask: Task<Void, Never>?
 
-    private let extractService = LinkExtractService()
+    /// The one network call this screen makes. A DEBUG launch argument can
+    /// substitute a stub so a UI test can observe the waiting state without a
+    /// provider; production always wires the real service.
+    private let extract: (String) async throws -> LinkExtractResult
     var onSaved: (() -> Void)? = nil
 
     /// Set only by the Share Extension pending-request handoff
@@ -482,6 +490,14 @@ struct ImportRecipeView: View {
         _urlText = State(initialValue: initialURLText)
         self.autoStart = autoStart
         self.onSaved = onSaved
+        #if DEBUG
+        if LinkImportStubFixture.isEnabled {
+            self.extract = LinkImportStubFixture.extract
+            return
+        }
+        #endif
+        let service = LinkExtractService()
+        self.extract = { try await service.extract(from: $0) }
     }
 
     /// Pure decision logic for whether `.task` should kick off `importLink()`
@@ -539,9 +555,9 @@ struct ImportRecipeView: View {
                 } label: {
                     HStack {
                         Spacer()
-                        if let importStage {
+                        if isImporting {
                             ProgressView().tint(AppTheme.onManagementAction)
-                            Text(importStage.rawValue)
+                            Text(Self.importingStatus)
                         } else {
                             Image(systemName: "square.and.arrow.down")
                             Text("开始导入")
@@ -557,6 +573,14 @@ struct ImportRecipeView: View {
                     || isImporting
                     || isSaving
                 )
+
+                if isImporting {
+                    // Stop and stay: the link stays in the field, nothing is
+                    // written, and leaving the screen remains the other way out.
+                    Button(Self.cancelImportLabel) { importTask?.cancel() }
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .accessibilityIdentifier("import.link.cancel")
+                }
             }
 
             if let result {
@@ -665,7 +689,6 @@ struct ImportRecipeView: View {
             // plain `await` chain into `LinkExtractService`/`APIClient`,
             // which cancels the underlying `URLSessionTask`.
             importTask?.cancel()
-            progressTask?.cancel()
         }
         .alert(
             "无法保存菜谱",
@@ -699,20 +722,14 @@ struct ImportRecipeView: View {
         extractErrorMessage = nil
         resetDraft()
 
-        startProgress()
-        defer {
-            progressTask?.cancel()
-            progressTask = nil
-            importStage = nil
-            isImporting = false
-        }
+        defer { isImporting = false }
 
         do {
             let inputURL = try LinkExtractService.firstHTTPURL(in: urlText).absoluteString
             guard !store.containsImportedSource(inputURL) else {
                 throw UserRecipeSaveError.sourceAlreadyImported
             }
-            let imported = try await extractService.extract(from: urlText)
+            let imported = try await extract(urlText)
             // The network call above is the only real suspension point,
             // and cancellation is expected to already surface as a thrown
             // `LinkExtractError.cancelled`/`CancellationError` from it in
@@ -801,20 +818,6 @@ struct ImportRecipeView: View {
         }
     }
 
-    @MainActor
-    private func startProgress() {
-        progressTask?.cancel()
-        importStage = .parsingLink
-        progressTask = Task {
-            let stages = Array(RecipeImportStage.allCases.dropFirst())
-            for stage in stages {
-                try? await Task.sleep(for: .seconds(1.1))
-                guard !Task.isCancelled else { return }
-                importStage = stage
-            }
-        }
-    }
-
     private func stableImportID(_ url: String) -> String {
         var hash: UInt64 = 14_695_981_039_346_656_037
         for byte in url.lowercased().utf8 {
@@ -855,15 +858,6 @@ struct ImportRecipeView: View {
     }
 }
 
-private enum RecipeImportStage: String, CaseIterable {
-    case parsingLink = "正在解析链接"
-    case readingPage = "正在读取页面"
-    case extractingVideo = "正在提取视频"
-    case recognizingSpeech = "正在识别语音"
-    case recognizingSubtitles = "正在识别字幕"
-    case organizingRecipe = "正在整理菜谱"
-}
-
 struct ManualRecipeView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: RecipeStore
@@ -891,3 +885,34 @@ struct ManualRecipeView: View {
         }
     }
 }
+
+#if DEBUG
+/// A stand-in for the link importer's network call: waits long enough for a UI
+/// test to read the waiting state and cancel it, honours cancellation exactly
+/// like the real request, then answers with one fixed recipe. Selected by the
+/// `UITEST_LINK_IMPORT_STUB` launch argument only.
+enum LinkImportStubFixture {
+    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("UITEST_LINK_IMPORT_STUB") }
+
+    static func extract(from input: String) async throws -> LinkExtractResult {
+        try await Task.sleep(for: .seconds(6))
+        let recipe = try JSONDecoder().decode(
+            AIParsedRecipe.self,
+            from: Data(#"{"name":"测试导入菜谱","tags":["家常菜"],"ingredients":[{"name":"番茄","quantity":"2","unit":"个"}],"steps":["番茄切块","炒熟"]}"#.utf8)
+        )
+        return LinkExtractResult(
+            title: "测试导入菜谱",
+            text: "",
+            rawJSON: "",
+            recipe: recipe,
+            originalURL: input,
+            canonicalURL: "https://example.com/uitest-link-import",
+            sourceTitle: "测试来源",
+            sourceAuthor: nil,
+            warnings: [],
+            usedTranscript: false,
+            usedOCR: false
+        )
+    }
+}
+#endif

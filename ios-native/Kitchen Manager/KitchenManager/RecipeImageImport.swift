@@ -195,19 +195,11 @@ enum DuplicateRecipeMatcher {
 
 // MARK: - Store
 
-enum RecipeImageImportStage: String, CaseIterable {
-    case uploading = "正在上传图片"
-    case recognizingText = "正在识别文字"
-    case organizing = "正在整理食材和步骤"
-    case finalizing = "正在生成预览"
-}
-
 @MainActor
 final class RecipeImageImportStore: ObservableObject {
     @Published private(set) var image: UIImage?
     @Published private(set) var isPreparingImage = false
     @Published private(set) var isRecognizing = false
-    @Published private(set) var stage: RecipeImageImportStage?
     @Published var errorMessage: String?
     @Published var draft: EditableRecipeDraft?
     @Published private(set) var warnings: [String] = []
@@ -215,14 +207,24 @@ final class RecipeImageImportStore: ObservableObject {
 
     private var jpegData: Data?
     private var recognitionTask: Task<Void, Never>?
-    private var stageTask: Task<Void, Never>?
     private var selectionID = UUID()
+    /// The one network call this store makes. Injectable so a test can hold a
+    /// recognition open and finish it on cue; production wires the real service.
+    private let extract: ([Data]) async throws -> RecipeImageExtractionResult
 
     var canRecognize: Bool { jpegData != nil && !isPreparingImage && !isRecognizing }
 
+    init(extract: (([Data]) async throws -> RecipeImageExtractionResult)? = nil) {
+        if let extract {
+            self.extract = extract
+            return
+        }
+        let service = RecipeImageExtractionService()
+        self.extract = { try await service.extract(jpegDatas: $0) }
+    }
+
     func setImage(_ newImage: UIImage) {
         recognitionTask?.cancel()
-        stageTask?.cancel()
         selectionID = UUID()
         let currentID = selectionID
         image = newImage
@@ -250,7 +252,6 @@ final class RecipeImageImportStore: ObservableObject {
 
     func removeImage() {
         recognitionTask?.cancel()
-        stageTask?.cancel()
         selectionID = UUID()
         image = nil
         jpegData = nil
@@ -259,16 +260,18 @@ final class RecipeImageImportStore: ObservableObject {
         rawText = nil
         isPreparingImage = false
         isRecognizing = false
-        stage = nil
     }
 
+    /// Stops recognition. The selected image and its prepared data stay, so the
+    /// member can simply start again; nothing is written and no error is shown.
+    /// Taking a new selection identity is what makes that true — a request that
+    /// answers after this no longer owns the selection, so neither its draft nor
+    /// its failure can land.
     func cancel() {
         recognitionTask?.cancel()
         recognitionTask = nil
-        stageTask?.cancel()
-        stageTask = nil
+        selectionID = UUID()
         isRecognizing = false
-        stage = nil
     }
 
     func recognize() {
@@ -279,11 +282,10 @@ final class RecipeImageImportStore: ObservableObject {
         errorMessage = nil
         draft = nil
         warnings = []
-        startStageProgression()
 
         recognitionTask = Task {
             do {
-                let result = try await RecipeImageExtractionService().extract(jpegDatas: [jpegData])
+                let result = try await self.extract([jpegData])
                 try Task.checkCancellation()
                 guard currentID == selectionID else { return }
                 draft = result.draft
@@ -297,20 +299,6 @@ final class RecipeImageImportStore: ObservableObject {
             }
             if currentID == selectionID {
                 isRecognizing = false
-                stageTask?.cancel()
-                stage = nil
-            }
-        }
-    }
-
-    private func startStageProgression() {
-        stageTask?.cancel()
-        stage = .uploading
-        stageTask = Task {
-            for nextStage in RecipeImageImportStage.allCases.dropFirst() {
-                try? await Task.sleep(for: .seconds(1.3))
-                guard !Task.isCancelled else { return }
-                stage = nextStage
             }
         }
     }
@@ -319,6 +307,14 @@ final class RecipeImageImportStore: ObservableObject {
 // MARK: - View
 
 struct RecipeImageImportView: View {
+    /// The only thing the client truthfully knows while the request is out: it
+    /// is waiting for one. The backend answers in a single response and reports
+    /// no intermediate steps.
+    static let recognizingStatus = "正在识别菜谱…"
+    /// Stops the recognition and stays here. Leaving the screen also stops it,
+    /// which is why this one says what it stops rather than plain 取消.
+    static let cancelRecognitionLabel = "取消识别"
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var navigationStore: AppNavigationStore
@@ -338,12 +334,18 @@ struct RecipeImageImportView: View {
         Form {
             imageSection
 
-            if let stage = store.stage {
+            if store.isRecognizing {
                 Section {
-                    HStack {
+                    HStack(spacing: 10) {
                         ProgressView()
-                        Text(stage.rawValue)
+                        Text(Self.recognizingStatus)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("image.import.recognizing")
                     }
+                    Button(Self.cancelRecognitionLabel) { store.cancel() }
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .accessibilityIdentifier("image.import.cancelRecognition")
                 }
             }
 
