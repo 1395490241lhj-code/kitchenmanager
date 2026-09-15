@@ -204,8 +204,17 @@ final class ClipboardRecipeImportUITests: XCTestCase {
             // Real edge-of-frame tap: the whole published rect must trigger
             // the action, not just a smaller live band inside it.
             cta.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08)).tap()
-            let errorLabel = app.staticTexts["无法生成链接抓取请求。"]
-            XCTAssertTrue(errorLabel.waitForExistence(timeout: 5), "CTA 顶边 tap 未触发动作")
+            // What proves the tap fired is that the import failure section
+            // appears at all. Its wording belongs to the link flow: the typed
+            // text carries no usable URL, and that technical LinkExtract case
+            // is deliberately answered with the flow's own sentence rather
+            // than the backend's (see ImportRecipeView.importErrorMessage).
+            XCTAssertTrue(
+                app.staticTexts["导入失败"].waitForExistence(timeout: 5),
+                "CTA 顶边 tap 未触发动作"
+            )
+            let errorLabel = app.staticTexts["暂时无法解析这个链接，请稍后重试。"]
+            XCTAssertTrue(errorLabel.waitForExistence(timeout: 5), "导入失败未给出链接流的安全文案")
             attachScreenshot(of: app, named: "import-cta-error")
 
             // After the error the CTA must be fully usable again.
