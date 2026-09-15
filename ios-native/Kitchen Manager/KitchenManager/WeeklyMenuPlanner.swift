@@ -1069,18 +1069,24 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         generatedPlan = kitchenStore.weeklyPlan
     }
 
-    func generatePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async {
-        guard !isGenerating else { return }
+    /// Returns true only when this call installed a new menu. The caller uses
+    /// that to decide whether to move to the result screen: a cancelled or
+    /// failed run leaves whatever draft was already there, and navigating on
+    /// "a plan exists" would carry the member off the form they cancelled from.
+    @discardableResult
+    func generatePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async -> Bool {
+        guard !isGenerating else { return false }
         guard input.allowNewAIRecipes || !recipeStore.recipes.isEmpty else {
             errorMessage = WeeklyMenuPlannerError.noRecipesAvailable.localizedDescription
-            return
+            return false
         }
-        await run(excludedRecipeNames: [], recipeStore: recipeStore, kitchenStore: kitchenStore)
+        return await run(excludedRecipeNames: [], recipeStore: recipeStore, kitchenStore: kitchenStore)
     }
 
-    func regeneratePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async {
-        guard !isGenerating else { return }
-        await run(
+    @discardableResult
+    func regeneratePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async -> Bool {
+        guard !isGenerating else { return false }
+        return await run(
             excludedRecipeNames: Self.allRecipeNames(in: generatedPlan),
             recipeStore: recipeStore,
             kitchenStore: kitchenStore
@@ -1091,13 +1097,12 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         excludedRecipeNames: [String],
         recipeStore: RecipeStore,
         kitchenStore: KitchenStore
-    ) async {
+    ) async -> Bool {
         cancelGeneration()
         let requestID = UUID()
         activeRequestID = requestID
         isGenerating = true
         errorMessage = nil
-        let previousPlan = generatedPlan
         let existingStartDate = generatedPlan?.startDate
 
         let request = makeRequest(
@@ -1108,19 +1113,24 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         let task = Task { try await self.generate(request) }
         generationTask = task
 
+        var installed = false
         do {
             let response = try await task.value
-            guard activeRequestID == requestID, !Task.isCancelled else { return }
+            guard activeRequestID == requestID, !Task.isCancelled else { return false }
             generatedPlan = Self.makePlan(
                 from: response,
                 recipeStore: recipeStore,
                 servings: input.servings,
                 existingStartDate: existingStartDate
             )
+            installed = true
         } catch is CancellationError {
         } catch {
-            guard activeRequestID == requestID else { return }
-            generatedPlan = previousPlan
+            guard activeRequestID == requestID else { return false }
+            // A failed request wrote nothing, so there is nothing to undo. The
+            // draft on screen is still the member's — including any edit made
+            // while this ran — and restoring the copy taken before the await
+            // would silently throw those edits away.
             errorMessage = Self.generationErrorMessage(for: error)
         }
         if activeRequestID == requestID {
@@ -1128,6 +1138,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             activeRequestID = nil
             generationTask = nil
         }
+        return installed
     }
 
     func cancelGeneration() {
@@ -1791,6 +1802,32 @@ private extension String {
 
 // MARK: - Input view
 
+/// The waiting state for a whole-menu request: what is running, said in words,
+/// and the one way out of it. Both weekly surfaces show the same three parts,
+/// so the markup lives once — but the sentence and the identifier stay at the
+/// call site, because starting a menu and replacing one are different events.
+private struct WeeklyGenerationWaitRow: View {
+    let message: String
+    let cancelIdentifier: String
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack {
+            ProgressView()
+            Text(message)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: KitchenTheme.pageGutter)
+            Button(action: cancel) {
+                // The height sits on the label so the tap target really is that
+                // tall; a borderless button is only as big as what it draws.
+                Text("取消").frame(minHeight: ChromeMetrics.minimumRowHeight)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier(cancelIdentifier)
+        }
+    }
+}
+
 struct WeeklyMenuPlannerView: View {
     /// Handed this screen's store while the generator is on the navigation
     /// stack, so the layer that owns the route can end the workflow when the
@@ -1883,32 +1920,39 @@ struct WeeklyMenuPlannerView: View {
             }
 
             Section {
-                Button {
-                    Task {
-                        await store.generatePlan(recipeStore: recipeStore, kitchenStore: kitchenStore)
-                        guard store.generatedPlan != nil else { return }
-                        // Only take over the screen if this is still the screen.
-                        if isOnScreen {
-                            isShowingResult = true
-                        } else {
-                            hasResultWaiting = true
-                        }
+                if store.isGenerating {
+                    // The waiting state takes the generate action's own place
+                    // rather than covering the form: same row, same section.
+                    WeeklyGenerationWaitRow(
+                        message: "正在生成一周菜单…",
+                        cancelIdentifier: "weekly.generate.cancel"
+                    ) {
+                        store.cancelGeneration()
                     }
-                } label: {
-                    HStack {
-                        Spacer()
-                        if store.isGenerating {
-                            ProgressView().tint(AppTheme.onManagementAction)
-                        } else {
+                } else {
+                    Button {
+                        Task {
+                            // Only a menu this tap produced may move the member
+                            // on. A cancelled run leaves them on the form.
+                            guard await store.generatePlan(recipeStore: recipeStore, kitchenStore: kitchenStore) else { return }
+                            // Only take over the screen if this is still the screen.
+                            if isOnScreen {
+                                isShowingResult = true
+                            } else {
+                                hasResultWaiting = true
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
                             Label("生成菜单", systemImage: "sparkles")
+                            Spacer()
                         }
-                        Spacer()
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(KitchenTheme.aiIndigo)
+                    .foregroundStyle(AppTheme.onManagementAction)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(KitchenTheme.aiIndigo)
-                .foregroundStyle(AppTheme.onManagementAction)
-                .disabled(store.isGenerating)
 
                 if kitchenStore.weeklyPlan != nil {
                     Button("查看上次生成的菜单") {
@@ -2064,6 +2108,19 @@ struct WeeklyMenuResultView: View {
     var body: some View {
         List {
             if let plan = store.generatedPlan {
+                if store.isGenerating {
+                    // The menu below is still the member's draft while its
+                    // replacement is being prepared, so it stays on screen and
+                    // the waiting state sits above it as one more row.
+                    Section {
+                        WeeklyGenerationWaitRow(
+                            message: "正在重新生成…",
+                            cancelIdentifier: "weekly.regenerate.cancel"
+                        ) {
+                            store.cancelGeneration()
+                        }
+                    }
+                }
                 overviewSection(plan)
                 ForEach(plan.days) { day in
                     Section {
