@@ -6,7 +6,7 @@ This is the single instruction entry point for every AI coding agent working on 
 
 When sources disagree, use this order:
 
-1. Actual code, committed configuration, migrations, generated project files, and executable tests, plus fresh build/runtime evidence — the implementation source of truth.
+1. Actual code, committed configuration, migrations, generated project files, and executable tests, plus fresh build/runtime evidence — the implementation source of truth. For Swift/SwiftUI/Xcode-facing work, that build/runtime evidence comes from Xcode itself; see section 4.1.
 2. **Canonical Kitchen Manager project memory** (the Obsidian vault, section 2) for product state, architecture, Product/IA, UI design rules, Decisions, testing/release posture and next actions.
 3. `PROJECT_STATUS.md` — a repo-side, point-in-time snapshot. Useful audit and historical context, but **not canonical current state**: its test counts and implementation status reflect the commit recorded in the document. Current test runs and repo evidence outrank it.
 4. `docs/product/PRINCIPLES.md` and `docs/architecture/OVERVIEW.md` for stable product and architecture rules.
@@ -199,6 +199,8 @@ Choose the relevant sections of:
 
 Inspect the affected View, business model, persistence protocol/record, store/controller and XCTest/XCUITest files.
 
+Validate the result through Xcode — see section 4.1.
+
 ### Server / AI / media / extraction
 
 Read `server.js`, affected `src/server/**` modules and tests, plus at most one of:
@@ -225,6 +227,44 @@ Use a latest validation document only when the task depends on its exact evidenc
 
 Read the code/config/history that the document claims to describe. Verify links and ownership using `docs/README.md`; do not synchronize stale claims across multiple files.
 
+### 4.1 iOS validation — Xcode MCP
+
+Apple's `xcrun mcpbridge` exposes Xcode's own build, test, diagnostic and preview tools to an
+external agent. **When that bridge is available, Xcode is the authoritative build and runtime
+validation environment for Swift/SwiftUI/Xcode-facing changes.** Source inspection is never
+evidence that an iOS change works.
+
+Validation is proportional to the affected surface. Do not run every available tool on every task:
+
+| Affected surface | Minimum validation |
+| --- | --- |
+| Swift implementation | Build the `KitchenManager` scheme through Xcode MCP; inspect Xcode diagnostics before claiming completion; run the relevant automated tests where such tests exist |
+| Tests | Execute the relevant XCTest/XCUITest scope through Xcode when practical. Compiling is not passing |
+| SwiftUI / visual UI | Build and test as above, plus Xcode Preview/render tools when the affected surface has a usable preview. Inspect the rendered result rather than treating source as visual proof. Cover the appearance states the change actually affects — light/dark, Dynamic Type, device size or orientation — not arbitrary permutations |
+| Xcode project / capability / entitlement | Validate through Xcode, inspecting diagnostics and build behavior. The section 5 boundary on signing, accounts, provisioning, entitlements and capabilities applies in full |
+| Documentation-only / non-iOS | Not required, unless the change can affect the built application |
+
+Which tests the project requires is still governed by `docs/development/TESTING.md` section 5. Xcode
+MCP changes how a run is driven, not what has to be run.
+
+**Context safety.** The canonical project is `ios-native/Kitchen Manager/Kitchen Manager.xcodeproj`
+and the canonical shared scheme is `KitchenManager`. Confirm that the active Xcode context is this
+project before using project-scoped tools; whichever Xcode window happens to be open may belong to
+another repository. Discover session-specific values each session and never hard-code them — MCP
+workspace identifiers, simulator UUIDs and DerivedData paths are all ephemeral.
+
+**When the bridge is unavailable.** Report that explicitly, fall back to the supported `xcodebuild`
+workflow in `docs/development/TESTING.md` section 4, and label the result as fallback validation
+rather than MCP-backed validation. Never fabricate Xcode MCP output. When Xcode does report a
+failure, separate failures introduced by the current change from pre-existing or environment-related
+ones, and do not repair unrelated project or environment problems that the task does not cover.
+
+**This section supplements the existing gates and replaces none of them.** Scope gates, working-tree
+cleanliness and known-dirty-file handling (section 2.3), the anti-drift contracts (section 2.7), the
+hard boundaries (section 5), the existing suites and design-language requirements, and the rule
+against committing or pushing unless explicitly requested all continue to apply unchanged. Where an
+existing project rule demands stronger verification than this section, follow the stronger rule.
+
 ## 5. Hard boundaries
 
 Do not change these without explicit approval and a compatibility/migration plan where applicable:
@@ -233,6 +273,7 @@ Do not change these without explicit approval and a compatibility/migration plan
 - user-recipe Overlay precedence or base-recipe immutability;
 - iOS business-model/SwiftData migration compatibility;
 - Keychain/session/secret-storage assumptions;
+- signing identities, Apple accounts, provisioning profiles, entitlements or capabilities — and never change any of these merely to make a build, test or validation pass;
 - household/user scope, RLS, cursor/version/idempotency/tombstone contracts;
 - default-off sync, merge, smoke, dogfood, diagnostics or production-safety flags;
 - startup, login, timer, background or Realtime sync behavior;
@@ -329,3 +370,5 @@ Documentation updated:
 ```
 
 List unrun tests and the exact next command. Never infer a pass from an older report.
+
+For an iOS implementation task, `Validation:` must name the evidence actually obtained — the Xcode build result, the diagnostics inspected, the tests executed and their outcome, and the Preview/render inspection for visual work — and must say whether that evidence came from Xcode MCP or from the `xcodebuild` fallback. Never report an iOS change as verified or working on the strength of completed source edits alone.
