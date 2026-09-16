@@ -174,6 +174,41 @@ final class AIRecipeGenerationWaitStateTests: XCTestCase {
         XCTAssertTrue(produced, "the original request is unharmed")
     }
 
+    /// G7 — a succeeding request lets go of the busy state and of its own
+    /// ownership *before* it reports success, so the transition that success
+    /// triggers cannot take the result back. Pushing 确认菜谱 fires the
+    /// generator's `onDisappear`, which cancels generation; that cancel has to
+    /// land on nothing. This is ordering, not luck — the guarantee lives in
+    /// `finishRequest` running ahead of the `return true`, so assert the state
+    /// the caller actually observes at the moment it is told to move on.
+    func testInitialSuccessIsFinishedBeforeItReportsSuccess() async throws {
+        let h = makeHarness()
+        let generation = await startGenerating(h)
+
+        h.gate.complete(title: "番茄炒蛋")
+        let produced = await generation.value
+        XCTAssertTrue(produced)
+
+        // What the screen sees the instant it is told to present the draft.
+        XCTAssertFalse(h.store.isGenerating, "a finished request must not still be marked busy")
+
+        // The push's own cleanup, run against that state.
+        h.store.cancelGeneration()
+
+        XCTAssertEqual(h.store.generatedDraft?.title, "番茄炒蛋",
+                       "the transition must not cancel the result it exists to present")
+        XCTAssertNil(h.store.errorMessage, "a completed generation has nothing to apologise for")
+        XCTAssertFalse(h.store.isGenerating)
+
+        // Ownership really was released, not merely hidden: the generator is
+        // usable again rather than wedged behind a request that never ended.
+        let next = await startGenerating(h)
+        h.gate.complete(title: "第二道菜")
+        let again = await next.value
+        XCTAssertTrue(again, "a store that finished cleanly can generate again")
+        XCTAssertEqual(h.store.generatedDraft?.title, "第二道菜")
+    }
+
     // MARK: - Regeneration
 
     /// R2 / R5 — cancelling a regeneration preserves the existing draft, and
