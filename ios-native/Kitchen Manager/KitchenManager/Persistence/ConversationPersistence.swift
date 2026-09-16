@@ -114,33 +114,41 @@ final class SwiftDataConversationPersistence: ConversationPersistenceProtocol {
         return try context.fetch(descriptor).map { try $0.action() }
     }
 
-    /// The retry guard: what this key already did, if anything.
+    /// The retry guard: the current side-effect state of this key.
     ///
-    /// A row that reached the domain layer wins over one that did not. A failed
-    /// attempt and a later succeeded attempt can share a key — that is exactly
-    /// what retrying a failed action produces — and answering with the failed
-    /// row would let a third retry repeat a mutation that already happened.
-    /// Preferring the terminal row makes "has this already run" true to the
-    /// side effects rather than to insertion order.
+    /// It answers with the **most recent terminal** row — the latest attempt that
+    /// actually reached the domain layer — and falls back to the most recent
+    /// attempt when nothing has.
     ///
-    /// `.undone` counts as terminal because the mutation did happen; whether a
-    /// retry after an explicit Undo should re-execute is the coordinator's
-    /// decision, and it needs to see that history to make it.
+    /// Both halves matter, and each one is a real lifecycle:
     ///
-    /// Among equally terminal rows the earliest wins, and the sort is what makes
-    /// that stable: an unsorted fetch would answer differently between launches.
+    /// - `failed` then `succeeded`: retrying a failed action. Answering with the
+    ///   failed row would let a later retry repeat a mutation that already happened.
+    /// - `succeeded` then `undone`: the user reversed it. The key's current state
+    ///   is undone, and the coordinator needs to see that to decide what a new
+    ///   request for the same thing means.
+    /// - `undone` then `succeeded`: the user deliberately did it again. Answering
+    ///   with the older undone row would read as "not currently applied" and let a
+    ///   retry duplicate the second, real mutation.
+    ///
+    /// So recency, not insertion order, is the question being asked: what is true
+    /// about this key *now*. `createdAt` then `actionID` keeps that stable, since
+    /// an unsorted fetch would answer differently between launches.
     func action(idempotencyKey: String) throws -> AIConversationActionRecord? {
         let key = idempotencyKey
         let descriptor = FetchDescriptor<ConversationActionRecord>(
             predicate: #Predicate { $0.idempotencyKey == key },
-            sortBy: [SortDescriptor(\.createdAt), SortDescriptor(\.actionID)]
+            sortBy: [
+                SortDescriptor(\.createdAt, order: .reverse),
+                SortDescriptor(\.actionID, order: .reverse)
+            ]
         )
         let records = try context.fetch(descriptor)
-        let terminal = records.first {
+        let latestTerminal = records.first {
             $0.statusRawValue == AIActionStatus.succeeded.rawValue
                 || $0.statusRawValue == AIActionStatus.undone.rawValue
         }
-        return try (terminal ?? records.first)?.action()
+        return try (latestTerminal ?? records.first)?.action()
     }
 
     // MARK: - Writes
