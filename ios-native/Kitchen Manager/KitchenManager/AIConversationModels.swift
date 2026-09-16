@@ -616,7 +616,7 @@ nonisolated enum AIDomainMutationReceipt: Codable, Equatable, Sendable {
     /// One plan added to today. `createdRecipeIDs` are only the recipes this
     /// action itself created, so compensation never deletes a pre-existing one.
     case tonightPlan(plan: MealPlanItem, createdRecipeIDs: [String])
-    case plannerReplacement(before: [MealPlanItem], after: [MealPlanItem])
+    case plannerReplacement(before: [MealPlanItem], after: [MealPlanItem], createdRecipeIDs: [String])
     case specialPlanMenu(before: SpecialPlan, after: SpecialPlan, createdRecipeIDs: [String])
     case shoppingAdditions(before: [KitchenShoppingItem], after: [KitchenShoppingItem])
 
@@ -624,8 +624,9 @@ nonisolated enum AIDomainMutationReceipt: Codable, Equatable, Sendable {
     var createdRecipeIDs: [String] {
         switch self {
         case let .tonightPlan(_, createdRecipeIDs): return createdRecipeIDs
+        case let .plannerReplacement(_, _, createdRecipeIDs): return createdRecipeIDs
         case let .specialPlanMenu(_, _, createdRecipeIDs): return createdRecipeIDs
-        case .plannerReplacement, .shoppingAdditions: return []
+        case .shoppingAdditions: return []
         }
     }
 }

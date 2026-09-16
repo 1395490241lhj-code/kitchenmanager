@@ -292,7 +292,9 @@ final class AIConversationModelsTests: XCTestCase {
     func testMutationReceiptRoundTripsBeforeAndAfterState() throws {
         let before = MealPlanItem(recipeID: "old", recipeName: "宫保鸡丁")
         let after = MealPlanItem(id: before.id, recipeID: "new", recipeName: "清蒸鲈鱼")
-        let receipt = AIDomainMutationReceipt.plannerReplacement(before: [before], after: [after])
+        let receipt = AIDomainMutationReceipt.plannerReplacement(
+            before: [before], after: [after], createdRecipeIDs: ["ai-generated-1"]
+        )
 
         let record = AIConversationActionRecord(
             conversationID: UUID(),
@@ -308,11 +310,15 @@ final class AIConversationModelsTests: XCTestCase {
             AIConversationActionRecord.self, from: JSONEncoder().encode(record)
         )
         XCTAssertEqual(decoded, record)
-        guard case let .plannerReplacement(decodedBefore, decodedAfter) = decoded.undoReference else {
+        guard case let .plannerReplacement(decodedBefore, decodedAfter, decodedCreated) = decoded.undoReference else {
             return XCTFail("undo receipt lost its planner payload")
         }
         XCTAssertEqual(decodedBefore, [before])
         XCTAssertEqual(decodedAfter, [after])
+        // The ids a replacement created survive the round trip too. Undo needs
+        // them to take back a recipe the action itself wrote.
+        XCTAssertEqual(decodedCreated, ["ai-generated-1"])
+        XCTAssertEqual(decoded.undoReference?.createdRecipeIDs, ["ai-generated-1"])
     }
 
     func testContextSnapshotRoundTripsProvenanceOnly() throws {

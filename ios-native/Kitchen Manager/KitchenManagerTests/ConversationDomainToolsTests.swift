@@ -65,6 +65,20 @@ final class ConversationDomainToolsTests: XCTestCase {
         func deleteAll() throws { items = [] }
     }
 
+    private final class ToggleableUserRecipePersistence: UserRecipePersistenceProtocol {
+        struct ExpectedFailure: Error {}
+        var recipes: [Recipe] = []
+        var shouldFail = false
+
+        func loadRecipes() throws -> [Recipe] { recipes }
+        func storedRecordCount() throws -> Int { recipes.count }
+        func replaceRecipes(with recipes: [Recipe]) throws {
+            if shouldFail { throw ExpectedFailure() }
+            self.recipes = recipes
+        }
+        func deleteAll() throws { recipes = [] }
+    }
+
     // MARK: - Fixtures
 
     private var calendar: Calendar {
@@ -92,6 +106,14 @@ final class ConversationDomainToolsTests: XCTestCase {
 
     private func makeRecipeStore() -> RecipeStore {
         RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+    }
+
+    private func makeRecipeStore(_ persistence: UserRecipePersistenceProtocol) -> RecipeStore {
+        RecipeStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            userRecipePersistence: persistence,
+            recipePreferencePersistence: KitchenPersistenceFactory.isolatedInMemory().recipePreferences
+        )
     }
 
     private func recipe(
@@ -711,5 +733,703 @@ final class ConversationDomainToolsTests: XCTestCase {
             existingRecipeID: nil,
             baseServings: SpecialPlanMenuBounds.aiRecipeBaseServings
         )
+    }
+
+    // MARK: - Domain tool live reads
+    //
+    // Conversation memory is not truth. Every read below has to answer from the
+    // store as it is at the moment of the call, because the alternative — a
+    // transcript observation reused as a current fact — is how a conversation
+    // confidently tells someone to cook something they already ate.
+
+    private func makeTools(
+        _ store: KitchenStore,
+        _ recipeStore: RecipeStore
+    ) -> KitchenConversationDomainTools {
+        KitchenConversationDomainTools(
+            kitchenStore: store,
+            recipeStore: recipeStore,
+            calendar: calendar
+        )
+    }
+
+    private func inventoryItem(
+        name: String,
+        quantity: Double = 2,
+        unit: String = "个",
+        expiresInDays: Int? = nil,
+        kind: InventoryItemKind = .ordinary
+    ) -> InventoryItem {
+        InventoryItem(
+            name: name,
+            quantity: quantity,
+            unit: unit,
+            expiryDate: expiresInDays.map { Calendar.current.date(byAdding: .day, value: $0, to: Date())! },
+            kind: kind
+        )
+    }
+
+    /// Staples and ready-to-cook food are on hand and must be readable, but they
+    /// are not the same kind of fact as an ordinary ingredient: one is stocked
+    /// rather than dated, the other is already a dish. A context that flattened
+    /// them would let the assistant propose cooking with a finished meal.
+    func testInventoryContextReadsCurrentTruthWithKindsIntact() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        store.inventory = [
+            inventoryItem(name: "番茄", quantity: 5),
+            inventoryItem(name: "菠菜", expiresInDays: 1),
+            inventoryItem(name: "酱油", quantity: 1, unit: "瓶", kind: .staple),
+            inventoryItem(name: "速冻饺子", quantity: 1, unit: "袋", expiresInDays: 2, kind: .readyToCook),
+            inventoryItem(name: "牛奶", quantity: 0, unit: "盒", expiresInDays: 1)
+        ]
+
+        let context = tools.inventoryContext(now: Date())
+
+        XCTAssertEqual(
+            context.available.map(\.name), ["番茄", "菠菜", "酱油", "速冻饺子"],
+            "a row with nothing left is not on hand"
+        )
+        XCTAssertEqual(context.available.first { $0.name == "酱油" }?.isStaple, true)
+        XCTAssertEqual(context.available.first { $0.name == "速冻饺子" }?.isReadyToCook, true)
+        XCTAssertEqual(
+            context.expiring.map(\.name), ["菠菜", "速冻饺子"],
+            "the expiring set is the app's own, so a staple can never appear in it"
+        )
+    }
+
+    /// Tonight is today's ordinary schedule and nothing else. A Special Plan is
+    /// its own event with its own reading — inferring a meal slot from its
+    /// `scheduledAt` is exactly what the Home contract forbids.
+    func testTonightPlanContextReadsOnlyTodaysOrdinaryPlans() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        let seeded = seedPlans(store)
+        store.addSpecialPlan(specialPlan(dishes: [SpecialPlanDish(recipeID: "s", recipeName: "佛跳墙")]))
+
+        let context = tools.tonightPlanContext(now: day(2026, 3, 19), calendar: calendar)
+
+        XCTAssertEqual(context.meals.map(\.planID), [seeded[1].id])
+        XCTAssertEqual(context.meals.map(\.recipeName), ["红烧肉"])
+        XCTAssertEqual(context.meals.map(\.isCooked), [false])
+        XCTAssertEqual(context.day, calendar.startOfDay(for: day(2026, 3, 19)))
+    }
+
+    /// The week is read from `KitchenStore.plans`, which is the canonical
+    /// ordinary-meal schedule, plus the Special Plans that actually fall in it.
+    func testPlannerWeekContextReadsCanonicalPlansAndCurrentSpecialPlans() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        let seeded = seedPlans(store)
+        XCTAssertTrue(
+            store.appendPlans(
+                [MealPlanItem(recipeID: "d", recipeName: "下周的菜", date: day(2026, 3, 26))],
+                calendar: calendar
+            ).didPersist
+        )
+        let inWeek = specialPlan(dishes: [SpecialPlanDish(recipeID: "s", recipeName: "佛跳墙")])
+        var outOfWeek = specialPlan(dishes: [])
+        outOfWeek.scheduledAt = day(2026, 4, 4)
+        store.addSpecialPlan(inWeek)
+        store.addSpecialPlan(outOfWeek)
+
+        let context = tools.plannerWeekContext(weekStart: day(2026, 3, 16), calendar: calendar)
+
+        XCTAssertEqual(
+            context.meals.map(\.planID), seeded.map(\.id),
+            "the week answers from the canonical schedule, not from a draft weekly menu"
+        )
+        XCTAssertEqual(context.specialPlans.map(\.planID), [inWeek.id])
+        XCTAssertEqual(context.specialPlans.first?.dishCount, 1)
+        XCTAssertEqual(context.specialPlans.first?.peopleCount, 7)
+    }
+
+    func testSpecialPlanContextReadsTheCurrentEventOrNothing() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        let plan = specialPlan(dishes: [
+            SpecialPlanDish(recipeID: "s1", recipeName: "佛跳墙"),
+            SpecialPlanDish(recipeID: "s2", recipeName: "白灼虾", isCooked: true)
+        ])
+        store.addSpecialPlan(plan)
+
+        let context = tools.specialPlanContext(id: plan.id)
+
+        XCTAssertEqual(context?.title, "朋友聚餐")
+        XCTAssertEqual(context?.peopleCount, 7)
+        XCTAssertEqual(context?.constraintNotes, ["1 人不吃辣"])
+        XCTAssertEqual(context?.usesHomeInventory, true, "whether the home fridge counts is part of the event's truth")
+        XCTAssertEqual(context?.dishes.map(\.recipeName), ["佛跳墙", "白灼虾"])
+        XCTAssertEqual(context?.dishes.map(\.isCooked), [false, true])
+        XCTAssertNil(tools.specialPlanContext(id: UUID()), "a plan that is gone is nil, never an empty event")
+    }
+
+    func testResolveRecipeAnswersFromTheRecipeStore() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        try recipeStore.saveUserRecipe(recipe(id: "user-1", title: "红烧牛腩"))
+
+        XCTAssertEqual(tools.resolveRecipe(id: "user-1")?.title, "红烧牛腩")
+        XCTAssertNil(tools.resolveRecipe(id: "never-existed"))
+    }
+
+    /// The same tool instance, asked twice across a change, must answer twice.
+    /// This is the whole reason the adapter holds store references instead of
+    /// copies of kitchen state.
+    func testReadsAnswerFromCurrentStateOnEveryCall() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        let seeded = seedPlans(store)
+
+        XCTAssertEqual(tools.tonightPlanContext(now: day(2026, 3, 19), calendar: calendar).meals.count, 1)
+
+        XCTAssertTrue(store.removePlan(id: seeded[1].id).didPersist)
+        store.inventory = [inventoryItem(name: "番茄")]
+
+        XCTAssertTrue(
+            tools.tonightPlanContext(now: day(2026, 3, 19), calendar: calendar).meals.isEmpty,
+            "a plan the user deleted is not still tonight's dinner"
+        )
+        XCTAssertEqual(tools.inventoryContext(now: Date()).available.map(\.name), ["番茄"])
+    }
+
+    // MARK: - Domain tool mutations
+
+    private func block(_ recipe: Recipe, isTransient: Bool) -> AIRecipeBlock {
+        AIRecipeBlock(recipe: recipe, isTransient: isTransient)
+    }
+
+    /// A recipe the library already holds is referenced, not copied, and the
+    /// receipt claims nothing was created — which is what keeps a later Undo
+    /// from deleting a recipe this action never wrote.
+    func testAddingACanonicalRecipeToTonightCreatesNothing() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let existing = recipe(id: "user-1", title: "红烧牛腩", ingredients: ["牛腩 500 克"], steps: ["炖煮"])
+        try recipeStore.saveUserRecipe(existing)
+
+        let receipt = try tools.addRecipeToTonight(block(existing, isTransient: false), now: day(2026, 3, 19))
+
+        guard case let .tonightPlan(plan, createdRecipeIDs) = receipt else {
+            return XCTFail("expected a tonight-plan receipt, got \(receipt)")
+        }
+        XCTAssertEqual(createdRecipeIDs, [], "a recipe that already existed was not created by this call")
+        XCTAssertEqual(plan.recipeID, "user-1")
+        XCTAssertEqual(store.plans.map(\.id), [plan.id])
+        XCTAssertEqual(
+            tools.tonightPlanContext(now: day(2026, 3, 19), calendar: calendar).meals.map(\.planID), [plan.id],
+            "the meal lands on the day the read asks about"
+        )
+        XCTAssertEqual(recipeStore.userRecipes.count, 1)
+    }
+
+    /// A generated dish becomes a real recipe first, so the plan only ever
+    /// stores an id that already exists.
+    func testAddingATransientRecipeToTonightMaterializesItFirst() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+
+        let receipt = try tools.addRecipeToTonight(
+            block(recipe(id: "ai-1", title: "冬瓜汤", ingredients: ["冬瓜 300 克"], steps: ["煮"]), isTransient: true),
+            now: day(2026, 3, 19)
+        )
+
+        guard case let .tonightPlan(plan, createdRecipeIDs) = receipt else {
+            return XCTFail("expected a tonight-plan receipt, got \(receipt)")
+        }
+        XCTAssertEqual(createdRecipeIDs, ["ai-1"])
+        XCTAssertEqual(recipeStore.userRecipes.map(\.id), ["ai-1"])
+        XCTAssertEqual(plan.recipeID, "ai-1")
+        XCTAssertEqual(plan.recipeName, "冬瓜汤")
+        XCTAssertEqual(store.plans.map(\.id), [plan.id])
+    }
+
+    /// The transient dish turns out to be one the library already has. The
+    /// receipt must not name it: an Undo that deleted it would destroy a recipe
+    /// the user owned before this conversation started.
+    func testATransientRecipeThatAlreadyExistsIsNeverClaimedAsCreated() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        try recipeStore.saveUserRecipe(recipe(id: "user-twin"))
+
+        let receipt = try tools.addRecipeToTonight(
+            block(recipe(id: "ai-1"), isTransient: true),
+            now: day(2026, 3, 19)
+        )
+
+        guard case let .tonightPlan(plan, createdRecipeIDs) = receipt else {
+            return XCTFail("expected a tonight-plan receipt, got \(receipt)")
+        }
+        XCTAssertEqual(createdRecipeIDs, [], "a reused recipe is not this action's to delete")
+        XCTAssertEqual(plan.recipeID, "user-twin")
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(recipeStore.userRecipes.map(\.id), ["user-twin"], "Undo never reaches a pre-existing recipe")
+    }
+
+    /// The recipe was written and the plan write then failed. The library must
+    /// not keep a recipe nothing references.
+    func testAFailedTonightWriteCompensatesTheRecipeItCreated() {
+        let persistence = ToggleableTodayPlanPersistence()
+        let store = makeStore(todayPlan: persistence)
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        persistence.shouldFail = true
+
+        XCTAssertThrowsError(
+            try tools.addRecipeToTonight(
+                block(recipe(id: "ai-1", title: "冬瓜汤"), isTransient: true),
+                now: day(2026, 3, 19)
+            )
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .persistenceFailed) }
+
+        XCTAssertTrue(store.plans.isEmpty, "a refused write leaves no meal on the schedule")
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "the recipe this call created is compensated")
+    }
+
+    func testUndoingATonightAdditionRemovesThePlanAndItsCreatedRecipe() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let receipt = try tools.addRecipeToTonight(
+            block(recipe(id: "ai-1", title: "冬瓜汤"), isTransient: true),
+            now: day(2026, 3, 19)
+        )
+
+        try tools.undo(receipt)
+
+        XCTAssertTrue(store.plans.isEmpty)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "nothing references it any more, so it goes with the plan")
+    }
+
+    /// The same dish was also planned for another day. Undoing tonight cannot
+    /// take the recipe out from under that other row.
+    func testUndoKeepsACreatedRecipeAnotherPlanStillReferences() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let receipt = try tools.addRecipeToTonight(
+            block(recipe(id: "ai-1", title: "冬瓜汤"), isTransient: true),
+            now: day(2026, 3, 19)
+        )
+        XCTAssertTrue(
+            store.appendPlans(
+                [MealPlanItem(recipeID: "ai-1", recipeName: "冬瓜汤", date: day(2026, 3, 22))],
+                calendar: calendar
+            ).didPersist
+        )
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(store.plans.map(\.date), [day(2026, 3, 22)].map { MealPlanItem.normalizedPlannerDate(for: $0, calendar: calendar) })
+        XCTAssertEqual(recipeStore.userRecipes.map(\.id), ["ai-1"], "a recipe another plan still cooks is not deleted")
+    }
+
+    func testUndoKeepsACreatedRecipeASpecialPlanDishStillReferences() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let receipt = try tools.addRecipeToTonight(
+            block(recipe(id: "ai-1", title: "冬瓜汤"), isTransient: true),
+            now: day(2026, 3, 19)
+        )
+        store.addSpecialPlan(specialPlan(dishes: [SpecialPlanDish(recipeID: "ai-1", recipeName: "冬瓜汤")]))
+
+        try tools.undo(receipt)
+
+        XCTAssertTrue(store.plans.isEmpty)
+        XCTAssertEqual(recipeStore.userRecipes.map(\.id), ["ai-1"], "an event still serving it keeps it alive")
+    }
+
+    // MARK: Planner replacement through the tool surface
+
+    func testReplacingPlannedMealsRecordsBothSidesAndUndoRestoresThem() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let seeded = seedPlans(store)
+
+        let receipt = try tools.replacePlannedMeals([
+            AIPlannerMealChange(
+                planID: seeded[0].id,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                plannedServings: 4
+            )
+        ])
+
+        guard case let .plannerReplacement(before, after, createdRecipeIDs) = receipt else {
+            return XCTFail("expected a planner receipt, got \(receipt)")
+        }
+        XCTAssertEqual(before, [seeded[0]], "the receipt carries the exact pre-mutation row")
+        XCTAssertEqual(after.map(\.recipeName), ["清蒸鲈鱼"])
+        XCTAssertEqual(createdRecipeIDs, ["ai-1"], "a replacement that generated a dish owns that recipe too")
+        XCTAssertEqual(store.plans[0].plannedServings, 4)
+        XCTAssertFalse(store.plans[0].isCooked)
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(store.plans, seeded, "Undo restores the row exactly, cooked state included")
+    }
+
+    /// A replacement that generated a dish created a recipe, so Undo has to take
+    /// it back with the row. The receipt is the only record of which recipe that
+    /// was, which is why it carries the ids rather than the caller guessing.
+    func testUndoingAPlannerReplacementRemovesTheRecipeItCreated() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let seeded = seedPlans(store)
+        let receipt = try tools.replacePlannedMeals([
+            AIPlannerMealChange(
+                planID: seeded[0].id,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                plannedServings: nil
+            )
+        ])
+        XCTAssertEqual(recipeStore.userRecipes.map(\.id), ["ai-1"])
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(store.plans, seeded)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "nothing cooks it any more, so it goes back with the row")
+    }
+
+    /// Same replacement, but the user meanwhile planned the new dish for another
+    /// day. The live reference rule outranks the receipt: Undo restores the row
+    /// and leaves the recipe alone.
+    func testUndoingAPlannerReplacementKeepsARecipeAnotherPlanStillReferences() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let seeded = seedPlans(store)
+        let receipt = try tools.replacePlannedMeals([
+            AIPlannerMealChange(
+                planID: seeded[0].id,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                plannedServings: nil
+            )
+        ])
+        XCTAssertTrue(
+            store.appendPlans(
+                [MealPlanItem(recipeID: "ai-1", recipeName: "清蒸鲈鱼", date: day(2026, 3, 22))],
+                calendar: calendar
+            ).didPersist
+        )
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(store.plans.prefix(3).map(\.recipeID), seeded.map(\.recipeID))
+        XCTAssertEqual(recipeStore.userRecipes.map(\.id), ["ai-1"], "a recipe another plan still cooks survives")
+    }
+
+    /// The recipe was written and the plan write then failed. Nothing is
+    /// published and nothing is left in the library.
+    func testAFailedPlannerWriteCompensatesTheRecipesItCreated() {
+        let persistence = ToggleableTodayPlanPersistence()
+        let store = makeStore(todayPlan: persistence)
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let seeded = seedPlans(store)
+        persistence.shouldFail = true
+
+        XCTAssertThrowsError(
+            try tools.replacePlannedMeals([
+                AIPlannerMealChange(
+                    planID: seeded[0].id,
+                    replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                    plannedServings: nil
+                )
+            ])
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .persistenceFailed) }
+
+        XCTAssertEqual(store.plans, seeded, "a refused write leaves the schedule alone")
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "the recipe this call created is compensated")
+    }
+
+    /// The library itself refused the recipe. The tool says so by name rather
+    /// than reporting a generic failure, and writes no plan.
+    func testARefusedRecipeSaveSurfacesAsItsOwnError() {
+        let recipePersistence = ToggleableUserRecipePersistence()
+        let store = makeStore()
+        let recipeStore = makeRecipeStore(recipePersistence)
+        let tools = makeTools(store, recipeStore)
+        recipePersistence.shouldFail = true
+
+        XCTAssertThrowsError(
+            try tools.addRecipeToTonight(
+                block(recipe(id: "ai-1", title: "冬瓜汤"), isTransient: true),
+                now: day(2026, 3, 19)
+            )
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .recipeSaveFailed(title: "冬瓜汤")) }
+
+        XCTAssertTrue(store.plans.isEmpty, "no plan may reference a recipe that was never written")
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty)
+    }
+
+    /// A quantity of nothing, or one that is not a number, is not a shopping
+    /// request. The merge would quietly coerce both to 1, so the receipt would
+    /// claim a success covering an amount nobody asked for.
+    func testAShoppingItemWithNoRealQuantityIsRefusedBeforeAnyWrite() {
+        let persistence = ToggleableShoppingListPersistence()
+        let store = makeStore(shoppingList: persistence)
+        let tools = makeTools(store, makeRecipeStore())
+        let writesBefore = persistence.replaceCallCount
+
+        for quantity in [0, -1, Double.nan, .infinity] {
+            XCTAssertThrowsError(
+                try tools.addShoppingItems([AIShoppingItemProposal(name: "番茄", quantity: quantity, unit: "个")])
+            ) { XCTAssertEqual($0 as? AIDomainToolError, .invalidShoppingQuantity) }
+        }
+        XCTAssertEqual(persistence.replaceCallCount, writesBefore)
+        XCTAssertTrue(store.shoppingItems.isEmpty)
+    }
+
+    /// The adapter names the civil-day calendar it writes with, and the reads
+    /// asked without one use that same calendar. A caller taking the obvious
+    /// path cannot read a day the write did not land on.
+    func testTheAdapterReadsTheSameCivilDayItWrites() throws {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        XCTAssertEqual(tools.calendar, calendar)
+
+        let receipt = try tools.addRecipeToTonight(
+            block(recipe(id: "ai-1", title: "冬瓜汤"), isTransient: true),
+            now: day(2026, 3, 19)
+        )
+
+        guard case let .tonightPlan(plan, _) = receipt else {
+            return XCTFail("expected a tonight-plan receipt, got \(receipt)")
+        }
+        XCTAssertEqual(
+            tools.tonightPlanContext(now: day(2026, 3, 19)).meals.map(\.planID), [plan.id],
+            "the read the adapter answers by default sees the day it just wrote"
+        )
+        XCTAssertEqual(tools.plannerWeekContext(weekStart: day(2026, 3, 16)).meals.map(\.planID), [plan.id])
+    }
+
+    /// The model restated the dish but said nothing about servings. The number
+    /// the user chose for that slot is theirs, so it carries forward rather than
+    /// being silently dropped.
+    func testAReplacementWithoutStatedServingsKeepsTheUsersOwn() throws {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        let seeded = seedPlans(store)
+
+        _ = try tools.replacePlannedMeals([
+            AIPlannerMealChange(
+                planID: seeded[2].id,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                plannedServings: nil
+            )
+        ])
+
+        XCTAssertEqual(store.plans[2].plannedServings, 4)
+    }
+
+    /// A meal the user already cooked and consumed cannot be re-dished. The tool
+    /// has to say that specifically: a generic failure would invite a retry that
+    /// can never succeed.
+    func testReplacingAConsumedMealSurfacesItsOwnRefusal() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        store.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let seeded = seedPlans(store)
+        let drafts = InventoryConsumptionPlanner().plan(
+            for: [.init(recipe: recipe(id: "a", title: "宫保鸡丁"), servings: 2)],
+            inventory: store.inventory
+        )
+        store.applyConsumption(drafts, planIDs: [seeded[0].id], recipeID: "a", recipeName: "宫保鸡丁")
+
+        XCTAssertThrowsError(
+            try tools.replacePlannedMeals([
+                AIPlannerMealChange(
+                    planID: seeded[0].id,
+                    replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                    plannedServings: nil
+                )
+            ])
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .consumedPlans([seeded[0].id])) }
+
+        XCTAssertEqual(store.plans, seeded)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "a refused replacement leaves no recipe behind")
+    }
+
+    func testReplacingAMissingPlannedMealNamesTheRowsItCouldNotFind() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        _ = seedPlans(store)
+        let missing = UUID()
+
+        XCTAssertThrowsError(
+            try tools.replacePlannedMeals([
+                AIPlannerMealChange(
+                    planID: missing,
+                    replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: false),
+                    plannedServings: nil
+                )
+            ])
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .planNotFound([missing])) }
+    }
+
+    func testReplacingNoPlannedMealsIsRefusedBeforeAnyWrite() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+
+        XCTAssertThrowsError(try tools.replacePlannedMeals([])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .emptyRequest)
+        }
+    }
+
+    // MARK: Special Plan dishes through the tool surface
+
+    /// OB9: the store answers `.notFound` for a missing event and a missing dish
+    /// alike. The user has to be told which one is actually gone.
+    func testAMissingEventAndAMissingDishAreDifferentAnswers() throws {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        let plan = specialPlan(dishes: [SpecialPlanDish(recipeID: "s1", recipeName: "佛跳墙")])
+        store.addSpecialPlan(plan)
+        let goneEvent = UUID()
+        let goneDish = UUID()
+        let change = AISpecialPlanDishChange(
+            dishID: goneDish,
+            replacement: block(recipe(id: "ai-1", title: "白灼虾"), isTransient: true)
+        )
+
+        XCTAssertThrowsError(try tools.replaceSpecialPlanDishes(planID: goneEvent, changes: [change])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .specialPlanNotFound(goneEvent))
+        }
+        XCTAssertThrowsError(try tools.replaceSpecialPlanDishes(planID: plan.id, changes: [change])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .dishNotFound([goneDish]))
+        }
+    }
+
+    func testReplacingSpecialPlanDishesRecordsTheEventEitherSideAndUndoRestoresIt() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let dish = SpecialPlanDish(recipeID: "s1", recipeName: "佛跳墙")
+        let plan = specialPlan(dishes: [dish, SpecialPlanDish(recipeID: "s2", recipeName: "白灼虾")])
+        store.addSpecialPlan(plan)
+
+        let receipt = try tools.replaceSpecialPlanDishes(planID: plan.id, changes: [
+            AISpecialPlanDishChange(
+                dishID: dish.id,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true)
+            )
+        ])
+
+        guard case let .specialPlanMenu(before, after, createdRecipeIDs) = receipt else {
+            return XCTFail("expected a special-plan receipt, got \(receipt)")
+        }
+        XCTAssertEqual(before.dishes, plan.dishes)
+        XCTAssertEqual(after.dishes.map(\.recipeName), ["清蒸鲈鱼", "白灼虾"])
+        XCTAssertEqual(after.dishes.map(\.id), plan.dishes.map(\.id), "a replaced dish keeps its id and its place")
+        XCTAssertEqual(createdRecipeIDs, ["ai-1"])
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(store.specialPlans.first?.dishes, plan.dishes)
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty, "the recipe this action created goes back with the menu")
+    }
+
+    func testAFailedSpecialPlanWriteCompensatesTheRecipesItCreated() {
+        let persistence = ToggleableSpecialPlanPersistence()
+        let store = makeStore(specialPlan: persistence)
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let dish = SpecialPlanDish(recipeID: "s1", recipeName: "佛跳墙")
+        let plan = specialPlan(dishes: [dish])
+        store.addSpecialPlan(plan)
+        persistence.shouldFail = true
+
+        XCTAssertThrowsError(
+            try tools.replaceSpecialPlanDishes(planID: plan.id, changes: [
+                AISpecialPlanDishChange(
+                    dishID: dish.id,
+                    replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true)
+                )
+            ])
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .persistenceFailed) }
+
+        XCTAssertEqual(store.specialPlans.first?.dishes, [dish], "a menu the database refused is not published")
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty)
+    }
+
+    /// The event was deleted after the action ran. The restore cannot happen, and
+    /// saying it did would be worse than refusing.
+    func testUndoRefusesTruthfullyWhenTheEventIsGone() throws {
+        let store = makeStore()
+        let recipeStore = makeRecipeStore()
+        let tools = makeTools(store, recipeStore)
+        let dish = SpecialPlanDish(recipeID: "s1", recipeName: "佛跳墙")
+        let plan = specialPlan(dishes: [dish])
+        store.addSpecialPlan(plan)
+        let receipt = try tools.replaceSpecialPlanDishes(planID: plan.id, changes: [
+            AISpecialPlanDishChange(
+                dishID: dish.id,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true)
+            )
+        ])
+        XCTAssertNotNil(store.removeSpecialPlan(id: plan.id))
+
+        XCTAssertThrowsError(try tools.undo(receipt)) {
+            XCTAssertEqual($0 as? AIDomainToolError, .undoTargetMissing)
+        }
+        XCTAssertEqual(
+            recipeStore.userRecipes.map(\.id), ["ai-1"],
+            "an Undo that did not happen must not delete anything either"
+        )
+    }
+
+    // MARK: Shopping through the tool surface
+
+    func testAddingShoppingItemsNormalizesTheSourceAndKeepsTheExistingMerge() throws {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        store.addShopping(name: "鸡蛋", quantity: 6, unit: "个", source: "手动添加")
+        let before = store.shoppingItems
+
+        let receipt = try tools.addShoppingItems([
+            AIShoppingItemProposal(name: "鸡蛋", quantity: 4, unit: "个"),
+            AIShoppingItemProposal(name: "番茄", quantity: 2, unit: "个", remark: "挑软一点的")
+        ])
+
+        guard case let .shoppingAdditions(receiptBefore, receiptAfter) = receipt else {
+            return XCTFail("expected a shopping receipt, got \(receipt)")
+        }
+        XCTAssertEqual(receiptBefore, before)
+        XCTAssertEqual(receiptAfter, store.shoppingItems)
+        XCTAssertEqual(store.shoppingItems.count, 2, "the existing merge behavior is unchanged")
+        XCTAssertEqual(store.shoppingItems[0].quantity, 10)
+        XCTAssertEqual(store.shoppingItems[0].source, "手动添加", "a merged row keeps the source it already had")
+        XCTAssertEqual(store.shoppingItems[1].source, "Kitchen AI")
+        XCTAssertEqual(store.shoppingItems[1].remark, "挑软一点的")
+
+        try tools.undo(receipt)
+
+        XCTAssertEqual(store.shoppingItems, before)
+    }
+
+    func testAddingAnUnnamedOrEmptyShoppingBatchIsRefusedBeforeAnyWrite() {
+        let persistence = ToggleableShoppingListPersistence()
+        let store = makeStore(shoppingList: persistence)
+        let tools = makeTools(store, makeRecipeStore())
+        let writesBefore = persistence.replaceCallCount
+
+        XCTAssertThrowsError(try tools.addShoppingItems([])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .emptyRequest)
+        }
+        XCTAssertThrowsError(
+            try tools.addShoppingItems([AIShoppingItemProposal(name: "  ", quantity: 1, unit: "个")])
+        ) { XCTAssertEqual($0 as? AIDomainToolError, .unnamedShoppingItem) }
+        XCTAssertEqual(persistence.replaceCallCount, writesBefore)
+        XCTAssertTrue(store.shoppingItems.isEmpty)
     }
 }
