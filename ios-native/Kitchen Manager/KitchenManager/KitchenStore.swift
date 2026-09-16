@@ -676,6 +676,117 @@ nonisolated enum PlanBatchOutcome: Equatable {
     }
 }
 
+/// Why a domain mutation was refused before it reached persistence.
+///
+/// A structurally invalid *request*, never a stale reference — that is
+/// `.notFound`. Each case carries the offending ids where it has them, so a
+/// caller can say what it got wrong rather than guessing.
+nonisolated enum DomainMutationRejection: Equatable {
+    /// Nothing to write. A batch is a deliberate act, so an empty one is a
+    /// caller mistake rather than a vacuous success.
+    case empty
+    /// The same target appears more than once, so the request does not describe
+    /// one outcome.
+    case duplicateTargets([UUID])
+}
+
+/// Outcome of a domain mutation made on a conversation's behalf.
+///
+/// Four cases rather than reusing `PlanMutationOutcome`: a model-driven request
+/// can be structurally wrong — empty, or naming one target twice — in a way a
+/// Planner form cannot, and collapsing that into `.notFound` would tell the user
+/// their dish disappeared when the request itself was malformed.
+///
+/// `.rejected` and `.notFound` both guarantee nothing was attempted;
+/// `.persistenceFailed` guarantees nothing was published.
+nonisolated enum DomainMutationOutcome<Value> {
+    case saved(Value)
+    /// A target id current state does not hold.
+    case notFound
+    /// A request refused before it reached the disk.
+    case rejected(DomainMutationRejection)
+    case persistenceFailed
+
+    var value: Value? {
+        guard case .saved(let value) = self else { return nil }
+        return value
+    }
+
+    var didPersist: Bool {
+        guard case .saved = self else { return false }
+        return true
+    }
+
+    var didFailToPersist: Bool {
+        guard case .persistenceFailed = self else { return false }
+        return true
+    }
+
+    var isNotFound: Bool {
+        guard case .notFound = self else { return false }
+        return true
+    }
+
+    var wasRejected: Bool {
+        guard case .rejected = self else { return false }
+        return true
+    }
+
+    var rejection: DomainMutationRejection? {
+        guard case .rejected(let reason) = self else { return nil }
+        return reason
+    }
+}
+
+/// One ordinary meal's target restated: same plan row, different dish.
+nonisolated struct PlanRecipeReplacement: Equatable, Sendable {
+    let planID: UUID
+    let recipeID: String
+    let recipeName: String
+    let plannedServings: Int?
+}
+
+/// Why a replacement batch was refused before it reached persistence. Carries
+/// the offending ids so a caller can say which rows it got wrong.
+nonisolated enum PlanReplacementRejection: Equatable {
+    case empty
+    /// The same plan id appears more than once, so the batch does not describe
+    /// one outcome.
+    case duplicateTargets([UUID])
+    /// Ids `plans` does not hold. The resolvable half must not land alone.
+    case missingTargets([UUID])
+    /// Rows a non-undone consumption record already covers.
+    ///
+    /// Replacing one would leave that record naming a plan whose dish it never
+    /// deducted, and `CookConsumptionStore` reads exactly that pair — plan
+    /// present, `hasConsumedPlan` true — as "already satisfied". The user would
+    /// be shown the new dish as cookable, confirm it, be told it succeeded, and
+    /// have nothing deducted. Releasing or rewriting the record instead is a
+    /// product decision this write path does not own, so it refuses.
+    case consumedTargets([UUID])
+}
+
+nonisolated enum PlanReplacementOutcome: Equatable {
+    /// The replaced rows, in request order.
+    case saved([MealPlanItem])
+    case rejected(PlanReplacementRejection)
+    case persistenceFailed
+}
+
+/// One Special Plan dish's target restated. The dish keeps its id and place.
+nonisolated struct SpecialPlanDishReplacement: Equatable, Sendable {
+    let dishID: UUID
+    let recipeID: String
+    let recipeName: String
+}
+
+/// The shopping list either side of a batch addition, which is everything a
+/// deterministic Undo needs.
+nonisolated struct ShoppingMutationReceipt: Equatable, Sendable {
+    let before: [KitchenShoppingItem]
+    let after: [KitchenShoppingItem]
+}
+
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
@@ -1341,6 +1452,10 @@ final class KitchenStore: ObservableObject {
         do {
             try specialPlanPersistence.replacePlans(with: specialPlans)
         } catch {
+            // No view reads `specialPlanNotice` today. If one ever does, the
+            // Special Plan menu acceptance path would show this *and* its own
+            // `.planSaveFailed` message for one failure; that surface should
+            // defer to the caller's more specific copy.
             specialPlanNotice = "特殊计划保存失败，请稍后重试。"
             #if DEBUG
             print("[SpecialPlanPersistence] save failed: \(error)")
@@ -1565,6 +1680,266 @@ final class KitchenStore: ObservableObject {
         updated.insert(item, at: min(max(index, 0), updated.count))
         guard commitPlans(updated) else { return .persistenceFailed }
         return .saved(item)
+    }
+
+    // MARK: - AI-safe canonical mutation seams
+    //
+    // Additive write paths for mutations a conversation proposes. Nothing here
+    // changes an existing call site: the Planner and Today surfaces keep the
+    // methods they already use.
+    //
+    // Two properties every method below holds to. Persist before publish, so a
+    // caller that is told a write failed is looking at a store that never
+    // changed. And all-or-none, because a model acting on several rows at once
+    // has no user watching to notice that half of it landed.
+
+    /// Restates which dish a set of existing plan rows refers to, in one write.
+    ///
+    /// Deliberately not a remove plus an add: `id` and `date` are what the rest
+    /// of the app joins against — a consumption record's `planIDs` most of all —
+    /// so reissuing them would quietly orphan history. Only the dish identity
+    /// and the stated servings change.
+    ///
+    /// `isCooked` resets on a replaced row and only there: it is now a different
+    /// dish, so the old execution state is not a fact about it. Rows nobody
+    /// named keep theirs.
+    ///
+    /// Every target is resolved against a local copy before anything is written,
+    /// so a duplicate, missing or already-consumed id is refused with nothing
+    /// attempted.
+    @discardableResult
+    func replacePlanRecipes(_ replacements: [PlanRecipeReplacement]) -> PlanReplacementOutcome {
+        guard !replacements.isEmpty else { return .rejected(.empty) }
+
+        var seen = Set<UUID>()
+        var repeated: [UUID] = []
+        for replacement in replacements where !seen.insert(replacement.planID).inserted {
+            if !repeated.contains(replacement.planID) { repeated.append(replacement.planID) }
+        }
+        guard repeated.isEmpty else { return .rejected(.duplicateTargets(repeated)) }
+
+        var updated = plans
+        var targets: [Int] = []
+        var missing: [UUID] = []
+        for replacement in replacements {
+            if let index = updated.firstIndex(where: { $0.id == replacement.planID }) {
+                targets.append(index)
+            } else {
+                missing.append(replacement.planID)
+            }
+        }
+        guard missing.isEmpty else { return .rejected(.missingTargets(missing)) }
+
+        // A consumption record that already covers a row is a fact about the
+        // dish that row used to name. Resetting `isCooked` under it would make
+        // the meal look cookable while the consumption layer still reads it as
+        // settled, so the new dish would silently never be deducted. Refusing a
+        // replacement this floor cannot make consistent is the honest answer;
+        // half-applying one is not.
+        let consumed = replacements.map(\.planID).filter { hasConsumedPlan($0) }
+        guard consumed.isEmpty else { return .rejected(.consumedTargets(consumed)) }
+
+        for (replacement, index) in zip(replacements, targets) {
+            updated[index].recipeID = replacement.recipeID
+            updated[index].recipeName = replacement.recipeName
+            // Assigning the field directly bypasses the initialiser, so the
+            // same validation is restated here rather than assumed.
+            updated[index].plannedServings = Recipe.validatedBaseServings(replacement.plannedServings)
+            updated[index].isCooked = false
+        }
+
+        guard commitPlans(updated) else { return .persistenceFailed }
+        return .saved(targets.map { updated[$0] })
+    }
+
+    /// Writes a set of plan rows back exactly as they were, in one write.
+    ///
+    /// The deterministic reversal for `replacePlanRecipes`: the snapshot carries
+    /// the original dish, servings and cooked state, so Undo restores the row
+    /// rather than approximating it.
+    ///
+    /// Restates rows that still exist; it does not re-insert a deleted one, and
+    /// says `.notFound` instead of inventing it. Putting a *removed* plan back is
+    /// `restorePlan(_:at:)`, which also knows where it sat.
+    @discardableResult
+    func restorePlanItems(_ snapshot: [MealPlanItem]) -> PlanMutationOutcome<[MealPlanItem]> {
+        // An empty restore is a caller mistake rather than a vacuous success:
+        // a receipt that reverses nothing should never have been offered.
+        guard !snapshot.isEmpty else { return .notFound }
+
+        var updated = plans
+        for item in snapshot {
+            guard let index = updated.firstIndex(where: { $0.id == item.id }) else { return .notFound }
+            updated[index] = item
+        }
+        guard commitPlans(updated) else { return .persistenceFailed }
+        return .saved(snapshot)
+    }
+
+    /// Persists first and publishes only on success — `commitPlans` for events.
+    ///
+    /// The ordinary `specialPlans` setter runs persistence after the fact from
+    /// `didSet`, where a failure can only become `specialPlanNotice` copy while
+    /// the in-memory array keeps a change the disk never took.
+    private func commitSpecialPlans(_ updated: [SpecialPlan]) -> Bool {
+        do {
+            try specialPlanPersistence.replacePlans(with: updated)
+        } catch {
+            specialPlanNotice = "特殊计划保存失败，请稍后重试。"
+            #if DEBUG
+            print("[SpecialPlanPersistence] save failed: \(error)")
+            #endif
+            return false
+        }
+        suppressSpecialPlanPersistence = true
+        specialPlans = updated
+        suppressSpecialPlanPersistence = false
+        return true
+    }
+
+    /// Replaces a plan's whole menu in one durable write.
+    ///
+    /// Used when a menu is accepted as a unit, where every dish reference is
+    /// new. Everything else about the event — title, date, people, constraints —
+    /// is untouched by construction: only `dishes` is assigned.
+    ///
+    /// An empty menu is refused rather than written. This is a whole-list
+    /// assignment, so accepting one would erase an event's menu in a single
+    /// durable write — a destructive outcome no caller asks for by saying
+    /// "nothing". Clearing a menu deliberately is a different, explicit act.
+    @discardableResult
+    func setSpecialPlanDishes(
+        planID: UUID,
+        dishes: [SpecialPlanDish],
+        now: Date = Date()
+    ) -> DomainMutationOutcome<SpecialPlan> {
+        guard !dishes.isEmpty else { return .rejected(.empty) }
+        guard let index = specialPlans.firstIndex(where: { $0.id == planID }) else { return .notFound }
+        var updated = specialPlans
+        updated[index].dishes = dishes
+        updated[index].updatedAt = now
+        guard commitSpecialPlans(updated) else { return .persistenceFailed }
+        return .saved(updated[index])
+    }
+
+    /// Restates which recipe named dishes point at, leaving the rest of the
+    /// event alone. One durable write for the whole set.
+    ///
+    /// Same rule as the ordinary Planner path: a dish keeps its id and its
+    /// position, a replaced dish loses its cooked state, and every target is
+    /// resolved on a local copy before anything is written.
+    @discardableResult
+    func replaceSpecialPlanDishes(
+        planID: UUID,
+        replacements: [SpecialPlanDishReplacement]
+    ) -> DomainMutationOutcome<SpecialPlan> {
+        guard !replacements.isEmpty else { return .rejected(.empty) }
+
+        // Naming one dish twice does not describe one outcome, and silently
+        // applying the last of the pair would hide half the request.
+        var seen = Set<UUID>()
+        var repeated: [UUID] = []
+        for replacement in replacements where !seen.insert(replacement.dishID).inserted {
+            if !repeated.contains(replacement.dishID) { repeated.append(replacement.dishID) }
+        }
+        guard repeated.isEmpty else { return .rejected(.duplicateTargets(repeated)) }
+
+        guard var dishes = specialPlans.first(where: { $0.id == planID })?.dishes else { return .notFound }
+
+        for replacement in replacements {
+            guard let index = dishes.firstIndex(where: { $0.id == replacement.dishID }) else { return .notFound }
+            // Rebuilt through the initialiser rather than assigned field by
+            // field, so the display name gets the same trim every other
+            // `SpecialPlanDish` receives. The dish keeps its id and its place.
+            dishes[index] = SpecialPlanDish(
+                id: dishes[index].id,
+                recipeID: replacement.recipeID,
+                recipeName: replacement.recipeName,
+                isCooked: false
+            )
+        }
+
+        return setSpecialPlanDishes(planID: planID, dishes: dishes)
+    }
+
+    /// Writes an event back exactly as it was, in one durable write.
+    ///
+    /// The deterministic reversal for the two methods above. A plan that has
+    /// since been deleted is `.notFound`: Undo restores an event, it does not
+    /// resurrect one.
+    ///
+    /// The whole event is overwritten, so this is only a reversal while the plan
+    /// still matches the state the action left behind. A caller must verify that
+    /// before restoring: an Undo issued after the user renamed the event or
+    /// edited its dishes would discard that work rather than undo the action.
+    /// Establishing the check is the action coordinator's job, not this seam's.
+    @discardableResult
+    func restoreSpecialPlan(_ snapshot: SpecialPlan) -> DomainMutationOutcome<SpecialPlan> {
+        guard let index = specialPlans.firstIndex(where: { $0.id == snapshot.id }) else { return .notFound }
+        var updated = specialPlans
+        updated[index] = snapshot
+        guard commitSpecialPlans(updated) else { return .persistenceFailed }
+        return .saved(snapshot)
+    }
+
+    /// Persists first and publishes only on success — `commitPlans` for the
+    /// shopping list.
+    private func commitShoppingItems(_ updated: [KitchenShoppingItem]) -> Bool {
+        do {
+            try shoppingListPersistence.replaceShoppingItems(with: updated)
+        } catch {
+            shoppingNotice = "购物清单保存失败，请稍后重试。"
+            #if DEBUG
+            print("[ShoppingListPersistence] save failed: \(error)")
+            #endif
+            return false
+        }
+        suppressShoppingPersistence = true
+        shoppingItems = updated
+        suppressShoppingPersistence = false
+        return true
+    }
+
+    /// Adds a batch to the shopping list, publishing only once it is durable.
+    ///
+    /// The merge is the existing one, reached through the same private helper
+    /// `addShoppingItems` uses: a pending row with a matching name and a
+    /// compatible unit absorbs the addition rather than becoming a second line.
+    /// Only the write order differs.
+    ///
+    /// The receipt carries the whole list either side, because the merge means a
+    /// reversal cannot be expressed as "remove these ids" — an absorbed addition
+    /// left no row of its own to remove.
+    @discardableResult
+    func addShoppingItemsPersisted(
+        _ additions: [KitchenShoppingItem]
+    ) -> DomainMutationOutcome<ShoppingMutationReceipt> {
+        guard !additions.isEmpty else { return .rejected(.empty) }
+        let before = shoppingItems
+        var updated = before
+        for addition in additions {
+            Self.mergeOrAppendShoppingItem(addition, into: &updated)
+        }
+        guard commitShoppingItems(updated) else { return .persistenceFailed }
+        return .saved(ShoppingMutationReceipt(before: before, after: updated))
+    }
+
+    /// Writes the shopping list back exactly as it was.
+    ///
+    /// An empty snapshot is legitimate: it is what reversing the first addition
+    /// to an empty list means.
+    ///
+    /// The whole list is overwritten, so this is only a reversal while the list
+    /// still matches the state the action left behind. A caller must verify that
+    /// before restoring: an Undo issued after the user added or ticked off a row
+    /// would discard that work rather than undo the action. Establishing the
+    /// check is the action coordinator's job, not this seam's.
+    @discardableResult
+    func restoreShoppingItems(
+        _ snapshot: [KitchenShoppingItem]
+    ) -> DomainMutationOutcome<[KitchenShoppingItem]> {
+        guard commitShoppingItems(snapshot) else { return .persistenceFailed }
+        return .saved(snapshot)
     }
 
     /// A plan already covered by a non-undone consumption record must not be deducted
