@@ -680,7 +680,10 @@ private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
-struct KitchenShoppingItem: Identifiable, Codable, Hashable {
+// `nonisolated` for the same reason as `MealPlanItem` and `SpecialPlan`: this is
+// a value, and the conversation layer's Undo receipts have to carry it off the
+// main actor. No behavior change.
+nonisolated struct KitchenShoppingItem: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var quantity: Double = 1
