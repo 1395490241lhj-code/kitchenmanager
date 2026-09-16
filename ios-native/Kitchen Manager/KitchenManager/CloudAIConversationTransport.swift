@@ -4,7 +4,7 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
     private let client: APIClient
     private let provider: AIRecommendationProvider
 
-    nonisolated init(client: APIClient, provider: AIRecommendationProvider = .gemini) {
+    init(client: APIClient, provider: AIRecommendationProvider = .gemini) {
         self.client = client
         self.provider = provider
     }

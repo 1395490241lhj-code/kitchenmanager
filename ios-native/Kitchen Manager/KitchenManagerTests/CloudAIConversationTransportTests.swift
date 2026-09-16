@@ -103,7 +103,7 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
 
         let assistantCall = AIConversationTranscriptToolCall(
             id: "call-9",
-            name: "add_recipe_to_tonight",
+            name: "propose_add_recipe_to_tonight",
             arguments: .object(["recipeID": .string("r-1")])
         )
         let request = try AIConversationRuntimeRequest(
@@ -112,7 +112,7 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
                 try XCTUnwrap(.assistantToolCalls([assistantCall])),
                 try XCTUnwrap(.toolResult(forToolCallID: "call-9", text: "已加入今晚计划")),
             ],
-            enabledTools: ["add_recipe_to_tonight"],
+            enabledTools: ["propose_add_recipe_to_tonight"],
             requestID: UUID()
         )
         MockURLProtocol.install { _ in
@@ -128,7 +128,7 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
         let body = try JSONDecoder().decode(CapturedBody.self, from: try XCTUnwrap(raw[0].httpBody))
 
         XCTAssertEqual(body.provider, "gemini")
-        XCTAssertEqual(body.enabledTools, ["add_recipe_to_tonight"])
+        XCTAssertEqual(body.enabledTools, ["propose_add_recipe_to_tonight"])
 
         XCTAssertEqual(body.messages.count, 3)
         XCTAssertEqual(body.messages[0].role, "user")
@@ -140,7 +140,7 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
         XCTAssertEqual(calls.count, 1)
         XCTAssertEqual(calls[0].id, "call-9")
         XCTAssertEqual(calls[0].type, "function")
-        XCTAssertEqual(calls[0].function.name, "add_recipe_to_tonight")
+        XCTAssertEqual(calls[0].function.name, "propose_add_recipe_to_tonight")
         let arguments = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(calls[0].function.arguments.utf8)) as? [String: Any]
         )
