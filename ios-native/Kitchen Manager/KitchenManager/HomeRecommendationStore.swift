@@ -349,7 +349,6 @@ final class HomeRecommendationStore: ObservableObject {
         let requestID = UUID()
         activeRequestID = requestID
         isSearchingRecommendations = true
-        let previous = recommendedRecipes
         let local = searchLocalRecipes(query: query, recipes: recipes, limit: 8)
 
         if local.count >= 3 {
@@ -386,12 +385,13 @@ final class HomeRecommendationStore: ObservableObject {
             return
         } catch {
             guard activeRequestID == requestID else { return }
+            // A failed request produced no result set, so it has no authority
+            // to rewrite the list. Whatever is on screen is live user-owned
+            // state — a card removed while this request was in flight stays
+            // removed. Local hits are a real partial result and still apply.
             if !local.isEmpty {
                 apply(local)
                 lastCompletedSearchQuery = query
-            } else {
-                recommendedRecipes = previous
-                repairIndex()
             }
             recommendationError = Self.recommendationErrorMessage(for: error, hasLocalResults: !recommendedRecipes.isEmpty)
         }
@@ -410,6 +410,10 @@ final class HomeRecommendationStore: ObservableObject {
         isGeneratingRecommendations = true
         recommendationError = nil
         recommendationNotice = nil
+        // Read once, before the await, purely to tell the provider what is
+        // already on screen. This is not a restore point: nothing in this
+        // method may write it back, because whatever happens to the list while
+        // the request is in flight belongs to the member, not to this request.
         let previous = recommendedRecipes
         let excluded = previous.map { $0.recipe.title }
         let query = Self.normalizedQuery(searchQuery)
@@ -430,7 +434,10 @@ final class HomeRecommendationStore: ObservableObject {
             let ai = try await task.value
             guard activeRequestID == requestID, !Task.isCancelled else { return }
             if ai.isEmpty {
-                recommendedRecipes = previous
+                // Returning nothing is not a successful replacement. The call
+                // came back without throwing, but it produced no result set, so
+                // it has the same standing as a failure: the live list stands
+                // and only the sentence below reports what happened.
                 recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
             } else {
                 apply(ai)
@@ -441,8 +448,10 @@ final class HomeRecommendationStore: ObservableObject {
             return
         } catch {
             guard activeRequestID == requestID else { return }
-            recommendedRecipes = previous
-            repairIndex()
+            // Same rule as the search path: a failure does not restore what the
+            // list looked like before the await. `hasLocalResults` therefore
+            // reads the live list, so the "仍可以继续浏览本地推荐" tail is offered
+            // only when there really are cards left to browse.
             recommendationError = Self.recommendationErrorMessage(for: error, hasLocalResults: !recommendedRecipes.isEmpty)
         }
         finishGeneration(requestID)

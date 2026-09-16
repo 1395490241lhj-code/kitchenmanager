@@ -2113,27 +2113,31 @@ struct RecipeRecommendationBrowserView: View {
             || recommendationStore.isGeneratingRecommendations
     }
 
-    /// The browser's only wait state: what is running, said in words, and the
-    /// way out of it. It sits where the answer will appear, so results already
-    /// on screen stay readable and usable underneath a regeneration. Kept local
-    /// to this view on purpose — the recipe and weekly surfaces keep their own
-    /// wording and identifiers, and the presentation layer is not generalized.
+    /// The browser's only wait state: what is running, said in words. It sits
+    /// where the answer will appear, so results already on screen stay readable
+    /// and usable underneath a regeneration. Kept local to this view on purpose
+    /// — the recipe and weekly surfaces keep their own wording and identifiers,
+    /// and the presentation layer is not generalized.
+    ///
+    /// No cancellation here, unlike 做菜 and the weekly menu. Those block on an
+    /// answer the member is waiting to act on, so stopping and staying put is a
+    /// real need. A recommendation request is background work that leaves the
+    /// current list visible and usable, so there is nothing to stop out of; the
+    /// trigger buttons stay disabled while it runs, which is what blocks a
+    /// double start. Request ownership and stale-result rejection are unchanged
+    /// in the store, and leaving the browser still cancels through onDisappear.
     private var recommendationWaitRow: some View {
         HStack {
             ProgressView()
             Text(recommendationStore.isSearchingRecommendations ? "正在找菜…" : "正在生成推荐…")
                 .foregroundStyle(.secondary)
             Spacer(minLength: KitchenTheme.pageGutter)
-            Button {
-                recommendationStore.cancelRequests()
-            } label: {
-                // The height sits on the label so the tap target really is that
-                // tall; a borderless button is only as big as what it draws.
-                Text("取消").frame(minHeight: AppTheme.minimumHitTarget)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier("recommendation.wait.cancel")
         }
+        // The removed button used to set this row's height. Keeping the same
+        // floor here holds the browser's vertical rhythm steady, so the wait
+        // appearing and clearing no longer shifts the list under the member.
+        // Nothing in the row is tappable; this is spacing, not a hit target.
+        .frame(minHeight: AppTheme.minimumHitTarget)
     }
 
     private var searchBar: some View {

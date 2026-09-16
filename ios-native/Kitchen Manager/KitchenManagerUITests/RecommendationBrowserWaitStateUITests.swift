@@ -1,10 +1,15 @@
 import XCTest
 
 /// What the recommendation browser reached through 更多推荐 shows while it is
-/// fetching, and what the way out of that actually does. The browser has three
-/// states and no fourth: a wait that names itself, the list, and the existing
-/// error line. The seeded loading fixture puts a generation in flight with no
-/// results yet, which is the state that used to render the empty state instead.
+/// fetching. The browser has three states and no fourth: a wait that names
+/// itself, the list, and the existing error line. The seeded loading fixture
+/// puts a generation in flight with no results yet, which is the state that
+/// used to render the empty state instead.
+///
+/// Unlike 做菜 and the weekly menu, this wait offers no cancellation: a Home
+/// recommendation request is non-blocking background work that preserves what
+/// is already on screen, so there is nothing for a member to stop and stay put
+/// from. Repeated starts are blocked by the disabled trigger buttons instead.
 final class RecommendationBrowserWaitStateUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
@@ -32,16 +37,12 @@ final class RecommendationBrowserWaitStateUITests: XCTestCase {
         return app
     }
 
-    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
-        let predicate = NSPredicate(format: "exists == false")
-        return XCTWaiter().wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout) == .completed
-    }
-
-    /// B1 / B2 — the wait names itself and offers the way out, and an unfinished
-    /// request is not dressed up as an empty result. Taking the way out is
-    /// silent, stays in the browser, and reveals the state that is actually
-    /// true once nothing is running.
-    func testBrowserWaitStateSaysWhatIsHappeningAndCanBeCancelled() {
+    /// B1 / B2 — the wait names itself and an unfinished request is not dressed
+    /// up as an empty result. Home recommendation requests are non-blocking,
+    /// content-preserving background work, so unlike 做菜 and the weekly menu
+    /// this wait carries no stop-and-stay cancellation. Double-start is blocked
+    /// by the disabled trigger, not by a way out of the wait.
+    func testBrowserWaitStateSaysWhatIsHappeningAndOffersNoCancel() {
         let app = launchBrowser()
 
         // B1: words, not a bare spinner, and nothing invented about progress.
@@ -54,35 +55,33 @@ final class RecommendationBrowserWaitStateUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["暂时没有找到合适的菜"].exists,
                        "a request still in flight must not be reported as an empty result")
 
-        let cancel = app.buttons["recommendation.wait.cancel"]
-        XCTAssertTrue(cancel.exists, "the wait must offer a way out")
-        XCTAssertEqual(cancel.label, "取消")
+        // B2: no way out of the wait, by its own identifier and by its word.
+        // Scoped deliberately: 取消常做 on a card and any 取消 outside this
+        // browser are other controls and are none of this test's business.
+        XCTAssertFalse(app.buttons["recommendation.wait.cancel"].exists,
+                       "the Home recommendation wait must not expose cancellation")
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "label == %@", "取消")).count, 0,
+                       "no replacement control may stand in for the removed wait cancel")
 
-        // B2: the way out is real, silent, and stays where the member is.
-        for _ in 0..<6 where !cancel.isHittable { app.swipeUp() }
-        cancel.tap()
-        XCTAssertTrue(waitForDisappearance(waiting, timeout: 5), "the wait must end when it is cancelled")
-        XCTAssertEqual(app.alerts.count, 0, "cancelling is not a failure")
-        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].exists, "cancelling stays in the browser")
-        XCTAssertTrue(app.staticTexts["暂时没有找到合适的菜"].waitForExistence(timeout: 5),
-                      "with nothing running, the browser shows the state that is actually true")
+        XCTAssertTrue(app.navigationBars.staticTexts["推荐"].exists, "the wait stays in the browser")
     }
 
-    /// B3 — the wait is text and a button, so the largest accessibility size is
-    /// the one that decides whether it still works, and dark mode is the one
-    /// that decides whether it is still legible. Nothing here is carried by the
-    /// spinner alone, and the row introduces no colour of its own.
+    /// B3 — the wait is now text beside a spinner, so the largest accessibility
+    /// size is the one that decides whether it still reads, and dark mode is the
+    /// one that decides whether it is still legible. Nothing here is carried by
+    /// the spinner alone, and removing the button must not strand the sentence
+    /// off-screen or leave the unfinished request looking like an empty result.
     func testBrowserWaitStateStaysReadableAndReachableAtAccessibilitySizes() {
         let app = launchBrowser(size: "UICTContentSizeCategoryAccessibilityXXXL", appearance: .dark)
 
         let waiting = app.staticTexts["正在生成推荐…"]
         XCTAssertTrue(waiting.waitForExistence(timeout: 10), "the sentence must survive the largest text size")
+        for _ in 0..<8 where !waiting.isHittable { app.swipeUp() }
+        XCTAssertTrue(waiting.isHittable, "the wait must stay reachable at accessibility sizes")
 
-        let cancel = app.buttons["recommendation.wait.cancel"]
-        XCTAssertTrue(cancel.exists, "the way out must survive the largest text size")
-        XCTAssertEqual(cancel.label, "取消", "VoiceOver reads the button by its own word")
-        for _ in 0..<8 where !cancel.isHittable { app.swipeUp() }
-        XCTAssertTrue(cancel.isHittable, "the way out must stay tappable at accessibility sizes")
-        XCTAssertGreaterThanOrEqual(cancel.frame.height, 44, "the target must meet the project minimum")
+        XCTAssertFalse(app.buttons["recommendation.wait.cancel"].exists,
+                       "the removed cancel must not reappear at accessibility sizes")
+        XCTAssertFalse(app.staticTexts["暂时没有找到合适的菜"].exists,
+                       "an unfinished request is still not an empty result at accessibility sizes")
     }
 }
