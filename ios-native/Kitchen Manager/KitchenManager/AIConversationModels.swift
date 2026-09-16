@@ -576,10 +576,18 @@ nonisolated enum AIActionProposal: Codable, Equatable, Sendable {
         }
     }
 
-    /// Canonical, model-prose-free identity of what this proposal touches. The
-    /// idempotency key is derived from these values, so two decodings of the
-    /// same intent must produce the same list.
-    var canonicalTargetIDs: [String] {
+    /// References to the domain entities this proposal touches, free of model
+    /// prose. This is what `AIConversationActionRecord.relatedEntityIDs` stores,
+    /// and what provenance and Undo-safety checks look up.
+    ///
+    /// It is deliberately **not** the idempotency identity. It omits material
+    /// proposal data — `plannedServings`, Shopping remarks, the rest of the
+    /// replacement payload — so two genuinely different proposals against the
+    /// same targets share this list. The idempotency key is canonicalized from
+    /// the whole proposal by `ConversationActionCoordinator`; deriving it from
+    /// these values alone would make a real second edit look like a retry and
+    /// silently drop it.
+    var relatedEntityIDs: [String] {
         switch self {
         case let .addRecipeToTonight(recipe):
             return [recipe.recipe.id]

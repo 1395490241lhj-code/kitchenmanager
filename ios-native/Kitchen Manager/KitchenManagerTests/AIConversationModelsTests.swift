@@ -211,7 +211,7 @@ final class AIConversationModelsTests: XCTestCase {
         }
     }
 
-    func testActionProposalRoundTripsAndKeepsCanonicalTargets() throws {
+    func testActionProposalRoundTripsAndKeepsItsDomainReferences() throws {
         let planID = UUID()
         let proposal = AIActionProposal.replacePlannedMeal(
             planID: planID,
@@ -221,12 +221,12 @@ final class AIConversationModelsTests: XCTestCase {
             AIActionProposal.self, from: JSONEncoder().encode(proposal)
         )
         XCTAssertEqual(decoded, proposal)
-        XCTAssertEqual(decoded.canonicalTargetIDs, [planID.uuidString, "ai-probe"])
+        XCTAssertEqual(decoded.relatedEntityIDs, [planID.uuidString, "ai-probe"])
     }
 
-    /// The batch proposals are the ones with flattening logic, and they feed the
-    /// idempotency key: two decodings of the same intent must produce the same list.
-    func testBatchProposalsFlattenCanonicalTargetsDeterministically() {
+    /// The batch proposals are the ones with flattening logic, so their entity
+    /// references have to be deterministic across decodings.
+    func testBatchProposalsFlattenDomainReferencesDeterministically() {
         let firstPlan = UUID()
         let secondPlan = UUID()
         let dish = UUID()
@@ -238,24 +238,52 @@ final class AIConversationModelsTests: XCTestCase {
             AIActionProposal.applyPlannerChanges(changes: [
                 .init(planID: firstPlan, replacement: a),
                 .init(planID: secondPlan, replacement: b)
-            ]).canonicalTargetIDs,
+            ]).relatedEntityIDs,
             [firstPlan.uuidString, "r-a", secondPlan.uuidString, "r-b"]
         )
         XCTAssertEqual(
             AIActionProposal.replaceSpecialPlanDishes(planID: specialPlan, changes: [
                 .init(dishID: dish, replacement: a)
-            ]).canonicalTargetIDs,
+            ]).relatedEntityIDs,
             [specialPlan.uuidString, dish.uuidString, "r-a"]
         )
         XCTAssertEqual(
             AIActionProposal.addShoppingItems(items: [
                 .init(name: "青椒", quantity: 2, unit: "个")
-            ]).canonicalTargetIDs,
+            ]).relatedEntityIDs,
             ["青椒|2.0|个"]
         )
         XCTAssertEqual(
-            AIActionProposal.addRecipeToTonight(recipe: b).canonicalTargetIDs, ["r-b"]
+            AIActionProposal.addRecipeToTonight(recipe: b).relatedEntityIDs, ["r-b"]
         )
+    }
+
+    /// `relatedEntityIDs` is provenance, not identity.
+    ///
+    /// Two proposals that touch the same rows but differ in payload — a different
+    /// serving count, a different remark — must not be mistaken for each other.
+    /// Pinning that here stops a later idempotency key from being derived from
+    /// these values alone, which would silently drop a real second edit.
+    func testDomainReferencesDoNotDistinguishDifferentPayloads() {
+        let planID = UUID()
+        let recipe = AIRecipeBlock(recipe: makeRecipe(id: "r-a"), isTransient: false)
+        let twoServings = AIActionProposal.applyPlannerChanges(changes: [
+            .init(planID: planID, replacement: recipe, plannedServings: 2)
+        ])
+        let fourServings = AIActionProposal.applyPlannerChanges(changes: [
+            .init(planID: planID, replacement: recipe, plannedServings: 4)
+        ])
+        XCTAssertEqual(twoServings.relatedEntityIDs, fourServings.relatedEntityIDs)
+        XCTAssertNotEqual(twoServings, fourServings)
+
+        let plain = AIActionProposal.addShoppingItems(items: [
+            .init(name: "青椒", quantity: 2, unit: "个")
+        ])
+        let remarked = AIActionProposal.addShoppingItems(items: [
+            .init(name: "青椒", quantity: 2, unit: "个", remark: "要小个的")
+        ])
+        XCTAssertEqual(plain.relatedEntityIDs, remarked.relatedEntityIDs)
+        XCTAssertNotEqual(plain, remarked)
     }
 
     /// The receipt is what Undo actually replays. It stores both the pre-mutation
