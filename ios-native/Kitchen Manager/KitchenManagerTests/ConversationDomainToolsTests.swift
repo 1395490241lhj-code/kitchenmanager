@@ -69,10 +69,14 @@ final class ConversationDomainToolsTests: XCTestCase {
         struct ExpectedFailure: Error {}
         var recipes: [Recipe] = []
         var shouldFail = false
+        /// Every library write — save and delete alike — goes through
+        /// `replaceRecipes`, so this counts canonical recipe writes.
+        var replaceCallCount = 0
 
         func loadRecipes() throws -> [Recipe] { recipes }
         func storedRecordCount() throws -> Int { recipes.count }
         func replaceRecipes(with recipes: [Recipe]) throws {
+            replaceCallCount += 1
             if shouldFail { throw ExpectedFailure() }
             self.recipes = recipes
         }
@@ -1286,6 +1290,61 @@ final class ConversationDomainToolsTests: XCTestCase {
         }
     }
 
+    /// A refusal current state already determines must cost the recipe library
+    /// nothing at all.
+    ///
+    /// Every request here carries a TRANSIENT replacement — the only kind that
+    /// gets materialized — so a canonical write would be observable. The
+    /// assertion is on the write count rather than on the final library
+    /// contents deliberately: "created, then rolled back" also ends with an
+    /// empty library, and that is exactly the outcome this excludes. The
+    /// rollback is a second write that can itself fail, and when it does the
+    /// user is left holding a generated recipe from a request that was never
+    /// valid in the first place.
+    func testDeterminableRefusalsPerformNoRecipeWriteAtAll() {
+        let recipePersistence = ToggleableUserRecipePersistence()
+        let recipeStore = makeRecipeStore(recipePersistence)
+        let store = makeStore()
+        let tools = makeTools(store, recipeStore)
+        store.addInventory(name: "番茄", quantity: 5, unit: "个", expiryDate: nil)
+        let seeded = seedPlans(store)
+        let drafts = InventoryConsumptionPlanner().plan(
+            for: [.init(recipe: recipe(id: "a", title: "宫保鸡丁"), servings: 2)],
+            inventory: store.inventory
+        )
+        store.applyConsumption(drafts, planIDs: [seeded[0].id], recipeID: "a", recipeName: "宫保鸡丁")
+        let missing = UUID()
+        func change(_ planID: UUID) -> AIPlannerMealChange {
+            AIPlannerMealChange(
+                planID: planID,
+                replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true),
+                plannedServings: nil
+            )
+        }
+        let writesBefore = recipePersistence.replaceCallCount
+
+        XCTAssertThrowsError(try tools.replacePlannedMeals([])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .emptyRequest)
+        }
+        XCTAssertThrowsError(try tools.replacePlannedMeals([change(seeded[1].id), change(seeded[1].id)])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .duplicateTargets([seeded[1].id]))
+        }
+        XCTAssertThrowsError(try tools.replacePlannedMeals([change(missing)])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .planNotFound([missing]))
+        }
+        XCTAssertThrowsError(try tools.replacePlannedMeals([change(seeded[0].id)])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .consumedPlans([seeded[0].id]))
+        }
+
+        XCTAssertEqual(
+            recipePersistence.replaceCallCount,
+            writesBefore,
+            "a determinable refusal never reaches the recipe library"
+        )
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty)
+        XCTAssertEqual(store.plans, seeded, "and nothing in the schedule moved either")
+    }
+
     // MARK: Special Plan dishes through the tool surface
 
     /// OB9: the store answers `.notFound` for a missing event and a missing dish
@@ -1308,6 +1367,36 @@ final class ConversationDomainToolsTests: XCTestCase {
         XCTAssertThrowsError(try tools.replaceSpecialPlanDishes(planID: plan.id, changes: [change])) {
             XCTAssertEqual($0 as? AIDomainToolError, .dishNotFound([goneDish]))
         }
+    }
+
+    /// One dish named twice describes no single outcome, and the store refuses
+    /// it — but only after the tool has already materialized both replacements.
+    /// Refused here, the library is never touched.
+    func testDuplicateSpecialPlanDishesAreRefusedBeforeAnyRecipeIsCreated() {
+        let recipePersistence = ToggleableUserRecipePersistence()
+        let recipeStore = makeRecipeStore(recipePersistence)
+        let store = makeStore()
+        let tools = makeTools(store, recipeStore)
+        let dish = SpecialPlanDish(recipeID: "s1", recipeName: "佛跳墙")
+        let plan = specialPlan(dishes: [dish, SpecialPlanDish(recipeID: "s2", recipeName: "白灼虾")])
+        store.addSpecialPlan(plan)
+        let change = AISpecialPlanDishChange(
+            dishID: dish.id,
+            replacement: block(recipe(id: "ai-1", title: "清蒸鲈鱼"), isTransient: true)
+        )
+        let writesBefore = recipePersistence.replaceCallCount
+
+        XCTAssertThrowsError(try tools.replaceSpecialPlanDishes(planID: plan.id, changes: [change, change])) {
+            XCTAssertEqual($0 as? AIDomainToolError, .duplicateTargets([dish.id]))
+        }
+
+        XCTAssertEqual(
+            recipePersistence.replaceCallCount,
+            writesBefore,
+            "a duplicate dish never reaches the recipe library"
+        )
+        XCTAssertTrue(recipeStore.userRecipes.isEmpty)
+        XCTAssertEqual(store.specialPlans.first?.dishes, plan.dishes, "and the menu is untouched")
     }
 
     func testReplacingSpecialPlanDishesRecordsTheEventEitherSideAndUndoRestoresIt() throws {

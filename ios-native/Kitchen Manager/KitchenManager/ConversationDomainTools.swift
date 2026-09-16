@@ -360,8 +360,11 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
     ///
     /// Covers both the single replacement and the batch: one row or ten, it is
     /// the same durable write with the same all-or-none guarantee.
+    ///
+    /// Refusals current state can already determine are made *before* anything
+    /// is materialized, so a stale request costs the recipe library nothing.
     func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt {
-        guard !changes.isEmpty else { throw AIDomainToolError.emptyRequest }
+        try preflightPlanTargets(changes.map(\.planID))
 
         let before = changes.compactMap { change in
             kitchenStore.plans.first { $0.id == change.planID }
@@ -384,6 +387,8 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
         case .saved(let after):
             return .plannerReplacement(before: before, after: after, createdRecipeIDs: batch.createdRecipeIDs)
         case .rejected(let reason):
+            // Reachable despite the preflight: state can move between that read
+            // and this write. Kept whole.
             GeneratedRecipeMaterializer.rollbackCreatedRecipes(batch.createdRecipeIDs, recipeStore: recipeStore)
             switch reason {
             case .empty: throw AIDomainToolError.emptyRequest
@@ -403,6 +408,10 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
     /// alike, so both are resolved against live state here first. The user needs
     /// to hear that the gathering is gone, or that one dish is — those are not
     /// the same news.
+    ///
+    /// A dish named twice is refused here too, for the same reason the Planner
+    /// path refuses one: the store would reject it anyway, and finding that out
+    /// after materialization costs a recipe write nobody asked for.
     func replaceSpecialPlanDishes(
         planID: UUID,
         changes: [AISpecialPlanDishChange]
@@ -411,6 +420,8 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
         guard let before = kitchenStore.specialPlans.first(where: { $0.id == planID }) else {
             throw AIDomainToolError.specialPlanNotFound(planID)
         }
+        let repeated = Self.repeatedIDs(changes.map(\.dishID))
+        guard repeated.isEmpty else { throw AIDomainToolError.duplicateTargets(repeated) }
         let present = Set(before.dishes.map(\.id))
         var missing: [UUID] = []
         for id in changes.map(\.dishID) where !present.contains(id) && !missing.contains(id) {
@@ -519,6 +530,48 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
     }
 
     // MARK: Shared mutation helpers
+
+    /// Refuses a Planner batch current state already answers, before a single
+    /// recipe is written.
+    ///
+    /// **This does not replace `KitchenStore.replacePlanRecipes`' own checks and
+    /// must never be "deduplicated" with them.** The store's copy is the
+    /// guarantee: it validates against the state it is about to write, so it
+    /// still catches a row that was deleted or consumed between this read and
+    /// that write. This copy is only an optimization, and it buys one specific
+    /// thing — a determinable refusal performs zero canonical recipe writes,
+    /// instead of creating generated recipes and compensating them afterwards.
+    /// That compensation can itself fail, and an orphan recipe in the user's
+    /// library is a visible consequence of a request that was never valid.
+    ///
+    /// Order follows the store's: an id named twice describes no single
+    /// outcome, an id that is not there cannot be consumed, and consumption is
+    /// the last thing that can refuse a row that does exist.
+    private func preflightPlanTargets(_ ids: [UUID]) throws {
+        guard !ids.isEmpty else { throw AIDomainToolError.emptyRequest }
+
+        let repeated = Self.repeatedIDs(ids)
+        guard repeated.isEmpty else { throw AIDomainToolError.duplicateTargets(repeated) }
+
+        let missing = ids.filter { id in !kitchenStore.plans.contains { $0.id == id } }
+        guard missing.isEmpty else { throw AIDomainToolError.planNotFound(missing) }
+
+        // R17: a row a non-undone consumption record already covers was cooked
+        // and deducted, so it cannot be re-dished at all.
+        let consumed = ids.filter { kitchenStore.hasConsumedPlan($0) }
+        guard consumed.isEmpty else { throw AIDomainToolError.consumedPlans(consumed) }
+    }
+
+    /// The ids that appear more than once, each named once, in the order they
+    /// first repeat — the same answer the store's own duplicate check gives.
+    private static func repeatedIDs(_ ids: [UUID]) -> [UUID] {
+        var seen = Set<UUID>()
+        var repeated: [UUID] = []
+        for id in ids where !seen.insert(id).inserted {
+            if !repeated.contains(id) { repeated.append(id) }
+        }
+        return repeated
+    }
 
     /// Resolves every block to a real recipe, or leaves the library untouched.
     ///
