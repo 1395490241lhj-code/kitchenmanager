@@ -27,5 +27,12 @@ nonisolated enum AIConversationProviderRouter {
             return .unavailable(message: appleUnavailableCopy)
         }
     }
-}
 
+    /// Production entry. Reads the global provider selection itself so no
+    /// caller has to — the one route call every conversation turn makes.
+    nonisolated static func route(
+        userDefaults: UserDefaults = .standard
+    ) -> AIConversationProviderRoute {
+        route(selectedProvider: AIRecommendationProvider.selected(in: userDefaults))
+    }
+}

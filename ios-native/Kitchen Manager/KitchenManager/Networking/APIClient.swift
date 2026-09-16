@@ -138,7 +138,9 @@ actor APIClient {
                         try flushLines()
                     }
                     if !buffer.isEmpty {
-                        var residual = String(decoding: buffer, as: UTF8.self)
+                        guard var residual = String(data: buffer, encoding: .utf8) else {
+                            throw APIError.protocolViolation("流响应的 UTF-8 编码无效。")
+                        }
                         if residual.hasSuffix("\r") { residual.removeLast() }
                         continuation.yield(residual)
                         buffer.removeAll()

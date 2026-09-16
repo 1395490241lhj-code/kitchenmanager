@@ -52,7 +52,6 @@ final class APIClientStreamLinesTests: NetworkTestCase {
             }
             XCTAssertEqual(status, 500)
         }
-    }
 
     func test_streamLines_429PreservesRetryAfter() async throws {
         MockURLProtocol.install { _ in
@@ -85,22 +84,56 @@ final class APIClientStreamLinesTests: NetworkTestCase {
         }
     }
 
-    func test_streamLines_cancellationThrowsCancelled() async throws {
-        // A pending line (never terminated) keeps the stream open; cancelling
-        // the iterator task must surface as APIError.cancelled, not a raw
-        // CancellationError from deep inside Foundation.
-        let gate = AsyncStream<Void>.makeStream()
-        let iteratorGate = gate.stream.makeAsyncIterator()
-        MockURLProtocol.install { request in
-            return .init(statusCode: 200, data: Data("partial\n".utf8))
+    func test_streamLines_malformedUtf8AtEndOfStreamWithoutNewlineSurfacesAsProtocolError() async throws {
+        let badBytes = Data("ok\n".utf8) + Data([0xC3, 0x28])
+        MockURLProtocol.install { _ in
+            .init(statusCode: 200, data: badBytes)
         }
-        // The stream ends its bytes immediately with this mock; to exercise
-        // cancellation we need a hanging response. Use a body with no
-        // terminator is not hanging at URLProtocol level — instead just
-        // verify cancelling a fully-drained stream is safe (no throw).
-        for try await _ in try await apiClient.streamLines(postEndpoint()) {}
-        _ = iteratorGate
-        _ = gate
+        var lines: [String] = []
+        do {
+            for try await line in try await apiClient.streamLines(postEndpoint()) {
+                lines.append(line)
+            }
+            XCTFail("expected throw")
+        } catch let error as APIError {
+            guard case .protocolViolation(let message) = error else {
+                return XCTFail("expected .protocolViolation, got \(error)")
+            }
+            XCTAssertTrue(message.contains("UTF-8"))
+            XCTAssertEqual(lines, ["ok"], "already-decoded strict lines are valid output; only the residual must fail")
+        }
+    }
+
+    func test_streamLines_cancellationStopsConsumingAndSurfacesCancelled() async throws {
+        // Real cancellation: URLProtocol's startLoading sleeps long enough
+        // that the consumer is still pending when the task is cancelled.
+        // The consumer must observe the project's APIError.cancelled —
+        // never a raw CancellationError — and never surface a byte after
+        // the cancel path ran.
+        MockURLProtocol.install { _ in
+            Thread.sleep(forTimeInterval: 0.4)
+            return .init(statusCode: 200, data: Data("x\n".utf8))
+        }
+        let task = Task {
+            var sawAny = false
+            for try await _ in try await apiClient.streamLines(postEndpoint()) {
+                sawAny = true
+            }
+            return sawAny
+        }
+        try await Task.sleep(nanoseconds: 150_000_000)
+        task.cancel()
+        do {
+            let sawAny = try await task.value
+            XCTFail("expected cancellation to throw after seeing \(sawAny) rows")
+        } catch let error as APIError {
+            guard case .cancelled = error else {
+                return XCTFail("expected .cancelled, got \(error)")
+            }
+        } catch {
+            XCTFail("expected APIError.cancelled, got raw \(error)")
+        }
+    }
     }
 
     func test_streamLines_usesSharedRequestBuilderShape() async throws {
@@ -113,4 +146,3 @@ final class APIClientStreamLinesTests: NetworkTestCase {
         XCTAssertTrue(MockURLProtocol.capturedRequests().count == 1)
     }
 }
-
