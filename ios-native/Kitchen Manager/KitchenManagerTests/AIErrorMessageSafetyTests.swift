@@ -204,6 +204,26 @@ final class AIErrorMessageSafetyTests: XCTestCase {
             "nothing local is on screen to browse"
         )
         XCTAssertTrue(withoutLocal.contains("2 分钟"))
+
+        // The unknown-error fallback is the other way to reach this sentence,
+        // and it is the one that used to append the tail unconditionally — a
+        // member whose list was empty was still told to keep browsing it. Both
+        // directions are pinned here so that regression cannot return quietly.
+        XCTAssertEqual(
+            HomeRecommendationStore.recommendationErrorMessage(
+                for: AIChatServiceError.unavailable,
+                hasLocalResults: true
+            ),
+            homeFallback
+        )
+        XCTAssertEqual(
+            HomeRecommendationStore.recommendationErrorMessage(
+                for: AIChatServiceError.unavailable,
+                hasLocalResults: false
+            ),
+            "AI 推荐暂时不可用。",
+            "with nothing on screen the fallback drops the local-browsing clause"
+        )
     }
 
     func testHomeKeepsTheOnDevicePolicyMessage() {
@@ -303,4 +323,3 @@ final class AIErrorMessageSafetyTests: XCTestCase {
         }
     }
 }
-

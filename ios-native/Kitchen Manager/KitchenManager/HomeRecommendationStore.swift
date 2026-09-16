@@ -438,7 +438,13 @@ final class HomeRecommendationStore: ObservableObject {
                 // came back without throwing, but it produced no result set, so
                 // it has the same standing as a failure: the live list stands
                 // and only the sentence below reports what happened.
-                recommendationError = "AI 推荐暂时不可用，仍可以继续浏览本地推荐。"
+                //
+                // Read from the live list, not from `previous`: the member may
+                // have cleared it while the request was in flight, and the
+                // sentence has to describe the screen they are looking at.
+                recommendationError = Self.recommendationUnavailableMessage(
+                    hasLocalResults: !recommendedRecipes.isEmpty
+                )
             } else {
                 apply(ai)
                 recordExecutionOutcome()
@@ -643,7 +649,6 @@ final class HomeRecommendationStore: ObservableObject {
     /// Whatever the reason, local browsing is only offered while local
     /// recommendations are actually on screen.
     static func recommendationErrorMessage(for error: Error, hasLocalResults: Bool) -> String {
-        let localTail = "仍可以继续浏览本地推荐。"
         let safeMessage: String?
         switch error {
         case let appleError as AppleRecommendationError:
@@ -658,8 +663,26 @@ final class HomeRecommendationStore: ObservableObject {
         default:
             safeMessage = nil
         }
-        guard let safeMessage else { return "AI 推荐暂时不可用，" + localTail }
-        return hasLocalResults ? safeMessage + localTail : safeMessage
+        guard let safeMessage else {
+            return recommendationUnavailableMessage(hasLocalResults: hasLocalResults)
+        }
+        return hasLocalResults ? safeMessage + Self.localBrowsingTail : safeMessage
+    }
+
+    private static let localBrowsingTail = "仍可以继续浏览本地推荐。"
+
+    /// The Home sentence for "no recommendations came back", owned in one place
+    /// because two callers need it: this type's error mapper, and the branch
+    /// where the provider answers successfully with nothing.
+    ///
+    /// The tail is a claim about the screen, so it is attached only when
+    /// something local is actually still on it. A member who removed the last
+    /// card while the request was in flight is not told they can keep browsing
+    /// a list that is now empty. `hasLocalResults` must therefore be read from
+    /// the live list at the moment the message is built, never from a snapshot
+    /// taken before the await.
+    static func recommendationUnavailableMessage(hasLocalResults: Bool) -> String {
+        hasLocalResults ? "AI 推荐暂时不可用，" + localBrowsingTail : "AI 推荐暂时不可用。"
     }
 
     private func deduplicated(

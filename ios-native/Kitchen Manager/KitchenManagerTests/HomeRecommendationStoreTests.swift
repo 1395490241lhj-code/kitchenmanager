@@ -287,4 +287,56 @@ final class HomeRecommendationStoreTests: XCTestCase {
         )
         XCTAssertFalse(store.isGeneratingRecommendations, "the request must release its busy state")
     }
+
+    /// The sentence has to describe the screen the member is actually looking
+    /// at. If they removed the last card while the request was in flight, there
+    /// is nothing local left to browse, so offering it is simply untrue. The
+    /// live list decides the wording, never the pre-await snapshot.
+    ///
+    /// The companion case — cards still on screen keeps the local-browsing tail
+    /// — is already covered by
+    /// `testAIGenerationEmptyResultDoesNotRestoreRecommendationRemovedDuringRequest`
+    /// above, which asserts the full tailed sentence while a and c remain.
+    func testAIEmptyResultDoesNotClaimLocalRecommendationsWhenLiveListIsEmpty() async throws {
+        let gate = Gate()
+        let store = HomeRecommendationStore(
+            aiService: SuspendingAIRecommendationService(gate: gate, outcome: [])
+        )
+        store.loadDefaultRecommendations(
+            recipes: [recipe("a", title: "菜甲")],
+            inventory: [],
+            expiringIngredients: []
+        )
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["a"])
+
+        let generation = Task { await store.generateNewRecommendations(inventory: [], expiringIngredients: []) }
+        for _ in 0..<200 where !store.isGeneratingRecommendations {
+            await Task.yield()
+        }
+        XCTAssertTrue(store.isGeneratingRecommendations, "the AI request must be active")
+
+        store.removeRecommendation(id: "a")
+        XCTAssertTrue(store.recommendedRecipes.isEmpty, "the member removed the last card during the wait")
+
+        gate.release()
+        await generation.value
+
+        XCTAssertTrue(store.recommendedRecipes.isEmpty, "nothing came back, so nothing fills the list")
+
+        let message = try XCTUnwrap(store.recommendationError, "the empty result must still be reported")
+        XCTAssertFalse(
+            message.contains("仍可以继续浏览本地推荐"),
+            "there is nothing local left on screen to browse"
+        )
+        XCTAssertEqual(message, "AI 推荐暂时不可用。")
+        XCTAssertEqual(
+            message,
+            HomeRecommendationStore.recommendationErrorMessage(
+                for: AIChatServiceError.unavailable,
+                hasLocalResults: false
+            ),
+            "the zero-result sentence must agree with the Home error boundary's own no-local-results answer"
+        )
+        XCTAssertFalse(store.isGeneratingRecommendations, "the request must release its busy state")
+    }
 }
