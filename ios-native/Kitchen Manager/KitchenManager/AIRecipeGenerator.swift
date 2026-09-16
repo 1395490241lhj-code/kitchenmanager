@@ -307,6 +307,12 @@ final class AIRecipeGeneratorStore: ObservableObject {
             self.generateDraft = generateDraft
             return
         }
+        #if DEBUG
+        if AIRecipeGenerationFixture.isEnabled {
+            self.generateDraft = AIRecipeGenerationFixture.generate
+            return
+        }
+        #endif
         let service = AIGeneratedRecipeService()
         self.generateDraft = { try await service.generate(request: $0) }
     }
@@ -342,7 +348,6 @@ final class AIRecipeGeneratorStore: ObservableObject {
             activeRequestID = requestID
             isGenerating = true
             errorMessage = nil
-            let previousDraft = generatedDraft
             let task = Task { try await self.generateDraft(request) }
             generationTask = task
 
@@ -358,7 +363,10 @@ final class AIRecipeGeneratorStore: ObservableObject {
                 return false
             } catch {
                 guard activeRequestID == requestID else { return false }
-                generatedDraft = previousDraft
+                // A failed request wrote nothing, so there is nothing to undo.
+                // The draft on screen stays editable while a regeneration runs,
+                // so restoring the copy taken before the await would silently
+                // throw away whatever the member changed meanwhile.
                 reportGenerationFailure(error)
                 finishRequest(requestID)
                 return false
@@ -501,3 +509,29 @@ final class AIRecipeGeneratorStore: ObservableObject {
         }
     }
 }
+
+#if DEBUG
+/// A stand-in for the recipe generator's network call: waits long enough for a
+/// UI test to read the waiting state and cancel it on purpose, honours
+/// cancellation exactly like the real request, then answers with one recipe.
+/// Selected by the `UITEST_AI_STUB_GENERATION` launch argument only;
+/// production always wires `AIGeneratedRecipeService`.
+enum AIRecipeGenerationFixture {
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("UITEST_AI_STUB_GENERATION")
+    }
+
+    static func generate(_ request: AIGenerateRecipeRequest) async throws -> EditableRecipeDraft {
+        // Long enough that a test can read the waiting state, type into the
+        // draft underneath it and cancel on purpose without the request
+        // finishing mid-assertion.
+        try await Task.sleep(for: .seconds(30))
+        return EditableRecipeDraft(
+            title: "测试生成菜谱",
+            baseServings: request.servings,
+            ingredientsText: "鸡蛋\n番茄",
+            stepsText: "鸡蛋打散备用\n番茄切块后与鸡蛋同炒"
+        )
+    }
+}
+#endif

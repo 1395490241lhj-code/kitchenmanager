@@ -1,6 +1,35 @@
 import SwiftUI
 import UIKit
 
+/// The waiting state for a whole-recipe request: what is running, said in
+/// words, and the one way out of it. Both `AI 做菜` surfaces show the same
+/// three parts, so the markup lives once in this file — the sentence and the
+/// identifier stay at the call site, because generating a recipe and replacing
+/// one are different events. Deliberately not shared with the weekly surface:
+/// the presentation layer is not generalized yet.
+private struct AIGenerationWaitRow: View {
+    let message: String
+    let cancelIdentifier: String
+    let cancel: () -> Void
+
+    var body: some View {
+        HStack {
+            ProgressView()
+            Text(message)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: KitchenTheme.pageGutter)
+            Button(action: cancel) {
+                // The height sits on the label so the tap target really is
+                // that tall; a borderless button is only as big as what it
+                // draws.
+                Text("取消").frame(minHeight: ChromeMetrics.minimumRowHeight)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier(cancelIdentifier)
+        }
+    }
+}
+
 struct AIGeneratorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var kitchenStore: KitchenStore
@@ -88,30 +117,35 @@ struct AIGeneratorView: View {
             }
 
             Section {
-                Button {
-                    Task {
-                        if await generatorStore.generate(
-                            inventory: kitchenStore.recipeCreationInventory
-                        ) {
-                            isShowingConfirmation = true
-                        }
+                if generatorStore.isGenerating {
+                    // The waiting state takes the generate action's own place
+                    // rather than covering the form: same row, same section.
+                    AIGenerationWaitRow(
+                        message: "正在生成菜谱…",
+                        cancelIdentifier: "ai.generate.cancel"
+                    ) {
+                        generatorStore.cancelGeneration()
                     }
-                } label: {
-                    HStack {
-                        Spacer()
-                        if generatorStore.isGenerating {
-                            ProgressView()
-                                .tint(AppTheme.onManagementAction)
-                        } else {
+                } else {
+                    Button {
+                        Task {
+                            if await generatorStore.generate(
+                                inventory: kitchenStore.recipeCreationInventory
+                            ) {
+                                isShowingConfirmation = true
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Spacer()
                             Label("生成菜谱", systemImage: "sparkles")
+                            Spacer()
                         }
-                        Spacer()
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.managementActionFill)
+                    .foregroundStyle(AppTheme.onManagementAction)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.managementActionFill)
-                .foregroundStyle(AppTheme.onManagementAction)
-                .disabled(generatorStore.isGenerating)
             }
         }
         .navigationTitle("AI 做菜")
@@ -259,6 +293,20 @@ private struct AIRecipeConfirmationView: View {
     var body: some View {
         Form {
             if generatorStore.generatedDraft != nil {
+                if generatorStore.isGenerating {
+                    // The draft below is still the member's and stays editable
+                    // while its replacement is being prepared, so the waiting
+                    // state sits above it as one more row. This is the only
+                    // wait presentation on this screen.
+                    Section {
+                        AIGenerationWaitRow(
+                            message: "正在重新生成…",
+                            cancelIdentifier: "ai.regenerate.cancel"
+                        ) {
+                            generatorStore.cancelGeneration()
+                        }
+                    }
+                }
                 RecipeDraftEditorSections(
                     draft: draftBinding,
                     showsExtendedFields: true
@@ -334,13 +382,6 @@ private struct AIRecipeConfirmationView: View {
         }
         .navigationTitle("确认菜谱")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if generatorStore.isGenerating {
-                ToolbarItem(placement: .topBarTrailing) {
-                    ProgressView()
-                }
-            }
-        }
         .onDisappear {
             generatorStore.cancelGeneration()
         }
@@ -913,6 +954,46 @@ enum LinkImportStubFixture {
             usedTranscript: false,
             usedOCR: false
         )
+    }
+}
+#endif
+
+#if DEBUG
+/// Presents the production confirmation screen with a seeded draft and a
+/// regeneration already in flight — the state the 更多操作 menu would produce.
+/// XCUITest cannot reach it through that menu, because a Menu living in a Form
+/// row does not open under automation, and driving it through the generator's
+/// own push races the generator's \`onDisappear\`, which cancels generation
+/// mid-transition. Hosting the real view directly, the way the planner
+/// regression host already does, avoids both. Same view, same store, same
+/// stub; no product-facing route to regeneration is added.
+struct AIRecipeRegenerationHost: View {
+    static var isEnabled: Bool {
+        ProcessInfo.processInfo.arguments.contains("UITEST_SEED_AI_REGENERATING")
+    }
+
+    @EnvironmentObject private var kitchenStore: KitchenStore
+    @StateObject private var generatorStore = AIRecipeGeneratorStore()
+
+    var body: some View {
+        NavigationStack {
+            AIRecipeConfirmationView(generatorStore: generatorStore) { _ in }
+        }
+        .task {
+            // The request needs something to ask for; this entry skips the
+            // generator form that would normally have supplied it.
+            generatorStore.customIngredientsText = "鸡蛋"
+            generatorStore.generatedDraft = EditableRecipeDraft(
+                title: "番茄炒蛋（UI 测试）",
+                baseServings: 2,
+                ingredientsText: "鸡蛋\n番茄",
+                stepsText: "鸡蛋打散备用\n番茄切块后与鸡蛋同炒"
+            )
+            await generatorStore.generate(
+                inventory: kitchenStore.recipeCreationInventory,
+                regenerate: true
+            )
+        }
     }
 }
 #endif

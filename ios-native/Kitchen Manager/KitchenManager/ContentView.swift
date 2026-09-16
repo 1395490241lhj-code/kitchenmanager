@@ -185,6 +185,8 @@ struct KitchenManagerApp: App {
                 #if DEBUG
                 if PlannerRegressionFixture.isEnabled {
                     PlannerRegressionHost()
+                } else if AIRecipeRegenerationHost.isEnabled {
+                    AIRecipeRegenerationHost()
                 } else {
                     ContentView()
                 }
