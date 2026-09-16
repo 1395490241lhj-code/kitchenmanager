@@ -46,3 +46,7 @@ data/reference/
 
 # Rendered scan pages for 《大众川菜》 batch extraction (regenerable from the PDF)
 /tmp/pdfs/dazhong-full/
+
+# Superpowers SDD runtime workspace (progress ledgers, per-task scratch state).
+# Local execution bookkeeping, not product documentation.
+.superpowers/
