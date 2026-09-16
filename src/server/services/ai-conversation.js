@@ -259,12 +259,28 @@ function normalizeConversationMessages(rawMessages) {
   return messages;
 }
 
+// provider 是显式选择，不是提示。缺省走全局云端默认；显式的 gemini/groq 照办；
+// 其他任何显式取值一律 400，绝不悄悄回落到云端——一个明确选了 Apple 的客户端
+// 被静默改道成云端，等于在用户不知情的情况下把对话送出设备。
+const SUPPORTED_CONVERSATION_PROVIDERS = new Set(['gemini', 'groq']);
+
+function normalizeConversationProvider(rawProvider) {
+  // 信任边界上不做类型强转：String(['gemini']) 会变成 'gemini'，让一个数组冒充
+  // 合法取值。不是字符串就是畸形请求，直接拒。
+  if (rawProvider !== undefined && rawProvider !== null && typeof rawProvider !== 'string') {
+    throw createPublicApiError(400, '不支持的 AI 服务商。', 'unsupported_provider');
+  }
+  const requested = (rawProvider || '').trim().toLowerCase();
+  if (!requested) return AI_CHAT_PROVIDER;
+  if (!SUPPORTED_CONVERSATION_PROVIDERS.has(requested)) {
+    throw createPublicApiError(400, '不支持的 AI 服务商。', 'unsupported_provider');
+  }
+  return normalizeAiProvider(requested);
+}
+
 function normalizeConversationRequest(body) {
   const source = body && typeof body === 'object' ? body : {};
-  const requestedProvider = String(source.provider || '').trim().toLowerCase();
-  const provider = ['gemini', 'groq'].includes(requestedProvider)
-    ? normalizeAiProvider(requestedProvider)
-    : AI_CHAT_PROVIDER;
+  const provider = normalizeConversationProvider(source.provider);
   // 请求体里的 requestID 只服务于客户端自己的关联，服务端不需要它：日志字段是
   // 白名单制，不接受这个名字，把它带进来只会变成一个被静默丢弃的死字段。
   return {

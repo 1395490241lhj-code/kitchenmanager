@@ -84,20 +84,23 @@ function loadServerWithStreams({ streams = [], env = {} } = {}) {
 }
 
 function createRes() {
-  return {
+  // 带 writableEnded 的 EventEmitter：路由把"响应没写完就 close"当作断开信号，
+  // 一个不会发事件、也没有 writableEnded 的裸对象模型不出这个区别。
+  return Object.assign(new EventEmitter(), {
     statusCode: 200,
     body: null,
     headers: {},
     chunks: [],
     ended: false,
+    writableEnded: false,
     set(name, value) { this.headers[String(name).toLowerCase()] = value; return this; },
     setHeader(name, value) { return this.set(name, value); },
     status(code) { this.statusCode = code; return this; },
-    json(payload) { this.body = payload; this.ended = true; return this; },
+    json(payload) { this.body = payload; this.ended = true; this.writableEnded = true; return this; },
     write(chunk) { this.chunks.push(String(chunk)); return true; },
-    end(chunk) { if (chunk) this.chunks.push(String(chunk)); this.ended = true; return this; },
+    end(chunk) { if (chunk) this.chunks.push(String(chunk)); this.ended = true; this.writableEnded = true; return this; },
     flushHeaders() { this.flushed = true; }
-  };
+  });
 }
 
 function createReq(body) {
@@ -106,6 +109,9 @@ function createReq(body) {
   req.headers = {};
   req.ip = '127.0.0.1';
   req.socket = { remoteAddress: '127.0.0.1' };
+  // express.json() 在路由跑起来之前就已经读完了 body，所以处理器看到的请求永远是
+  // complete 的。req 'close' 随后就会发出，而那不是断开。
+  req.complete = true;
   return req;
 }
 
@@ -564,7 +570,8 @@ test('/api/ai-conversation 客户端断开会中止上游生成', async () => {
 
   const call = startPost(app, '/api/ai-conversation', VALID_BODY);
   await waitFor(() => call.res.chunks.length >= 1, 'first delta');
-  call.req.emit('close');
+  // 断开信号是"响应还没写完就 close"，不是请求体读完。
+  call.res.emit('close');
   releaseGate();
   await call.done;
 
@@ -576,6 +583,32 @@ test('/api/ai-conversation 客户端断开会中止上游生成', async () => {
 function res_text(res) {
   return res.chunks.join('');
 }
+
+test('/api/ai-conversation 请求体读完引发的 req close 不会中止仍在进行的生成', async () => {
+  let observedSignal = null;
+  let releaseGate;
+  const gate = new Promise((resolveGate) => { releaseGate = resolveGate; });
+  const stream = async function* handler(_payload, requestOptions) {
+    observedSignal = requestOptions.signal;
+    yield textChunk('第一段');
+    await gate;
+    if (requestOptions.signal?.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    yield textChunk('后半段');
+    yield finishChunk('stop');
+  };
+  const { app } = loadServerWithStreams({ streams: [stream] });
+
+  const call = startPost(app, '/api/ai-conversation', VALID_BODY);
+  await waitFor(() => call.res.chunks.length >= 1, 'first delta');
+  // 正常 POST 的 body 一读完 req 就 close（complete === true），响应还开着。
+  call.req.emit('close');
+  releaseGate();
+  await call.done;
+
+  assert.equal(observedSignal.aborted, false);
+  assert.ok(res_text(call.res).includes('后半段'));
+  assert.deepEqual(events(call.res).at(-1), { type: 'completed', finishReason: 'stop' });
+});
 
 test('/api/ai-conversation 自然结束后的 close 不会中止已完成的响应', async () => {
   let observedSignal = null;
@@ -638,6 +671,66 @@ test('/api/ai-conversation 未配置 provider 密钥时返回安全 503', async 
   assert.equal(res.body.code, 'missing_api_key');
   assert.equal(res.body.error, 'AI 服务暂时不可用。');
   assert.equal(providerCalls.length, 0);
+});
+
+// provider 契约：缺省用配置的云端默认，显式只接受 gemini/groq，其他显式取值 400。
+// 用 apiKey 区分实际被调用的 provider——它就是这次调用真正用出去的凭据。
+function loadForProviderContract() {
+  return loadServerWithStreams({
+    env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-gemini-key' },
+    streams: [streamOf([textChunk('好'), finishChunk('stop')])]
+  });
+}
+
+test('/api/ai-conversation 省略或留空 provider 时用配置的云端默认', async () => {
+  const omitted = loadForProviderContract();
+  const body = { ...VALID_BODY };
+  delete body.provider;
+  const res = await runPost(omitted.app, '/api/ai-conversation', body);
+  assert.equal(res.statusCode, 200);
+  assert.equal(omitted.providerCalls.length, 1);
+  assert.equal(omitted.providerCalls[0].apiKey, 'test-gemini-key');
+
+  const blank = loadForProviderContract();
+  const blankRes = await runPost(blank.app, '/api/ai-conversation', { ...VALID_BODY, provider: '  ' });
+  assert.equal(blankRes.statusCode, 200);
+  assert.equal(blank.providerCalls[0].apiKey, 'test-gemini-key');
+});
+
+test('/api/ai-conversation 显式 gemini 与 groq 都按所选 provider 调用', async () => {
+  const gemini = loadForProviderContract();
+  const geminiRes = await runPost(gemini.app, '/api/ai-conversation', { ...VALID_BODY, provider: 'gemini' });
+  assert.equal(geminiRes.statusCode, 200);
+  assert.equal(gemini.providerCalls[0].apiKey, 'test-gemini-key');
+
+  const groq = loadForProviderContract();
+  const groqRes = await runPost(groq.app, '/api/ai-conversation', { ...VALID_BODY, provider: 'GROQ' });
+  assert.equal(groqRes.statusCode, 200);
+  assert.equal(groq.providerCalls[0].apiKey, 'test-groq-key');
+});
+
+test('/api/ai-conversation 显式 apple 或任意未知 provider 是 400，绝不静默改道云端', async () => {
+  for (const provider of ['apple', 'apple-local', 'openai', '本地']) {
+    const { app, providerCalls } = loadForProviderContract();
+    const res = await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider });
+    assert.equal(res.statusCode, 400, `provider=${provider} 必须被拒绝`);
+    assert.equal(res.body.code, 'unsupported_provider');
+    assert.equal(res.body.error, '不支持的 AI 服务商。');
+    // 被拒绝的 provider 不允许产生任何上游工作。
+    assert.equal(providerCalls.length, 0, `provider=${provider} 不应调用上游`);
+  }
+});
+
+// 信任边界上不能靠 String() 强转：String(['gemini']) === 'gemini'，一个数组就能
+// 冒充成合法取值混过白名单。
+test('/api/ai-conversation 非字符串 provider 是 400，不会被强转成合法取值', async () => {
+  for (const provider of [['gemini'], { name: 'gemini' }, 7, true]) {
+    const { app, providerCalls } = loadForProviderContract();
+    const res = await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider });
+    assert.equal(res.statusCode, 400, `provider=${JSON.stringify(provider)} 必须被拒绝`);
+    assert.equal(res.body.code, 'unsupported_provider');
+    assert.equal(providerCalls.length, 0);
+  }
 });
 
 test('ai-conversation 服务只承认计划中的十二个工具名', async () => {

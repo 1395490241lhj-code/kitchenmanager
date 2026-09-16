@@ -1586,12 +1586,22 @@ app.post('/api/ai-conversation', async (req, res) => {
   let answeredProvider = primaryConfig.provider;
   let answeredAttempt = 1;
   let failureCode = null;
-  // 客户端断开才中止上游；自然结束之后的 close 不能再去 abort 一个已经完成的响应。
-  req.on('close', () => {
-    if (responseCompleted) return;
+  // 客户端断开才中止上游。请求体读完**不是**断开信号：express.json() 把 body 读完
+  // 之后 req 立刻 close（此时 req.complete === true），每个正常请求都会走到那里，
+  // 拿它当断开信号会在响应还开着的时候掐掉一条健康的流。真正的断开只有两种：
+  //   · 响应没有正常写完就 close（res.writableEnded 为 false）——流式路径的主信号；
+  //   · 请求体没读完就结束（req.complete 为 false）——入站请求本身就是残的。
+  const abortForClientDisconnect = () => {
+    if (responseCompleted || clientAborted) return;
     clientAborted = true;
     controller.abort();
-  });
+  };
+  res.on('close', () => { if (!res.writableEnded) abortForClientDisconnect(); });
+  req.on('close', () => { if (!req.complete) abortForClientDisconnect(); });
+  // 监听器是在 await checkAiRateLimit 之后才挂上的，那一小段窗口里客户端要是走了，
+  // close 已经发过、不会再发第二次。补一次状态检查，否则这条生成会跑完、被计费，
+  // 还会把 resultCode 记成 success。
+  if (res.destroyed && !res.writableEnded) abortForClientDisconnect();
 
   for (let index = 0; index < attempts.length; index += 1) {
     const { config, timeout } = attempts[index];
