@@ -114,10 +114,18 @@ final class SwiftDataConversationPersistence: ConversationPersistenceProtocol {
         return try context.fetch(descriptor).map { try $0.action() }
     }
 
+    /// The retry guard. Returns the **earliest** action recorded under this key,
+    /// which is the one whose side effect actually happened; a later duplicate
+    /// row is by definition not the mutation a retry must avoid repeating.
+    ///
+    /// The sort is the point. Without it `fetchLimit = 1` returns an arbitrary
+    /// row, and the guard would answer "has this already succeeded?" differently
+    /// between launches.
     func action(idempotencyKey: String) throws -> AIConversationActionRecord? {
         let key = idempotencyKey
         var descriptor = FetchDescriptor<ConversationActionRecord>(
-            predicate: #Predicate { $0.idempotencyKey == key }
+            predicate: #Predicate { $0.idempotencyKey == key },
+            sortBy: [SortDescriptor(\.createdAt), SortDescriptor(\.actionID)]
         )
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first.map { try $0.action() }

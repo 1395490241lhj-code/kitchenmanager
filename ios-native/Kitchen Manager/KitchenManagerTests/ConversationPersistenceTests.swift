@@ -283,6 +283,53 @@ final class ConversationPersistenceTests: XCTestCase {
         XCTAssertEqual(stored.first?.status, .succeeded)
     }
 
+    /// What a colliding idempotency key actually does.
+    ///
+    /// The column is not unique on purpose: SwiftData resolves a unique conflict
+    /// by upserting, which would silently overwrite the first action's undo
+    /// receipt — the only way to reverse a mutation that already happened. So a
+    /// duplicate is stored, and the guard deterministically returns the earliest
+    /// row, the one whose side effect really occurred.
+    func testCollidingIdempotencyKeyKeepsBothRowsAndResolvesToTheEarliest() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(
+            conversation, message: makeMessage(conversationID: conversation.id)
+        )
+
+        let first = AIConversationActionRecord(
+            conversationID: conversation.id,
+            turnID: UUID(),
+            actionType: .addRecipeToTonight,
+            idempotencyKey: "collision",
+            status: .succeeded,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_500),
+            undoReference: .tonightPlan(
+                plan: MealPlanItem(recipeID: "r-1", recipeName: "清炒时蔬"),
+                createdRecipeIDs: []
+            )
+        )
+        let second = AIConversationActionRecord(
+            conversationID: conversation.id,
+            turnID: UUID(),
+            actionType: .addRecipeToTonight,
+            idempotencyKey: "collision",
+            status: .failed,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_900)
+        )
+        try persistence.upsertAction(first)
+        try persistence.upsertAction(second)
+
+        let reader = makePersistence()
+        XCTAssertEqual(try reader.loadActions(conversationID: conversation.id).count, 2)
+        let resolved = try reader.action(idempotencyKey: "collision")
+        XCTAssertEqual(resolved, first)
+        XCTAssertNotNil(
+            resolved?.undoReference,
+            "the first action's undo receipt must not be overwritten by a colliding key"
+        )
+    }
+
     func testContextSnapshotsRoundTrip() throws {
         let conversation = makeConversation()
         let persistence = makePersistence()

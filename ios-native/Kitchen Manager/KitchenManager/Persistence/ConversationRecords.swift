@@ -83,11 +83,16 @@ final class ConversationMessageRecord {
 final class ConversationActionRecord {
     @Attribute(.unique) var actionID: UUID
     var conversationID: UUID
-    /// Scalar so a retry can look the key up before doing any domain work, and
-    /// unique so a duplicate is impossible rather than silently resolved to an
-    /// arbitrary row. The key already includes the conversation id, so a
-    /// collision is a bug worth failing loudly on.
-    @Attribute(.unique) var idempotencyKey: String
+    /// Scalar so a retry can look the key up before doing any domain work.
+    ///
+    /// Deliberately **not** `@Attribute(.unique)`. SwiftData resolves a unique
+    /// conflict by upserting rather than throwing, so a second action with a
+    /// different `actionID` and a colliding key would silently overwrite the
+    /// first row — including the undo receipt that is the only way to reverse a
+    /// mutation that already happened. Losing a receipt is far worse than
+    /// storing a duplicate row. Idempotency is enforced where it can actually be
+    /// enforced: `action(idempotencyKey:)` is checked before any domain write.
+    var idempotencyKey: String
     var statusRawValue: String
     var createdAt: Date
     var payloadData: Data
