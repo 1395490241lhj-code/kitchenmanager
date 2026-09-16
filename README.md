@@ -1,58 +1,143 @@
 # Kitchen Manager / 厨房管理
 
-> Guest-first、Local-first 的家庭厨房管理产品，包含 Web/PWA、原生 iOS、Express 服务端和 Supabase 账号/同步基础。
+> A guest-first, local-first kitchen manager for household inventory, recipes, meal planning, shopping, and cooking.
 
-Kitchen Manager 帮助个人或小家庭管理库存、临期食材、菜谱、今日/周计划和购物清单，并在用户确认后完成入库或烹饪扣减。PWA 与 iOS 的核心本地功能均可在 Guest 模式使用。
+Kitchen Manager is an open-source household kitchen management project with four connected surfaces:
 
-账号和库存同步能力已存在，但提交配置中的同步、合并、smoke、dogfood 和 diagnostics 开关默认关闭；当前并非生产启用状态。准确发布姿态见 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
+- **Native iOS** — SwiftUI, SwiftData, and Keychain
+- **Web / PWA** — native HTML, CSS, JavaScript, Service Worker, and `localStorage`
+- **Express server** — AI, media/extraction, authentication, and sync APIs
+- **Supabase** — authentication, Postgres, RLS, and the development foundation for controlled inventory sync
 
-## 目录概览
+The product is designed so that its core local workflows remain useful without requiring an account. AI output is treated as a draft, and consequential actions such as imports, inventory changes, and cooking deductions remain reviewable by the user.
+
+**中文简介：** Kitchen Manager 是一个 Guest-first、Local-first 的家庭厨房管理项目，覆盖库存、临期食材、菜谱、今日/周计划、购物清单和烹饪流程。PWA 与原生 iOS 的核心本地能力均可在 Guest 模式下使用。
+
+> **Project status:** the repository contains working PWA and native iOS clients plus auth/sync foundations, but production sync and related operational flags are intentionally disabled in committed configuration. For the current release posture, see [`PROJECT_STATUS.md`](PROJECT_STATUS.md).
+
+## Why this project exists
+
+Kitchen Manager is built around a few practical product and engineering constraints:
+
+- **Guest-first / local-first** — useful kitchen workflows should not depend on account creation or a remote service.
+- **Trust before automation** — AI-assisted extraction and generation produce reviewable drafts rather than silently changing user data.
+- **Explicit data boundaries** — local persistence, authentication, sync, merge, and remote writes have separate contracts and validation paths.
+- **Multi-client consistency without forced sameness** — the PWA and native iOS app share product principles while keeping platform-appropriate UI and implementation details.
+- **Maintainable, evidence-driven development** — repository rules, focused regression tests, and platform-native validation are used to keep changes auditable.
+
+## Agent-assisted development
+
+This repository is also used to develop and document a disciplined workflow for working with coding agents on a real multi-surface application.
+
+[`AGENTS.md`](AGENTS.md) is the single instruction entry point for coding agents. It defines source-of-truth ordering, task routing, safety boundaries, validation expectations, and rules for preserving unrelated work.
+
+Agent-assisted changes are expected to follow the same engineering constraints as human-authored changes:
+
+1. inspect the affected implementation and tests before editing;
+2. make the smallest coherent change;
+3. preserve local-first, confirmation, privacy, and safe-default invariants;
+4. run validation proportional to the affected surface;
+5. inspect the final diff and report exactly what was and was not verified.
+
+For Swift / SwiftUI / Xcode-facing work, the repository treats Xcode itself as the authoritative build and runtime validation environment when the Xcode MCP bridge is available. Test selection remains governed by [`docs/development/TESTING.md`](docs/development/TESTING.md).
+
+The detailed incremental workflow is documented in [`docs/development/WORKFLOW.md`](docs/development/WORKFLOW.md).
+
+## Core capabilities
+
+### Inventory and kitchen state
+
+- household inventory and staple tracking
+- expiry / attention workflows
+- explicit inventory changes and cooking deductions
+- backup / restore foundations
+
+### Recipes and cooking
+
+- recipe library and recipe import flows
+- recommendation and planning workflows
+- cooking mode
+- user recipe overlays without rewriting the base recipe dataset
+
+### Planning and shopping
+
+- Today and weekly planning
+- ordinary meals and special-plan flows
+- shopping-list workflows
+- inventory-aware planning foundations
+
+### AI-assisted workflows
+
+- recipe and planning assistance
+- receipt / media and recipe extraction paths
+- provider-backed server APIs
+- user review before imported or generated results become durable kitchen data
+
+### Accounts and sync foundations
+
+- guest-first email/password authentication
+- Keychain-backed iOS sessions
+- household/user scope separation
+- controlled inventory bootstrap, pull, mutation, conflict, tombstone, and change-feed foundations
+
+Production enablement is intentionally separate from implementation readiness. See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the current operational posture and known gaps.
+
+## Repository layout
 
 ```text
 .
-├── index.html / app.js / styles.css     # Web/PWA 入口
-├── src/                                 # PWA 领域、视图、组件和服务端模块
-├── data/                                # 菜谱与来源恢复数据
-├── server.js                            # Express 入口
-├── supabase/                            # 迁移与数据库验证
-├── ios-native/Kitchen Manager/          # SwiftUI / SwiftData 工程
-├── test/                                # Node 内置测试
-├── scripts/                             # 校验、配置和维护脚本
-├── docs/                                # 权威文档、契约、runbook 与历史证据
-└── AGENTS.md                            # AI 编码代理唯一入口
+├── index.html / app.js / styles.css     # Web/PWA entry points
+├── src/                                 # PWA domain, views, components, server modules
+├── data/                                # Recipe data and source-restoration data
+├── server.js                            # Express entry point
+├── supabase/                            # Migrations and database validation
+├── ios-native/Kitchen Manager/          # SwiftUI / SwiftData project
+├── test/                                # Node built-in tests
+├── scripts/                             # Validation, configuration, maintenance scripts
+├── docs/                                # Architecture, contracts, runbooks, development docs
+└── AGENTS.md                            # Single entry point for coding agents
 ```
 
-## 运行 Web / PWA
+## Quick start — Web / PWA
 
-要求：Node.js 22 或更高版本、npm。
+### Requirements
+
+- Node.js 22 or later
+- npm
 
 ```bash
 npm install
 npm start
 ```
 
-默认地址：`http://localhost:3000`。
+The default local address is:
 
-仅查看静态前端时可使用静态文件服务器；静态模式不提供 Express `/api/*`，AI、抓取、认证和同步能力会明确降级。
+```text
+http://localhost:3000
+```
 
-## 打开原生 iOS 工程
+A static file server can be used when only the frontend is needed, but static mode does not provide Express `/api/*` routes. AI, extraction, authentication, and sync capabilities therefore degrade explicitly in that mode.
 
-工程路径：
+## Open the native iOS project
+
+The Xcode project is located at:
 
 ```text
 ios-native/Kitchen Manager/Kitchen Manager.xcodeproj
 ```
 
-首次配置开发环境：
+For initial development configuration:
 
 ```bash
 npm install
 npm run configure:ios-auth
 ```
 
-真实凭据必须保存在 Git 忽略的本地配置中，不得提交。
+Real credentials must remain in Git-ignored local configuration and must not be committed.
 
-## 常用验证
+## Validation
+
+Common repository-level checks include:
 
 ```bash
 npm test
@@ -61,35 +146,61 @@ npm run validate:recipe-packs
 npm run validate:recipe-pack-data
 ```
 
-认证、同步和数据库命令只应在明确确认的开发环境中运行。iOS 构建、Unit/UI、Hosted Smoke 和按改动选测试的规则见 [`docs/development/TESTING.md`](docs/development/TESTING.md)。
+iOS build, XCTest / XCUITest, release checks, hosted smoke boundaries, and change-based test selection are documented in [`docs/development/TESTING.md`](docs/development/TESTING.md).
 
-## 数据与隐私
+Validation is intentionally proportional: documentation-only work does not trigger unrelated full application suites, while shared models, persistence, sync, networking, release gates, and completed feature phases require broader evidence.
 
-- PWA 通过 `src/storage.js` 与 `S.keys` 访问 `localStorage`。
-- iOS 使用 SwiftData 持久化业务数据，使用 Keychain 保存认证会话。
-- AI 输出始终是草稿；小票、菜谱和库存变更需要校验与用户确认。
-- 用户菜谱写 Overlay，不直接改写基础菜谱数据。
-- 备份不得包含 API key、访问令牌或其他秘密。
-- 同步写入必须走受控服务端/RPC/RLS 合约。
+## Data and privacy
 
-## 文档入口
+- PWA business data is accessed through the project's storage layer and persisted locally with `localStorage`.
+- iOS business data is persisted with SwiftData; authentication sessions are stored in Keychain.
+- AI output remains a draft until the relevant user-confirmation flow accepts it.
+- User recipes are stored as overlays instead of silently rewriting the base recipe dataset.
+- Backups must not include API keys, access tokens, or other secrets.
+- Sync writes must follow the controlled server / RPC / RLS contracts.
+- Development and production-like environments are treated as separate operational concerns; local validation is not presented as proof of production readiness.
 
-- [`docs/README.md`](docs/README.md)：完整文档索引与信息归属规则
-- [`PROJECT_STATUS.md`](PROJECT_STATUS.md)：当前 main 状态快照
-- [`CHANGELOG.md`](CHANGELOG.md)：已进入 main 的重要变化
-- [`docs/product/PRINCIPLES.md`](docs/product/PRINCIPLES.md)：稳定产品原则
-- [`docs/architecture/OVERVIEW.md`](docs/architecture/OVERVIEW.md)：稳定架构概览
-- [`docs/development/WORKFLOW.md`](docs/development/WORKFLOW.md)：开发与 Agent 增量工作流
-- [`AGENTS.md`](AGENTS.md)：AI 编码代理入口
+## Development workflow
 
-发生冲突时，以实际代码、配置、迁移和测试为准。
+Before making a meaningful change, start with repository reality and read only the smallest relevant context.
 
-## 部署说明
+Useful entry points:
 
-- PWA 可由 GitHub Pages 等静态平台托管。
-- Express hosted configuration 主要在仓库外管理；仓库没有完整后端 IaC。
-- 开发环境验证不等于生产部署或上线。
+- [`AGENTS.md`](AGENTS.md) — coding-agent policy, source-of-truth order, safety and validation routing
+- [`docs/development/WORKFLOW.md`](docs/development/WORKFLOW.md) — incremental task workflow
+- [`docs/development/TESTING.md`](docs/development/TESTING.md) — test and verification policy
+- [`docs/development/CODING.md`](docs/development/CODING.md) — coding conventions
+- [`docs/architecture/OVERVIEW.md`](docs/architecture/OVERVIEW.md) — stable architecture overview
+- [`docs/product/PRINCIPLES.md`](docs/product/PRINCIPLES.md) — stable product principles
+
+Keep unrelated refactors out of scope, preserve safe defaults, and add regression coverage close to the invariant being changed.
+
+## Documentation map
+
+The repository deliberately separates current status, stable principles, architecture, contracts, and historical evidence instead of treating every document as equally authoritative.
+
+- [`docs/README.md`](docs/README.md) — complete documentation index and ownership rules
+- [`PROJECT_STATUS.md`](PROJECT_STATUS.md) — point-in-time repository/release status snapshot
+- [`CHANGELOG.md`](CHANGELOG.md) — notable changes already integrated into `main`
+- [`docs/product/PRINCIPLES.md`](docs/product/PRINCIPLES.md) — stable product principles
+- [`docs/architecture/OVERVIEW.md`](docs/architecture/OVERVIEW.md) — stable architecture overview
+- [`docs/development/WORKFLOW.md`](docs/development/WORKFLOW.md) — development workflow
+- [`AGENTS.md`](AGENTS.md) — agent instruction entry point
+
+When documentation disagrees with current executable behavior, current code, committed configuration, migrations, and executable tests take precedence according to the source-of-truth rules in [`AGENTS.md`](AGENTS.md).
+
+## Deployment notes
+
+- The PWA can be served from static hosting for frontend-only use, including platforms such as GitHub Pages.
+- Express hosted configuration is primarily managed outside this repository; the repository does not contain complete backend infrastructure-as-code.
+- Development validation does not imply that a production deployment is enabled or complete.
+
+## Contributing
+
+Issues and focused contributions are welcome. Before changing the repository, read [`AGENTS.md`](AGENTS.md) and [`docs/development/WORKFLOW.md`](docs/development/WORKFLOW.md), then use [`docs/development/TESTING.md`](docs/development/TESTING.md) to select validation proportional to the change.
+
+Please keep contributions narrow, avoid unrelated cleanup, preserve local-first and confirmation guarantees, and describe the validation actually performed rather than relying on historical test counts.
 
 ## License
 
-MIT
+Kitchen Manager is licensed under the [MIT License](LICENSE).
