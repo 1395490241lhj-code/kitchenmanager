@@ -26,6 +26,11 @@ nonisolated enum APIError: LocalizedError, @unchecked Sendable {
     case decodingFailed(Error)
     case httpStatus(Int)
 
+    /// A server that answered 2xx but then sent malformed protocol data
+    /// (bad UTF-8, broken JSON framing, missing terminal event). This is a
+    /// distinct safe failure — R24 forbids masking it as success.
+    case protocolViolation(String)
+
     var errorDescription: String? {
         switch self {
         case .invalidURL:
@@ -52,6 +57,8 @@ nonisolated enum APIError: LocalizedError, @unchecked Sendable {
             return payload?.displayMessage ?? "服务器请求失败，状态码：\(status)。"
         case .decodingFailed(let error):
             return "服务器返回的数据无法解析：\(error.localizedDescription)"
+        case .protocolViolation(let message):
+            return message
         case .httpStatus(let status):
             return "服务器请求失败，状态码：\(status)。"
         }

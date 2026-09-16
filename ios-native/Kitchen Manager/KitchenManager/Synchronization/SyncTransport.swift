@@ -120,8 +120,10 @@ actor ExpressSyncTransport: SyncTransport {
         // unreachable.
         case .rateLimited(let retryAfter):
             return .rateLimited(retryAfterSeconds: retryAfter)
+        // Streaming protocol violations are not part of the sync error
+        // taxonomy; they are transport-level safe failures here.
         case .timeout, .transport, .invalidResponse, .invalidURL, .cancelled,
-             .notFound, .validation:
+             .notFound, .validation, .protocolViolation:
             return .transport
         }
     }

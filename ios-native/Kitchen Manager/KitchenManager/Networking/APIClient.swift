@@ -73,6 +73,100 @@ actor APIClient {
         return try await perform(request, method: endpoint.method, path: endpoint.path)
     }
 
+    /// Streams a response as raw UTF-8 lines. The response status is
+    /// validated BEFORE any line is yielded, so a non-2xx status surfaces
+    /// as the same typed errors every other APIClient call produces
+    /// (including 429's Retry-After). Malformed protocol data surfaces as
+    /// APIError.protocolViolation rather than a silent success.
+    ///
+    /// No line contents, headers, prompt payloads, or context values are
+    /// ever logged by this function. Cancelling the consuming Task
+    /// cancels the underlying URLSession work.
+    func streamLines(_ endpoint: APIEndpoint) async throws -> AsyncThrowingStream<String, Error> {
+        let request = try buildRequest(for: endpoint)
+        let bytes: URLSession.AsyncBytes
+        let httpResponse: HTTPURLResponse
+        do {
+            let (stream, response) = try await session.bytes(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
+            }
+            bytes = stream
+            httpResponse = http
+        } catch let error as URLError {
+            switch error.code {
+            case .cancelled:
+                throw APIError.cancelled
+            case .timedOut:
+                throw APIError.timeout
+            default:
+                throw APIError.transport(error.localizedDescription)
+            }
+        } catch is CancellationError {
+            throw APIError.cancelled
+        } catch {
+            throw APIError.transport(error.localizedDescription)
+        }
+        guard 200..<300 ~= httpResponse.statusCode else {
+                        if httpResponse.statusCode == 429 {
+                let retryAfter = Self.retryAfterInterval(from: httpResponse.value(forHTTPHeaderField: "Retry-After"))
+                throw APIError.rateLimited(retryAfter: retryAfter)
+            }
+            throw APIError.server(status: httpResponse.statusCode, payload: nil)
+        }
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                var buffer = Data()
+                func flushLines() throws {
+                    while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+                        let lineData = buffer.prefix(upTo: newlineIndex)
+                        buffer.removeSubrange(0...newlineIndex)
+                        // Strict UTF-8 decoding: a server that answers 2xx
+                        // and then sends non-UTF-8 bytes is a protocol
+                        // violation, not garbage-tolerant success (R24).
+                        guard var line = String(data: lineData, encoding: .utf8) else {
+                            throw APIError.protocolViolation("流响应的 UTF-8 编码无效。")
+                        }
+                        // Strip the CR in CRLF line endings.
+                        if line.hasSuffix("\r") { line.removeLast() }
+                        continuation.yield(line)
+                    }
+                }
+                do {
+                    for try await byte in bytes {
+                        buffer.append(byte)
+                        try flushLines()
+                    }
+                    if !buffer.isEmpty {
+                        var residual = String(decoding: buffer, as: UTF8.self)
+                        if residual.hasSuffix("\r") { residual.removeLast() }
+                        continuation.yield(residual)
+                        buffer.removeAll()
+                    }
+                    continuation.finish()
+                } catch let error as URLError {
+                    switch error.code {
+                    case .cancelled:
+                        continuation.finish(throwing: APIError.cancelled)
+                    case .timedOut:
+                        continuation.finish(throwing: APIError.timeout)
+                    default:
+                        continuation.finish(throwing: APIError.transport(error.localizedDescription))
+                    }
+                } catch is CancellationError {
+                    continuation.finish(throwing: APIError.cancelled)
+                } catch let error as APIError {
+                    continuation.finish(throwing: error)
+                } catch {
+                    continuation.finish(throwing: APIError.protocolViolation("流响应读取出错。"))
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     /// Sends a multipart/form-data upload. Not used by any current service —
     /// kept ready for a future endpoint that needs true multipart rather
     /// than the base64-in-JSON approach every current image upload uses.
