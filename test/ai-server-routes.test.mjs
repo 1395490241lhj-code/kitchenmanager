@@ -380,6 +380,28 @@ test('/api/ai-chat weekly-menu-plan 用 45 秒主 budget 并启用 JSON 模式�
   assert.equal(ordinaryServer.openAiRequests[0].payload.response_format, undefined);
 });
 
+// 新增的对话流式端点必须是"并列新增"，不是"改造 /api/ai-chat"：两条路由各注册
+// 一次，且 /api/ai-chat 仍然是一次非流式请求，请求体里不带 tools/stream。
+test('/api/ai-conversation 与 /api/ai-chat 并存，且 /api/ai-chat 请求形态不变', async () => {
+  const { app, openAiRequests } = loadServerWithMocks({
+    axiosPost: async () => ({ data: { choices: [{ message: { content: '原有回复' } }] } })
+  });
+
+  const chatRoutes = app.routes.filter((route) => route.method === 'POST' && route.path === '/api/ai-chat');
+  const conversationRoutes = app.routes.filter((route) => route.method === 'POST' && route.path === '/api/ai-conversation');
+  assert.equal(chatRoutes.length, 1);
+  assert.equal(conversationRoutes.length, 1);
+
+  const res = await runPost(app, '/api/ai-chat', { prompt: '推荐一道菜' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.content, '原有回复');
+  assert.equal(openAiRequests.length, 1);
+  assert.equal(openAiRequests[0].payload.stream, undefined);
+  assert.equal(openAiRequests[0].payload.tools, undefined);
+  assert.equal(openAiRequests[0].payload.tool_choice, undefined);
+  assert.equal(openAiRequests[0].requestOptions.signal, undefined);
+});
+
 test('/api/ai-chat timeout log 区分 server SDK deadline 且不记录 prompt 或 key', async () => {
   let logLines = '';
   const originalWrite = process.stdout.write;

@@ -76,8 +76,14 @@ const {
   summarizeAiResponse,
   postChatCompletion,
   postJsonChatContentWithFallback,
-  repairRecipeJsonContent
+  repairRecipeJsonContent,
+  streamChatCompletion
 } = require('./src/server/services/ai-client');
+const {
+  normalizeConversationRequest,
+  streamErrorEvent,
+  writeConversationEvent
+} = require('./src/server/services/ai-conversation');
 const {
   getSpecialPlanResponseFormat,
   isSchemaUnsupportedError,
@@ -1531,6 +1537,122 @@ app.post('/api/ai-chat', async (req, res) => {
     });
     return sendAiUpstreamError(res, err);
   }
+});
+
+// POST /api/ai-conversation —— Kitchen AI 对话工作区的流式端点，与 /api/ai-chat
+// 并列而不改动它。一次请求 = 一个 provider step：流以 tool_calls 结束时，由 iOS
+// 本地执行工具再带着 provider 消息与工具结果发起下一次请求，这里不做双向执行。
+const AI_CONVERSATION_TIMEOUT_MS = 45000;
+const AI_CONVERSATION_FALLBACK_TIMEOUT_MS = 20000;
+
+app.post('/api/ai-conversation', async (req, res) => {
+  // 限流先于任何 provider 工作：被限流的请求不应该产生一次上游调用。
+  const aiLimit = await checkAiRateLimit(req);
+  if (aiLimit.limited) {
+    logAiRateLimited(req, aiLimit, '/api/ai-conversation');
+    return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。', {
+      retryAfterSeconds: aiLimit.retryAfterSeconds
+    });
+  }
+
+  let conversationRequest;
+  try {
+    conversationRequest = normalizeConversationRequest(req.body);
+  } catch (err) {
+    const status = Number.isInteger(err?.publicStatus) ? err.publicStatus : 400;
+    return sendAiJsonError(res, status, err?.publicCode || 'invalid_request', err?.publicError || '请求无效。');
+  }
+
+  const primaryConfig = resolveAiProviderConfig(conversationRequest.provider);
+  if (!primaryConfig.apiKey) return sendAiJsonError(res, 503, 'missing_api_key', 'AI 服务暂时不可用。');
+  const fallbackConfig = primaryConfig.provider === 'groq' ? null : resolveAiProviderConfig('groq');
+  const attempts = [{ config: primaryConfig, timeout: AI_CONVERSATION_TIMEOUT_MS }];
+  if (fallbackConfig && fallbackConfig.apiKey) {
+    attempts.push({ config: fallbackConfig, timeout: AI_CONVERSATION_FALLBACK_TIMEOUT_MS });
+  }
+  // 只认这一次请求实际开启的工具子集，而不是全部十二个：模型只拿到了这些定义。
+  const enabledToolNames = new Set(conversationRequest.tools.map((tool) => tool.function.name));
+
+  res.status(200);
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  let visibleEvents = 0;
+  let responseCompleted = false;
+  let clientAborted = false;
+  let answeredProvider = primaryConfig.provider;
+  let answeredAttempt = 1;
+  let failureCode = null;
+  // 客户端断开才中止上游；自然结束之后的 close 不能再去 abort 一个已经完成的响应。
+  req.on('close', () => {
+    if (responseCompleted) return;
+    clientAborted = true;
+    controller.abort();
+  });
+
+  for (let index = 0; index < attempts.length; index += 1) {
+    const { config, timeout } = attempts[index];
+    answeredProvider = config.provider;
+    answeredAttempt = index + 1;
+    failureCode = null;
+    try {
+      for await (const event of streamChatCompletion({
+        provider: config.provider,
+        model: config.model,
+        messages: conversationRequest.messages,
+        tools: conversationRequest.tools,
+        timeout,
+        signal: controller.signal
+      })) {
+        if (clientAborted) break;
+        if (event.type === 'error') {
+          writeConversationEvent(res, streamErrorEvent(event.code));
+          visibleEvents += 1;
+          failureCode = event.code;
+          break;
+        }
+        // 模型只拿到本次开启的工具，返回子集外的名字说明这一步不可信，按错误结束。
+        if (event.type === 'tool_call' && !enabledToolNames.has(event.name)) {
+          writeConversationEvent(res, streamErrorEvent('unsupported_tool'));
+          visibleEvents += 1;
+          failureCode = 'unsupported_tool';
+          break;
+        }
+        writeConversationEvent(res, event);
+        visibleEvents += 1;
+      }
+      break;
+    } catch (err) {
+      if (clientAborted) break;
+      failureCode = 'provider_unavailable';
+      // 换 provider 只允许发生在第一个用户可见事件之前：已经发出去的内容不能重放。
+      if (visibleEvents === 0 && index + 1 < attempts.length && isTransientProviderFailure(err)) continue;
+      writeConversationEvent(res, streamErrorEvent('provider_unavailable'));
+      visibleEvents += 1;
+      break;
+    }
+  }
+
+  responseCompleted = true;
+  res.end();
+
+  // 只记录本服务自己的关联信息与结果码：不记 prompt、不记对话内容、不记 token 数，
+  // 也不记上游错误文本或 provider 诊断。字段名必须落在 logger 的白名单内，否则
+  // 会被静默丢弃。
+  const logFields = {
+    requestId: req.requestId,
+    route: '/api/ai-conversation',
+    provider: answeredProvider,
+    attempt: answeredAttempt,
+    fallbackTriggered: answeredAttempt > 1,
+    durationMs: Date.now() - startedAt,
+    resultCode: clientAborted ? 'client_aborted' : (failureCode || 'success')
+  };
+  if (failureCode && !clientAborted) observabilityLogger.log('ai_conversation_failed', 'warn', logFields);
+  else observabilityLogger.log('ai_conversation_completed', logFields);
 });
 
 function createAiParsePipelineError(status, code, message) {

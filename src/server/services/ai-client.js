@@ -342,6 +342,167 @@ function createPublicApiError(status, error, code = '') {
   return err;
 }
 
+// ── 流式对话原语 ─────────────────────────────────────────────────────────────
+// 一次请求 = 一个 provider step。这里只产出三种可见事件（text_delta / tool_call /
+// completed）加一个内部错误码，永远不产出 reasoning、usage、上游原始报文或任何
+// provider 诊断：它们根本不被读取，所以不存在"忘了过滤"的路径。
+const MAX_TOOL_ARGUMENTS_CHARS = 20000;
+
+// 这个 provider 会把推理写进 content 本身（<think>…</think>），非流式路径在
+// server.js 的 cleanAiChatContent 里把它剥掉。流式没有"完整文本"可以正则：内容
+// 一片一片到，标签自己也会被切在两片之间，所以只能用状态机。
+//   · 进入 <think> 之后一律不发，直到 </think>；
+//   · 流在未闭合的 <think> 里结束时丢弃尾巴，而不是把推理当答案发出去
+//     （对应 cleanAiChatContent 的第二个正则）。
+// 非流式路径不受影响。
+const THINK_OPEN = '<think>';
+const THINK_CLOSE = '</think>';
+
+// 缓冲区结尾处"可能是某个标签前缀"的长度。留着等下一片再判断，否则被切开的
+// 标签会被当成正文发出去。
+function danglingTagPrefixLength(lowerBuffer, tag) {
+  const max = Math.min(lowerBuffer.length, tag.length - 1);
+  for (let length = max; length > 0; length -= 1) {
+    if (lowerBuffer.slice(lowerBuffer.length - length) === tag.slice(0, length)) return length;
+  }
+  return 0;
+}
+
+function createReasoningContentFilter() {
+  let buffer = '';
+  let insideThink = false;
+  return {
+    push(text) {
+      if (!text) return '';
+      buffer += text;
+      let emitted = '';
+      for (;;) {
+        // 大小写不敏感，与 cleanAiChatContent 的 /gi 一致。下标要直接用回原
+        // 缓冲区，所以这里只折叠 ASCII 大写字母 —— 标签本身全是 ASCII。
+        // 不能用 toLowerCase()：U+0130 'İ' 会变成两个码元，长度一变，
+        // 下标就会错位，把正文吃掉或漏出半个标签。
+        const lower = buffer.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+        if (!insideThink) {
+          const open = lower.indexOf(THINK_OPEN);
+          if (open === -1) {
+            const keep = danglingTagPrefixLength(lower, THINK_OPEN);
+            emitted += buffer.slice(0, buffer.length - keep);
+            buffer = buffer.slice(buffer.length - keep);
+            break;
+          }
+          emitted += buffer.slice(0, open);
+          buffer = buffer.slice(open + THINK_OPEN.length);
+          insideThink = true;
+        } else {
+          const close = lower.indexOf(THINK_CLOSE);
+          if (close === -1) {
+            buffer = buffer.slice(buffer.length - danglingTagPrefixLength(lower, THINK_CLOSE));
+            break;
+          }
+          buffer = buffer.slice(close + THINK_CLOSE.length);
+          insideThink = false;
+        }
+      }
+      return emitted;
+    },
+    flush() {
+      const remaining = insideThink ? '' : buffer;
+      buffer = '';
+      return remaining;
+    }
+  };
+}
+
+function readStreamDeltaText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === 'string') return part;
+      return part && typeof part.text === 'string' ? part.text : '';
+    }).join('');
+  }
+  return '';
+}
+
+// 只有"一个完整合法的 JSON 对象"才算成组装完成。空参数按 {} 处理——上游对无参
+// 工具常常只发一个空串。
+function parseCompleteToolArguments(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return {};
+  if (text.length > MAX_TOOL_ARGUMENTS_CHARS) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function* streamChatCompletion({
+  provider = 'groq',
+  model,
+  messages,
+  tools = [],
+  temperature = 0.2,
+  timeout = 45000,
+  signal
+} = {}) {
+  const config = resolveAiProviderConfig(provider, { model });
+  const payload = {
+    model: config.model,
+    messages,
+    stream: true
+  };
+  if (config.provider !== 'gemini' || config.model !== 'gemini-3.6-flash') payload.temperature = temperature;
+  if (Array.isArray(tools) && tools.length) {
+    payload.tools = tools;
+    payload.tool_choice = 'auto';
+  }
+  const stream = await getOpenAIClient(config.provider).chat.completions.create(payload, { timeout, signal });
+
+  // 上游把一个工具调用的参数切成任意多片，按 index（没有 index 时按 id）归并。
+  const pendingToolCalls = new Map();
+  const reasoningFilter = createReasoningContentFilter();
+  let finishReason = null;
+  for await (const chunk of stream) {
+    const choice = chunk && Array.isArray(chunk.choices) ? chunk.choices[0] : null;
+    if (!choice) continue;
+    const delta = choice.delta && typeof choice.delta === 'object' ? choice.delta : {};
+    const text = reasoningFilter.push(readStreamDeltaText(delta.content));
+    if (text) yield { type: 'text_delta', text };
+    const toolCalls = Array.isArray(delta.tool_calls) ? delta.tool_calls : [];
+    for (const call of toolCalls) {
+      const key = Number.isInteger(call?.index) ? `index:${call.index}` : `id:${call?.id || '0'}`;
+      const entry = pendingToolCalls.get(key) || { id: '', name: '', arguments: '' };
+      if (typeof call?.id === 'string' && call.id) entry.id = call.id;
+      if (typeof call?.function?.name === 'string' && call.function.name) entry.name = call.function.name;
+      if (typeof call?.function?.arguments === 'string') entry.arguments += call.function.arguments;
+      pendingToolCalls.set(key, entry);
+    }
+    if (choice.finish_reason) finishReason = String(choice.finish_reason);
+  }
+
+  const trailingText = reasoningFilter.flush();
+  if (trailingText) yield { type: 'text_delta', text: trailingText };
+
+  let emittedIndex = 0;
+  for (const entry of pendingToolCalls.values()) {
+    const args = parseCompleteToolArguments(entry.arguments);
+    if (!entry.name || args === null) {
+      yield { type: 'error', code: 'invalid_tool_arguments' };
+      return;
+    }
+    yield {
+      type: 'tool_call',
+      id: entry.id || `call_${emittedIndex}`,
+      name: entry.name,
+      arguments: args
+    };
+    emittedIndex += 1;
+  }
+  yield { type: 'completed', finishReason: finishReason || (pendingToolCalls.size ? 'tool_calls' : 'stop') };
+}
+
 module.exports = {
   createPublicApiError,
   resolveChatUrl,
@@ -362,5 +523,6 @@ module.exports = {
   summarizeAiResponse,
   postChatCompletion,
   postJsonChatContentWithFallback,
-  repairRecipeJsonContent
+  repairRecipeJsonContent,
+  streamChatCompletion
 };
