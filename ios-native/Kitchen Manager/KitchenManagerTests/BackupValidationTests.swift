@@ -50,6 +50,7 @@ final class BackupValidationTests: XCTestCase {
             recipePreferences: base.recipePreferences,
             preparedComponents: base.preparedComponents,
             specialPlans: base.specialPlans,
+            conversations: base.conversations,
             sync: base.sync
         )
         // Isolated recovery slot: this suite must not touch, or be blocked by,

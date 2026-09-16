@@ -15,6 +15,9 @@ struct KitchenPersistenceBundle {
     let recipePreferences: RecipePreferencePersistenceProtocol
     let preparedComponents: PreparedComponentPersistenceProtocol
     let specialPlans: SpecialPlanPersistenceProtocol
+    /// Local Kitchen AI conversation history. Additive and device-local: it is
+    /// deliberately absent from the backup payload and from sync.
+    let conversations: ConversationPersistenceProtocol
     let sync: any SyncPersistenceProtocol
 }
 
@@ -47,6 +50,10 @@ enum KitchenPersistenceFactory {
             InventorySyncEnrollmentRecord.self,
             PreparedComponentRecord.self,
             SpecialPlanRecord.self,
+            ConversationRecord.self,
+            ConversationMessageRecord.self,
+            ConversationActionRecord.self,
+            ConversationContextSnapshotRecord.self,
             configurations: configuration
         )
     }
@@ -65,6 +72,7 @@ enum KitchenPersistenceFactory {
             recipePreferences: SwiftDataRecipePreferencePersistence(container: container),
             preparedComponents: SwiftDataPreparedComponentPersistence(container: container),
             specialPlans: SwiftDataSpecialPlanPersistence(container: container),
+            conversations: SwiftDataConversationPersistence(container: container),
             sync: SwiftDataSyncPersistence(modelContainer: container)
         )
     }
@@ -90,6 +98,7 @@ enum KitchenPersistenceFactory {
                 recipePreferences: FailingRecipePreferencePersistence(error),
                 preparedComponents: FailingPreparedComponentPersistence(underlyingError: error),
                 specialPlans: FailingSpecialPlanPersistence(underlyingError: error),
+                conversations: FailingConversationPersistence(underlyingError: error),
                 sync: FailingSyncPersistence()
             )
         }
