@@ -1991,8 +1991,16 @@ struct RecipeRecommendationBrowserView: View {
                     }
                 }
 
+                if isWaitingForRecommendations {
+                    recommendationWaitRow
+                }
+
                 if recommendationStore.recommendedRecipes.isEmpty {
-                    recommendationEmptyState
+                    // An empty state is an answer. It must not stand in for one
+                    // that has not arrived yet.
+                    if !isWaitingForRecommendations {
+                        recommendationEmptyState
+                    }
                 } else if dynamicTypeSize.isAccessibilitySize {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(recommendationStore.recommendedRecipes) { recommendation in
@@ -2045,14 +2053,10 @@ struct RecipeRecommendationBrowserView: View {
                         generateAIRecommendations()
                     } label: {
                         HStack(spacing: 7) {
-                            if recommendationStore.isGeneratingRecommendations {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(AppTheme.aiAccentForeground)
-                            } else {
-                                Image(systemName: "sparkles")
-                            }
-                            Text(recommendationStore.isGeneratingRecommendations ? "正在生成…" : "AI 换几道")
+                            // No second spinner here: the wait row above is the
+                            // only place this request reports itself.
+                            Image(systemName: "sparkles")
+                            Text("AI 换几道")
                         }
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.aiAccentForeground)
@@ -2100,6 +2104,38 @@ struct RecipeRecommendationBrowserView: View {
         }
     }
 
+    /// Whether a whole-list request is in flight. Searching and AI regeneration
+    /// are the same event to the member — something is being fetched for this
+    /// list — so the browser reports them with one sentence and one way out
+    /// rather than two competing spinners.
+    private var isWaitingForRecommendations: Bool {
+        recommendationStore.isSearchingRecommendations
+            || recommendationStore.isGeneratingRecommendations
+    }
+
+    /// The browser's only wait state: what is running, said in words, and the
+    /// way out of it. It sits where the answer will appear, so results already
+    /// on screen stay readable and usable underneath a regeneration. Kept local
+    /// to this view on purpose — the recipe and weekly surfaces keep their own
+    /// wording and identifiers, and the presentation layer is not generalized.
+    private var recommendationWaitRow: some View {
+        HStack {
+            ProgressView()
+            Text(recommendationStore.isSearchingRecommendations ? "正在找菜…" : "正在生成推荐…")
+                .foregroundStyle(.secondary)
+            Spacer(minLength: KitchenTheme.pageGutter)
+            Button {
+                recommendationStore.cancelRequests()
+            } label: {
+                // The height sits on the label so the tap target really is that
+                // tall; a borderless button is only as big as what it draws.
+                Text("取消").frame(minHeight: AppTheme.minimumHitTarget)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityIdentifier("recommendation.wait.cancel")
+        }
+    }
+
     private var searchBar: some View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
@@ -2134,14 +2170,9 @@ struct RecipeRecommendationBrowserView: View {
             .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: AppTheme.radiusCompact, style: .continuous))
 
             Button(action: performRecommendationSearch) {
-                Group {
-                    if recommendationStore.isSearchingRecommendations {
-                        ProgressView()
-                            .tint(AppTheme.onCookingAction)
-                    } else {
-                        Text("找菜")
-                    }
-                }
+                // The wait row owns reporting this request; this stays the
+                // action it is, and simply refuses to start a second one.
+                Text("找菜")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.onCookingAction)
                 .frame(
