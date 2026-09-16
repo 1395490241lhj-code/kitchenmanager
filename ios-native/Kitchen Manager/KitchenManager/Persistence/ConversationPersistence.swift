@@ -114,21 +114,33 @@ final class SwiftDataConversationPersistence: ConversationPersistenceProtocol {
         return try context.fetch(descriptor).map { try $0.action() }
     }
 
-    /// The retry guard. Returns the **earliest** action recorded under this key,
-    /// which is the one whose side effect actually happened; a later duplicate
-    /// row is by definition not the mutation a retry must avoid repeating.
+    /// The retry guard: what this key already did, if anything.
     ///
-    /// The sort is the point. Without it `fetchLimit = 1` returns an arbitrary
-    /// row, and the guard would answer "has this already succeeded?" differently
-    /// between launches.
+    /// A row that reached the domain layer wins over one that did not. A failed
+    /// attempt and a later succeeded attempt can share a key — that is exactly
+    /// what retrying a failed action produces — and answering with the failed
+    /// row would let a third retry repeat a mutation that already happened.
+    /// Preferring the terminal row makes "has this already run" true to the
+    /// side effects rather than to insertion order.
+    ///
+    /// `.undone` counts as terminal because the mutation did happen; whether a
+    /// retry after an explicit Undo should re-execute is the coordinator's
+    /// decision, and it needs to see that history to make it.
+    ///
+    /// Among equally terminal rows the earliest wins, and the sort is what makes
+    /// that stable: an unsorted fetch would answer differently between launches.
     func action(idempotencyKey: String) throws -> AIConversationActionRecord? {
         let key = idempotencyKey
-        var descriptor = FetchDescriptor<ConversationActionRecord>(
+        let descriptor = FetchDescriptor<ConversationActionRecord>(
             predicate: #Predicate { $0.idempotencyKey == key },
             sortBy: [SortDescriptor(\.createdAt), SortDescriptor(\.actionID)]
         )
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first.map { try $0.action() }
+        let records = try context.fetch(descriptor)
+        let terminal = records.first {
+            $0.statusRawValue == AIActionStatus.succeeded.rawValue
+                || $0.statusRawValue == AIActionStatus.undone.rawValue
+        }
+        return try (terminal ?? records.first)?.action()
     }
 
     // MARK: - Writes

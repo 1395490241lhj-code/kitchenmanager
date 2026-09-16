@@ -288,9 +288,8 @@ final class ConversationPersistenceTests: XCTestCase {
     /// The column is not unique on purpose: SwiftData resolves a unique conflict
     /// by upserting, which would silently overwrite the first action's undo
     /// receipt — the only way to reverse a mutation that already happened. So a
-    /// duplicate is stored, and the guard deterministically returns the earliest
-    /// row, the one whose side effect really occurred.
-    func testCollidingIdempotencyKeyKeepsBothRowsAndResolvesToTheEarliest() throws {
+    /// duplicate is stored and both rows survive.
+    func testCollidingIdempotencyKeyKeepsBothRows() throws {
         let conversation = makeConversation()
         let persistence = makePersistence()
         try persistence.createConversationWithFirstMessage(
@@ -328,6 +327,89 @@ final class ConversationPersistenceTests: XCTestCase {
             resolved?.undoReference,
             "the first action's undo receipt must not be overwritten by a colliding key"
         )
+    }
+
+    /// Retrying a failed action produces exactly this history, so the guard has
+    /// to answer with the attempt that actually reached the kitchen.
+    ///
+    /// Answering with the earlier failed row would let a third retry repeat a
+    /// mutation that already happened, which is the one thing idempotency exists
+    /// to prevent.
+    func testRetryGuardPrefersTheAttemptThatActuallySucceeded() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(
+            conversation, message: makeMessage(conversationID: conversation.id)
+        )
+
+        let failed = AIConversationActionRecord(
+            conversationID: conversation.id, turnID: UUID(),
+            actionType: .addRecipeToTonight, idempotencyKey: "retried",
+            status: .failed, createdAt: Date(timeIntervalSince1970: 1_700_000_500)
+        )
+        let succeeded = AIConversationActionRecord(
+            conversationID: conversation.id, turnID: UUID(),
+            actionType: .addRecipeToTonight, idempotencyKey: "retried",
+            status: .succeeded, createdAt: Date(timeIntervalSince1970: 1_700_000_900),
+            undoReference: .tonightPlan(
+                plan: MealPlanItem(recipeID: "r-1", recipeName: "清炒时蔬"),
+                createdRecipeIDs: []
+            )
+        )
+        try persistence.upsertAction(failed)
+        try persistence.upsertAction(succeeded)
+
+        XCTAssertEqual(try makePersistence().action(idempotencyKey: "retried"), succeeded)
+    }
+
+    /// An undone action still happened. The coordinator has to see that rather
+    /// than a stale failed attempt to decide what a later retry means.
+    func testRetryGuardTreatsAnUndoneActionAsHavingRun() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(
+            conversation, message: makeMessage(conversationID: conversation.id)
+        )
+        try persistence.upsertAction(
+            AIConversationActionRecord(
+                conversationID: conversation.id, turnID: UUID(),
+                actionType: .addShoppingItems, idempotencyKey: "undone-key",
+                status: .failed, createdAt: Date(timeIntervalSince1970: 1_700_000_100)
+            )
+        )
+        let undone = AIConversationActionRecord(
+            conversationID: conversation.id, turnID: UUID(),
+            actionType: .addShoppingItems, idempotencyKey: "undone-key",
+            status: .undone, createdAt: Date(timeIntervalSince1970: 1_700_000_200)
+        )
+        try persistence.upsertAction(undone)
+
+        XCTAssertEqual(try makePersistence().action(idempotencyKey: "undone-key"), undone)
+    }
+
+    /// With nothing terminal yet, the guard is still deterministic: the earliest
+    /// attempt, never an arbitrary row.
+    func testRetryGuardIsDeterministicWhenNothingHasSucceededYet() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(
+            conversation, message: makeMessage(conversationID: conversation.id)
+        )
+        let first = AIConversationActionRecord(
+            conversationID: conversation.id, turnID: UUID(),
+            actionType: .replacePlannedMeal, idempotencyKey: "pending-key",
+            status: .failed, createdAt: Date(timeIntervalSince1970: 1_700_000_100)
+        )
+        try persistence.upsertAction(
+            AIConversationActionRecord(
+                conversationID: conversation.id, turnID: UUID(),
+                actionType: .replacePlannedMeal, idempotencyKey: "pending-key",
+                status: .failed, createdAt: Date(timeIntervalSince1970: 1_700_000_800)
+            )
+        )
+        try persistence.upsertAction(first)
+
+        XCTAssertEqual(try makePersistence().action(idempotencyKey: "pending-key"), first)
     }
 
     func testContextSnapshotsRoundTrip() throws {
