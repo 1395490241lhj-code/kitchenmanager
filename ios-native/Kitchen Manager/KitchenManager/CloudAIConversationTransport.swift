@@ -86,7 +86,7 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
         }
     }
 
-    private func buildLineStream(_ request: AIConversationRuntimeRequest) async throws -> AsyncThrowingStream<String, Error> {
+    private func buildLineStream(_ request: AIConversationRuntimeRequest) async throws -> APIClient.LineStream {
         struct LayeredError: Error { let underlying: Error }
         let wireMessages: [WireMessage] = try request.messages.map { message in
             let calls: [WireToolCall]? = try message.toolCalls.map { calls in
@@ -135,7 +135,7 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
     }
 }
 
-struct Wire: Decodable {
+nonisolated struct Wire: Decodable {
     let type: String
     let text: String?
     let id: String?

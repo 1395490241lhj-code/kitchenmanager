@@ -106,69 +106,43 @@ final class APIClientStreamLinesTests: NetworkTestCase {
     }
 
     func test_streamLines_cancellationAfterHeadersStopsURLProtocolAndDiscardsLateBytes() async throws {
-        // Approved Task 6 cancellation contract, enforced with explicit gates
-        // rather than sleeps:
-        //   1. response headers arrive (MockStreamingURLProtocol signals
-        //      waitForBodyOpen only after didReceive(response));
-        //   2. the consumer begins iteration (openBody signals;
-        //      producer is still holding the body open);
-        //   3. the consuming Task is cancelled;
-        //   4. mock stopLoading is observed (URLSession actually stopped the
-        //      underlying producer, not just the consumer);
-        //   5. the body gate is then released; anything the producer would
-        //      have sent late is discarded - the consumer must never yield it.
-        // The externally visible semantics: APIError.cancelled exactly once,
-        // never a raw CancellationError rethrow.
-        MockStreamingURLProtocol.install(.init(
-            headers: ["Content-Type": "text/event-stream"],
-            initialChunk: Data("first\n".utf8)
-        ))
-        let client = APIClient(environment: .production, session: .streamingMocked(), defaultTimeout: 60)
-
+        let path = "/api/example-stream/\(UUID().uuidString)"
+        let scenario = MockStreamingURLProtocol.Scenario()
+        MockStreamingURLProtocol.install(scenario, path: path)
+        defer { MockStreamingURLProtocol.reset(path: path) }
+        let session = URLSession.streamingMocked()
+        defer { session.invalidateAndCancel() }
+        let client = APIClient(environment: .production, session: session, defaultTimeout: 60)
+        let endpoint = try APIEndpoint.json(path: path, body: ["ok": true])
+        let firstReceived = expectation(description: "consumer iterated first line")
+        let consumerFinished = expectation(description: "consumer terminated")
         let task = Task {
+            defer { consumerFinished.fulfill() }
             var received: [String] = []
             do {
-                for try await line in try await client.streamLines(postEndpoint()) {
+                for try await line in try await client.streamLines(endpoint) {
                     received.append(line)
+                    if line == "first" { firstReceived.fulfill() }
                 }
-                return (received, nil as APIError?)
-            } catch let error as APIError {
-                return (received, error)
+                XCTFail("cancellation must throw APIError.cancelled, never finish cleanly")
+            } catch APIError.cancelled {
+                // The only accepted terminal outcome.
+            } catch {
+                XCTFail("expected APIError.cancelled, got \(error)")
             }
+            return received
         }
+        defer { task.cancel() }
 
-        // Gate 1 + 2: headers are delivered, then one chunk loads. Wait until
-        // the protocol is about to open the body gate - if it signals, then
-        // headers + initial chunk were already processed by URLSession before
-        // startLoading blocked waiting for openBody.
-        _ = MockStreamingURLProtocol.waitForBodyOpen.wait(timeout: .now() + 5)
-        MockStreamingURLProtocol.openBody.signal()
-
-        // Give the consumer one bounded moment to actually receive the first
-        // line from the buffer, then cancel - still before any late bytes.
-        try await Task.sleep(nanoseconds: 100_000_000)
+        await fulfillment(of: [scenario.bodyOpened, firstReceived], timeout: 5)
         task.cancel()
-
-        // Gate 4: stopLoading must be observed - proving URLSession actually
-        // tore down the producer, not just that the consumer went silent.
-        let sawStop = MockStreamingURLProtocol.stopLoadingObserved.wait(timeout: .now() + 5) == .success
-        XCTAssertTrue(sawStop, "URLSession must actively stop the underlying producer")
-        XCTAssertGreaterThan(MockStreamingURLProtocol.stopLoadingCallCount, 0)
-
-        // Gate 5: what would have been the second chunk can no longer surface.
-        MockStreamingURLProtocol.releaseBody.signal()
-
-        let (received, error) = try await task.value
-        XCTAssertTrue(received.contains("first"), "already-buffered first chunk may be delivered: \(received)")
-        XCTAssertEqual(received.last, "first", "no late byte may ever surface after cancellation")
-        if let error = error {
-            guard case .cancelled = error else {
-                return XCTFail("expected .cancelled on teardown race, got \(error)")
-            }
-        }
-        // Otherwise the stream finished cleanly from buffered bytes, which
-        // remains acceptable: the contract is no-LATE-byte + no-CancellationError
-        // rethrow in the observable surface. Both paths above are covered.
+        await fulfillment(of: [scenario.stopped], timeout: 5)
+        XCTAssertGreaterThan(scenario.stopLoadingCallCount, 0)
+        try scenario.deliverLateBytesAndFinish()
+        XCTAssertTrue(scenario.lateDeliveryAttempted)
+        await fulfillment(of: [consumerFinished], timeout: 5)
+        let received = await task.value
+        XCTAssertEqual(received, ["first"], "late bytes must never reach the cancelled consumer")
     }
 
     func test_streamLines_usesSharedRequestBuilderShape() async throws {
@@ -181,4 +155,3 @@ final class APIClientStreamLinesTests: NetworkTestCase {
         XCTAssertTrue(MockURLProtocol.capturedRequests().count == 1)
     }
 }
-

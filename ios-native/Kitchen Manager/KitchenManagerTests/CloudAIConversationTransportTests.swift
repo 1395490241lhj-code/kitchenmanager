@@ -80,76 +80,74 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
     // exactly the Task 5 assistant tool_calls wire shape the server accepts,
     // and (2) a tool result row must encode with the matching tool_call_id.
     func test_stream_encodesAssistantToolCallAndToolResultForStatelessLoop() async throws {
-        struct CapturedBody: Decodable {
-            struct CapturedMessage: Decodable {
-                let role: String
-                let content: String?
-                let tool_calls: [CapturedToolCall]?
-                let tool_call_id: String?
-            }
-            struct CapturedToolCall: Decodable {
-                let id: String
-                let type: String
-                let function: CapturedFunction
-            }
-            struct CapturedFunction: Decodable {
-                let name: String
-                let arguments: String
-            }
-            let provider: String
-            let messages: [CapturedMessage]
-            let enabledTools: [String]
-        }
-
+        let requestID = UUID(uuidString: "72E191B9-6073-4F93-86BA-77509B6531AD")!
         let assistantCall = AIConversationTranscriptToolCall(
             id: "call-9",
             name: "propose_add_recipe_to_tonight",
-            arguments: .object(["recipeID": .string("r-1")])
+            arguments: .object([
+                "recipe": .object(["recipeID": .string("r-1"), "title": .string("番茄炒蛋")]),
+                "plannedServings": .number(2),
+            ])
         )
-        let request = try AIConversationRuntimeRequest(
-            messages: [
-                try XCTUnwrap(.user("今晚加一个菜")),
-                try XCTUnwrap(.assistantToolCalls([assistantCall])),
-                try XCTUnwrap(.toolResult(forToolCallID: "call-9", text: "已加入今晚计划")),
-            ],
-            enabledTools: ["propose_add_recipe_to_tonight"],
-            requestID: UUID()
+        let messages: [AIConversationTranscriptMessage] = [
+            try XCTUnwrap(.systemText("帮助安排今晚的菜")),
+            try XCTUnwrap(.user("今晚加一个菜")),
+            try XCTUnwrap(.assistantText("可以做番茄炒蛋")),
+            try XCTUnwrap(.assistantToolCalls([assistantCall])),
+            try XCTUnwrap(.toolResult(forToolCallID: "call-9", text: "已加入今晚计划")),
+        ]
+        let request = AIConversationRuntimeRequest(
+            messages: messages,
+            enabledTools: ["read_inventory", "propose_add_recipe_to_tonight"],
+            requestID: requestID
         )
         MockURLProtocol.install { _ in
             .init(statusCode: 200, data: Self.ndjson([
                 #"{"type":"completed","finishReason":"stop"}"#,
             ]))
         }
-        let transport = CloudAIConversationTransport(client: apiClient)
+        let transport = CloudAIConversationTransport(client: apiClient, provider: .groq)
         for try await _ in transport.stream(request) {}
 
-        let raw = MockURLProtocol.capturedRequests()
-        XCTAssertEqual(raw.count, 1)
-        let body = try JSONDecoder().decode(CapturedBody.self, from: try XCTUnwrap(raw[0].httpBody))
+        let captured = MockURLProtocol.capturedRequests()
+        XCTAssertEqual(captured.count, 1)
+        let actualRequest = try XCTUnwrap(captured.first)
+        XCTAssertEqual(actualRequest.url?.host, streamHost)
+        XCTAssertEqual(actualRequest.url?.path, "/api/ai-conversation")
+        XCTAssertEqual(actualRequest.httpMethod, "POST")
+        XCTAssertEqual(actualRequest.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: try XCTUnwrap(actualRequest.httpBody)
+        ) as? [String: Any])
+        let wireMessages = try XCTUnwrap(body["messages"] as? [[String: Any]])
+        XCTAssertEqual(wireMessages.count, 5)
+        let calls = try XCTUnwrap(wireMessages.first { $0["tool_calls"] != nil }?["tool_calls"] as? [[String: Any]])
+        let function = try XCTUnwrap(calls.first?["function"] as? [String: Any])
+        let arguments = try XCTUnwrap(function["arguments"] as? String)
+        let argumentObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(arguments.utf8)) as? NSDictionary)
+        XCTAssertEqual(argumentObject, [
+            "recipe": ["recipeID": "r-1", "title": "番茄炒蛋"],
+            "plannedServings": 2,
+        ] as NSDictionary)
 
-        XCTAssertEqual(body.provider, "gemini")
-        XCTAssertEqual(body.enabledTools, ["propose_add_recipe_to_tonight"])
-
-        XCTAssertEqual(body.messages.count, 3)
-        XCTAssertEqual(body.messages[0].role, "user")
-        XCTAssertEqual(body.messages[0].content, "今晚加一个菜")
-
-        XCTAssertEqual(body.messages[1].role, "assistant")
-        XCTAssertNil(body.messages[1].content, "assistant tool-call row must not invent text content")
-        let calls = try XCTUnwrap(body.messages[1].tool_calls)
-        XCTAssertEqual(calls.count, 1)
-        XCTAssertEqual(calls[0].id, "call-9")
-        XCTAssertEqual(calls[0].type, "function")
-        XCTAssertEqual(calls[0].function.name, "propose_add_recipe_to_tonight")
-        let arguments = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: Data(calls[0].function.arguments.utf8)) as? [String: Any]
-        )
-        XCTAssertEqual(arguments["recipeID"] as? String, "r-1")
-
-        XCTAssertEqual(body.messages[2].role, "tool")
-        XCTAssertNil(body.messages[2].tool_calls)
-        XCTAssertEqual(body.messages[2].tool_call_id, "call-9")
-        XCTAssertEqual(body.messages[2].content, "已加入今晚计划")
+        // Exact dictionary equality pins every key and omission, not just the
+        // subset a permissive Decodable fixture would happen to read.
+        XCTAssertEqual(body as NSDictionary, [
+            "provider": "groq",
+            "requestID": requestID.uuidString,
+            "enabledTools": ["read_inventory", "propose_add_recipe_to_tonight"],
+            "messages": [
+                ["role": "system", "content": "帮助安排今晚的菜"],
+                ["role": "user", "content": "今晚加一个菜"],
+                ["role": "assistant", "content": "可以做番茄炒蛋"],
+                ["role": "assistant", "tool_calls": [[
+                    "id": "call-9", "type": "function",
+                    "function": ["name": "propose_add_recipe_to_tonight", "arguments": arguments],
+                ]]],
+                ["role": "tool", "tool_call_id": "call-9", "content": "已加入今晚计划"],
+            ],
+        ] as NSDictionary)
+        XCTAssertNil(body["tools"], "legacy tools field must not be sent")
     }
 
     func test_stream_errorIsTerminal_andNeverSynthesizesCompleted() async throws {

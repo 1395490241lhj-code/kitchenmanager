@@ -73,6 +73,34 @@ actor APIClient {
         return try await perform(request, method: endpoint.method, path: endpoint.path)
     }
 
+    /// AsyncThrowingStream can return nil from a cancelled next(). Check the
+    /// consuming task after that suspension so cancellation stays a typed error,
+    /// including when it races with a buffered line or normal completion.
+    nonisolated struct LineStream: AsyncSequence, Sendable {
+        typealias Element = String
+        let base: AsyncThrowingStream<String, Error>
+
+        struct AsyncIterator: AsyncIteratorProtocol {
+            var base: AsyncThrowingStream<String, Error>.Iterator
+
+            mutating func next() async throws -> String? {
+                let line: String?
+                do {
+                    line = try await base.next()
+                } catch {
+                    if Task.isCancelled { throw APIError.cancelled }
+                    throw error
+                }
+                guard !Task.isCancelled else { throw APIError.cancelled }
+                return line
+            }
+        }
+
+        func makeAsyncIterator() -> AsyncIterator {
+            AsyncIterator(base: base.makeAsyncIterator())
+        }
+    }
+
     /// Streams a response as raw UTF-8 lines. The response status is
     /// validated BEFORE any line is yielded, so a non-2xx status surfaces
     /// as the same typed errors every other APIClient call produces
@@ -82,7 +110,7 @@ actor APIClient {
     /// No line contents, headers, prompt payloads, or context values are
     /// ever logged by this function. Cancelling the consuming Task
     /// cancels the underlying URLSession work.
-    func streamLines(_ endpoint: APIEndpoint) async throws -> AsyncThrowingStream<String, Error> {
+    func streamLines(_ endpoint: APIEndpoint) async throws -> LineStream {
         let request = try buildRequest(for: endpoint)
         let bytes: URLSession.AsyncBytes
         let httpResponse: HTTPURLResponse
@@ -108,13 +136,13 @@ actor APIClient {
             throw APIError.transport(error.localizedDescription)
         }
         guard 200..<300 ~= httpResponse.statusCode else {
-                        if httpResponse.statusCode == 429 {
+            if httpResponse.statusCode == 429 {
                 let retryAfter = Self.retryAfterInterval(from: httpResponse.value(forHTTPHeaderField: "Retry-After"))
                 throw APIError.rateLimited(retryAfter: retryAfter)
             }
             throw APIError.server(status: httpResponse.statusCode, payload: nil)
         }
-        return AsyncThrowingStream { continuation in
+        return LineStream(base: AsyncThrowingStream { continuation in
             let task = Task {
                 var buffer = Data()
                 func flushLines() throws {
@@ -166,7 +194,7 @@ actor APIClient {
             continuation.onTermination = { _ in
                 task.cancel()
             }
-        }
+        })
     }
 
     /// Sends a multipart/form-data upload. Not used by any current service —
