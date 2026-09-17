@@ -27,6 +27,7 @@ final class ConversationOrchestratorTests: XCTestCase {
             actions[action.id] = action
         }
         func createConversationWithFirstMessage(_ conversation: AIConversation, message: AIConversationMessage) throws {}
+        func updateConversationWithUserMessage(_ conversation: AIConversation, message: AIConversationMessage) throws {}
         func upsertConversation(_ conversation: AIConversation) throws {}
         func upsertMessage(_ message: AIConversationMessage) throws {}
         func upsertContextSnapshot(_ snapshot: AIContextSnapshot, conversationID: UUID) throws {}
@@ -323,11 +324,19 @@ final class ConversationOrchestratorTests: XCTestCase {
         }
 
         let orchestrator = env.makeOrchestrator(transport: transport)
-        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
 
         XCTAssertNotNil(step2ToolResultText)
         XCTAssertTrue(step2ToolResultText!.contains("rec-solve"))
         XCTAssertTrue(step2ToolResultText!.contains("麻婆豆腐"))
+
+        let snapshot = events.compactMap { ev -> AIContextSnapshot? in
+            if case let .contextSnapshot(snap) = ev { return snap }
+            return nil
+        }.last
+        XCTAssertNotNil(snapshot)
+        XCTAssertTrue(snapshot!.contextKinds.contains(.recipe))
+        XCTAssertTrue(snapshot!.relatedEntityIDs.contains("rec-solve"))
     }
 
     // 5: Low-risk add-to-tonight executes exactly once
@@ -588,6 +597,7 @@ final class ConversationOrchestratorTests: XCTestCase {
 
         var iterator = stream.makeAsyncIterator()
         _ = try await iterator.next() // .state(.preparingContext)
+        _ = try await iterator.next() // .contextSnapshot
         _ = try await iterator.next() // .state(.requesting)
         await gate.open()
         _ = try await iterator.next() // .state(.streaming)
@@ -1100,6 +1110,7 @@ final class ConversationOrchestratorTests: XCTestCase {
         var iterator = stream.makeAsyncIterator()
 
         _ = try await iterator.next() // preparingContext
+        _ = try await iterator.next() // contextSnapshot
         _ = try await iterator.next() // requesting
         await gate.open()
 
@@ -1637,5 +1648,72 @@ final class ConversationOrchestratorTests: XCTestCase {
 
         let captured = await transport.capturedRequests
         XCTAssertEqual(captured.count, 1) // Step 1 was sent; step 2 was oversized and had ZERO network requests!
+    }
+
+    // 57: Context snapshot provenance: stable identity, accumulates successful reads, excludes failed reads
+    func testContextSnapshotProvenanceEmittedAndAccumulatedAcrossReads() async throws {
+        let env = try TestEnv()
+        _ = env.kitchenStore.addInventory(name: "豆腐", quantity: 2, unit: "盒", expiryDate: nil)
+        let recipe = Recipe(
+            id: "snapshot-plan",
+            title: "快炒豆腐",
+            cookingTime: 10,
+            difficulty: nil,
+            tags: [],
+            ingredients: ["豆腐"],
+            steps: ["炒"]
+        )
+        let plan = env.kitchenStore.addPlan(
+            recipe: recipe,
+            on: Date(),
+            calendar: env.domainTools.calendar
+        ).value!
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-inv-snap", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-tonight-snap", name: "read_tonight_plan", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step3Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-spec-opt-fail", name: "read_special_plan", arguments: Data(#"{"planID":"\#(UUID().uuidString)"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step4Events: [AIConversationStreamEvent] = [
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events, step2Events, step3Events, step4Events])
+        let orchestrator = env.makeOrchestrator(
+            transport: transport,
+            isReadOptional: { _ in true }
+        )
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let snapshots = events.compactMap { ev -> AIContextSnapshot? in
+            if case let .contextSnapshot(snap) = ev { return snap }
+            return nil
+        }
+        XCTAssertGreaterThanOrEqual(snapshots.count, 2)
+
+        // All snapshots retain stable id == currentUserMessage.id and turnID == input.turnID
+        for s in snapshots {
+            XCTAssertEqual(s.id, env.currentUserMessage.id)
+            XCTAssertEqual(s.turnID, env.defaultInput.turnID)
+            // No raw payload is stored in sourceFingerprints (each is a SHA256 hex string of 64 chars)
+            for fp in s.sourceFingerprints {
+                XCTAssertEqual(fp.count, 64)
+            }
+        }
+
+        // Final snapshot includes .inventory from successful read
+        let finalSnapshot = snapshots.last!
+        XCTAssertTrue(finalSnapshot.contextKinds.contains(.inventory))
+        XCTAssertTrue(finalSnapshot.contextKinds.contains(.tonightPlan))
+        XCTAssertTrue(finalSnapshot.relatedEntityIDs.contains(plan.id.uuidString))
+        // Optional failed read does NOT falsely register .specialPlan in snapshot
+        XCTAssertFalse(finalSnapshot.contextKinds.contains(.specialPlan))
     }
 }

@@ -38,7 +38,7 @@ const appInit = between(
 
 test("the app composition root builds its KitchenStore from the whole persistence bundle", () => {
   assert.match(appInit, /KitchenPersistenceFactory\.application\(\)/);
-  assert.match(appInit, /KitchenStore\(\s*persistence:/);
+  assert.match(appInit, /KitchenStore\([\s\S]*?persistence: persistence,/);
 });
 
 test("the app builds exactly one KitchenStore, and builds it that one way", () => {
@@ -47,6 +47,49 @@ test("the app builds exactly one KitchenStore, and builds it that one way", () =
     constructions.length, 1,
     "a second KitchenStore construction in the app would reintroduce the risk this guard exists for"
   );
+});
+
+test("the app builds exactly one RecipeStore and shares both live stores with conversation tools", () => {
+  assert.equal((appInit.match(/\bRecipeStore\(/g) ?? []).length, 1);
+  assert.match(appInit, /let recipeStoreInstance = RecipeStore\(/);
+  assert.match(
+    appInit,
+    /KitchenConversationDomainTools\(\s*kitchenStore: kitchenStoreInstance,\s*recipeStore: recipeStoreInstance/
+  );
+});
+
+test("the conversation graph uses local conversation persistence and the shared API client", () => {
+  assert.match(appInit, /ConversationStore\(\s*persistence: persistence\.conversations/);
+  assert.match(
+    appInit,
+    /ConversationActionCoordinator\([\s\S]*?persistence: persistence\.conversations/
+  );
+  assert.match(
+    appInit,
+    /CloudAIConversationTransport\(\s*client: \.shared,\s*provider: provider/
+  );
+  assert.match(appInit, /addingTimeInterval\(AIConversationProductionPolicy\.undoWindow\)/);
+});
+
+test("the conversation controller is injected once", () => {
+  assert.equal(
+    (contentView.match(/\.environmentObject\(aiConversationController\)/g) ?? []).length,
+    1
+  );
+});
+
+test("only a signed-in to guest transition wipes conversation history", () => {
+  assert.match(contentView, /\.onChange\(of: authStore\.status\)/);
+  assert.match(contentView, /case \.signedIn = oldStatus/);
+  assert.match(contentView, /case \.guest = newStatus/);
+  assert.match(contentView, /aiConversationController\.wipeLocalHistory\(\)/);
+  const signOutHook = between(
+    contentView,
+    "conversation sign-out hook",
+    ".onChange(of: authStore.status)",
+    ".preferredColorScheme"
+  );
+  assert.doesNotMatch(signOutHook, /clearAllLocalData|clearLocalData/);
 });
 
 test("the app composition root never hand-lists individual persistences", () => {
@@ -89,7 +132,8 @@ test("the bundle initializer forwards every persistence KitchenStore accepts", (
 test("the durable application container carries the local planning models", () => {
   assert.match(factory, /static func makeContainer\(configuration: ModelConfiguration\)/);
   assert.match(factory, /PreparedComponentRecord\.self,/);
-  assert.match(factory, /SpecialPlanRecord\.self,\s*\n\s*configurations: configuration/);
+  assert.match(factory, /SpecialPlanRecord\.self,/);
+  assert.match(factory, /ConversationContextSnapshotRecord\.self,\s*\n\s*configurations: configuration/);
   assert.match(factory, /static func application\(\) -> KitchenPersistenceBundle \{\s*\n\s*makeBundle\(isStoredInMemoryOnly: false\)/);
   assert.match(factory, /preparedComponents: SwiftDataPreparedComponentPersistence\(container: container\)/);
 });

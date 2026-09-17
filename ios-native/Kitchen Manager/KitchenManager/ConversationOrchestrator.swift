@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 nonisolated enum AIConversationTurnEvent: Equatable, Sendable {
     case state(AIConversationTurnState)
@@ -6,6 +7,7 @@ nonisolated enum AIConversationTurnEvent: Equatable, Sendable {
     case appendBlock(AIContentBlock)
     case replaceBlock(AIContentBlock)
     case pendingAction(PreparedAIAction)
+    case contextSnapshot(AIContextSnapshot)
     case finished
 }
 
@@ -41,7 +43,13 @@ nonisolated struct AIConversationTurnInput: Sendable {
 }
 
 @MainActor
-final class ConversationOrchestrator {
+protocol ConversationOrchestrating: AnyObject {
+    func runTurn(_ input: AIConversationTurnInput) -> AsyncThrowingStream<AIConversationTurnEvent, Error>
+    func cancelCurrentTurn()
+}
+
+@MainActor
+final class ConversationOrchestrator: ConversationOrchestrating {
     static let maxProviderStepsPerTurn = 6
     static let maxToolCallsPerTurn = 12
 
@@ -132,6 +140,11 @@ final class ConversationOrchestrator {
         return nil
     }
 
+    private struct ExecutedReadToolResult {
+        let text: String
+        let relatedEntityIDs: [String]
+    }
+
     static let enabledTools: [String] = [
         "read_inventory",
         "read_tonight_plan",
@@ -146,6 +159,26 @@ final class ConversationOrchestrator {
         "propose_special_plan_changes",
         "propose_add_shopping_items"
     ]
+
+    nonisolated private static func semanticEntityIDs(in json: String) -> [String] {
+        guard let value = try? JSONDecoder().decode(JSONAnyValue.self, from: Data(json.utf8)) else {
+            return []
+        }
+        func collect(_ value: JSONAnyValue) -> [String] {
+            switch value {
+            case let .object(fields):
+                return fields.flatMap { key, child in
+                    if key.hasSuffix("ID"), case let .string(id) = child { return [id] }
+                    return collect(child)
+                }
+            case let .array(values):
+                return values.flatMap(collect)
+            default:
+                return []
+            }
+        }
+        return Array(Set(collect(value))).sorted()
+    }
 
     private let contextAssembler: ConversationContextAssembler
     private let domainTools: any AIConversationDomainTooling
@@ -270,6 +303,19 @@ final class ConversationOrchestrator {
             cleanupActiveRun(runID)
             return
         }
+
+        let initialSnapshot = AIContextSnapshot(
+            id: input.currentUserMessage.id,
+            turnID: input.turnID,
+            readAt: input.readAt,
+            contextKinds: Array(Set(preparedRequest.contexts.map(\.kind))).sorted { $0.rawValue < $1.rawValue },
+            relatedEntityIDs: Array(Set(preparedRequest.contexts.flatMap(\.relatedEntityIDs))).sorted(),
+            sourceFingerprints: Array(Set(preparedRequest.contexts.map {
+                SHA256.hash(data: Data($0.value.utf8)).map { String(format: "%02x", $0) }.joined()
+            })).sorted()
+        )
+        var currentTurnSnapshot = initialSnapshot
+        _ = emit(.contextSnapshot(currentTurnSnapshot))
 
         let route = providerRouter(userDefaults)
         let transport: any AIConversationRuntimeTransport
@@ -598,7 +644,33 @@ final class ConversationOrchestrator {
                         return
                     }
                     do {
-                        let resultText = try executeReadTool(readRequest)
+                        let executedResult = try executeReadTool(readRequest)
+                        let resultText = executedResult.text
+                        let kind: AIContextKind
+                        switch readRequest {
+                        case .inventory: kind = .inventory
+                        case .tonightPlan: kind = .tonightPlan
+                        case .plannerWeek: kind = .plannerWeek
+                        case .specialPlan: kind = .specialPlan
+                        case .resolveRecipe: kind = .recipe
+                        }
+                        let fingerprint = SHA256.hash(data: Data(resultText.utf8)).map { String(format: "%02x", $0) }.joined()
+                        var updatedKinds = Set(currentTurnSnapshot.contextKinds)
+                        updatedKinds.insert(kind)
+                        var updatedFingerprints = Set(currentTurnSnapshot.sourceFingerprints)
+                        updatedFingerprints.insert(fingerprint)
+                        var updatedEntityIDs = Set(currentTurnSnapshot.relatedEntityIDs)
+                        executedResult.relatedEntityIDs.forEach { updatedEntityIDs.insert($0) }
+                        currentTurnSnapshot = AIContextSnapshot(
+                            id: currentTurnSnapshot.id,
+                            turnID: input.turnID,
+                            readAt: now(),
+                            contextKinds: Array(updatedKinds).sorted { $0.rawValue < $1.rawValue },
+                            relatedEntityIDs: Array(updatedEntityIDs).sorted(),
+                            sourceFingerprints: Array(updatedFingerprints).sorted()
+                        )
+                        _ = emit(.contextSnapshot(currentTurnSnapshot))
+
                         if let toolMsg = AIConversationTranscriptMessage.toolResult(forToolCallID: call.id, text: resultText) {
                             ephemeralTranscript.append(toolMsg)
                         }
@@ -640,31 +712,55 @@ final class ConversationOrchestrator {
         }
     }
 
-    private func executeReadTool(_ request: AIReadToolRequest) throws -> String {
+    private func executeReadTool(_ request: AIReadToolRequest) throws -> ExecutedReadToolResult {
         switch request {
         case .inventory(let expiringOnly):
             let inventory = domainTools.inventoryContext(now: now())
+            let text: String
             if expiringOnly == true {
-                return ConversationContextAssembler.boundedToolResultJSON(inventory.expiring, limit: 3000)
+                text = ConversationContextAssembler.boundedToolResultJSON(inventory.expiring, limit: 3000)
             } else {
-                return ConversationContextAssembler.boundedToolResultJSON(inventory, limit: 3000)
+                text = ConversationContextAssembler.boundedToolResultJSON(inventory, limit: 3000)
             }
+            return ExecutedReadToolResult(
+                text: text,
+                relatedEntityIDs: Self.semanticEntityIDs(in: text)
+            )
         case .tonightPlan:
             let tonight = domainTools.tonightPlanContext(now: now(), calendar: domainTools.calendar)
-            return ConversationContextAssembler.boundedToolResultJSON(tonight, limit: 3000)
+            let text = ConversationContextAssembler.boundedToolResultJSON(tonight, limit: 3000)
+            return ExecutedReadToolResult(
+                text: text,
+                relatedEntityIDs: Self.semanticEntityIDs(in: text)
+            )
         case .plannerWeek(let weekStart):
             let week = domainTools.plannerWeekContext(weekStart: weekStart, calendar: domainTools.calendar)
-            return ConversationContextAssembler.boundedToolResultJSON(week, limit: 3000)
+            let text = ConversationContextAssembler.boundedToolResultJSON(week, limit: 3000)
+            return ExecutedReadToolResult(
+                text: text,
+                relatedEntityIDs: Self.semanticEntityIDs(in: text)
+            )
         case .specialPlan(let id):
             guard let special = domainTools.specialPlanContext(id: id) else {
                 throw AIDomainToolError.specialPlanNotFound(id)
             }
-            return ConversationContextAssembler.boundedToolResultJSON(special, limit: 3000)
+            let text = ConversationContextAssembler.boundedToolResultJSON(special, limit: 3000)
+            return ExecutedReadToolResult(
+                text: text,
+                relatedEntityIDs: Self.semanticEntityIDs(in: text)
+            )
         case .resolveRecipe(let query, let recipeID):
             if let recipe = domainTools.resolveRecipe(query: query, recipeID: recipeID) {
-                return ConversationContextAssembler.boundedToolResultJSON(recipe, limit: 3000)
+                let text = ConversationContextAssembler.boundedToolResultJSON(recipe, limit: 3000)
+                return ExecutedReadToolResult(
+                    text: text,
+                    relatedEntityIDs: [recipe.id]
+                )
             } else {
-                return #"{"found":false}"#
+                return ExecutedReadToolResult(
+                    text: #"{"found":false}"#,
+                    relatedEntityIDs: []
+                )
             }
         }
     }

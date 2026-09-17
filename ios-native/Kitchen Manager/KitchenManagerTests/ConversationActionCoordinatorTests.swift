@@ -27,6 +27,7 @@ final class ConversationActionCoordinatorTests: XCTestCase {
             rows[action.id] = action; transitions.append(action.status)
         }
         func createConversationWithFirstMessage(_ conversation: AIConversation, message: AIConversationMessage) throws {}
+        func updateConversationWithUserMessage(_ conversation: AIConversation, message: AIConversationMessage) throws {}
         func upsertConversation(_ conversation: AIConversation) throws {}
         func upsertMessage(_ message: AIConversationMessage) throws {}
         func upsertContextSnapshot(_ snapshot: AIContextSnapshot, conversationID: UUID) throws {}

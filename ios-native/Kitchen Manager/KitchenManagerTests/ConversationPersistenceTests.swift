@@ -42,13 +42,14 @@ final class ConversationPersistenceTests: XCTestCase {
     private func makeMessage(
         conversationID: UUID,
         role: AIConversationRole = .user,
+        createdAt: Date = Date(timeIntervalSince1970: 1_700_000_001),
         state: AIConversationMessageState = .completed,
         blocks: [AIContentBlock] = [.text(.init(text: "今晚吃什么"))]
     ) -> AIConversationMessage {
         AIConversationMessage(
             conversationID: conversationID,
             role: role,
-            createdAt: Date(timeIntervalSince1970: 1_700_000_001),
+            createdAt: createdAt,
             state: state,
             contentBlocks: blocks,
             turnID: UUID()
@@ -148,6 +149,106 @@ final class ConversationPersistenceTests: XCTestCase {
             XCTAssertEqual(error as? ConversationPersistenceError, .firstMessageMustBeFromUser)
         }
         XCTAssertTrue(try makePersistence().loadConversations().isEmpty)
+    }
+
+    func testUpdateConversationWithUserMessagePersistsConversationAndMessageTogether() throws {
+        var conversation = makeConversation()
+        let firstMessage = makeMessage(conversationID: conversation.id)
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(conversation, message: firstMessage)
+
+        let newActivity = conversation.lastActivityAt.addingTimeInterval(300)
+        conversation.lastActivityAt = newActivity
+        conversation.title = "已更新的标题"
+        let secondMessage = makeMessage(
+            conversationID: conversation.id,
+            role: .user,
+            createdAt: newActivity
+        )
+
+        try persistence.updateConversationWithUserMessage(conversation, message: secondMessage)
+
+        let reader = makePersistence()
+        let loaded = try reader.loadConversations()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].lastActivityAt, newActivity)
+        XCTAssertEqual(loaded[0].title, "已更新的标题")
+        let messages = try reader.loadMessages(conversationID: conversation.id)
+        XCTAssertEqual(messages.count, 2)
+        XCTAssertEqual(messages[1].id, secondMessage.id)
+    }
+
+    func testFailedUpdateConversationWithUserMessageLeavesActivityUnchangedAndPersistsNoUserMessage() throws {
+        let conversation = makeConversation()
+        let firstMessage = makeMessage(conversationID: conversation.id)
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(conversation, message: firstMessage)
+
+        var updatedConversation = conversation
+        let newActivity = conversation.lastActivityAt.addingTimeInterval(300)
+        updatedConversation.lastActivityAt = newActivity
+        let secondMessage = makeMessage(
+            conversationID: conversation.id,
+            role: .user,
+            createdAt: newActivity
+        )
+
+        persistence.failNextSaveForTesting = NSError(domain: "test", code: 1)
+        XCTAssertThrowsError(
+            try persistence.updateConversationWithUserMessage(updatedConversation, message: secondMessage)
+        )
+
+        let reader = makePersistence()
+        let loaded = try reader.loadConversations()
+        XCTAssertEqual(loaded.count, 1)
+        XCTAssertEqual(loaded[0].lastActivityAt, conversation.lastActivityAt)
+        let messages = try reader.loadMessages(conversationID: conversation.id)
+        XCTAssertEqual(messages.count, 1)
+    }
+
+    func testUpdateConversationWithUserMessageRejectsMismatchedIDs() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(
+            conversation, message: makeMessage(conversationID: conversation.id)
+        )
+
+        let foreignMessage = makeMessage(conversationID: UUID(), role: .user)
+        XCTAssertThrowsError(
+            try persistence.updateConversationWithUserMessage(conversation, message: foreignMessage)
+        ) { error in
+            XCTAssertEqual(error as? ConversationPersistenceError, .conversationMessageMismatch)
+        }
+
+        let messages = try persistence.loadMessages(conversationID: conversation.id)
+        XCTAssertEqual(messages.count, 1)
+    }
+
+    func testUpdateConversationWithUserMessageRejectsNonUsermessage() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        try persistence.createConversationWithFirstMessage(
+            conversation, message: makeMessage(conversationID: conversation.id)
+        )
+
+        let assistantMessage = makeMessage(conversationID: conversation.id, role: .assistant)
+        XCTAssertThrowsError(
+            try persistence.updateConversationWithUserMessage(conversation, message: assistantMessage)
+        ) { error in
+            XCTAssertEqual(error as? ConversationPersistenceError, .messageMustBeFromUser)
+        }
+    }
+
+    func testUpdateConversationWithUserMessageRejectsMissingConversation() throws {
+        let conversation = makeConversation()
+        let persistence = makePersistence()
+        let userMessage = makeMessage(conversationID: conversation.id, role: .user)
+
+        XCTAssertThrowsError(
+            try persistence.updateConversationWithUserMessage(conversation, message: userMessage)
+        ) { error in
+            XCTAssertEqual(error as? ConversationPersistenceError, .conversationNotFound)
+        }
     }
 
     /// `upsertConversation` is what carries rename, pin, `lastActivityAt` and

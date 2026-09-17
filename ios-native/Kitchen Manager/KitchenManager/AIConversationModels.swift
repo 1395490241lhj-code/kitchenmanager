@@ -45,6 +45,12 @@ nonisolated enum AIConversationRole: String, Codable, Sendable {
     case systemStatus
 }
 
+/// Production policy constants for Kitchen AI conversations.
+nonisolated enum AIConversationProductionPolicy {
+    /// The approved V1 undo window for conversational domain mutations: 10 minutes.
+    static let undoWindow: TimeInterval = 10 * 60
+}
+
 nonisolated enum AIConversationMessageState: String, Codable, Sendable {
     case pending
     case streaming

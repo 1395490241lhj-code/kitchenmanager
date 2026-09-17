@@ -7,6 +7,7 @@ struct KitchenManagerApp: App {
     @StateObject private var authStore: AuthStore
     @StateObject private var guestMergeController: GuestMergeController
     @StateObject private var accountDeletionController: AccountDeletionController
+    @StateObject private var aiConversationController: AIConversationController
     #if DEBUG
     @StateObject private var syncSmokeController: SyncSmokeController
     /// UI-test-only handle used solely to seed deterministic merge-conflict
@@ -44,29 +45,23 @@ struct KitchenManagerApp: App {
         let persistence = KitchenPersistenceFactory.application()
         let recipeTestDefaults = UserDefaults.standard
         #endif
-        _recipeStore = StateObject(
-            wrappedValue: RecipeStore(
-                userDefaults: recipeTestDefaults,
-                userRecipePersistence: persistence.userRecipes,
-                recipePreferencePersistence: persistence.recipePreferences
-            )
+        let recipeStoreInstance = RecipeStore(
+            userDefaults: recipeTestDefaults,
+            userRecipePersistence: persistence.userRecipes,
+            recipePreferencePersistence: persistence.recipePreferences
         )
+        _recipeStore = StateObject(wrappedValue: recipeStoreInstance)
         // The whole bundle, never a hand-listed subset: naming persistences one
         // by one is how `preparedComponents` was left out and prepared batches
         // ended up in an isolated in-memory container that dies with the app.
-        #if DEBUG
-        let kitchenStoreInstance = isolatedFixture
-            ? KitchenStore(userDefaults: recipeTestDefaults, persistence: persistence, recoverySnapshot: .applicationSupport())
-            : KitchenStore(persistence: persistence, recoverySnapshot: .applicationSupport())
-        #else
         // The production recovery slot is named here, at the composition root,
         // for the same reason the persistence bundle is: a default would let
         // the app reach production half-wired, or a test reach production at all.
         let kitchenStoreInstance = KitchenStore(
+            userDefaults: recipeTestDefaults,
             persistence: persistence,
             recoverySnapshot: .applicationSupport()
         )
-        #endif
         #if DEBUG
         // The generic account fixture resets local data and adds 测试库存 under a
         // fresh UUID on every launch. That is fine for single-launch tests, but
@@ -142,6 +137,51 @@ struct KitchenManagerApp: App {
         _authStore = StateObject(wrappedValue: authStoreInstance)
         _guestMergeController = StateObject(wrappedValue: guestMergeControllerInstance)
         _accountDeletionController = StateObject(wrappedValue: AccountDeletionController(persistence: persistence.sync))
+
+        let conversationStoreInstance = ConversationStore(
+            persistence: persistence.conversations,
+            retentionPolicy: .v1
+        )
+        let conversationDomainTools = KitchenConversationDomainTools(
+            kitchenStore: kitchenStoreInstance,
+            recipeStore: recipeStoreInstance
+        )
+        let conversationActionCoordinator = ConversationActionCoordinator(
+            domainTools: conversationDomainTools,
+            persistence: persistence.conversations,
+            undoExpiresAt: { $0.addingTimeInterval(AIConversationProductionPolicy.undoWindow) }
+        )
+        let conversationContextAssembler = ConversationContextAssembler(
+            domainTools: conversationDomainTools
+        )
+        #if DEBUG
+        let useUITestConversationTransport = ProcessInfo.processInfo.arguments.contains(
+            "UITEST_AI_CONVERSATION_FAKE"
+        )
+        #endif
+        let conversationTransportFactory: (AIRecommendationProvider) -> any AIConversationRuntimeTransport = { provider in
+            #if DEBUG
+            if useUITestConversationTransport {
+                return UITestAIConversationTransport()
+            }
+            #endif
+            return CloudAIConversationTransport(client: .shared, provider: provider)
+        }
+        let conversationOrchestrator = ConversationOrchestrator(
+            contextAssembler: conversationContextAssembler,
+            domainTools: conversationDomainTools,
+            actionCoordinator: conversationActionCoordinator,
+            userDefaults: recipeTestDefaults,
+            transportFactory: conversationTransportFactory
+        )
+        _aiConversationController = StateObject(
+            wrappedValue: AIConversationController(
+                store: conversationStoreInstance,
+                orchestrator: conversationOrchestrator,
+                actionCoordinator: conversationActionCoordinator,
+                metadataService: ConversationMetadataService()
+            )
+        )
         #if DEBUG
         _syncSmokeController = StateObject(
             wrappedValue: SyncSmokeController(persistence: persistence.sync)
@@ -204,6 +244,7 @@ struct KitchenManagerApp: App {
                 .environmentObject(authStore)
                 .environmentObject(guestMergeController)
                 .environmentObject(accountDeletionController)
+                .environmentObject(aiConversationController)
                 // Phase B3: the staple-restock baseline used to be synced from
                 // `KitchenStore.init`'s `inventory` didSet, which made
                 // `App.init` the first code in the process to touch
@@ -276,6 +317,11 @@ struct KitchenManagerApp: App {
                     }
                 }
                 #endif
+                .onChange(of: authStore.status) { oldStatus, newStatus in
+                    if case .signedIn = oldStatus, case .guest = newStatus {
+                        aiConversationController.wipeLocalHistory()
+                    }
+                }
                 .preferredColorScheme((AppAppearance(rawValue: appearanceRawValue) ?? .system).colorScheme)
         }
     }

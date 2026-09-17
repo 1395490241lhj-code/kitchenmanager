@@ -10,6 +10,12 @@ nonisolated enum ConversationPersistenceError: LocalizedError, Equatable {
     case firstMessageConversationMismatch
     /// A conversation becomes durable on its first *user* message.
     case firstMessageMustBeFromUser
+    /// The conversation to update was not found.
+    case conversationNotFound
+    /// The message does not belong to the conversation being updated.
+    case conversationMessageMismatch
+    /// The message updating an existing conversation must be from a user.
+    case messageMustBeFromUser
 
     var errorDescription: String? {
         switch self {
@@ -17,6 +23,12 @@ nonisolated enum ConversationPersistenceError: LocalizedError, Equatable {
             return "对话与首条消息不匹配。"
         case .firstMessageMustBeFromUser:
             return "对话需要由用户的第一条消息创建。"
+        case .conversationNotFound:
+            return "找不到需要更新的对话。"
+        case .conversationMessageMismatch:
+            return "对话与消息不匹配。"
+        case .messageMustBeFromUser:
+            return "更新现有对话的消息需要来自用户。"
         }
     }
 }
@@ -42,6 +54,10 @@ protocol ConversationPersistenceProtocol: AnyObject {
     func action(idempotencyKey: String) throws -> AIConversationActionRecord?
     func action(id: UUID) throws -> AIConversationActionRecord?
     func createConversationWithFirstMessage(
+        _ conversation: AIConversation,
+        message: AIConversationMessage
+    ) throws
+    func updateConversationWithUserMessage(
         _ conversation: AIConversation,
         message: AIConversationMessage
     ) throws
@@ -182,6 +198,44 @@ final class SwiftDataConversationPersistence: ConversationPersistenceProtocol {
         do {
             context.insert(try ConversationRecord(conversation: conversation))
             context.insert(try ConversationMessageRecord(message: message))
+            try save()
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
+    func updateConversationWithUserMessage(
+        _ conversation: AIConversation,
+        message: AIConversationMessage
+    ) throws {
+        guard message.conversationID == conversation.id else {
+            throw ConversationPersistenceError.conversationMessageMismatch
+        }
+        guard message.role == .user else {
+            throw ConversationPersistenceError.messageMustBeFromUser
+        }
+        do {
+            let targetID = conversation.id
+            var descriptor = FetchDescriptor<ConversationRecord>(
+                predicate: #Predicate { $0.id == targetID }
+            )
+            descriptor.fetchLimit = 1
+            guard let record = try context.fetch(descriptor).first else {
+                throw ConversationPersistenceError.conversationNotFound
+            }
+            try record.update(from: conversation)
+
+            let messageID = message.id
+            var messageDescriptor = FetchDescriptor<ConversationMessageRecord>(
+                predicate: #Predicate { $0.id == messageID }
+            )
+            messageDescriptor.fetchLimit = 1
+            if let existing = try context.fetch(messageDescriptor).first {
+                try existing.update(from: message)
+            } else {
+                context.insert(try ConversationMessageRecord(message: message))
+            }
             try save()
         } catch {
             context.rollback()
@@ -362,6 +416,10 @@ final class FailingConversationPersistence: ConversationPersistenceProtocol {
     func loadActions(conversationID: UUID) throws -> [AIConversationActionRecord] { throw underlyingError }
     func action(idempotencyKey: String) throws -> AIConversationActionRecord? { throw underlyingError }
     func createConversationWithFirstMessage(
+        _ conversation: AIConversation,
+        message: AIConversationMessage
+    ) throws { throw underlyingError }
+    func updateConversationWithUserMessage(
         _ conversation: AIConversation,
         message: AIConversationMessage
     ) throws { throw underlyingError }
