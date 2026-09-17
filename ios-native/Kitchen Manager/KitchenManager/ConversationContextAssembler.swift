@@ -166,7 +166,37 @@ struct ConversationContextAssembler {
         })
     }
 
-    nonisolated private static func bounded(_ value: JSONAnyValue, rows: Int, text: Int, key: String = "") -> JSONAnyValue {
+    nonisolated static func boundedToolResultJSON<T: Encodable>(_ value: T, limit: Int = 3000) -> String {
+        guard var object = try? JSONDecoder().decode(JSONAnyValue.self, from: encoder().encode(value)) else {
+            return "{}"
+        }
+        if case .object(var fields) = object {
+            fields.removeValue(forKey: "readAt")
+            object = .object(fields)
+        }
+        var rowLimit = 25
+        var textLimit = 120
+        var projected: JSONAnyValue
+        var jsonText: String
+        repeat {
+            projected = bounded(object, rows: rowLimit, text: textLimit)
+            if projected != object, case .object(var fields) = projected {
+                fields["partial"] = .bool(true)
+                projected = .object(fields)
+            }
+            jsonText = json(projected)
+            if jsonText.utf16.count <= limit { break }
+            if rowLimit > 2 {
+                rowLimit -= 2
+            } else {
+                textLimit = max(20, textLimit - 20)
+                if textLimit <= 20 { break }
+            }
+        } while true
+        return jsonText
+    }
+
+    nonisolated static func bounded(_ value: JSONAnyValue, rows: Int, text: Int, key: String = "") -> JSONAnyValue {
         switch value {
         case .string(let string):
             // Canonical identifiers and dates are indivisible anchors.

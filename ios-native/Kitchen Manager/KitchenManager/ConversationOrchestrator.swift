@@ -45,6 +45,96 @@ final class ConversationOrchestrator {
     static let maxProviderStepsPerTurn = 6
     static let maxToolCallsPerTurn = 12
 
+    /// Cross-layer contract constant pinned to src/server/config.js: AI_PROMPT_MAX_CHARS = 12000.
+    static let serverPromptMaxChars = 12000
+
+    nonisolated static func serverCompatibleCharacterCost(_ messages: [AIConversationTranscriptMessage]) -> Int {
+        var total = 0
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        for message in messages {
+            if let content = message.content {
+                total += content.utf16.count
+            }
+            if let toolCalls = message.toolCalls {
+                for call in toolCalls {
+                    if case .object(let dict) = call.arguments,
+                       let data = try? encoder.encode(dict),
+                       let str = String(data: data, encoding: .utf8) {
+                        total += str.utf16.count
+                    }
+                }
+            }
+        }
+        return total
+    }
+
+    nonisolated static func rebudgetContinuation(
+        _ messages: [AIConversationTranscriptMessage],
+        limit: Int = serverPromptMaxChars
+    ) -> [AIConversationTranscriptMessage]? {
+        var current = messages
+        if serverCompatibleCharacterCost(current) <= limit {
+            return current
+        }
+
+        // Priority 1: Trim older prior conversation messages (between initial headers and currentUser)
+        while serverCompatibleCharacterCost(current) > limit {
+            guard let currentUserIndex = current.lastIndex(where: { $0.role == .user }) else { break }
+            var foundPriorIndex: Int?
+            for idx in current.indices {
+                if idx > 2 && idx < currentUserIndex {
+                    let role = current[idx].role
+                    if role == .user || role == .assistant {
+                        foundPriorIndex = idx
+                        break
+                    }
+                }
+            }
+            guard let priorIndex = foundPriorIndex else { break }
+            current.remove(at: priorIndex)
+        }
+        if serverCompatibleCharacterCost(current) <= limit { return current }
+
+        // Priority 2: Trim superseded preloaded live context (index 2)
+        if current.indices.contains(2) && current[2].role == .system {
+            current[2] = .systemText(#"{"live":[]}"#)!
+        }
+        if serverCompatibleCharacterCost(current) <= limit { return current }
+
+        // Priority 2b: Trim old summary (index 1)
+        if current.indices.contains(1) && current[1].role == .system {
+            current.remove(at: 1)
+        }
+        if serverCompatibleCharacterCost(current) <= limit { return current }
+
+        // Priority 3: Trim older ephemeral tool exchanges from earlier steps in this turn
+        while serverCompatibleCharacterCost(current) > limit {
+            var assistantIndices: [Int] = []
+            for (idx, msg) in current.enumerated() {
+                if msg.role == .assistant && msg.toolCalls != nil {
+                    assistantIndices.append(idx)
+                }
+            }
+            guard assistantIndices.count > 1 else { break }
+            let oldestIndex = assistantIndices[0]
+            var callIDs = Set<String>()
+            if let calls = current[oldestIndex].toolCalls {
+                for c in calls { callIDs.insert(c.id) }
+            }
+            var filtered: [AIConversationTranscriptMessage] = []
+            for (idx, msg) in current.enumerated() {
+                if idx == oldestIndex { continue }
+                if msg.role == .tool, let id = msg.toolCallID, callIDs.contains(id) { continue }
+                filtered.append(msg)
+            }
+            current = filtered
+        }
+        if serverCompatibleCharacterCost(current) <= limit { return current }
+
+        return nil
+    }
+
     static let enabledTools: [String] = [
         "read_inventory",
         "read_tonight_plan",
@@ -223,6 +313,15 @@ final class ConversationOrchestrator {
                 cleanupActiveRun(runID)
                 return
             }
+
+            guard let budgetedMessages = Self.rebudgetContinuation(ephemeralTranscript, limit: Self.serverPromptMaxChars) else {
+                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "对话上下文超出限制，已停止处理。", retry: .generation))))
+                _ = emit(.state(.failed))
+                continuation.finish()
+                cleanupActiveRun(runID)
+                return
+            }
+            ephemeralTranscript = budgetedMessages
 
             let runtimeRequest = AIConversationRuntimeRequest(
                 messages: ephemeralTranscript,
@@ -545,36 +644,28 @@ final class ConversationOrchestrator {
     }
 
     private func executeReadTool(_ request: AIReadToolRequest) throws -> String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         switch request {
         case .inventory(let expiringOnly):
             let inventory = domainTools.inventoryContext(now: now())
             if expiringOnly == true {
-                let data = try encoder.encode(inventory.expiring)
-                return String(decoding: data, as: UTF8.self)
+                return ConversationContextAssembler.boundedToolResultJSON(inventory.expiring, limit: 3000)
             } else {
-                let data = try encoder.encode(inventory)
-                return String(decoding: data, as: UTF8.self)
+                return ConversationContextAssembler.boundedToolResultJSON(inventory, limit: 3000)
             }
         case .tonightPlan:
             let tonight = domainTools.tonightPlanContext(now: now(), calendar: domainTools.calendar)
-            let data = try encoder.encode(tonight)
-            return String(decoding: data, as: UTF8.self)
+            return ConversationContextAssembler.boundedToolResultJSON(tonight, limit: 3000)
         case .plannerWeek(let weekStart):
             let week = domainTools.plannerWeekContext(weekStart: weekStart, calendar: domainTools.calendar)
-            let data = try encoder.encode(week)
-            return String(decoding: data, as: UTF8.self)
+            return ConversationContextAssembler.boundedToolResultJSON(week, limit: 3000)
         case .specialPlan(let id):
             guard let special = domainTools.specialPlanContext(id: id) else {
                 throw AIDomainToolError.specialPlanNotFound(id)
             }
-            let data = try encoder.encode(special)
-            return String(decoding: data, as: UTF8.self)
+            return ConversationContextAssembler.boundedToolResultJSON(special, limit: 3000)
         case .resolveRecipe(let query, let recipeID):
             if let recipe = domainTools.resolveRecipe(query: query, recipeID: recipeID) {
-                let data = try encoder.encode(recipe)
-                return String(decoding: data, as: UTF8.self)
+                return ConversationContextAssembler.boundedToolResultJSON(recipe, limit: 3000)
             } else {
                 return #"{"found":false}"#
             }

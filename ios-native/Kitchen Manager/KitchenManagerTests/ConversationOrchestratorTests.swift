@@ -1377,4 +1377,265 @@ final class ConversationOrchestratorTests: XCTestCase {
         let reqs = await transport.capturedRequests
         XCTAssertEqual(reqs.count, 1) // NO continuation!
     }
+
+    // 48: Large inventory continuation must fit server AI_PROMPT_MAX_CHARS (12,000)
+    func testLargeInventoryContinuationMustFitServerBudget() async throws {
+        let env = try TestEnv()
+        for i in 1...150 {
+            _ = env.kitchenStore.addInventory(name: "食材编号_#(i)_有机生鲜蔬菜大米调味品", quantity: Double(i), unit: "包", expiryDate: Date().addingTimeInterval(TimeInterval(i * 86400)))
+        }
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-big-inv", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2Events: [AIConversationStreamEvent] = [
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events, step2Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let reqs = await transport.capturedRequests
+        XCTAssertEqual(reqs.count, 2)
+        let step2Cost = ConversationOrchestrator.serverCompatibleCharacterCost(reqs[1].messages)
+        XCTAssertLessThanOrEqual(step2Cost, ConversationOrchestrator.serverPromptMaxChars)
+    }
+
+    // 49: Near-max initial context + large inventory: continuation stays within limit preserving core exchange
+    func testNearMaxInitialContextPlusLargeInventoryStaysWithinLimit() async throws {
+        let env = try TestEnv()
+        for i in 1...100 {
+            _ = env.kitchenStore.addInventory(name: "食材_#(i)_保鲜冷藏", quantity: Double(i), unit: "斤", expiryDate: nil)
+        }
+
+        // Add older prior messages that fill up context
+        var priors: [AIConversationMessage] = []
+        for i in 1...6 {
+            let pUser = AIConversationMessage(conversationID: env.conversationID, role: .user, state: .completed, contentBlocks: [.text(.init(text: String(repeating: "历史提问_#(i)_", count: 30)))], turnID: UUID())
+            let pAss = AIConversationMessage(conversationID: env.conversationID, role: .assistant, state: .completed, contentBlocks: [.text(.init(text: String(repeating: "历史回答_#(i)_", count: 30)))], turnID: UUID())
+            priors.append(contentsOf: [pUser, pAss])
+        }
+        let input = AIConversationTurnInput(
+            conversationID: env.conversationID,
+            turnID: env.turnID,
+            summary: String(repeating: "长期记忆摘要内容_", count: 20),
+            priorMessages: priors,
+            currentUserMessage: env.currentUserMessage
+        )
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-inv-big", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2Events: [AIConversationStreamEvent] = [.completed(finishReason: "stop")]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events, step2Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(input))
+
+        let reqs = await transport.capturedRequests
+        XCTAssertEqual(reqs.count, 2)
+        let step2Cost = ConversationOrchestrator.serverCompatibleCharacterCost(reqs[1].messages)
+        XCTAssertLessThanOrEqual(step2Cost, ConversationOrchestrator.serverPromptMaxChars)
+
+        // Verify current user message and tool result remain preserved
+        XCTAssertTrue(reqs[1].messages.contains(where: { $0.role == .user && $0.content?.contains("今晚吃什么？") == true }))
+        XCTAssertTrue(reqs[1].messages.contains(where: { $0.role == .tool && $0.toolCallID == "c-inv-big" }))
+    }
+
+    // 50: Multiple sequential read steps: every request independently stays <= 12,000
+    func testMultipleSequentialReadStepsEveryRequestIndependentlyStaysWithinLimit() async throws {
+        let env = try TestEnv()
+        for i in 1...80 {
+            _ = env.kitchenStore.addInventory(name: "备选食材_#(i)", quantity: 2, unit: "袋", expiryDate: nil)
+        }
+
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-seq-1", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-seq-2", name: "read_tonight_plan", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step3: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-seq-3", name: "read_planner_week", arguments: Data(#"{"weekStart":"2026-09-14"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step4: [AIConversationStreamEvent] = [
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1, step2, step3, step4])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let reqs = await transport.capturedRequests
+        XCTAssertEqual(reqs.count, 4)
+        for (idx, req) in reqs.enumerated() {
+            let cost = ConversationOrchestrator.serverCompatibleCharacterCost(req.messages)
+            XCTAssertLessThanOrEqual(cost, ConversationOrchestrator.serverPromptMaxChars, "Request at index \(idx) exceeded limit")
+        }
+    }
+
+    // 51: Large planner-week result produces valid bounded JSON <= 12,000
+    func testLargePlannerWeekResultProducesValidBoundedJSONWithinLimit() async throws {
+        let env = try TestEnv()
+        for i in 1...30 {
+            let r = Recipe(id: "r-wk-\(i)", title: "菜谱_\(i)", cookingTime: 10, difficulty: nil, tags: [], ingredients: ["原料_\(i)"], steps: ["翻炒"])
+            try env.recipeStore.saveUserRecipe(r)
+            _ = env.kitchenStore.addPlan(recipe: r, on: Date().addingTimeInterval(TimeInterval(i * 3600 * 4)), calendar: env.domainTools.calendar)
+        }
+
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-wk", name: "read_planner_week", arguments: Data(#"{"weekStart":"2026-09-14"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2: [AIConversationStreamEvent] = [.completed(finishReason: "stop")]
+
+        let transport = ScriptedTransport(stepResponses: [step1, step2])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let reqs = await transport.capturedRequests
+        XCTAssertEqual(reqs.count, 2)
+        let cost = ConversationOrchestrator.serverCompatibleCharacterCost(reqs[1].messages)
+        XCTAssertLessThanOrEqual(cost, ConversationOrchestrator.serverPromptMaxChars)
+
+        // Verify valid JSON
+        let toolMsg = reqs[1].messages.first(where: { $0.role == .tool && $0.toolCallID == "c-wk" })
+        XCTAssertNotNil(toolMsg?.content)
+        let jsonObj = try JSONSerialization.jsonObject(with: Data(toolMsg!.content!.utf8))
+        XCTAssertNotNil(jsonObj)
+    }
+
+    // 52: Large Special Plan result produces valid bounded JSON <= 12,000
+    func testLargeSpecialPlanResultProducesValidBoundedJSONWithinLimit() async throws {
+        let env = try TestEnv()
+        var dishes: [SpecialPlanDish] = []
+        for i in 1...30 {
+            dishes.append(SpecialPlanDish(id: UUID(), recipeID: "rec-#(i)", recipeName: "宴席菜品_#(i)_风味浓郁", isCooked: false))
+        }
+        let plan = SpecialPlan(
+            id: UUID(),
+            title: "超大型家庭聚餐宴席活动",
+            scheduledAt: Date().addingTimeInterval(86400),
+            peopleCount: 20,
+            constraintNotes: (1...15).map { "忌口约束条目编号_\($0)_不吃辣无葱花" },
+            notes: "详细活动说明文档内容",
+            usesHomeInventory: true,
+            dishes: dishes
+        )
+        env.kitchenStore.specialPlans = [plan]
+
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-spec-big", name: "read_special_plan", arguments: Data(#"{"planID":"\#(plan.id.uuidString)"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2: [AIConversationStreamEvent] = [.completed(finishReason: "stop")]
+
+        let transport = ScriptedTransport(stepResponses: [step1, step2])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let reqs = await transport.capturedRequests
+        XCTAssertEqual(reqs.count, 2)
+        let cost = ConversationOrchestrator.serverCompatibleCharacterCost(reqs[1].messages)
+        XCTAssertLessThanOrEqual(cost, ConversationOrchestrator.serverPromptMaxChars)
+
+        let toolMsg = reqs[1].messages.first(where: { $0.role == .tool && $0.toolCallID == "c-spec-big" })
+        XCTAssertNotNil(toolMsg?.content)
+        let jsonObj = try JSONSerialization.jsonObject(with: Data(toolMsg!.content!.utf8))
+        XCTAssertNotNil(jsonObj)
+    }
+
+    // 53: Unicode, emoji, and escaped strings character budget agrees with UTF-16 server semantics
+    func testUnicodeEmojiAndEscapedStringsCharacterBudgetAgreesWithUTF16() {
+        let sampleText = #"临期食材推荐 👨‍👩‍👧‍👦 "带引号" 🥑🥦🥕"#
+        let msg = AIConversationTranscriptMessage.user(sampleText)!
+        let cost = ConversationOrchestrator.serverCompatibleCharacterCost([msg])
+        XCTAssertEqual(cost, sampleText.utf16.count)
+    }
+
+    // 54: Tool-call and result integrity remains exact after trimming
+    func testToolCallAndResultIntegrityRemainsExactAfterTrimming() {
+        let call1 = AIConversationTranscriptToolCall(id: "call-1", name: "read_inventory", arguments: .object(["arg": .string(String(repeating: "x", count: 2000))]))
+        let call2 = AIConversationTranscriptToolCall(id: "call-2", name: "read_tonight_plan", arguments: .object(["arg": .string(String(repeating: "y", count: 2000))]))
+
+        let messages: [AIConversationTranscriptMessage] = [
+            .systemText("系统指令")!,
+            .systemText("摘要内容")!,
+            .systemText("实时上下文")!,
+            .user("用户提问")!,
+            .assistantToolCalls([call1])!,
+            .toolResult(forToolCallID: "call-1", text: String(repeating: "result1_", count: 400))!,
+            .assistantToolCalls([call2])!,
+            .toolResult(forToolCallID: "call-2", text: String(repeating: "result2_", count: 400))!,
+        ]
+
+        let budgeted = ConversationOrchestrator.rebudgetContinuation(messages, limit: 7000)
+        XCTAssertNotNil(budgeted)
+        guard let list = budgeted else { return }
+
+        // All assistant tool_calls in the list must have their matching tool_result
+        let assistantCalls = list.filter { $0.role == .assistant && $0.toolCalls != nil }.flatMap { $0.toolCalls! }
+        let toolResults = list.filter { $0.role == .tool }.compactMap { $0.toolCallID }
+
+        let callIDs = Set(assistantCalls.map(\.id))
+        let resultIDs = Set(toolResults)
+        XCTAssertEqual(callIDs, resultIDs, "Tool calls and tool results must remain paired")
+    }
+
+    // 55: Current live read truth wins over older stale history when budget requires trimming
+    func testCurrentLiveReadTruthWinsOverOlderStaleHistoryWhenBudgetRequiresTrimming() {
+        let oldHistoryUser = AIConversationTranscriptMessage.user(String(repeating: "以前有四个鸡蛋_", count: 200))!
+        let oldHistoryAss = AIConversationTranscriptMessage.assistantText(String(repeating: "历史记录说有四个鸡蛋_", count: 200))!
+
+        let liveCall = AIConversationTranscriptToolCall(id: "call-live", name: "read_inventory", arguments: .object([:]))
+        let liveResult = AIConversationTranscriptMessage.toolResult(forToolCallID: "call-live", text: #"{"available":[{"name":"鸡蛋","quantity":1}],"readAt":"2026-09-17T09:00:00Z"}"#)!
+
+        let messages: [AIConversationTranscriptMessage] = [
+            .systemText("系统指令")!,
+            .systemText("历史摘要")!,
+            .systemText("旧实时数据")!,
+            oldHistoryUser,
+            oldHistoryAss,
+            .user("现在有几个鸡蛋？")!,
+            .assistantToolCalls([liveCall])!,
+            liveResult
+        ]
+
+        // Impose a tight budget that forces trimming
+        let budgeted = ConversationOrchestrator.rebudgetContinuation(messages, limit: 250)
+        XCTAssertNotNil(budgeted)
+        guard let list = budgeted else { return }
+
+        // Live tool result must be retained
+        XCTAssertTrue(list.contains(where: { $0.role == .tool && $0.toolCallID == "call-live" }))
+        // Old stale history is trimmed
+        XCTAssertFalse(list.contains(where: { $0.content?.contains("以前有四个鸡蛋") == true }))
+    }
+
+    // 56: Irreducible oversized request fails locally with zero network request for the oversized step
+    func testIrreducibleOversizedRequestFailsLocallyWithZeroNetworkRequest() async throws {
+        let env = try TestEnv()
+        let hugeArgs = String(repeating: "超长大字典参数内容_", count: 1500)
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-huge", name: "read_inventory", arguments: Data(#"{"key":"\#(hugeArgs)"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.state(.failed)))
+        XCTAssertFalse(events.contains(.state(.completed)))
+        XCTAssertFalse(events.contains(.finished))
+
+        let captured = await transport.capturedRequests
+        XCTAssertEqual(captured.count, 1) // Step 1 was sent; step 2 was oversized and had ZERO network requests!
+    }
 }
