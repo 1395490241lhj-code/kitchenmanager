@@ -874,8 +874,8 @@ final class ConversationDomainToolsTests: XCTestCase {
         let tools = makeTools(store, recipeStore)
         try recipeStore.saveUserRecipe(recipe(id: "user-1", title: "红烧牛腩"))
 
-        XCTAssertEqual(tools.resolveRecipe(id: "user-1")?.title, "红烧牛腩")
-        XCTAssertNil(tools.resolveRecipe(id: "never-existed"))
+        XCTAssertEqual(tools.resolveRecipe(query: "different title", recipeID: "user-1")?.title, "红烧牛腩")
+        XCTAssertNil(tools.resolveRecipe(query: "红烧牛腩", recipeID: "never-existed"))
     }
 
     /// The same tool instance, asked twice across a change, must answer twice.
@@ -1521,4 +1521,71 @@ final class ConversationDomainToolsTests: XCTestCase {
         XCTAssertEqual(persistence.replaceCallCount, writesBefore)
         XCTAssertTrue(store.shoppingItems.isEmpty)
     }
+
+    func testResolveRecipeQueryOnlyFindsExactChineseTitle() throws {
+        let recipes = makeRecipeStore()
+        let expected = recipe(id: "query-eggs")
+        try recipes.saveUserRecipe(expected)
+        let tools: any AIConversationDomainTooling = makeTools(makeStore(), recipes)
+        XCTAssertEqual(tools.resolveRecipe(query: "番茄炒蛋", recipeID: nil), expected)
+    }
+
+    func testResolveRecipeNormalizesWhitespaceCaseAndCanonicalUnicode() throws {
+        let recipes = makeRecipeStore()
+        try recipes.saveUserRecipe(recipe(id: "query-unicode", title: "Café I SOUP"))
+        let tools = makeTools(makeStore(), recipes)
+        XCTAssertEqual(tools.resolveRecipe(query: "  CAFE\u{0301}\t i\n soup  ", recipeID: nil)?.id, "query-unicode")
+    }
+
+    func testResolveRecipeUnknownOrNonExactQueryDoesNotGuess() throws {
+        let recipes = makeRecipeStore()
+        try recipes.saveUserRecipe(recipe(id: "query-eggs"))
+        try recipes.saveUserRecipe(recipe(id: "query-cafe", title: "Café Soup"))
+        let tools = makeTools(makeStore(), recipes)
+        for query in ["", " \n\t", "不存在的菜", "番茄", "番茄炒鸡蛋", "Cafe Soup"] {
+            XCTAssertNil(tools.resolveRecipe(query: query, recipeID: nil), query)
+        }
+    }
+
+    func testResolveRecipeAmbiguousNormalizedTitleReturnsNil() throws {
+        let recipes = makeRecipeStore()
+        try recipes.saveUserRecipe(recipe(id: "version-one", title: "Egg Soup", ingredients: ["鸡蛋 1 个"]))
+        try recipes.saveUserRecipe(recipe(id: "version-two", title: "EGG SOUP", ingredients: ["鸡蛋 2 个"]))
+        let tools = makeTools(makeStore(), recipes)
+        XCTAssertNil(tools.resolveRecipe(query: "egg soup", recipeID: nil))
+        XCTAssertEqual(tools.resolveRecipe(query: "egg soup", recipeID: "version-two")?.id, "version-two")
+    }
+
+    func testResolveRecipeQueryReadsCurrentStoreAfterSaveRenameAndDelete() throws {
+        let recipes = makeRecipeStore()
+        let tools = makeTools(makeStore(), recipes)
+        XCTAssertNil(tools.resolveRecipe(query: "番茄炒蛋", recipeID: nil))
+        try recipes.saveUserRecipe(recipe(id: "live-query"))
+        XCTAssertEqual(tools.resolveRecipe(query: "番茄炒蛋", recipeID: nil)?.id, "live-query")
+        try recipes.replaceUserRecipe(recipe(id: "live-query", title: "鸡蛋汤"))
+        XCTAssertNil(tools.resolveRecipe(query: "番茄炒蛋", recipeID: nil))
+        XCTAssertEqual(tools.resolveRecipe(query: "鸡蛋汤", recipeID: nil)?.id, "live-query")
+        XCTAssertEqual(tools.resolveRecipe(query: "ignored with ID", recipeID: "live-query")?.title, "鸡蛋汤")
+        try recipes.deleteUserRecipe(id: "live-query")
+        XCTAssertNil(tools.resolveRecipe(query: "鸡蛋汤", recipeID: nil))
+    }
+
+    func testResolveRecipeEmptyIDUsesQueryButNonemptyIDRemainsAuthoritative() throws {
+        let recipes = makeRecipeStore()
+        try recipes.saveUserRecipe(recipe(id: "query-eggs"))
+        let tools = makeTools(makeStore(), recipes)
+        XCTAssertEqual(tools.resolveRecipe(query: "番茄炒蛋", recipeID: "")?.id, "query-eggs")
+        XCTAssertNil(tools.resolveRecipe(query: "番茄炒蛋", recipeID: "missing"))
+        XCTAssertNil(tools.resolveRecipe(query: "番茄炒蛋", recipeID: " query-eggs "), "IDs are canonical, never title-normalized")
+    }
+
+    func testResolveRecipeQueryDoesNotInventAnUnloadedSampleLibrary() throws {
+        let recipes = makeRecipeStore()
+        let tools = makeTools(makeStore(), recipes)
+        let sample = try XCTUnwrap(Recipe.samples.first)
+        XCTAssertTrue(recipes.recipes.isEmpty)
+        XCTAssertNil(tools.resolveRecipe(query: sample.title, recipeID: nil))
+        XCTAssertEqual(tools.resolveRecipe(query: sample.title, recipeID: sample.id), sample)
+    }
+
 }

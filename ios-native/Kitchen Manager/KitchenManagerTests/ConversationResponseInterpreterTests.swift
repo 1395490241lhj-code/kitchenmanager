@@ -176,4 +176,26 @@ final class ConversationResponseInterpreterTests: XCTestCase {
         XCTAssertEqual(result.recipe.ingredients, ["鸡蛋"]); XCTAssertEqual(result.recipe.steps, ["煮熟"])
     }
 
+
+    @MainActor
+    func testQueryOnlyResolveRecipeIntentExecutesThroughFiniteDomainSurface() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchen = KitchenStore(userDefaults: defaults)
+        let recipes = RecipeStore(userDefaults: defaults)
+        let expected = Recipe(id: "query-only-eggs", title: "番茄炒蛋", cookingTime: 10,
+            difficulty: nil, tags: [], ingredients: ["番茄", "鸡蛋"], steps: ["炒熟"])
+        try recipes.saveUserRecipe(expected)
+        let before = recipes.recipes
+        let domain: any AIConversationDomainTooling = KitchenConversationDomainTools(kitchenStore: kitchen, recipeStore: recipes)
+
+        // This is the entire execution seam: decode the typed intent and forward
+        // its values. No store lookup, title parsing or search in the caller.
+        let intent = interpret("resolve_recipe", ["query": "番茄炒蛋"])
+        guard case let .read(.resolveRecipe(query, recipeID)) = intent else { return XCTFail("Expected semantic recipe read") }
+        XCTAssertNil(recipeID)
+        XCTAssertEqual(domain.resolveRecipe(query: query, recipeID: recipeID), expected)
+        XCTAssertEqual(recipes.recipes, before)
+        XCTAssertTrue(kitchen.plans.isEmpty)
+    }
+
 }

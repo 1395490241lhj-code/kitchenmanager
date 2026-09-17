@@ -14,7 +14,6 @@ final class ConversationContextAssemblerTests: XCTestCase {
         var eggs: Double = 2
         var lots = false
         var unicodeText: String?
-        var reverse = false
         var stamp = Date(timeIntervalSince1970: 1)
         let eventDate = Date(timeIntervalSince1970: 500)
         var focusedID: UUID?
@@ -23,7 +22,6 @@ final class ConversationContextAssemblerTests: XCTestCase {
             reads.append(.inventory)
             var items = [AIInventoryItemContext(name: unicodeText ?? "eggs", quantity: eggs, unit: "个", isStaple: false, isReadyToCook: false, remainingDays: 2)]
             if lots { items += (0..<100).map { AIInventoryItemContext(name: "food-\($0)" + String(repeating: "长", count: 500), quantity: 1, unit: "g", isStaple: false, isReadyToCook: false, remainingDays: 1) } }
-            if reverse { items.reverse() }
             return .init(readAt: stamp, available: items, expiring: items)
         }
         func tonightPlanContext(now: Date, calendar: Calendar) -> AITonightPlanContext {
@@ -40,7 +38,7 @@ final class ConversationContextAssemblerTests: XCTestCase {
             return .init(readAt: stamp, planID: id, title: unicodeText ?? "聚餐", scheduledAt: eventDate,
                 peopleCount: 4, constraintNotes: lots ? Array(repeating: String(repeating: "\"\n长", count: 500), count: 50) : ["无辣"], notes: lots ? String(repeating: "长", count: 10000) : "家人", usesHomeInventory: true, dishes: [])
         }
-        func resolveRecipe(id: String) -> Recipe? { XCTFail("No recipe preload"); return nil }
+        func resolveRecipe(query: String, recipeID: String?) -> Recipe? { XCTFail("No recipe preload"); return nil }
         func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
@@ -54,7 +52,7 @@ final class ConversationContextAssemblerTests: XCTestCase {
             conversationID: conversationID, role: role, createdAt: now.addingTimeInterval(Double(index)), state: state,
             contentBlocks: [.text(.init(text: text))], turnID: conversationID)
     }
-    private func prepare(_ domain: Domain? = nil, entry: AIConversationEntryContext = .home,
+    private func prepare(_ domain: (any AIConversationDomainTooling)? = nil, entry: AIConversationEntryContext = .home,
                          history: [AIConversationMessage] = [], current: AIConversationMessage? = nil,
                          summary: String = "", excluded: Set<AIContextKind> = [], system: String = ConversationContextAssembler.instructions) throws -> PreparedAIConversationRequest {
         try ConversationContextAssembler(domainTools: domain ?? Domain()).prepare(entry: entry, summary: summary, messages: history,
@@ -173,8 +171,8 @@ final class ConversationContextAssemblerTests: XCTestCase {
         let d = Domain(); let a = try prepare(d); d.stamp = now; let b = try prepare(d)
         XCTAssertEqual(a, b); XCTAssertFalse(a.liveContext.contains("readAt"))
     }
-    func testInventoryOrderingIsStable() throws {
-        let d = Domain(); d.lots = true; let a = try prepare(d); d.reverse = true
+    func testIdenticalOrderedInventoryInputIsDeterministic() throws {
+        let d = Domain(); d.lots = true; let a = try prepare(d)
         XCTAssertEqual(a, try prepare(d))
     }
     func testProvenanceCarriesExplicitTimestampAndAnchors() throws {
@@ -302,6 +300,84 @@ final class ConversationContextAssemblerTests: XCTestCase {
         XCTAssertEqual(r.contexts.count, 3)
         XCTAssertFalse(r.liveContext.contains("\u{0301}"))
         XCTAssertTrue(r.liveContext.contains("\"partial\":true"))
+    }
+
+
+    private func realTools() -> (KitchenStore, KitchenConversationDomainTools) {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let store = KitchenStore(userDefaults: defaults)
+        let tools = KitchenConversationDomainTools(kitchenStore: store, recipeStore: RecipeStore(userDefaults: defaults))
+        return (store, tools)
+    }
+
+    private func rows(_ request: PreparedAIConversationRequest, kind: AIContextKind, key: String) throws -> [[String: Any]] {
+        let context = try XCTUnwrap(request.contexts.first { $0.kind == kind })
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(context.value.utf8)) as? [String: Any])
+        return try XCTUnwrap(object[key] as? [[String: Any]])
+    }
+
+    func testRealExpiringInventoryPreservesUrgencyOrder() throws {
+        let (store, tools) = realTools()
+        let today = Date()
+        store.inventory = [("a-later", 2), ("z-urgent", -2)].map { name, days in
+            InventoryItem(name: name, quantity: 1, unit: "个",
+                expiryDate: Calendar.current.date(byAdding: .day, value: days, to: today))
+        }
+        XCTAssertEqual(tools.inventoryContext(now: now).expiring.map(\.name), ["z-urgent", "a-later"])
+        let r = try prepare(tools)
+        XCTAssertEqual(try rows(r, kind: .inventory, key: "expiring").compactMap { $0["name"] as? String }, ["z-urgent", "a-later"])
+        try assertUTF16Budgets(r)
+    }
+
+    func testTruncatedRealInventoryRetainsMostUrgentRegardlessOfLexicalName() throws {
+        let (store, tools) = realTools()
+        let today = Date()
+        let urgentNames = ["z-urgent", "y-next"] + (0..<18).map { "a-later-\($0)" }
+        // Deliberately store the least urgent first. Task4 supplies urgency order.
+        store.inventory = urgentNames.enumerated().reversed().map { index, name in
+            InventoryItem(name: name, quantity: 1, unit: "个",
+                expiryDate: Calendar.current.date(byAdding: .day, value: index - 20, to: today))
+        }
+        XCTAssertEqual(tools.inventoryContext(now: now).expiring.map(\.name), urgentNames)
+        let r = try prepare(tools)
+        let included = try rows(r, kind: .inventory, key: "expiring").compactMap { $0["name"] as? String }
+        XCTAssertGreaterThanOrEqual(included.count, 2)
+        XCTAssertLessThan(included.count, urgentNames.count)
+        XCTAssertEqual(included, Array(urgentNames.prefix(included.count)))
+        XCTAssertEqual(Array(included.prefix(2)), ["z-urgent", "y-next"])
+        XCTAssertTrue(r.liveContext.contains("\"partial\":true"))
+        try assertUTF16Budgets(r)
+    }
+
+    func testRealPlannerMealOrderSurvivesSerialization() throws {
+        let (store, tools) = realTools()
+        var first = MealPlanItem(recipeID: "z", recipeName: "Z first", date: now)
+        var second = MealPlanItem(recipeID: "a", recipeName: "A second", date: now)
+        first.id = UUID(uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF")!
+        second.id = focusID
+        XCTAssertTrue(store.appendPlans([first, second], calendar: tools.calendar).didPersist)
+        XCTAssertEqual(tools.plannerWeekContext(weekStart: now).meals.map(\.recipeName), ["Z first", "A second"])
+        let r = try prepare(tools, entry: .planner(weekStart: now, specialPlanID: nil), current: message("菜单"))
+        XCTAssertEqual(try rows(r, kind: .plannerWeek, key: "meals").compactMap { $0["recipeName"] as? String }, ["Z first", "A second"])
+        XCTAssertEqual(r, try prepare(tools, entry: .planner(weekStart: now, specialPlanID: nil), current: message("菜单")))
+        try assertUTF16Budgets(r)
+    }
+
+    func testRealSpecialPlanDishAndConstraintOrderSurvivesSerialization() throws {
+        let (store, tools) = realTools()
+        var first = SpecialPlanDish(recipeID: "z", recipeName: "Z first")
+        var second = SpecialPlanDish(recipeID: "a", recipeName: "A second")
+        first.id = UUID(uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF")!
+        second.id = focusID
+        let plan = SpecialPlan(title: "聚餐", scheduledAt: now, constraintNotes: ["Z constraint", "A constraint"], dishes: [first, second])
+        store.addSpecialPlan(plan)
+        XCTAssertEqual(tools.specialPlanContext(id: plan.id)?.dishes.map(\.recipeName), ["Z first", "A second"])
+        let r = try prepare(tools, entry: .planner(weekStart: now, specialPlanID: plan.id), current: message("聚餐"), excluded: [.plannerWeek])
+        XCTAssertEqual(try rows(r, kind: .specialPlan, key: "dishes").compactMap { $0["recipeName"] as? String }, ["Z first", "A second"])
+        let value = try XCTUnwrap(r.contexts.first?.value)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(value.utf8)) as? [String: Any])
+        XCTAssertEqual(object["constraintNotes"] as? [String], ["Z constraint", "A constraint"])
+        try assertUTF16Budgets(r)
     }
 
 }

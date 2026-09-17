@@ -189,7 +189,8 @@ protocol AIConversationDomainTooling {
     func tonightPlanContext(now: Date, calendar: Calendar) -> AITonightPlanContext
     func plannerWeekContext(weekStart: Date, calendar: Calendar) -> AIPlannerWeekContext
     func specialPlanContext(id: UUID) -> AISpecialPlanContext?
-    func resolveRecipe(id: String) -> Recipe?
+    /// A supplied nonempty canonical ID wins; otherwise resolve one exact local title.
+    func resolveRecipe(query: String, recipeID: String?) -> Recipe?
 
     func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt
     func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt
@@ -313,9 +314,21 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
         )
     }
 
-    /// Canonical recipe identity, through the library the rest of the app reads.
-    func resolveRecipe(id: String) -> Recipe? {
-        recipeStore.recipe(id: id)
+    /// Read the current canonical library; never fetch, rank or guess a recipe.
+    /// IDs use RecipeStore's existing lookup unchanged, including its fallback.
+    /// Query-only reads use loaded recipes (with user overlays), not display samples.
+    func resolveRecipe(query: String, recipeID: String?) -> Recipe? {
+        if let recipeID, !recipeID.isEmpty { return recipeStore.recipe(id: recipeID) }
+        // Unicode canonical equivalence, locale-independent case, and collapsed
+        // whitespace only. Accents, punctuation and word order remain significant.
+        func normalizedTitle(_ title: String) -> String {
+            title.precomposedStringWithCanonicalMapping.lowercased()
+                .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }
+        let title = normalizedTitle(query)
+        guard !title.isEmpty else { return nil }
+        let matches = recipeStore.recipes.filter { normalizedTitle($0.title) == title }
+        return matches.count == 1 ? matches.first : nil
     }
 
     // MARK: Mutations

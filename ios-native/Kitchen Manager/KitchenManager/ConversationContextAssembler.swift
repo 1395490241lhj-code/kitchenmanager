@@ -173,7 +173,9 @@ struct ConversationContextAssembler {
             return .string(key.hasSuffix("ID") || ["date", "day", "scheduledAt", "weekStart", "weekEnd"].contains(key)
                 ? string : wholeGraphemePrefix(string, utf16Limit: text))
         case .array(let values):
-            return .array(values.sorted { json($0) < json($1) }.prefix(rows).map { bounded($0, rows: rows, text: text) })
+            // Domain order carries urgency, schedule and menu intent. Truncate its
+            // tail; canonical JSON object keys never imply reordering arrays.
+            return .array(values.prefix(rows).map { bounded($0, rows: rows, text: text) })
         case .object(let values):
             return .object(values.reduce(into: [:]) { result, pair in
                 result[pair.key] = bounded(pair.value, rows: rows, text: text, key: pair.key)
