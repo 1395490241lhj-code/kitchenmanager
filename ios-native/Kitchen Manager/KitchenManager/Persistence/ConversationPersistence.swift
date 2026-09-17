@@ -40,6 +40,7 @@ protocol ConversationPersistenceProtocol: AnyObject {
     func loadActions(conversationID: UUID) throws -> [AIConversationActionRecord]
     /// Retry protection: the key is looked up before any domain work happens.
     func action(idempotencyKey: String) throws -> AIConversationActionRecord?
+    func action(id: UUID) throws -> AIConversationActionRecord?
     func createConversationWithFirstMessage(
         _ conversation: AIConversation,
         message: AIConversationMessage
@@ -149,6 +150,13 @@ final class SwiftDataConversationPersistence: ConversationPersistenceProtocol {
                 || $0.statusRawValue == AIActionStatus.undone.rawValue
         }
         return try (latestTerminal ?? records.first)?.action()
+    }
+
+    func action(id: UUID) throws -> AIConversationActionRecord? {
+        let targetID = id
+        var descriptor = FetchDescriptor<ConversationActionRecord>(predicate: #Predicate { $0.actionID == targetID })
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first?.action()
     }
 
     // MARK: - Writes
@@ -348,6 +356,7 @@ final class FailingConversationPersistence: ConversationPersistenceProtocol {
         self.underlyingError = underlyingError
     }
 
+    func action(id: UUID) throws -> AIConversationActionRecord? { throw underlyingError }
     func loadConversations() throws -> [AIConversation] { throw underlyingError }
     func loadMessages(conversationID: UUID) throws -> [AIConversationMessage] { throw underlyingError }
     func loadActions(conversationID: UUID) throws -> [AIConversationActionRecord] { throw underlyingError }

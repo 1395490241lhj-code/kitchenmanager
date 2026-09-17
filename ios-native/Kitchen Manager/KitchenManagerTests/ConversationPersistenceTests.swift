@@ -646,4 +646,16 @@ final class ConversationPersistenceTests: XCTestCase {
             try context.fetch(FetchDescriptor<ConversationContextSnapshotRecord>()).isEmpty
         )
     }
+    func testActionIDLookupRoundTripsExactRecordAcrossContexts() throws {
+        let action = AIConversationActionRecord(conversationID: UUID(), turnID: UUID(), actionType: .addShoppingItems,
+            idempotencyKey: "same-key", status: .succeeded, undoReference: .shoppingAdditions(before: [], after: []),
+            undoExpiresAt: Date(timeIntervalSince1970: 2_000_000_000))
+        try makePersistence().upsertAction(action)
+        XCTAssertEqual(try makePersistence().action(id: action.id), action)
+        XCTAssertNil(try makePersistence().action(id: UUID()))
+    }
+    func testFailingActionIDLookupPropagatesStorageError() {
+        XCTAssertThrowsError(try FailingConversationPersistence(underlyingError: NSError(domain: "disk", code: 1)).action(id: UUID()))
+    }
+
 }

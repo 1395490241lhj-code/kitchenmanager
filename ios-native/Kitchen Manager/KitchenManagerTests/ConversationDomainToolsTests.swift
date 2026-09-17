@@ -1588,4 +1588,27 @@ final class ConversationDomainToolsTests: XCTestCase {
         XCTAssertEqual(tools.resolveRecipe(query: sample.title, recipeID: sample.id), sample)
     }
 
+    func testExactActionReadsAndPostStateRespectAffectedRowsOnly() throws {
+        let store = makeStore(); let rows = seedPlans(store); let recipes = makeRecipeStore(); let tools = makeTools(store, recipes)
+        XCTAssertEqual(tools.plannedMeal(id: rows[0].id), rows[0])
+        let receipt = try tools.replacePlannedMeals([.init(planID: rows[0].id, replacement: .init(recipe: recipe(), isTransient: true))])
+        XCTAssertTrue(tools.currentStateMatchesPostState(of: receipt))
+        var unrelated = store.plans[1]; unrelated.plannedServings = 8; _ = store.restorePlanItems([unrelated])
+        XCTAssertTrue(tools.currentStateMatchesPostState(of: receipt))
+        var affected = store.plans[0]; affected.isCooked = true; _ = store.restorePlanItems([affected])
+        XCTAssertFalse(tools.currentStateMatchesPostState(of: receipt))
+    }
+    func testMutationRecipePreviewResolvesCanonicalAndFingerprintWithoutWrites() throws {
+        let store = makeStore(); let recipes = makeRecipeStore(); let tools = makeTools(store, recipes)
+        let canonical = recipe(id: "canonical", title: "真实菜名"); try recipes.saveUserRecipe(canonical)
+        let snapshot = AIRecipeBlock(recipe: recipe(id: "canonical", title: "旧菜名"), isTransient: false)
+        XCTAssertEqual(tools.mutationRecipes([snapshot]), [canonical])
+        let twin = AIRecipeBlock(recipe: recipe(id: "random", title: "真实菜名"), isTransient: true)
+        XCTAssertEqual(tools.mutationRecipes([twin]), [canonical])
+        let new = AIRecipeBlock(recipe: recipe(id: "new", title: "新菜"), isTransient: true)
+        let second = AIRecipeBlock(recipe: recipe(id: "new2", title: "新菜"), isTransient: true)
+        XCTAssertEqual(tools.mutationRecipes([new, second]), [new.recipe, new.recipe])
+        XCTAssertEqual(recipes.userRecipes, [canonical]); XCTAssertEqual(store.plans, [])
+    }
+
 }

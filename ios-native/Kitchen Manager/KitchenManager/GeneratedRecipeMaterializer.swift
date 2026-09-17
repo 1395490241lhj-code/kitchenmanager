@@ -96,11 +96,18 @@ enum GeneratedRecipeMaterializer {
         _ candidate: GeneratedRecipeCandidate,
         recipeStore: RecipeStore
     ) -> Recipe? {
+        resolveExisting(candidate, recipes: recipeStore.recipes)
+    }
+
+    /// Shared by the read-only confirmation preview and the actual writer.
+    @MainActor
+    static func resolveExisting(_ candidate: GeneratedRecipeCandidate, recipes: [Recipe]) -> Recipe? {
         if let existingID = candidate.existingRecipeID,
-           let matched = recipeStore.recipes.first(where: { $0.id == existingID }) {
+           let matched = recipes.first(where: { $0.id == existingID }) {
             return matched
         }
-        return fingerprintTwin(of: candidate.recipe, in: recipeStore)
+        let fingerprint = RecipeStore.fingerprint(for: candidate.recipe)
+        return recipes.first { RecipeStore.fingerprint(for: $0) == fingerprint }
     }
 
     /// Removes recipes a failed sequence created. Best effort on purpose: a

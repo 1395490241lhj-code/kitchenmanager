@@ -43,6 +43,11 @@ final class ConversationContextAssemblerTests: XCTestCase {
         func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func addShoppingItems(_ items: [AIShoppingItemProposal]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
+        func plannedMeal(id: UUID) -> MealPlanItem? { XCTFail("no action reads"); return nil }
+        func specialPlan(id: UUID) -> SpecialPlan? { XCTFail("no action reads"); return nil }
+        func mutationRecipes(_ blocks: [AIRecipeBlock]) -> [Recipe] { XCTFail("no action reads"); return [] }
+        func currentStateMatchesPostState(of receipt: AIDomainMutationReceipt) -> Bool { XCTFail("no action reads"); return false }
+        func isCompletelyReversed(_ receipt: AIDomainMutationReceipt) -> Bool { XCTFail("no action reads"); return false }
         func undo(_ receipt: AIDomainMutationReceipt) throws { XCTFail("no mutation") }
     }
 

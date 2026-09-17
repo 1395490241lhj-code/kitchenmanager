@@ -192,6 +192,14 @@ protocol AIConversationDomainTooling {
     /// A supplied nonempty canonical ID wins; otherwise resolve one exact local title.
     func resolveRecipe(query: String, recipeID: String?) -> Recipe?
 
+    /// Exact local truth used for confirmation and safe reversal.
+    func plannedMeal(id: UUID) -> MealPlanItem?
+    func specialPlan(id: UUID) -> SpecialPlan?
+    func mutationRecipes(_ blocks: [AIRecipeBlock]) -> [Recipe]
+    func currentStateMatchesPostState(of receipt: AIDomainMutationReceipt) -> Bool
+    /// Stronger than ordinary Undo: no action-created recipe may remain.
+    func isCompletelyReversed(_ receipt: AIDomainMutationReceipt) -> Bool
+
     func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt
     func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt
     func replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange]) throws -> AIDomainMutationReceipt
@@ -329,6 +337,57 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
         guard !title.isEmpty else { return nil }
         let matches = recipeStore.recipes.filter { normalizedTitle($0.title) == title }
         return matches.count == 1 ? matches.first : nil
+    }
+
+    func plannedMeal(id: UUID) -> MealPlanItem? {
+        kitchenStore.plans.first { $0.id == id }
+    }
+
+    func specialPlan(id: UUID) -> SpecialPlan? {
+        kitchenStore.specialPlans.first { $0.id == id }
+    }
+
+    /// Simulates materialization in batch order without saving anything. Later
+    /// candidates can reuse recipes an earlier candidate would create.
+    func mutationRecipes(_ blocks: [AIRecipeBlock]) -> [Recipe] {
+        var available = recipeStore.recipes
+        return blocks.map { block in
+            let candidate = GeneratedRecipeCandidate(existingRecipeID: block.isTransient ? nil : block.recipe.id, recipe: block.recipe)
+            if let existing = GeneratedRecipeMaterializer.resolveExisting(candidate, recipes: available) { return existing }
+            available.insert(block.recipe, at: 0)
+            return block.recipe
+        }
+    }
+
+    func currentStateMatchesPostState(of receipt: AIDomainMutationReceipt) -> Bool {
+        switch receipt {
+        case let .tonightPlan(plan, _): return plannedMeal(id: plan.id) == plan && !kitchenStore.hasConsumedPlan(plan.id)
+        case let .plannerReplacement(_, after, _):
+            return after.allSatisfy { plannedMeal(id: $0.id) == $0 && !kitchenStore.hasConsumedPlan($0.id) }
+        case let .specialPlanMenu(_, after, _): return specialPlan(id: after.id) == after
+        case let .shoppingAdditions(_, after): return kitchenStore.shoppingItems == after
+        }
+    }
+
+    /// Automatic compensation must prove both the primary reversal and recipe
+    /// cleanup. Ordinary Undo deliberately keeps its best-effort cleanup policy.
+    func isCompletelyReversed(_ receipt: AIDomainMutationReceipt) -> Bool {
+        let restored: Bool
+        let createdRecipeIDs: [String]
+        switch receipt {
+        case let .tonightPlan(plan, created):
+            restored = plannedMeal(id: plan.id) == nil
+            createdRecipeIDs = created
+        case let .plannerReplacement(before, _, created):
+            restored = before.allSatisfy { plannedMeal(id: $0.id) == $0 }
+            createdRecipeIDs = created
+        case let .specialPlanMenu(before, _, created):
+            restored = specialPlan(id: before.id) == before
+            createdRecipeIDs = created
+        case let .shoppingAdditions(before, _):
+            return kitchenStore.shoppingItems == before
+        }
+        return restored && !recipeStore.userRecipes.contains { createdRecipeIDs.contains($0.id) }
     }
 
     // MARK: Mutations
