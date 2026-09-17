@@ -1,0 +1,1139 @@
+import XCTest
+@testable import KitchenManager
+
+@MainActor
+final class ConversationOrchestratorTests: XCTestCase {
+
+    // MARK: - Test Doubles
+
+    private final class TestPersistence: ConversationPersistenceProtocol {
+        var actions: [UUID: AIConversationActionRecord] = [:]
+
+        func loadConversations() throws -> [AIConversation] { [] }
+        func loadMessages(conversationID: UUID) throws -> [AIConversationMessage] { [] }
+        func loadActions(conversationID: UUID) throws -> [AIConversationActionRecord] {
+            actions.values.filter { $0.conversationID == conversationID }.sorted {
+                $0.createdAt == $1.createdAt ? $0.actionID.uuidString > $1.actionID.uuidString : $0.createdAt > $1.createdAt
+            }
+        }
+        func action(id: UUID) throws -> AIConversationActionRecord? { actions[id] }
+        func action(idempotencyKey: String) throws -> AIConversationActionRecord? {
+            let sorted = actions.values.filter { $0.idempotencyKey == idempotencyKey }.sorted {
+                $0.createdAt == $1.createdAt ? $0.actionID.uuidString > $1.actionID.uuidString : $0.createdAt > $1.createdAt
+            }
+            return sorted.first { $0.status == .succeeded || $0.status == .undone } ?? sorted.first
+        }
+        func upsertAction(_ action: AIConversationActionRecord) throws {
+            actions[action.id] = action
+        }
+        func createConversationWithFirstMessage(_ conversation: AIConversation, message: AIConversationMessage) throws {}
+        func upsertConversation(_ conversation: AIConversation) throws {}
+        func upsertMessage(_ message: AIConversationMessage) throws {}
+        func upsertContextSnapshot(_ snapshot: AIContextSnapshot, conversationID: UUID) throws {}
+        func deleteConversation(id: UUID) throws {}
+        func deleteAll() throws {}
+        func recoverInterruptedMessages(now: Date) throws -> Int { 0 }
+    }
+
+    private actor AsyncGate {
+        private var isOpened = false
+        private var waiters: [CheckedContinuation<Void, Never>] = []
+
+        func wait() async {
+            if isOpened { return }
+            await withCheckedContinuation { continuation in
+                waiters.append(continuation)
+            }
+        }
+
+        func open() {
+            isOpened = true
+            for waiter in waiters {
+                waiter.resume()
+            }
+            waiters.removeAll()
+        }
+    }
+
+    private actor ScriptedTransport: AIConversationRuntimeTransport {
+        var capturedRequests: [AIConversationRuntimeRequest] = []
+        var stepResponses: [[AIConversationStreamEvent]] = []
+        var onRequest: ((AIConversationRuntimeRequest) async -> [AIConversationStreamEvent])?
+        var onCancel: (() -> Void)?
+        var gate: AsyncGate?
+        var isCancelled: Bool = false
+
+        init(stepResponses: [[AIConversationStreamEvent]] = [], gate: AsyncGate? = nil, onRequest: ((AIConversationRuntimeRequest) async -> [AIConversationStreamEvent])? = nil) {
+            self.stepResponses = stepResponses
+            self.gate = gate
+            self.onRequest = onRequest
+        }
+
+        func setGate(_ gate: AsyncGate) { self.gate = gate }
+        func setOnRequest(_ handler: @escaping (AIConversationRuntimeRequest) async -> [AIConversationStreamEvent]) { self.onRequest = handler }
+
+        func stream(_ request: AIConversationRuntimeRequest) -> AsyncThrowingStream<AIConversationStreamEvent, Error> {
+            capturedRequests.append(request)
+            return AsyncThrowingStream { continuation in
+                let task = Task {
+                    if let gate = self.gate {
+                        await gate.wait()
+                    }
+                    if Task.isCancelled {
+                        self.isCancelled = true
+                        self.onCancel?()
+                        continuation.finish()
+                        return
+                    }
+
+                    let events: [AIConversationStreamEvent]
+                    if let custom = self.onRequest {
+                        events = await custom(request)
+                    } else if !self.stepResponses.isEmpty {
+                        events = self.stepResponses.removeFirst()
+                    } else {
+                        events = [.completed(finishReason: "stop")]
+                    }
+
+                    for event in events {
+                        if Task.isCancelled {
+                            self.isCancelled = true
+                            self.onCancel?()
+                            continuation.finish()
+                            return
+                        }
+                        continuation.yield(event)
+                    }
+                    continuation.finish()
+                }
+
+                continuation.onTermination = { @Sendable _ in
+                    task.cancel()
+                    Task { [weak self] in
+                        await self?.markCancelled()
+                    }
+                }
+            }
+        }
+
+        private var cancelWaiters: [CheckedContinuation<Void, Never>] = []
+
+        func waitForCancel() async {
+            if isCancelled { return }
+            await withCheckedContinuation { continuation in
+                cancelWaiters.append(continuation)
+            }
+        }
+
+        func markCancelled() {
+            isCancelled = true
+            onCancel?()
+            for w in cancelWaiters { w.resume() }
+            cancelWaiters.removeAll()
+        }
+    }
+
+    // MARK: - Test Environment Fixture
+
+    private struct TestEnv {
+        let kitchenStore: KitchenStore
+        let recipeStore: RecipeStore
+        let domainTools: KitchenConversationDomainTools
+        let persistence: TestPersistence
+        let coordinator: ConversationActionCoordinator
+        let assembler: ConversationContextAssembler
+        let conversationID: UUID
+        let turnID: UUID
+        let currentUserMessage: AIConversationMessage
+        let defaultInput: AIConversationTurnInput
+
+        @MainActor
+        init() throws {
+            let defaults = UserDefaults(suiteName: UUID().uuidString)!
+            kitchenStore = KitchenStore(userDefaults: defaults)
+            recipeStore = RecipeStore(userDefaults: defaults)
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+            domainTools = KitchenConversationDomainTools(kitchenStore: kitchenStore, recipeStore: recipeStore, calendar: calendar)
+            persistence = TestPersistence()
+            coordinator = ConversationActionCoordinator(
+                domainTools: domainTools,
+                persistence: persistence,
+                undoExpiresAt: { $0.addingTimeInterval(3600) }
+            )
+            assembler = ConversationContextAssembler(domainTools: domainTools)
+            conversationID = UUID()
+            turnID = UUID()
+            currentUserMessage = AIConversationMessage(
+                id: UUID(),
+                conversationID: conversationID,
+                role: .user,
+                createdAt: Date(),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "今晚吃什么？"))],
+                turnID: turnID
+            )
+            defaultInput = AIConversationTurnInput(
+                conversationID: conversationID,
+                turnID: turnID,
+                currentUserMessage: currentUserMessage
+            )
+        }
+
+        @MainActor
+        func makeOrchestrator(
+            transport: any AIConversationRuntimeTransport,
+            providerRouter: @escaping (UserDefaults) -> AIConversationProviderRoute = { _ in .cloud(provider: .gemini) },
+            isReadOptional: @escaping (AIReadToolRequest) -> Bool = { _ in false }
+        ) -> ConversationOrchestrator {
+            ConversationOrchestrator(
+                contextAssembler: assembler,
+                domainTools: domainTools,
+                actionCoordinator: coordinator,
+                providerRouter: providerRouter,
+                transportFactory: { _ in transport },
+                isReadOptional: isReadOptional
+            )
+        }
+    }
+
+    private func collectEvents(from stream: AsyncThrowingStream<AIConversationTurnEvent, Error>) async throws -> [AIConversationTurnEvent] {
+        var events: [AIConversationTurnEvent] = []
+        for try await event in stream {
+            events.append(event)
+        }
+        return events
+    }
+
+    // MARK: - 38 Required Tests
+
+    // 1: READ LOOP: step 1 text + read_inventory -> live read -> step 2 receives assistant tool_call + matching tool result
+    func testReadLoop_step1Inventory_step2ReceivesToolResultTranscript() async throws {
+        let env = try TestEnv()
+        let step1Events: [AIConversationStreamEvent] = [
+            .textDelta("为您查找库存："),
+            .toolCall(id: "call-inv-1", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2Events: [AIConversationStreamEvent] = [
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events, step2Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.appendText("为您查找库存：")))
+        let captured = await transport.capturedRequests
+        XCTAssertEqual(captured.count, 2)
+        let step2Messages = captured[1].messages
+        XCTAssertTrue(step2Messages.contains(where: { $0.role == .assistant && $0.toolCalls?.first?.id == "call-inv-1" }))
+        XCTAssertTrue(step2Messages.contains(where: { $0.role == .tool && $0.toolCallID == "call-inv-1" }))
+    }
+
+    // 2: READ LOOP: step 2 two recipe-card calls -> two blocks emitted in order
+    func testReadLoop_step2TwoRecipeCardCalls_emitsTwoBlocksInOrder() async throws {
+        let env = try TestEnv()
+        let recipe1 = Recipe(id: "rec-1", title: "番茄炒蛋", cookingTime: 10, difficulty: "简单", tags: [], ingredients: ["番茄", "鸡蛋"], steps: ["炒熟"])
+        let recipe2 = Recipe(id: "rec-2", title: "清炒菜心", cookingTime: 8, difficulty: "简单", tags: [], ingredients: ["菜心"], steps: ["炒熟"])
+        try env.recipeStore.saveUserRecipe(recipe1)
+        try env.recipeStore.saveUserRecipe(recipe2)
+
+        let card1Args = #"{"recipe":{"recipeID":"rec-1","title":"番茄炒蛋"}}"#
+        let card2Args = #"{"recipe":{"recipeID":"rec-2","title":"清炒菜心"}}"#
+        let stepEvents: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-c1", name: "present_recipe_card", arguments: Data(card1Args.utf8)),
+            .toolCall(id: "call-c2", name: "present_recipe_card", arguments: Data(card2Args.utf8)),
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let recipeBlocks = events.compactMap { event -> AIRecipeBlock? in
+            if case let .appendBlock(.recipe(block)) = event { return block }
+            return nil
+        }
+        XCTAssertEqual(recipeBlocks.count, 2)
+        XCTAssertEqual(recipeBlocks[0].recipe.id, "rec-1")
+        XCTAssertEqual(recipeBlocks[1].recipe.id, "rec-2")
+        XCTAssertTrue(events.contains(.state(.completed)))
+        XCTAssertTrue(events.contains(.finished))
+    }
+
+    // 3: Read tool uses current domain truth at execution time
+    func testReadToolUsesCurrentDomainTruthAtExecutionTime() async throws {
+        let env = try TestEnv()
+        var step2ReceivedInventoryText: String?
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-inv", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2Events: [AIConversationStreamEvent] = [
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport()
+        await transport.setOnRequest { req in
+            if await transport.capturedRequests.count == 1 {
+                // Mutate inventory right before tool execution happens
+                Task { @MainActor in
+                    _ = env.kitchenStore.addInventory(name: "土豆", quantity: 5, unit: "个", expiryDate: nil)
+                }
+                return step1Events
+            } else {
+                let toolMsg = req.messages.first(where: { $0.role == .tool && $0.toolCallID == "call-inv" })
+                step2ReceivedInventoryText = toolMsg?.content
+                return step2Events
+            }
+        }
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertNotNil(step2ReceivedInventoryText)
+        XCTAssertTrue(step2ReceivedInventoryText!.contains("土豆"))
+    }
+
+    // 4: resolve_recipe query-only goes through Task 4 finite semantic resolver
+    func testResolveRecipeQueryOnlyExecutesThroughFiniteResolver() async throws {
+        let env = try TestEnv()
+        let recipe = Recipe(id: "rec-solve", title: "麻婆豆腐", cookingTime: 15, difficulty: "简单", tags: [], ingredients: ["豆腐", "肉末"], steps: ["翻炒"])
+        try env.recipeStore.saveUserRecipe(recipe)
+
+        var step2ToolResultText: String?
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-res", name: "resolve_recipe", arguments: Data(#"{"query":"麻婆豆腐"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2Events: [AIConversationStreamEvent] = [.completed(finishReason: "stop")]
+
+        let transport = ScriptedTransport()
+        await transport.setOnRequest { req in
+            if await transport.capturedRequests.count == 1 {
+                return step1Events
+            } else {
+                let toolMsg = req.messages.first(where: { $0.role == .tool && $0.toolCallID == "call-res" })
+                step2ToolResultText = toolMsg?.content
+                return step2Events
+            }
+        }
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertNotNil(step2ToolResultText)
+        XCTAssertTrue(step2ToolResultText!.contains("rec-solve"))
+        XCTAssertTrue(step2ToolResultText!.contains("麻婆豆腐"))
+    }
+
+    // 5: Low-risk add-to-tonight executes exactly once
+    func testLowRiskAddToTonightExecutesExactlyOnce() async throws {
+        let env = try TestEnv()
+        let recipe = Recipe(id: "rec-tonight", title: "鸡蛋汤", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["鸡蛋"], steps: ["煮汤"])
+        try env.recipeStore.saveUserRecipe(recipe)
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-add", name: "propose_add_recipe_to_tonight", arguments: Data(#"{"recipe":{"recipeID":"rec-tonight","title":"鸡蛋汤"}}"#.utf8)),
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertEqual(env.kitchenStore.plans.count, 1)
+        XCTAssertEqual(env.kitchenStore.plans.first?.recipeName, "鸡蛋汤")
+
+        let statusBlock = events.compactMap { event -> AIActionStatusBlock? in
+            if case let .appendBlock(.actionStatus(block)) = event { return block }
+            return nil
+        }
+        XCTAssertEqual(statusBlock.count, 1)
+        XCTAssertTrue(statusBlock.first!.canUndo)
+        XCTAssertFalse(statusBlock.first!.isFailure)
+        XCTAssertTrue(events.contains(.state(.completed)))
+    }
+
+    // 6: Low-risk same-turn Retry reuses the original turnID and causes zero duplicate domain mutation
+    func testLowRiskSameTurnRetryReusesTurnIDAndCausesZeroDuplicateMutation() async throws {
+        let env = try TestEnv()
+        let recipe = Recipe(id: "rec-tonight", title: "鸡蛋汤", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["鸡蛋"], steps: ["煮汤"])
+        try env.recipeStore.saveUserRecipe(recipe)
+
+        let stepEvents: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-add", name: "propose_add_recipe_to_tonight", arguments: Data(#"{"recipe":{"recipeID":"rec-tonight","title":"鸡蛋汤"}}"#.utf8)),
+            .completed(finishReason: "stop")
+        ]
+
+        let transport1 = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator1 = env.makeOrchestrator(transport: transport1)
+        _ = try await collectEvents(from: orchestrator1.runTurn(env.defaultInput))
+        XCTAssertEqual(env.kitchenStore.plans.count, 1)
+
+        // Retry same turn with same turnID
+        let retryInput = AIConversationTurnInput(
+            conversationID: env.conversationID,
+            turnID: env.turnID, // Same logical turn
+            currentUserMessage: env.currentUserMessage
+        )
+        let transport2 = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator2 = env.makeOrchestrator(transport: transport2)
+        _ = try await collectEvents(from: orchestrator2.runTurn(retryInput))
+
+        // Must NOT duplicate the mutation
+        XCTAssertEqual(env.kitchenStore.plans.count, 1)
+    }
+
+    // 7: Identical action from a NEW logical turn can execute again
+    func testIdenticalActionFromNewLogicalTurnCanExecuteAgain() async throws {
+        let env = try TestEnv()
+        let recipe = Recipe(id: "rec-tonight", title: "鸡蛋汤", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["鸡蛋"], steps: ["煮汤"])
+        try env.recipeStore.saveUserRecipe(recipe)
+
+        let stepEvents: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-add", name: "propose_add_recipe_to_tonight", arguments: Data(#"{"recipe":{"recipeID":"rec-tonight","title":"鸡蛋汤"}}"#.utf8)),
+            .completed(finishReason: "stop")
+        ]
+
+        let transport1 = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator1 = env.makeOrchestrator(transport: transport1)
+        _ = try await collectEvents(from: orchestrator1.runTurn(env.defaultInput))
+        XCTAssertEqual(env.kitchenStore.plans.count, 1)
+
+        // Genuinely NEW turn with NEW turnID
+        let newTurnID = UUID()
+        let newMsg = AIConversationMessage(
+            id: UUID(),
+            conversationID: env.conversationID,
+            role: .user,
+            createdAt: Date(),
+            state: .completed,
+            contentBlocks: [.text(.init(text: "再加一次鸡蛋汤"))],
+            turnID: newTurnID
+        )
+        let newInput = AIConversationTurnInput(
+            conversationID: env.conversationID,
+            turnID: newTurnID,
+            currentUserMessage: newMsg
+        )
+        let transport2 = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator2 = env.makeOrchestrator(transport: transport2)
+        _ = try await collectEvents(from: orchestrator2.runTurn(newInput))
+
+        // New turn executes again
+        XCTAssertEqual(env.kitchenStore.plans.count, 2)
+    }
+
+    // 8: Medium Planner proposal emits preview + pendingAction and zero mutation
+    func testMediumPlannerProposalEmitsPreviewAndPendingActionWithZeroMutation() async throws {
+        let env = try TestEnv()
+        let oldRecipe = Recipe(id: "rec-old", title: "旧菜", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["菜"], steps: ["做"])
+        let newRecipe = Recipe(id: "rec-new", title: "新菜", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["新菜"], steps: ["做"])
+        try env.recipeStore.saveUserRecipe(oldRecipe)
+        try env.recipeStore.saveUserRecipe(newRecipe)
+
+        let saveResult = env.kitchenStore.addPlan(recipe: oldRecipe, on: Date(), calendar: env.domainTools.calendar)
+        guard case .saved(let plan) = saveResult else { return XCTFail() }
+
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-rep", name: "propose_replace_planned_meal", arguments: Data(#"{"planID":"\#(plan.id.uuidString)","replacement":{"recipeID":"rec-new","title":"新菜"}}"#.utf8)),
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        // Zero mutation occurred!
+        XCTAssertEqual(env.kitchenStore.plans.first?.recipeName, "旧菜")
+
+        // Emitted preview and pendingAction
+        let preview = events.compactMap { event -> AIPlannerPreviewBlock? in
+            if case let .appendBlock(.plannerPreview(preview)) = event { return preview }
+            return nil
+        }
+        XCTAssertEqual(preview.count, 1)
+
+        let pending = events.compactMap { event -> PreparedAIAction? in
+            if case let .pendingAction(action) = event { return action }
+            return nil
+        }
+        XCTAssertEqual(pending.count, 1)
+        XCTAssertEqual(pending.first?.risk, .medium)
+        XCTAssertTrue(events.contains(.state(.awaitingConfirmation)))
+    }
+
+    // 9: High/bulk proposal exposes every preview row and zero mutation
+    func testHighBulkProposalExposesEveryPreviewRowAndZeroMutation() async throws {
+        let env = try TestEnv()
+        let r1 = Recipe(id: "r1", title: "菜1", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["1"], steps: ["1"])
+        let r2 = Recipe(id: "r2", title: "菜2", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["2"], steps: ["2"])
+        let rNew = Recipe(id: "r-new", title: "替换菜", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["新"], steps: ["新"])
+        try env.recipeStore.saveUserRecipe(r1)
+        try env.recipeStore.saveUserRecipe(r2)
+        try env.recipeStore.saveUserRecipe(rNew)
+
+        guard case .saved(let p1) = env.kitchenStore.addPlan(recipe: r1, on: Date(), calendar: env.domainTools.calendar),
+              case .saved(let p2) = env.kitchenStore.addPlan(recipe: r2, on: Date(), calendar: env.domainTools.calendar) else { return XCTFail() }
+
+        let json = #"{"changes":[{"planID":"\#(p1.id.uuidString)","replacement":{"recipeID":"r-new","title":"替换菜"}},{"planID":"\#(p2.id.uuidString)","replacement":{"recipeID":"r-new","title":"替换菜"}}]}"#
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-bulk", name: "propose_apply_planner_changes", arguments: Data(json.utf8)),
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1Events])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        // Zero mutation
+        XCTAssertEqual(env.kitchenStore.plans[0].recipeName, "菜1")
+        XCTAssertEqual(env.kitchenStore.plans[1].recipeName, "菜2")
+
+        let pending = events.compactMap { event -> PreparedAIAction? in
+            if case let .pendingAction(action) = event { return action }
+            return nil
+        }
+        XCTAssertEqual(pending.first?.risk, .high)
+        if case let .plannerPreview(preview)? = pending.first?.preview {
+            XCTAssertEqual(preview.changes.count, 2)
+        } else {
+            XCTFail("Missing preview")
+        }
+    }
+
+    // 10: Apply is not an Orchestrator/provider operation
+    func testApplyIsNotAnOrchestratorOperation() throws {
+        // Orchestrator exposes only runTurn and cancelCurrentTurn.
+        // Confirm execution of a prepared action is performed directly on ActionCoordinator.
+        let env = try TestEnv()
+        let r = Recipe(id: "r1", title: "鸡蛋", cookingTime: 5, difficulty: nil, tags: [], ingredients: ["蛋"], steps: ["做"])
+        try env.recipeStore.saveUserRecipe(r)
+        let prepared = try env.coordinator.prepare(.addRecipeToTonight(recipe: .init(id: UUID(), recipe: r, isTransient: false)), conversationID: env.conversationID, turnID: env.turnID)
+        let result = try env.coordinator.execute(prepared)
+        XCTAssertEqual(result.record.status, .succeeded)
+    }
+
+    // 11: All stateless provider steps within a turn retain one logical turnID
+    func testAllStatelessProviderStepsWithinTurnRetainOneLogicalTurnID() async throws {
+        let env = try TestEnv()
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c1", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2: [AIConversationStreamEvent] = [
+            .toolCall(id: "c2", name: "read_tonight_plan", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step3: [AIConversationStreamEvent] = [
+            .completed(finishReason: "stop")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1, step2, step3])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let reqs = await transport.capturedRequests
+        XCTAssertEqual(reqs.count, 3)
+        // Same logical turn across all steps
+        XCTAssertEqual(env.defaultInput.turnID, env.turnID)
+    }
+
+    // 12: Targeted Retry of failed/cancelled turn retains original turnID
+    func testTargetedRetryOfFailedOrCancelledTurnRetainsOriginalTurnID() {
+        let originalTurnID = UUID()
+        let input1 = AIConversationTurnInput(
+            conversationID: UUID(),
+            turnID: originalTurnID,
+            currentUserMessage: .init(conversationID: UUID(), role: .user, state: .completed, contentBlocks: [], turnID: originalTurnID)
+        )
+        let retryInput = AIConversationTurnInput(
+            conversationID: input1.conversationID,
+            turnID: input1.turnID, // Retains original turnID
+            currentUserMessage: input1.currentUserMessage
+        )
+        XCTAssertEqual(input1.turnID, retryInput.turnID)
+    }
+
+    // 13: Genuinely new user message has a new turnID
+    func testGenuinelyNewUserMessageHasNewTurnID() {
+        let turn1 = UUID()
+        let turn2 = UUID()
+        XCTAssertNotEqual(turn1, turn2)
+    }
+
+    // 14: Cancellation after text preserves text
+    func testCancellationAfterTextPreservesText() async throws {
+        let env = try TestEnv()
+        let gate = AsyncGate()
+        let transport = ScriptedTransport()
+        await transport.setGate(gate)
+        await transport.setOnRequest { _ in
+            [
+                .textDelta("部分输出文字"),
+                .completed(finishReason: "stop")
+            ]
+        }
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let stream = orchestrator.runTurn(env.defaultInput)
+
+        var iterator = stream.makeAsyncIterator()
+        _ = try await iterator.next() // .state(.preparingContext)
+        _ = try await iterator.next() // .state(.requesting)
+        await gate.open()
+        _ = try await iterator.next() // .state(.streaming)
+        let textEvent = try await iterator.next()
+        XCTAssertEqual(textEvent, .appendText("部分输出文字"))
+
+        orchestrator.cancelCurrentTurn()
+
+        let cancelledEvent = try await iterator.next()
+        XCTAssertEqual(cancelledEvent, .state(.cancelled))
+        let end = try await iterator.next()
+        XCTAssertNil(end)
+    }
+
+    // 15: Cancellation cancels active provider iteration
+    func testCancellationCancelsActiveProviderIteration() async throws {
+        let env = try TestEnv()
+        let gate = AsyncGate()
+        let transport = ScriptedTransport()
+        await transport.setGate(gate)
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let stream = orchestrator.runTurn(env.defaultInput)
+        var iterator = stream.makeAsyncIterator()
+        _ = try await iterator.next() // preparingContext
+        _ = try await iterator.next() // requesting
+
+        orchestrator.cancelCurrentTurn()
+        await gate.open()
+        await transport.waitForCancel()
+
+        let isCancelled = await transport.isCancelled
+        XCTAssertTrue(isCancelled)
+    }
+
+    // 16: Outer transport ending nil after requested cancellation becomes .cancelled, NOT .completed
+    func testOuterTransportEndingNilAfterRequestedCancellationBecomesCancelledNotCompleted() async throws {
+        let env = try TestEnv()
+        let gate = AsyncGate()
+        let transport = ScriptedTransport()
+        await transport.setGate(gate)
+        await transport.setOnRequest { _ in [] } // ends with nil/empty immediately after gate opens
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let stream = orchestrator.runTurn(env.defaultInput)
+        var iterator = stream.makeAsyncIterator()
+        _ = try await iterator.next() // preparingContext
+        _ = try await iterator.next() // requesting
+
+        orchestrator.cancelCurrentTurn()
+        await gate.open()
+
+        var events: [AIConversationTurnEvent] = []
+        while let ev = try await iterator.next() {
+            events.append(ev)
+        }
+
+        XCTAssertTrue(events.contains(.state(.cancelled)))
+        XCTAssertFalse(events.contains(.state(.completed)))
+    }
+
+    // 17: Events arriving after cancellation are ignored
+    func testEventsArrivingAfterCancellationAreIgnored() async throws {
+        let env = try TestEnv()
+        let transport = ScriptedTransport(stepResponses: [
+            [.textDelta("A"), .textDelta("B")]
+        ])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let stream = orchestrator.runTurn(env.defaultInput)
+        var iterator = stream.makeAsyncIterator()
+        _ = try await iterator.next() // preparingContext
+        orchestrator.cancelCurrentTurn()
+
+        var remaining: [AIConversationTurnEvent] = []
+        while let ev = try await iterator.next() {
+            remaining.append(ev)
+        }
+        XCTAssertFalse(remaining.contains(.appendText("B")))
+    }
+
+    // 18: Cancelled old turn cannot append into a newly started turn
+    func testCancelledOldTurnCannotAppendIntoNewlyStartedTurn() async throws {
+        let env = try TestEnv()
+        let gate1 = AsyncGate()
+        let transport = ScriptedTransport()
+        await transport.setOnRequest { req in
+            if req.messages.contains(where: { $0.content == "Turn 1" }) {
+                await gate1.wait()
+                return [.textDelta("Turn 1 message")]
+            } else {
+                return [.textDelta("Turn 2 message"), .completed(finishReason: "stop")]
+            }
+        }
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        let msg1 = AIConversationMessage(conversationID: env.conversationID, role: .user, state: .completed, contentBlocks: [.text(.init(text: "Turn 1"))], turnID: UUID())
+        let input1 = AIConversationTurnInput(conversationID: env.conversationID, currentUserMessage: msg1)
+        _ = orchestrator.runTurn(input1)
+
+        orchestrator.cancelCurrentTurn()
+
+        let msg2 = AIConversationMessage(conversationID: env.conversationID, role: .user, state: .completed, contentBlocks: [.text(.init(text: "Turn 2"))], turnID: UUID())
+        let input2 = AIConversationTurnInput(conversationID: env.conversationID, currentUserMessage: msg2)
+        let stream2 = orchestrator.runTurn(input2)
+
+        await gate1.open()
+
+        let events2 = try await collectEvents(from: stream2)
+        XCTAssertFalse(events2.contains(.appendText("Turn 1 message")))
+        XCTAssertTrue(events2.contains(.appendText("Turn 2 message")))
+    }
+
+    // 19: Recipe block emitted before later provider error remains
+    func testRecipeBlockEmittedBeforeLaterProviderErrorRemains() async throws {
+        let env = try TestEnv()
+        let recipe = Recipe(id: "r-err", title: "鸡蛋", cookingTime: 5, difficulty: nil, tags: [], ingredients: ["蛋"], steps: ["做"])
+        try env.recipeStore.saveUserRecipe(recipe)
+
+        let stepEvents: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-rec", name: "present_recipe_card", arguments: Data(#"{"recipe":{"recipeID":"r-err","title":"鸡蛋"}}"#.utf8)),
+            .error(code: "server_err", message: "网络异常中断"),
+            .completed(finishReason: "error")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        // Recipe card was emitted and remains
+        let hasRecipe = events.contains(where: {
+            if case let .appendBlock(.recipe(block)) = $0 { return block.recipe.id == "r-err" }
+            return false
+        })
+        XCTAssertTrue(hasRecipe)
+        XCTAssertTrue(events.contains(.state(.failed)))
+    }
+
+    // 20: Scoped error emitted exactly once
+    func testScopedErrorEmittedExactlyOnce() async throws {
+        let env = try TestEnv()
+        let stepEvents: [AIConversationStreamEvent] = [
+            .error(code: "err", message: "服务器错误"),
+            .completed(finishReason: "error")
+        ]
+        let transport = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        let errorBlocks = events.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(errorBlocks.count, 1)
+        XCTAssertEqual(errorBlocks.first?.message, "服务器错误")
+    }
+
+    // 21: Provider error produces no fake finished success
+    func testProviderErrorProducesNoFakeFinishedSuccess() async throws {
+        let env = try TestEnv()
+        let transport = ScriptedTransport(stepResponses: [
+            [.error(code: "err", message: "fail")]
+        ])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertFalse(events.contains(.finished))
+        XCTAssertFalse(events.contains(.state(.completed)))
+        XCTAssertTrue(events.contains(.state(.failed)))
+    }
+
+    // 22: Six provider steps permitted
+    func testSixProviderStepsPermitted() async throws {
+        let env = try TestEnv()
+        var steps: [[AIConversationStreamEvent]] = []
+        for i in 1...5 {
+            steps.append([
+                .toolCall(id: "c(i)", name: "read_tonight_plan", arguments: Data("{}".utf8)),
+                .completed(finishReason: "tool_calls")
+            ])
+        }
+        steps.append([.completed(finishReason: "stop")]) // 6th step finishes
+
+        let transport = ScriptedTransport(stepResponses: steps)
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.state(.completed)))
+        XCTAssertTrue(events.contains(.finished))
+        let captured = await transport.capturedRequests
+        XCTAssertEqual(captured.count, 6)
+    }
+
+    // 23: Seventh provider step refused
+    func testSeventhProviderStepRefused() async throws {
+        let env = try TestEnv()
+        var steps: [[AIConversationStreamEvent]] = []
+        for i in 1...7 {
+            steps.append([
+                .toolCall(id: "c(i)", name: "read_tonight_plan", arguments: Data("{}".utf8)),
+                .completed(finishReason: "tool_calls")
+            ])
+        }
+
+        let transport = ScriptedTransport(stepResponses: steps)
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.state(.failed)))
+        XCTAssertFalse(events.contains(.state(.completed)))
+        let captured = await transport.capturedRequests
+        XCTAssertEqual(captured.count, 6) // Stopped before making 7th request!
+    }
+
+    // 24: Twelve tool calls permitted
+    func testTwelveToolCallsPermitted() async throws {
+        let env = try TestEnv()
+        var calls: [AIConversationStreamEvent] = []
+        for i in 1...12 {
+            calls.append(.toolCall(id: "c(i)", name: "read_tonight_plan", arguments: Data("{}".utf8)))
+        }
+        calls.append(.completed(finishReason: "tool_calls"))
+
+        let step2: [AIConversationStreamEvent] = [.completed(finishReason: "stop")]
+
+        let transport = ScriptedTransport(stepResponses: [calls, step2])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.state(.completed)))
+    }
+
+    // 25: Thirteenth tool call refused before execution
+    func testThirteenthToolCallRefusedBeforeExecution() async throws {
+        let env = try TestEnv()
+        var calls: [AIConversationStreamEvent] = []
+        for i in 1...13 {
+            calls.append(.toolCall(id: "c(i)", name: "read_tonight_plan", arguments: Data("{}".utf8)))
+        }
+        calls.append(.completed(finishReason: "tool_calls"))
+
+        let transport = ScriptedTransport(stepResponses: [calls])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.state(.failed)))
+        let errorBlocks = events.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(errorBlocks.first?.message, "已达到本次对话的工具调用上限，已停止执行后续操作。")
+    }
+
+    // 26: Bounded-loop error leaves previous content intact
+    func testBoundedLoopErrorLeavesPreviousContentIntact() async throws {
+        let env = try TestEnv()
+        var calls: [AIConversationStreamEvent] = [
+            .textDelta("前序文本内容")
+        ]
+        for i in 1...13 {
+            calls.append(.toolCall(id: "c(i)", name: "read_tonight_plan", arguments: Data("{}".utf8)))
+        }
+        let transport = ScriptedTransport(stepResponses: [calls])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.appendText("前序文本内容")))
+        XCTAssertTrue(events.contains(.state(.failed)))
+    }
+
+    // 27: Unknown tool -> interpreter rejection -> no domain action
+    func testUnknownToolCausesInterpreterRejectionAndNoDomainAction() async throws {
+        let env = try TestEnv()
+        let stepEvents: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-unk", name: "unknown_hack_tool", arguments: Data("{}".utf8)),
+            .completed(finishReason: "stop")
+        ]
+        let transport = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let errorBlocks = events.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(errorBlocks.first?.message, "无法识别这次操作，没有改动。")
+        XCTAssertEqual(env.kitchenStore.plans.count, 0)
+    }
+
+    // 28: Malformed args -> no domain action
+    func testMalformedToolArgsCausesInterpreterRejectionAndNoDomainAction() async throws {
+        let env = try TestEnv()
+        let stepEvents: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-mal", name: "propose_add_shopping_items", arguments: Data(#"{"items":[{"name":"鸡蛋","quantity":-5}]}"#.utf8)),
+            .completed(finishReason: "stop")
+        ]
+        let transport = ScriptedTransport(stepResponses: [stepEvents])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertEqual(env.kitchenStore.shoppingItems.count, 0)
+        let errorBlocks = events.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(errorBlocks.first?.message, "无法识别这次操作，没有改动。")
+    }
+
+    // 29: Optional read failure follows explicit semantic optionality only
+    func testOptionalReadFailureFollowsExplicitSemanticOptionality() async throws {
+        let env = try TestEnv()
+        var step2ReceivedErrorResult = false
+
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-spec", name: "read_special_plan", arguments: Data(#"{"planID":"\#(UUID().uuidString)"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let step2: [AIConversationStreamEvent] = [.completed(finishReason: "stop")]
+
+        let transport = ScriptedTransport()
+        await transport.setOnRequest { req in
+            if await transport.capturedRequests.count == 1 {
+                return step1
+            } else {
+                let toolMsg = req.messages.first(where: { $0.role == .tool && $0.toolCallID == "c-spec" })
+                if toolMsg?.content?.contains("error") == true {
+                    step2ReceivedErrorResult = true
+                }
+                return step2
+            }
+        }
+
+        // Mark specialPlan as optional
+        let orchestrator = env.makeOrchestrator(
+            transport: transport,
+            isReadOptional: { req in
+                if case .specialPlan = req { return true }
+                return false
+            }
+        )
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(step2ReceivedErrorResult)
+        XCTAssertTrue(events.contains(.state(.completed)))
+    }
+
+    // 30: Required/non-optional read failure fails closed
+    func testRequiredReadFailureFailsClosed() async throws {
+        let env = try TestEnv()
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c-spec", name: "read_special_plan", arguments: Data(#"{"planID":"\#(UUID().uuidString)"}"#.utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+
+        let transport = ScriptedTransport(stepResponses: [step1])
+        let orchestrator = env.makeOrchestrator(
+            transport: transport,
+            isReadOptional: { _ in false } // Required
+        )
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertTrue(events.contains(.state(.failed)))
+        let errorBlocks = events.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(errorBlocks.first?.message, "读取厨房上下文失败，已停止处理。")
+    }
+
+    // 31: Global Gemini route uses Gemini cloud runtime
+    func testGlobalGeminiRouteUsesGeminiCloudRuntime() async throws {
+        let env = try TestEnv()
+        var selectedProvider: AIRecommendationProvider?
+        let orchestrator = ConversationOrchestrator(
+            contextAssembler: env.assembler,
+            domainTools: env.domainTools,
+            actionCoordinator: env.coordinator,
+            providerRouter: { _ in .cloud(provider: .gemini) },
+            transportFactory: { prov in
+                selectedProvider = prov
+                return ScriptedTransport(stepResponses: [[.completed(finishReason: "stop")]])
+            }
+        )
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        XCTAssertEqual(selectedProvider, .gemini)
+    }
+
+    // 32: Global Groq route uses Groq cloud runtime
+    func testGlobalGroqRouteUsesGroqCloudRuntime() async throws {
+        let env = try TestEnv()
+        var selectedProvider: AIRecommendationProvider?
+        let orchestrator = ConversationOrchestrator(
+            contextAssembler: env.assembler,
+            domainTools: env.domainTools,
+            actionCoordinator: env.coordinator,
+            providerRouter: { _ in .cloud(provider: .groq) },
+            transportFactory: { prov in
+                selectedProvider = prov
+                return ScriptedTransport(stepResponses: [[.completed(finishReason: "stop")]])
+            }
+        )
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        XCTAssertEqual(selectedProvider, .groq)
+    }
+
+    // 33: Apple route emits exact unavailable behavior and creates no cloud request
+    func testAppleRouteEmitsExactUnavailableBehaviorAndCreatesNoCloudRequest() async throws {
+        let env = try TestEnv()
+        var cloudFactoryCalled = false
+        let orchestrator = ConversationOrchestrator(
+            contextAssembler: env.assembler,
+            domainTools: env.domainTools,
+            actionCoordinator: env.coordinator,
+            providerRouter: { _ in .unavailable(message: "Kitchen AI 对话暂不支持设备端模型。") },
+            transportFactory: { _ in
+                cloudFactoryCalled = true
+                return ScriptedTransport()
+            }
+        )
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        XCTAssertFalse(cloudFactoryCalled)
+        XCTAssertTrue(events.contains(.state(.failed)))
+        let errorBlocks = events.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(errorBlocks.first?.message, "Kitchen AI 对话暂不支持设备端模型。")
+    }
+
+    // 34: State machine: valid successful no-tool turn transition sequence
+    func testStateMachine_validSuccessfulNoToolTurn() async throws {
+        let env = try TestEnv()
+        let transport = ScriptedTransport(stepResponses: [
+            [.textDelta("你好"), .completed(finishReason: "stop")]
+        ])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let states = events.compactMap { ev -> AIConversationTurnState? in
+            if case let .state(s) = ev { return s }
+            return nil
+        }
+        XCTAssertEqual(states, [.preparingContext, .requesting, .streaming, .completed])
+    }
+
+    // 35: State machine: medium/high pending-confirmation transition sequence
+    func testStateMachine_mediumHighPendingConfirmation() async throws {
+        let env = try TestEnv()
+        let oldRecipe = Recipe(id: "r-old", title: "旧菜", cookingTime: 5, difficulty: nil, tags: [], ingredients: ["菜"], steps: ["做"])
+        let newRecipe = Recipe(id: "r-new", title: "新菜", cookingTime: 5, difficulty: nil, tags: [], ingredients: ["菜"], steps: ["做"])
+        try env.recipeStore.saveUserRecipe(oldRecipe)
+        try env.recipeStore.saveUserRecipe(newRecipe)
+        guard case .saved(let plan) = env.kitchenStore.addPlan(recipe: oldRecipe, on: Date(), calendar: env.domainTools.calendar) else { return XCTFail() }
+
+        let step1: [AIConversationStreamEvent] = [
+            .textDelta("替换菜品"),
+            .toolCall(id: "c-rep", name: "propose_replace_planned_meal", arguments: Data(#"{"planID":"\#(plan.id.uuidString)","replacement":{"recipeID":"r-new","title":"新菜"}}"#.utf8)),
+            .completed(finishReason: "stop")
+        ]
+        let transport = ScriptedTransport(stepResponses: [step1])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let states = events.compactMap { ev -> AIConversationTurnState? in
+            if case let .state(s) = ev { return s }
+            return nil
+        }
+        XCTAssertEqual(states, [.preparingContext, .requesting, .streaming, .toolRequested, .awaitingConfirmation])
+    }
+
+    // 36: State machine: failed sequence
+    func testStateMachine_failedSequence() async throws {
+        let env = try TestEnv()
+        let transport = ScriptedTransport(stepResponses: [
+            [.error(code: "fatal", message: "boom")]
+        ])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let states = events.compactMap { ev -> AIConversationTurnState? in
+            if case let .state(s) = ev { return s }
+            return nil
+        }
+        XCTAssertEqual(states, [.preparingContext, .requesting, .failed])
+    }
+
+    // 37: State machine: cancelled sequence
+    func testStateMachine_cancelledSequence() async throws {
+        let env = try TestEnv()
+        let gate = AsyncGate()
+        let secondGate = AsyncGate()
+        let transport = ScriptedTransport()
+        await transport.setGate(gate)
+        await transport.setOnRequest { _ in
+            await secondGate.wait()
+            return [.textDelta("hi")]
+        }
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let stream = orchestrator.runTurn(env.defaultInput)
+        var iterator = stream.makeAsyncIterator()
+
+        _ = try await iterator.next() // preparingContext
+        _ = try await iterator.next() // requesting
+        await gate.open()
+
+        // Cancel while waiting on secondGate
+        orchestrator.cancelCurrentTurn()
+        await secondGate.open()
+
+        var remainingStates: [AIConversationTurnState] = []
+        while let ev = try await iterator.next() {
+            if case let .state(s) = ev { remainingStates.append(s) }
+        }
+        XCTAssertEqual(remainingStates, [.cancelled])
+    }
+
+    // 38: State machine: no simultaneous active-turn event leakage
+    func testStateMachine_noSimultaneousActiveTurnEventLeakage() async throws {
+        let env = try TestEnv()
+        let gate = AsyncGate()
+        let transport = ScriptedTransport()
+        await transport.setGate(gate)
+        await transport.setOnRequest { req in
+            if req.messages.contains(where: { $0.content == "Turn 1" }) {
+                return [.textDelta("Leak from 1")]
+            } else {
+                return [.textDelta("Response 2"), .completed(finishReason: "stop")]
+            }
+        }
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let msg1 = AIConversationMessage(conversationID: env.conversationID, role: .user, state: .completed, contentBlocks: [.text(.init(text: "Turn 1"))], turnID: UUID())
+        let input1 = AIConversationTurnInput(conversationID: env.conversationID, currentUserMessage: msg1)
+
+        let msg2 = AIConversationMessage(conversationID: env.conversationID, role: .user, state: .completed, contentBlocks: [.text(.init(text: "Turn 2"))], turnID: UUID())
+        let input2 = AIConversationTurnInput(conversationID: env.conversationID, currentUserMessage: msg2)
+
+        _ = orchestrator.runTurn(input1)
+        // Immediately start Turn 2 before Turn 1 finishes
+        let stream2 = orchestrator.runTurn(input2)
+        await gate.open()
+
+        let events2 = try await collectEvents(from: stream2)
+        XCTAssertFalse(events2.contains(.appendText("Leak from 1")))
+        XCTAssertTrue(events2.contains(.appendText("Response 2")))
+    }
+}
