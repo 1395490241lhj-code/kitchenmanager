@@ -22,6 +22,19 @@ nonisolated struct AIConversationTranscriptToolCall: Sendable, Equatable {
     let id: String
     let name: String
     let arguments: JSONAnyValue
+
+    /// Canonical JSON string encoding for assistant tool-call arguments, shared by
+    /// wire request construction (CloudAIConversationTransport) and server-budget accounting
+    /// (ConversationOrchestrator) to guarantee exact character count agreement with the server.
+    nonisolated static func canonicalArgumentsString(_ dict: [String: JSONAnyValue]) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(dict)
+        guard let encoded = String(data: data, encoding: .utf8) else {
+            throw APIError.protocolViolation("工具调用参数无法编码为 UTF-8 JSON 字符串。")
+        }
+        return encoded
+    }
 }
 
 nonisolated enum AIConversationTranscriptRole: String, Sendable {

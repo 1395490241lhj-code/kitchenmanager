@@ -50,8 +50,6 @@ final class ConversationOrchestrator {
 
     nonisolated static func serverCompatibleCharacterCost(_ messages: [AIConversationTranscriptMessage]) -> Int {
         var total = 0
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         for message in messages {
             if let content = message.content {
                 total += content.utf16.count
@@ -59,8 +57,7 @@ final class ConversationOrchestrator {
             if let toolCalls = message.toolCalls {
                 for call in toolCalls {
                     if case .object(let dict) = call.arguments,
-                       let data = try? encoder.encode(dict),
-                       let str = String(data: data, encoding: .utf8) {
+                       let str = try? AIConversationTranscriptToolCall.canonicalArgumentsString(dict) {
                         total += str.utf16.count
                     }
                 }

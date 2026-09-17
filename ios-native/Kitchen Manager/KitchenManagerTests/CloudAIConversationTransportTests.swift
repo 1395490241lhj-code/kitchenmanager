@@ -209,4 +209,130 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
             }
         }
     }
+
+    func test_wireArgumentsEncodingMatchesBudgetCalculationForSlashes() async throws {
+        let repeatedSlashes = String(repeating: "/", count: 6000)
+        let assistantCall = AIConversationTranscriptToolCall(
+            id: "call-slash",
+            name: "resolve_recipe",
+            arguments: .object(["query": .string(repeatedSlashes)])
+        )
+        let request = AIConversationRuntimeRequest(
+            messages: [
+                try XCTUnwrap(.user("查找菜谱")),
+                try XCTUnwrap(.assistantToolCalls([assistantCall])),
+            ],
+            enabledTools: ["resolve_recipe"],
+            requestID: UUID()
+        )
+        MockURLProtocol.install { _ in
+            .init(statusCode: 200, data: Self.ndjson([#"{"type":"completed","finishReason":"stop"}"#]))
+        }
+        let transport = CloudAIConversationTransport(client: apiClient)
+        for try await _ in transport.stream(request) {}
+
+        let captured = try XCTUnwrap(MockURLProtocol.capturedRequests().first)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(captured.httpBody)) as? [String: Any])
+        let wireMessages = try XCTUnwrap(body["messages"] as? [[String: Any]])
+        let calls = try XCTUnwrap(wireMessages.first { $0["tool_calls"] != nil }?["tool_calls"] as? [[String: Any]])
+        let function = try XCTUnwrap(calls.first?["function"] as? [String: Any])
+        let actualArgumentsString = try XCTUnwrap(function["arguments"] as? String)
+
+        let predictedCost = ConversationOrchestrator.serverCompatibleCharacterCost(request.messages)
+        let actualCost = ("查找菜谱".utf16.count) + actualArgumentsString.utf16.count
+
+        XCTAssertEqual(predictedCost, actualCost)
+    }
+
+    func test_wireArgumentsEncodingMatchesBudgetCalculationForQuotesBackslashesUnicodeEmoji() async throws {
+        let complexQuery = #"西红柿 / 鸡蛋 👨‍👩‍👧‍👦 "特别提示" \ 反斜杠 🥑🥦"#
+        let assistantCall = AIConversationTranscriptToolCall(
+            id: "call-complex",
+            name: "resolve_recipe",
+            arguments: .object([
+                "query": .string(complexQuery),
+                "nested": .object(["note": .string(#"嵌套 "引" / 斜杠"#)])
+            ])
+        )
+        let request = AIConversationRuntimeRequest(
+            messages: [
+                try XCTUnwrap(.systemText("系统说明")),
+                try XCTUnwrap(.user("测试特殊字符")),
+                try XCTUnwrap(.assistantToolCalls([assistantCall])),
+            ],
+            enabledTools: ["resolve_recipe"],
+            requestID: UUID()
+        )
+        MockURLProtocol.install { _ in
+            .init(statusCode: 200, data: Self.ndjson([#"{"type":"completed","finishReason":"stop"}"#]))
+        }
+        let transport = CloudAIConversationTransport(client: apiClient)
+        for try await _ in transport.stream(request) {}
+
+        let captured = try XCTUnwrap(MockURLProtocol.capturedRequests().first)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(captured.httpBody)) as? [String: Any])
+        let wireMessages = try XCTUnwrap(body["messages"] as? [[String: Any]])
+        let calls = try XCTUnwrap(wireMessages.first { $0["tool_calls"] != nil }?["tool_calls"] as? [[String: Any]])
+        let function = try XCTUnwrap(calls.first?["function"] as? [String: Any])
+        let actualArgumentsString = try XCTUnwrap(function["arguments"] as? String)
+
+        let predictedCost = ConversationOrchestrator.serverCompatibleCharacterCost(request.messages)
+        let actualCost = ("系统说明".utf16.count) + ("测试特殊字符".utf16.count) + actualArgumentsString.utf16.count
+
+        XCTAssertEqual(predictedCost, actualCost)
+    }
+
+    func test_nearLimitRuntimeRequestWireBodyStaysWithinServerPromptLimit() async throws {
+        // Build a tool call with arguments close to the limit
+        let bigArg = String(repeating: "中文字符串内容 / 含斜杠 / ", count: 350)
+        let assistantCall = AIConversationTranscriptToolCall(
+            id: "call-near-limit",
+            name: "resolve_recipe",
+            arguments: .object(["query": .string(bigArg)])
+        )
+        let messages: [AIConversationTranscriptMessage] = [
+            try XCTUnwrap(.systemText("系统指令说明")),
+            try XCTUnwrap(.user(String(repeating: "用户补充要求_", count: 200))),
+            try XCTUnwrap(.assistantToolCalls([assistantCall])),
+            try XCTUnwrap(.toolResult(forToolCallID: "call-near-limit", text: #"{"found":true}"#)),
+        ]
+
+        guard let budgeted = ConversationOrchestrator.rebudgetContinuation(messages, limit: ConversationOrchestrator.serverPromptMaxChars) else {
+            return XCTFail("expected request to fit after rebudgeting")
+        }
+
+        let request = AIConversationRuntimeRequest(
+            messages: budgeted,
+            enabledTools: ["resolve_recipe"],
+            requestID: UUID()
+        )
+        MockURLProtocol.install { _ in
+            .init(statusCode: 200, data: Self.ndjson([#"{"type":"completed","finishReason":"stop"}"#]))
+        }
+        let transport = CloudAIConversationTransport(client: apiClient)
+        for try await _ in transport.stream(request) {}
+
+        let captured = try XCTUnwrap(MockURLProtocol.capturedRequests().first)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(captured.httpBody)) as? [String: Any])
+        let wireMessages = try XCTUnwrap(body["messages"] as? [[String: Any]])
+
+        // Calculate Node-compatible character count directly from wireMessages
+        var nodeCount = 0
+        for msg in wireMessages {
+            if let content = msg["content"] as? String {
+                nodeCount += content.utf16.count
+            }
+            if let toolCalls = msg["tool_calls"] as? [[String: Any]] {
+                for call in toolCalls {
+                    if let function = call["function"] as? [String: Any],
+                       let args = function["arguments"] as? String {
+                        nodeCount += args.utf16.count
+                    }
+                }
+            }
+        }
+
+        XCTAssertLessThanOrEqual(nodeCount, ConversationOrchestrator.serverPromptMaxChars)
+        XCTAssertEqual(nodeCount, ConversationOrchestrator.serverCompatibleCharacterCost(budgeted))
+    }
 }

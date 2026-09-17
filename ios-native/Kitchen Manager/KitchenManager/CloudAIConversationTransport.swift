@@ -24,11 +24,7 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
         let arguments: String
         init(name: String, argumentsDictionary dict: [String: JSONAnyValue]) throws {
             self.name = name
-            let data = try JSONEncoder().encode(dict)
-            guard let encoded = String(data: data, encoding: .utf8) else {
-                throw APIError.protocolViolation("工具调用参数无法编码为 UTF-8 JSON 字符串。")
-            }
-            self.arguments = encoded
+            self.arguments = try AIConversationTranscriptToolCall.canonicalArgumentsString(dict)
         }
     }
 
