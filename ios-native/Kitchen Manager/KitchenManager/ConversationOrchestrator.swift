@@ -138,6 +138,13 @@ final class ConversationOrchestrator {
         }
     }
 
+    private func cleanupActiveRun(_ runID: UUID) {
+        if self.activeRunID == runID {
+            self.activeTask = nil
+            self.activeContinuation = nil
+        }
+    }
+
     private func executeTurn(
         input: AIConversationTurnInput,
         runID: UUID,
@@ -154,7 +161,10 @@ final class ConversationOrchestrator {
             return true
         }
 
-        guard emit(.state(.preparingContext)) else { return }
+        guard emit(.state(.preparingContext)) else {
+            cleanupActiveRun(runID)
+            return
+        }
 
         let preparedRequest: PreparedAIConversationRequest
         do {
@@ -170,6 +180,7 @@ final class ConversationOrchestrator {
             _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "准备对话上下文失败。", retry: .contextRead))))
             _ = emit(.state(.failed))
             continuation.finish()
+            cleanupActiveRun(runID)
             return
         }
 
@@ -182,17 +193,20 @@ final class ConversationOrchestrator {
             _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: message, retry: nil))))
             _ = emit(.state(.failed))
             continuation.finish()
+            cleanupActiveRun(runID)
             return
         }
 
         var ephemeralTranscript: [AIConversationTranscriptMessage] = preparedRequest.messages
         var providerStepCount = 0
         var toolCallCount = 0
+        var turnMutationCount = 0
 
         while true {
             guard self.activeRunID == runID && !self.isCancellationRequested && !Task.isCancelled else {
                 _ = emit(.state(.cancelled))
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
@@ -201,10 +215,14 @@ final class ConversationOrchestrator {
                 _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "已达到本次对话的最大步骤上限，已停止处理。", retry: .generation))))
                 _ = emit(.state(.failed))
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
-            guard emit(.state(.requesting)) else { return }
+            guard emit(.state(.requesting)) else {
+                cleanupActiveRun(runID)
+                return
+            }
 
             let runtimeRequest = AIConversationRuntimeRequest(
                 messages: ephemeralTranscript,
@@ -215,6 +233,7 @@ final class ConversationOrchestrator {
             var stepText = ""
             var stepToolCalls: [AIConversationToolCall] = []
             var stepError: (code: String, message: String)?
+            var emittedPresentationToolIDs: Set<String> = []
 
             do {
                 let stream = await transport.stream(runtimeRequest)
@@ -222,13 +241,20 @@ final class ConversationOrchestrator {
                     guard self.activeRunID == runID && !self.isCancellationRequested && !Task.isCancelled else {
                         _ = emit(.state(.cancelled))
                         continuation.finish()
+                        cleanupActiveRun(runID)
                         return
                     }
 
                     switch event {
                     case .textDelta(let delta):
-                        guard emit(.state(.streaming)) else { return }
-                        guard emit(.appendText(delta)) else { return }
+                        guard emit(.state(.streaming)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        guard emit(.appendText(delta)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
                         stepText += delta
 
                     case .toolCall(let id, let name, let arguments):
@@ -237,15 +263,30 @@ final class ConversationOrchestrator {
                             _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "已达到本次对话的工具调用上限，已停止执行后续操作。", retry: .generation))))
                             _ = emit(.state(.failed))
                             continuation.finish()
+                            cleanupActiveRun(runID)
                             return
                         }
-                        guard emit(.state(.toolRequested)) else { return }
+                        guard emit(.state(.toolRequested)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
                         let call = AIConversationToolCall(id: id, name: name, arguments: arguments)
                         if name == "present_recipe_card" || name == "present_context_result" {
                             let context = buildInterpretationContext(for: call)
                             let intent = interpreter.interpret(toolCall: call, context: context)
                             if case .appendBlock(let block) = intent {
-                                guard emit(.appendBlock(block)) else { return }
+                                if case .error = block {
+                                    _ = emit(.appendBlock(block))
+                                    _ = emit(.state(.failed))
+                                    continuation.finish()
+                                    cleanupActiveRun(runID)
+                                    return
+                                }
+                                guard emit(.appendBlock(block)) else {
+                                    cleanupActiveRun(runID)
+                                    return
+                                }
+                                emittedPresentationToolIDs.insert(id)
                             }
                         }
                         stepToolCalls.append(call)
@@ -261,17 +302,20 @@ final class ConversationOrchestrator {
                 if self.isCancellationRequested || Task.isCancelled {
                     _ = emit(.state(.cancelled))
                     continuation.finish()
+                    cleanupActiveRun(runID)
                     return
                 }
                 _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "服务暂时不可用，请稍后重试。", retry: .generation))))
                 _ = emit(.state(.failed))
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
             if self.isCancellationRequested || Task.isCancelled {
                 _ = emit(.state(.cancelled))
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
@@ -279,16 +323,150 @@ final class ConversationOrchestrator {
                 _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: error.message, retry: .generation))))
                 _ = emit(.state(.failed))
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
             if stepToolCalls.isEmpty {
-                guard emit(.state(.completed)) else { return }
-                guard emit(.finished) else { return }
+                guard emit(.state(.completed)) else {
+                    cleanupActiveRun(runID)
+                    return
+                }
+                guard emit(.finished) else {
+                    cleanupActiveRun(runID)
+                    return
+                }
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
+            // Interpret all tool calls for this step
+            var interpretedCalls: [(AIConversationToolCall, AIConversationToolIntent)] = []
+            for call in stepToolCalls {
+                let context = buildInterpretationContext(for: call)
+                let intent = interpreter.interpret(toolCall: call, context: context)
+                interpretedCalls.append((call, intent))
+            }
+
+            // Check for interpreter rejection errors (unknown tool, malformed args)
+            for (call, intent) in interpretedCalls {
+                if case let .appendBlock(.error(errBlock)) = intent {
+                    if !emittedPresentationToolIDs.contains(call.id) {
+                        _ = emit(.appendBlock(.error(errBlock)))
+                    }
+                    _ = emit(.state(.failed))
+                    continuation.finish()
+                    cleanupActiveRun(runID)
+                    return
+                }
+            }
+
+            // Safety policy checks
+            let stepMutationCalls = interpretedCalls.filter { if case .proposeAction = $0.1 { return true } else { return false } }
+            let stepReadCalls = interpretedCalls.filter { if case .read = $0.1 { return true } else { return false } }
+
+            // Important 1: At most one mutation proposal per logical turn, no splitting
+            if (turnMutationCount > 0 && !stepMutationCalls.isEmpty) || stepMutationCalls.count > 1 {
+                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "单次对话最多只能执行一项修改操作，请分步进行。", retry: .action))))
+                _ = emit(.state(.failed))
+                continuation.finish()
+                cleanupActiveRun(runID)
+                return
+            }
+
+            // Important 1: No mixed read + mutation in the same step
+            if !stepMutationCalls.isEmpty && !stepReadCalls.isEmpty {
+                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "不能在同一步骤中同时读取数据并提交修改操作，请先读取后再操作。", retry: .action))))
+                _ = emit(.state(.failed))
+                continuation.finish()
+                cleanupActiveRun(runID)
+                return
+            }
+
+            // If this step contains the one allowed mutation proposal
+            if stepMutationCalls.count == 1 {
+                turnMutationCount += 1
+
+                // Emit any presentation blocks first
+                for (call, intent) in interpretedCalls {
+                    if case let .appendBlock(block) = intent, !emittedPresentationToolIDs.contains(call.id) {
+                        guard emit(.appendBlock(block)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        emittedPresentationToolIDs.insert(call.id)
+                    }
+                }
+
+                guard case let .proposeAction(proposal) = stepMutationCalls[0].1 else { return }
+                do {
+                    let prepared = try actionCoordinator.prepare(proposal, conversationID: input.conversationID, turnID: input.turnID)
+                    if prepared.risk.requiresExplicitConfirmation {
+                        if let preview = prepared.preview {
+                            guard emit(.appendBlock(preview)) else {
+                                cleanupActiveRun(runID)
+                                return
+                            }
+                        }
+                        guard emit(.pendingAction(prepared)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        guard emit(.state(.awaitingConfirmation)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        continuation.finish()
+                        cleanupActiveRun(runID)
+                        return
+                    } else {
+                        guard emit(.state(.executing)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        let execResult = try actionCoordinator.execute(prepared)
+                        let statusMsg: String
+                        switch proposal {
+                        case .addRecipeToTonight: statusMsg = "已加入今晚计划"
+                        case .addShoppingItems: statusMsg = "已加入购物清单"
+                        default: statusMsg = "操作已完成"
+                        }
+                        let statusBlock = AIActionStatusBlock(
+                            id: uuidGenerator(),
+                            message: statusMsg,
+                            actionID: execResult.record.actionID,
+                            canUndo: true,
+                            isFailure: false
+                        )
+                        guard emit(.appendBlock(.actionStatus(statusBlock))) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        // Low-risk mutation terminates provider generation
+                        guard emit(.state(.completed)) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        guard emit(.finished) else {
+                            cleanupActiveRun(runID)
+                            return
+                        }
+                        continuation.finish()
+                        cleanupActiveRun(runID)
+                        return
+                    }
+                } catch {
+                    let errBlock = AIErrorBlock(id: uuidGenerator(), message: error.localizedDescription, retry: .action)
+                    _ = emit(.appendBlock(.error(errBlock)))
+                    _ = emit(.state(.failed))
+                    continuation.finish()
+                    cleanupActiveRun(runID)
+                    return
+                }
+            }
+
+            // If stepMutationCalls.isEmpty: Only presentation tools and/or read tools
             if !stepText.isEmpty {
                 if let msg = AIConversationTranscriptMessage.assistantText(stepText) {
                     ephemeralTranscript.append(msg)
@@ -304,92 +482,65 @@ final class ConversationOrchestrator {
                 ephemeralTranscript.append(callsMsg)
             }
 
-            var hasReadContinuation = false
-            var shouldPauseTurn = false
-
-            for call in stepToolCalls {
-                if call.name == "present_recipe_card" || call.name == "present_context_result" {
-                    continue
-                }
-                let context = buildInterpretationContext(for: call)
-                let intent = interpreter.interpret(toolCall: call, context: context)
-
+            // Important 2: Every assistant tool_call must have a matching tool_result row before continuation
+            for (call, intent) in interpretedCalls {
                 switch intent {
                 case .appendBlock(let block):
-                    guard emit(.appendBlock(block)) else { return }
-
-                case .proposeAction(let proposal):
-                    do {
-                        let prepared = try actionCoordinator.prepare(proposal, conversationID: input.conversationID, turnID: input.turnID)
-                        if prepared.risk.requiresExplicitConfirmation {
-                            if let preview = prepared.preview {
-                                guard emit(.appendBlock(preview)) else { return }
-                            }
-                            guard emit(.pendingAction(prepared)) else { return }
-                            guard emit(.state(.awaitingConfirmation)) else { return }
-                            shouldPauseTurn = true
-                        } else {
-                            guard emit(.state(.executing)) else { return }
-                            let execResult = try actionCoordinator.execute(prepared)
-                            let statusMsg: String
-                            switch proposal {
-                            case .addRecipeToTonight: statusMsg = "已加入今晚计划"
-                            case .addShoppingItems: statusMsg = "已加入购物清单"
-                            default: statusMsg = "操作已完成"
-                            }
-                            let statusBlock = AIActionStatusBlock(
-                                id: uuidGenerator(),
-                                message: statusMsg,
-                                actionID: execResult.record.actionID,
-                                canUndo: true,
-                                isFailure: false
-                            )
-                            guard emit(.appendBlock(.actionStatus(statusBlock))) else { return }
+                    if !emittedPresentationToolIDs.contains(call.id) {
+                        guard emit(.appendBlock(block)) else {
+                            cleanupActiveRun(runID)
+                            return
                         }
-                    } catch {
-                        let errBlock = AIErrorBlock(id: uuidGenerator(), message: error.localizedDescription, retry: .action)
-                        guard emit(.appendBlock(.error(errBlock))) else { return }
-                        guard emit(.state(.failed)) else { return }
-                        continuation.finish()
+                        emittedPresentationToolIDs.insert(call.id)
+                    }
+                    if let ack = AIConversationTranscriptMessage.toolResult(forToolCallID: call.id, text: #"{"presented":true}"#) {
+                        ephemeralTranscript.append(ack)
+                    }
+                case .read(let readRequest):
+                    guard emit(.state(.executing)) else {
+                        cleanupActiveRun(runID)
                         return
                     }
-
-                case .read(let readRequest):
-                    guard emit(.state(.executing)) else { return }
                     do {
                         let resultText = try executeReadTool(readRequest)
                         if let toolMsg = AIConversationTranscriptMessage.toolResult(forToolCallID: call.id, text: resultText) {
                             ephemeralTranscript.append(toolMsg)
-                            hasReadContinuation = true
                         }
                     } catch {
                         if isReadOptional(readRequest) {
                             if let toolMsg = AIConversationTranscriptMessage.toolResult(forToolCallID: call.id, text: #"{"error":"read_failed"}"#) {
                                 ephemeralTranscript.append(toolMsg)
-                                hasReadContinuation = true
                             }
                         } else {
                             let errBlock = AIErrorBlock(id: uuidGenerator(), message: "读取厨房上下文失败，已停止处理。", retry: .contextRead)
-                            guard emit(.appendBlock(.error(errBlock))) else { return }
-                            guard emit(.state(.failed)) else { return }
+                            _ = emit(.appendBlock(.error(errBlock)))
+                            _ = emit(.state(.failed))
                             continuation.finish()
+                            cleanupActiveRun(runID)
                             return
                         }
                     }
+                case .proposeAction:
+                    break
                 }
             }
 
-            if shouldPauseTurn {
+            if stepReadCalls.isEmpty {
+                // No read continuation needed
+                guard emit(.state(.completed)) else {
+                    cleanupActiveRun(runID)
+                    return
+                }
+                guard emit(.finished) else {
+                    cleanupActiveRun(runID)
+                    return
+                }
                 continuation.finish()
+                cleanupActiveRun(runID)
                 return
             }
 
-            if !hasReadContinuation {
-                guard emit(.state(.completed)) else { return }
-                guard emit(.finished) else { return }
-                continuation.finish()
-                return
-            }
+            // Has read calls -> continues to next provider step with complete transcript
         }
     }
 
