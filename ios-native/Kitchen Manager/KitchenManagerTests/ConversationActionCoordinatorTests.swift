@@ -102,6 +102,8 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         }
         lazy var domain = Domain(kitchen, recipes)
         let conversation = UUID()
+        // A fixture represents one logical turn; retries and payload comparisons keep it.
+        let turn = UUID()
         var time = Date(timeIntervalSince1970: 1_800_000_000)
         lazy var c = coordinator()
         func coordinator(persistence: (any ConversationPersistenceProtocol)? = nil) -> ConversationActionCoordinator {
@@ -109,7 +111,7 @@ final class ConversationActionCoordinatorTests: XCTestCase {
                 now: { self.time }, undoExpiresAt: { $0.addingTimeInterval(60) })
         }
         func prepare(_ proposal: AIActionProposal) throws -> PreparedAIAction {
-            try c.prepare(proposal, conversationID: conversation, turnID: UUID())
+            try c.prepare(proposal, conversationID: conversation, turnID: turn)
         }
         func plan(_ title: String = "原来的菜") -> MealPlanItem {
             let row = MealPlanItem(recipeID: "old", recipeName: title, date: time, plannedServings: 3, isCooked: true)
@@ -214,15 +216,97 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         expect(.stale) { _ = try f.c.execute(a) }; XCTAssertEqual(f.domain.writes, 0)
     }
 
+    func testNewTurnAfterManualShoppingRemovalExecutesWithRealDomainTools() throws {
+        let f = Fixture()
+        let c = ConversationActionCoordinator(domainTools: f.domain.live, persistence: f.p,
+            now: { f.time }, undoExpiresAt: { $0.addingTimeInterval(60) })
+        let firstTurn = UUID(); let nextTurn = UUID(); let proposal = shopping()
+        let first = try c.prepare(proposal, conversationID: f.conversation, turnID: firstTurn)
+        _ = try c.execute(first)
+        let item = try XCTUnwrap(f.kitchen.shoppingItems.first)
+        XCTAssertEqual(item.quantity, 2)
+        f.kitchen.deleteShopping(item.id)
+        XCTAssertTrue(f.kitchen.shoppingItems.isEmpty)
+
+        let next = try c.prepare(proposal, conversationID: f.conversation, turnID: nextTurn)
+        XCTAssertNotEqual(first.idempotencyKey, next.idempotencyKey)
+        let result = try c.execute(next)
+        XCTAssertEqual(result.record.id, next.id)
+        XCTAssertEqual(result.record.turnID, nextTurn)
+        XCTAssertEqual(result.record.status, .succeeded)
+        XCTAssertEqual(f.kitchen.shoppingItems.count, 1)
+        XCTAssertEqual(f.kitchen.shoppingItems.first?.quantity, 2)
+    }
+
+    func testDifferentTurnsWithSameProposalHaveDifferentKeys() throws {
+        let f = Fixture(); let proposal = shopping(); let first = try f.prepare(proposal)
+        let nextTurn = UUID()
+        let next = try f.c.prepare(proposal, conversationID: f.conversation, turnID: nextTurn)
+        XCTAssertNotEqual(first.idempotencyKey, next.idempotencyKey)
+        XCTAssertEqual(f.p.rows[first.id]?.turnID, f.turn)
+        XCTAssertEqual(f.p.rows[next.id]?.turnID, nextTurn)
+    }
+
+    func testNewTurnWithExistingShoppingResultMergesAgainWithRealDomainTools() throws {
+        let f = Fixture()
+        let c = ConversationActionCoordinator(domainTools: f.domain.live, persistence: f.p,
+            now: { f.time }, undoExpiresAt: { $0.addingTimeInterval(60) })
+        let proposal = shopping()
+        let first = try c.prepare(proposal, conversationID: f.conversation, turnID: f.turn)
+        _ = try c.execute(first)
+        let before = try XCTUnwrap(f.kitchen.shoppingItems.first)
+        XCTAssertEqual(before.quantity, 2)
+        let nextTurn = UUID()
+        let next = try c.prepare(proposal, conversationID: f.conversation, turnID: nextTurn)
+        XCTAssertNotEqual(first.idempotencyKey, next.idempotencyKey)
+        let result = try c.execute(next)
+        XCTAssertEqual(result.record.id, next.id); XCTAssertEqual(result.record.turnID, nextTurn)
+        XCTAssertEqual(result.record.status, .succeeded)
+        XCTAssertEqual(f.kitchen.shoppingItems.count, 1)
+        XCTAssertEqual(f.kitchen.shoppingItems.first?.id, before.id)
+        XCTAssertEqual(f.kitchen.shoppingItems.first?.quantity, 4)
+    }
+
+    func testNewTurnAfterUndoHasNewKeyAndExecutes() throws {
+        let f = Fixture(); let proposal = shopping(); let first = try f.prepare(proposal)
+        _ = try f.c.execute(first); _ = try f.c.undo(actionID: first.id)
+        XCTAssertTrue(f.kitchen.shoppingItems.isEmpty)
+        let nextTurn = UUID()
+        let next = try f.c.prepare(proposal, conversationID: f.conversation, turnID: nextTurn)
+        XCTAssertNotEqual(first.idempotencyKey, next.idempotencyKey)
+        let result = try f.c.execute(next)
+        XCTAssertEqual(result.record.id, next.id); XCTAssertEqual(result.record.turnID, nextTurn)
+        XCTAssertEqual(result.record.status, .succeeded)
+        XCTAssertEqual(f.p.rows[first.id]?.status, .undone)
+        XCTAssertEqual(f.domain.writes, 2); XCTAssertEqual(f.kitchen.shoppingItems.first?.quantity, 2)
+    }
+
+    func testStalePreparedActionCannotAcquireNewTurnIdentity() throws {
+        let f = Fixture(); let proposal = shopping(); let first = try f.prepare(proposal)
+        let stale = try f.prepare(proposal)
+        _ = try f.c.execute(first); _ = try f.c.undo(actionID: first.id)
+        let nextTurn = UUID()
+        let next = try f.c.prepare(proposal, conversationID: f.conversation, turnID: nextTurn)
+        let result = try f.c.execute(next)
+        XCTAssertNotEqual(stale.idempotencyKey, next.idempotencyKey)
+        expect(.stale) { _ = try f.c.execute(stale) }
+        XCTAssertEqual(f.p.rows[stale.id]?.turnID, f.turn)
+        XCTAssertEqual(f.p.rows[stale.id]?.status, .proposed)
+        XCTAssertEqual(result.record.turnID, nextTurn)
+        XCTAssertEqual(f.domain.writes, 2); XCTAssertEqual(f.kitchen.shoppingItems.first?.quantity, 2)
+    }
+
     // Full payload hashing, including fields absent from relatedEntityIDs.
     func testCanonicalProposalKeyIsStableLowercaseSHA256() throws {
         let f = Fixture(); let one = try f.prepare(tonight()); let two = try f.prepare(tonight())
+        XCTAssertNotEqual(one.id, two.id)
+        XCTAssertEqual(f.p.rows[one.id]?.turnID, f.turn); XCTAssertEqual(f.p.rows[two.id]?.turnID, f.turn)
         XCTAssertEqual(one.idempotencyKey, two.idempotencyKey)
         XCTAssertNotNil(one.idempotencyKey.range(of: "^[0-9a-f]{64}$", options: .regularExpression))
     }
     func testConversationChangesKey() throws {
         let f = Fixture(); let a = try f.prepare(tonight())
-        let b = try f.c.prepare(tonight(), conversationID: UUID(), turnID: UUID())
+        let b = try f.c.prepare(tonight(), conversationID: UUID(), turnID: f.turn)
         XCTAssertNotEqual(a.idempotencyKey, b.idempotencyKey)
     }
     func testActionTypeChangesKey() throws {
@@ -289,17 +373,26 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     }
     func testSucceededKeyReturnsExistingSuccessWithoutWrites() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); let success = try f.c.execute(a)
-        XCTAssertEqual(try f.c.execute(a), success); XCTAssertEqual(f.domain.writes, 1)
+        let retry = try f.prepare(shopping())
+        XCTAssertEqual(a.idempotencyKey, retry.idempotencyKey)
+        XCTAssertEqual(f.p.rows[retry.id]?.turnID, f.turn)
+        XCTAssertEqual(try f.c.execute(a), success); XCTAssertEqual(try f.c.execute(retry), success)
+        XCTAssertEqual(f.domain.writes, 1); XCTAssertEqual(f.kitchen.shoppingItems.first?.quantity, 2)
     }
     func testFailedAttemptMayRetry() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); f.domain.failure = .persistenceFailed
         XCTAssertThrowsError(try f.c.execute(a)); XCTAssertEqual(f.p.rows[a.id]?.status, .failed)
-        f.domain.failure = nil; let retry = try f.prepare(shopping()); _ = try f.c.execute(retry)
+        f.domain.failure = nil; let retry = try f.prepare(shopping())
+        XCTAssertEqual(a.idempotencyKey, retry.idempotencyKey)
+        XCTAssertEqual(f.p.rows[retry.id]?.turnID, f.turn)
+        XCTAssertEqual(try f.c.execute(retry).record.status, .succeeded)
         XCTAssertEqual(f.kitchen.shoppingItems.count, 1); XCTAssertEqual(f.domain.writes, 2)
     }
     func testSucceededUndoneNewPrepareExecutesAndLaterSuccessWins() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); _ = try f.c.execute(a); _ = try f.c.undo(actionID: a.id)
-        let repeatAction = try f.prepare(shopping()); let latest = try f.c.execute(repeatAction)
+        let repeatAction = try f.prepare(shopping())
+        XCTAssertEqual(a.idempotencyKey, repeatAction.idempotencyKey)
+        let latest = try f.c.execute(repeatAction)
         XCTAssertEqual(try f.p.action(idempotencyKey: a.idempotencyKey)?.id, repeatAction.id)
         XCTAssertEqual(try f.c.execute(try f.prepare(shopping())), latest)
         XCTAssertEqual(f.domain.writes, 2); XCTAssertEqual(f.kitchen.shoppingItems.count, 1)
@@ -318,6 +411,7 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     func testOlderUndoneCannotHideNewerUncertainExecutingRecord() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); _ = try f.c.execute(a); _ = try f.c.undo(actionID: a.id)
         let b = try f.prepare(shopping()); var uncertain = try XCTUnwrap(f.p.rows[b.id]); uncertain.status = .executing
+        XCTAssertEqual(a.idempotencyKey, b.idempotencyKey)
         try f.p.upsertAction(uncertain)
         XCTAssertEqual(try f.p.action(idempotencyKey: b.idempotencyKey)?.status, .undone)
         expect(.uncertain) { _ = try f.coordinator().execute(b) }; XCTAssertEqual(f.domain.writes, 1)
@@ -355,8 +449,14 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     }
     func testCreatedAtNeverChangesAcrossExecuteAndUndo() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); let created = f.p.rows[a.id]?.createdAt
+        f.domain.beforeWrite = { XCTAssertEqual(f.p.rows[a.id]?.createdAt, created) }
+        f.time += 1; f.domain.failure = .persistenceFailed
+        XCTAssertThrowsError(try f.c.execute(a)); XCTAssertEqual(f.p.rows[a.id]?.createdAt, created)
+        f.domain.failure = nil
         f.time += 1; _ = try f.c.execute(a); XCTAssertEqual(f.p.rows[a.id]?.createdAt, created)
+        f.domain.beforeUndo = { XCTAssertEqual(f.p.rows[a.id]?.createdAt, created) }
         f.time += 1; _ = try f.c.undo(actionID: a.id); XCTAssertEqual(f.p.rows[a.id]?.createdAt, created)
+        XCTAssertEqual(f.p.rows[a.id]?.turnID, f.turn)
     }
     func testExecutingSaveFailureMakesZeroDomainWrites() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); f.p.refuse = [.executing]
@@ -366,7 +466,9 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         let f = Fixture(); let a = try f.prepare(tonight(true)); f.p.refuse = [.succeeded]
         XCTAssertThrowsError(try f.c.execute(a)); XCTAssertEqual(f.domain.undos, 1)
         XCTAssertTrue(f.kitchen.plans.isEmpty); XCTAssertTrue(f.recipes.userRecipes.isEmpty); XCTAssertEqual(f.p.rows[a.id]?.status, .failed)
-        f.p.refuse = []; _ = try f.c.execute(try f.prepare(tonight(true))); XCTAssertEqual(f.kitchen.plans.count, 1)
+        f.p.refuse = []; let retry = try f.prepare(tonight(true))
+        XCTAssertEqual(a.idempotencyKey, retry.idempotencyKey)
+        _ = try f.c.execute(retry); XCTAssertEqual(f.kitchen.plans.count, 1)
     }
     func testCompensationFailureLeavesDurableUncertaintyAndBlocksReplay() throws {
         let f = Fixture(); let a = try f.prepare(shopping()); f.p.refuse = [.succeeded]; f.domain.undoFailure = true
@@ -448,7 +550,7 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     func testUndoWorksAfterCoordinatorReconstructionFromSwiftData() throws {
         let f = Fixture(); let container = try KitchenPersistenceFactory.makeContainer(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
         let p = SwiftDataConversationPersistence(container: container); let c = f.coordinator(persistence: p)
-        let a = try c.prepare(shopping(), conversationID: f.conversation, turnID: UUID()); let success = try c.execute(a)
+        let a = try c.prepare(shopping(), conversationID: f.conversation, turnID: f.turn); let success = try c.execute(a)
         let reloaded = SwiftDataConversationPersistence(container: container)
         XCTAssertEqual(try reloaded.action(id: a.id), success.record)
         XCTAssertEqual(try f.coordinator(persistence: reloaded).undo(actionID: a.id).record.status, .undone)
@@ -456,15 +558,16 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     }
     func testInvalidExpiryPolicyRefusesBeforeDomainWrite() throws {
         let f = Fixture(); let c = ConversationActionCoordinator(domainTools: f.domain, persistence: f.p, now: { f.time }, undoExpiresAt: { $0 })
-        let a = try c.prepare(shopping(), conversationID: f.conversation, turnID: UUID())
+        let a = try c.prepare(shopping(), conversationID: f.conversation, turnID: f.turn)
         expect(.invalidExpiry) { _ = try c.execute(a) }; XCTAssertEqual(f.domain.writes, 0)
     }
     func testShoppingCanonicalDigestMatchesIndependentSHA256Vector() throws {
         let f = Fixture()
         let a = try f.c.prepare(.addShoppingItems(items: [.init(name: "egg", quantity: 2, unit: "piece", remark: "fresh")]),
-            conversationID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, turnID: UUID())
+            conversationID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            turnID: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!)
         // SHA256 of hand-authored canonical JSON, independently computed using Python hashlib.
-        XCTAssertEqual(a.idempotencyKey, "21c49d8b61422afadb46c429b1cbc456687e8ee9a2e7ec222d03fbea0115ae2b")
+        XCTAssertEqual(a.idempotencyKey, "cc79d46e742eca7b8ef9a45c00c7e7a5b478730850004ac8902830c7d552c684")
     }
     func testSpecialPlanValidUndoRestoresExactSnapshot() throws {
         let f = Fixture(); let before = f.event()
@@ -495,8 +598,10 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     func testLaterExecutingAfterUndoneSurvivesSwiftDataReconstruction() throws {
         let f = Fixture(); let container = try KitchenPersistenceFactory.makeContainer(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
         let p = SwiftDataConversationPersistence(container: container); let c = f.coordinator(persistence: p)
-        let a = try c.prepare(shopping(), conversationID: f.conversation, turnID: UUID()); _ = try c.execute(a); _ = try c.undo(actionID: a.id)
-        let b = try c.prepare(shopping(), conversationID: f.conversation, turnID: UUID())
+        let a = try c.prepare(shopping(), conversationID: f.conversation, turnID: f.turn); _ = try c.execute(a); _ = try c.undo(actionID: a.id)
+        let b = try c.prepare(shopping(), conversationID: f.conversation, turnID: f.turn)
+        XCTAssertEqual(a.idempotencyKey, b.idempotencyKey)
+        XCTAssertEqual(try p.action(id: b.id)?.turnID, f.turn)
         var pending = try XCTUnwrap(p.action(id: b.id)); pending.status = .executing; try p.upsertAction(pending)
         let reader = SwiftDataConversationPersistence(container: container)
         XCTAssertEqual(try reader.action(idempotencyKey: a.idempotencyKey)?.status, .undone)
@@ -551,7 +656,7 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         let recipes = RecipePersistence(); let f = Fixture(recipePersistence: recipes)
         let container = try KitchenPersistenceFactory.makeContainer(configuration: ModelConfiguration(isStoredInMemoryOnly: true))
         let p = SwiftDataConversationPersistence(container: container); let c = f.coordinator(persistence: p)
-        let a = try c.prepare(tonight(true), conversationID: f.conversation, turnID: UUID())
+        let a = try c.prepare(tonight(true), conversationID: f.conversation, turnID: f.turn)
         f.domain.beforeWrite = { p.failNextSaveForTesting = AIActionExecutionError.storage }
         f.domain.beforeUndo = { recipes.refuse = true }
         expect(.uncertain) { _ = try c.execute(a) }
@@ -561,11 +666,12 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         let reloaded = SwiftDataConversationPersistence(container: container)
         let record = try XCTUnwrap(reloaded.action(id: a.id))
         XCTAssertEqual(record.status, .executing); XCTAssertNotNil(record.undoReference)
+        XCTAssertEqual(record.turnID, f.turn); XCTAssertEqual(record.idempotencyKey, a.idempotencyKey)
         XCTAssertNotNil(record.undoExpiresAt)
         recipes.refuse = false; f.domain.beforeWrite = nil; f.domain.beforeUndo = nil
         let resumed = f.coordinator(persistence: reloaded)
         expect(.uncertain) { _ = try resumed.execute(a) }
-        expect(.uncertain) { _ = try resumed.prepare(self.tonight(true), conversationID: f.conversation, turnID: UUID()) }
+        expect(.uncertain) { _ = try resumed.prepare(self.tonight(true), conversationID: f.conversation, turnID: f.turn) }
         XCTAssertEqual(f.domain.writes, 1)
     }
 

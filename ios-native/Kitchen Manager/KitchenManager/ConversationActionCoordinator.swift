@@ -113,7 +113,7 @@ final class ConversationActionCoordinator {
             }
             risk = .low
         }
-        let key = try idempotencyKey(proposal, recipes: recipes, conversationID: conversationID, day: domain.calendar.startOfDay(for: time))
+        let key = try idempotencyKey(proposal, recipes: recipes, conversationID: conversationID, turnID: turnID, day: domain.calendar.startOfDay(for: time))
         let history = try persistence.loadActions(conversationID: conversationID)
         try refuseUncertain(history, key: key)
         let terminal = try persistence.action(idempotencyKey: key)
@@ -278,7 +278,7 @@ final class ConversationActionCoordinator {
     /// are preserved. Only presentation fields and transient local identity are
     /// removed. Ordered arrays remain ordered; JSON uses sorted object keys and
     /// rejects nonfinite numbers. The canonical digest is lowercase SHA256 hex.
-    private func idempotencyKey(_ proposal: AIActionProposal, recipes: [Recipe], conversationID: UUID, day: Date) throws -> String {
+    private func idempotencyKey(_ proposal: AIActionProposal, recipes: [Recipe], conversationID: UUID, turnID: UUID, day: Date) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         var index = 0
@@ -310,6 +310,7 @@ final class ConversationActionCoordinator {
             return object.mapValues(canonical)
         }
         var object: [String: Any] = ["conversationID": conversationID.uuidString.lowercased(),
+                                    "turnID": turnID.uuidString.lowercased(),
                                     "proposal": canonical(try JSONSerialization.jsonObject(with: encoder.encode(effective)))]
         if case .addRecipeToTonight = proposal {
             // Use the domain calendar's resolved day, independent of clock time
