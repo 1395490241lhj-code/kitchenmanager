@@ -154,7 +154,7 @@ final class AIConversationControllerTests: XCTestCase {
     }
 
     private func settle() async {
-        for _ in 0..<20 { await Task.yield() }
+        for _ in 0..<50 { await Task.yield() }
     }
 
     private func send(_ text: String, in fixture: Fixture) async {
@@ -1081,5 +1081,58 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertThrowsError(try expired.undo(actionID: expiredID)) {
             XCTAssertEqual($0 as? AIActionExecutionError, .expired)
         }
+    }
+
+    func testPendingActionDisablesCanAcceptNewMessageAndSendRefusesUntilConfirmed() async throws {
+        let f = try Fixture()
+        let conversation = try makePersistedConversation(f)
+        f.controller.openConversation(id: conversation.id)
+        let prepared = try preparedShopping(f, conversationID: conversation.id, turnID: UUID())
+        f.orchestrator.scripts = [.events([.pendingAction(prepared), .state(.awaitingConfirmation)])]
+        await send("买牛奶", in: f)
+
+        XCTAssertEqual(f.controller.preparedAction?.id, prepared.id)
+        XCTAssertFalse(f.controller.canAcceptNewMessage)
+
+        let inputCountBefore = f.orchestrator.inputs.count
+        let messageCountBefore = f.controller.messages.count
+        f.controller.draftText = "再买一盒鸡蛋"
+        f.controller.send()
+        await settle()
+
+        XCTAssertEqual(f.orchestrator.inputs.count, inputCountBefore)
+        XCTAssertEqual(f.controller.messages.count, messageCountBefore)
+
+        f.controller.confirmPreparedAction()
+        XCTAssertNil(f.controller.preparedAction)
+        XCTAssertTrue(f.controller.canAcceptNewMessage)
+    }
+
+    func testSwitchingConversationClearsDraftTextAndExcludedContexts() async throws {
+        let f = try Fixture()
+        let conversationA = try makePersistedConversation(f)
+        let conversationB = try makePersistedConversation(f)
+
+        f.controller.openConversation(id: conversationA.id)
+        f.controller.draftText = "只属于第一条对话"
+        f.controller.nextTurnExcludedContexts = [.inventory]
+
+        f.controller.openConversation(id: conversationB.id)
+        XCTAssertEqual(f.controller.draftText, "")
+        XCTAssertTrue(f.controller.nextTurnExcludedContexts.isEmpty)
+    }
+
+    func testReopeningSameConversationPreservesDraft() async throws {
+        let f = try Fixture()
+        let conversation = try makePersistedConversation(f)
+
+        f.controller.openConversation(id: conversation.id)
+        f.controller.draftText = "保留在当前对话中的草稿"
+        f.controller.nextTurnExcludedContexts = [.inventory]
+
+        // Re-opening same conversation does not clear draft
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertEqual(f.controller.draftText, "保留在当前对话中的草稿")
+        XCTAssertEqual(f.controller.nextTurnExcludedContexts, [.inventory])
     }
 }

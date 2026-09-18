@@ -16,6 +16,37 @@ final class AIConversationController: ObservableObject {
     var currentConversationRequiresReactivation: Bool {
         currentConversation?.isExpired(now: now()) ?? false
     }
+    var isPersisted: Bool {
+        guard let conv = currentConversation else { return false }
+        return store.conversation(id: conv.id) != nil
+    }
+    var canAcceptNewMessage: Bool {
+        turnState.acceptsUserInput
+            && preparedAction == nil
+            && !currentConversationRequiresReactivation
+    }
+    var canRetryGeneration: Bool {
+        retryInput != nil && currentConversation?.id == retryInput?.conversationID && (turnState == .failed || turnState == .cancelled)
+    }
+    var isGenerating: Bool {
+        turnState == .preparingContext || turnState == .requesting || turnState == .streaming || turnState == .toolRequested || turnState == .executing
+    }
+    @Published private(set) var contentRevision: Int = 0
+    var activeEntryContext: AIConversationEntryContext {
+        entryContext
+    }
+    var likelyContextKinds: [AIContextKind] {
+        switch entryContext {
+        case .home:
+            return [.inventory, .tonightPlan]
+        case let .planner(_, specialPlanID):
+            var kinds: [AIContextKind] = [.inventory, .plannerWeek]
+            if specialPlanID != nil {
+                kinds.append(.specialPlan)
+            }
+            return kinds
+        }
+    }
 
     private let store: ConversationStore
     private let orchestrator: any ConversationOrchestrating
@@ -34,6 +65,7 @@ final class AIConversationController: ObservableObject {
         let task: Task<Void, Never>
     }
     private var metadataTasks: [UUID: MetadataTaskHandle] = [:]
+    private var cachedExcerpts: [UUID: String] = [:]
     private var storeCancellable: AnyCancellable?
 
     init(
@@ -51,6 +83,7 @@ final class AIConversationController: ObservableObject {
         self.now = now
         self.uuid = uuid
         self.storeCancellable = store.objectWillChange.sink { [weak self] _ in
+            self?.cachedExcerpts.removeAll()
             self?.objectWillChange.send()
         }
         do {
@@ -219,6 +252,7 @@ final class AIConversationController: ObservableObject {
         }
         messages.append(assistant)
         start(input, assistantID: assistant.id)
+        contentRevision += 1
     }
 
     private func assistantCreatedAt(after userMessage: AIConversationMessage) -> Date {
@@ -238,6 +272,7 @@ final class AIConversationController: ObservableObject {
         activeAssistantID = nil
         turnState = .cancelled
         finishAssistant(id: assistantID, state: .cancelled)
+        contentRevision += 1
     }
 
     func confirmPreparedAction() {
@@ -254,8 +289,10 @@ final class AIConversationController: ObservableObject {
             preparedAction = nil
             turnState = .completed
             appendToTurnAssistant(block, turnID: result.record.turnID)
+            contentRevision += 1
         } catch {
             localErrorMessage = safeMessage(error, fallback: "操作未完成。")
+            contentRevision += 1
         }
     }
 
@@ -274,15 +311,24 @@ final class AIConversationController: ObservableObject {
                 }
                 if changed { try? store.saveMessage(messages[messageIndex]) }
             }
+            contentRevision += 1
         } catch {
             localErrorMessage = safeMessage(error, fallback: "无法撤销该操作。")
+            contentRevision += 1
         }
     }
 
     func rename(_ title: String) {
         guard let id = currentConversation?.id else { return }
+        rename(id: id, newTitle: title)
+    }
+
+    func rename(id: UUID, newTitle: String) {
         do {
-            currentConversation = try store.rename(id: id, newTitle: title)
+            let updated = try store.rename(id: id, newTitle: newTitle)
+            if currentConversation?.id == id {
+                currentConversation = updated
+            }
         } catch {
             localErrorMessage = "无法重命名该对话。"
         }
@@ -290,8 +336,15 @@ final class AIConversationController: ObservableObject {
 
     func setPinned(_ isPinned: Bool) {
         guard let id = currentConversation?.id else { return }
+        setPinned(id: id, isPinned: isPinned)
+    }
+
+    func setPinned(id: UUID, isPinned: Bool) {
         do {
-            currentConversation = try store.setPinned(id: id, isPinned: isPinned)
+            let updated = try store.setPinned(id: id, isPinned: isPinned)
+            if currentConversation?.id == id {
+                currentConversation = updated
+            }
         } catch {
             localErrorMessage = "无法更新置顶状态。"
         }
@@ -300,6 +353,7 @@ final class AIConversationController: ObservableObject {
     func delete(id: UUID) {
         if currentConversation?.id == id { stop() }
         metadataTasks.removeValue(forKey: id)?.task.cancel()
+        cachedExcerpts.removeValue(forKey: id)
         do {
             try store.deleteConversation(id: id)
             if currentConversation?.id == id {
@@ -316,6 +370,7 @@ final class AIConversationController: ObservableObject {
         stop()
         metadataTasks.values.forEach { $0.task.cancel() }
         metadataTasks.removeAll()
+        cachedExcerpts.removeAll()
         do {
             try store.wipeAll()
             currentConversation = nil
@@ -329,7 +384,26 @@ final class AIConversationController: ObservableObject {
         }
     }
 
+    func dismissLocalError() {
+        localErrorMessage = nil
+    }
+
+    func lastMessageExcerpt(for conversationID: UUID) -> String? {
+        if let cached = cachedExcerpts[conversationID] {
+            return cached
+        }
+        if let messages = try? store.messages(conversationID: conversationID),
+           let last = messages.last(where: { !$0.plainTextSummary.isEmpty }) {
+            cachedExcerpts[conversationID] = last.plainTextSummary
+            return last.plainTextSummary
+        }
+        return nil
+    }
+
     private func load(_ conversation: AIConversation) {
+        if currentConversation?.id != conversation.id {
+            resetNextTurnComposerState()
+        }
         entryContext = entryContext(for: conversation)
         currentConversation = conversation
         do {
@@ -351,6 +425,12 @@ final class AIConversationController: ObservableObject {
         actuallyUsedContextKinds = []
         retryInput = nil
         localErrorMessage = nil
+        resetNextTurnComposerState()
+    }
+
+    private func resetNextTurnComposerState() {
+        draftText = ""
+        nextTurnExcludedContexts = []
     }
 
     private func entryContext(for conversation: AIConversation) -> AIConversationEntryContext {
@@ -376,6 +456,7 @@ final class AIConversationController: ObservableObject {
         activeRunID = runID
         activeAssistantID = assistantID
         turnState = .preparingContext
+        contentRevision += 1
         let stream = orchestrator.runTurn(input)
         activeTask = Task { [weak self] in
             guard let self else { return }
@@ -439,23 +520,28 @@ final class AIConversationController: ObservableObject {
                     message.contentBlocks.append(.text(.init(id: uuid(), text: text)))
                 }
             }
+            contentRevision += 1
         case let .appendBlock(block):
             mutateAssistant(id: assistantID) { $0.contentBlocks.append(block) }
             persistAssistant(id: assistantID)
+            contentRevision += 1
         case let .replaceBlock(block):
             mutateAssistant(id: assistantID) { message in
                 guard let index = message.contentBlocks.firstIndex(where: { $0.id == block.id }) else { return }
                 message.contentBlocks[index] = block
             }
             persistAssistant(id: assistantID)
+            contentRevision += 1
         case let .pendingAction(action):
             preparedAction = action
             persistAssistant(id: assistantID)
+            contentRevision += 1
         case let .contextSnapshot(snapshot):
             do {
                 guard let conversationID = currentConversation?.id else { return }
                 try store.upsertContextSnapshot(snapshot, conversationID: conversationID)
                 actuallyUsedContextKinds = Set(snapshot.contextKinds)
+                contentRevision += 1
             } catch {
                 localErrorMessage = "无法保存本轮上下文来源。"
             }
@@ -464,6 +550,7 @@ final class AIConversationController: ObservableObject {
                 turnState = .completed
                 finishAssistant(id: assistantID, state: .completed)
                 retryInput = nil
+                contentRevision += 1
             }
         }
     }
@@ -471,6 +558,9 @@ final class AIConversationController: ObservableObject {
     private func mutateAssistant(id: UUID, _ mutation: (inout AIConversationMessage) -> Void) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
         mutation(&messages[index])
+        if let convID = currentConversation?.id, !messages[index].plainTextSummary.isEmpty {
+            cachedExcerpts[convID] = messages[index].plainTextSummary
+        }
     }
 
     private func persistAssistant(id: UUID) {

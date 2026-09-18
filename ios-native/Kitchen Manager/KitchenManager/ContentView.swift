@@ -28,8 +28,11 @@ struct KitchenManagerApp: App {
 
     init() {
         #if DEBUG
+        let isConversationUITest = ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_HOME")
+            || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_PLANNER")
         let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
             || PlannerRegressionFixture.isEnabled || PlanPersistenceFailureFixture.failingWriteIndex != nil
+            || isConversationUITest
         var persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
         // UI-test-only: the Planner creation sheet's failure path has to be
         // driven through the real store and view, and a write can only be made
@@ -157,12 +160,14 @@ struct KitchenManagerApp: App {
         #if DEBUG
         let useUITestConversationTransport = ProcessInfo.processInfo.arguments.contains(
             "UITEST_AI_CONVERSATION_FAKE"
-        )
+        ) || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_HOME")
+          || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_PLANNER")
+        let fakeConversationTransport = UITestAIConversationTransport()
         #endif
         let conversationTransportFactory: (AIRecommendationProvider) -> any AIConversationRuntimeTransport = { provider in
             #if DEBUG
             if useUITestConversationTransport {
-                return UITestAIConversationTransport()
+                return fakeConversationTransport
             }
             #endif
             return CloudAIConversationTransport(client: .shared, provider: provider)
@@ -183,6 +188,205 @@ struct KitchenManagerApp: App {
             )
         )
         #if DEBUG
+        let testArgs = ProcessInfo.processInfo.arguments
+        if testArgs.contains("UITEST_AI_CONVERSATION_SEED_RECIPES") || testArgs.contains("UITEST_AI_CONVERSATION_SCRIPT_TWO_RECIPES") {
+            let sample = Recipe(
+                id: "rec-garlic-greens",
+                title: "蒜蓉上海青",
+                cookingTime: 10,
+                difficulty: "简单",
+                tags: ["家常菜"],
+                ingredients: ["上海青 350 克", "大蒜 3 瓣"],
+                steps: ["洗净沥干。", "蒜末爆香后下锅快炒。"]
+            )
+            try? recipeStoreInstance.saveUserRecipe(sample)
+        }
+        if testArgs.contains("UITEST_AI_CONVERSATION_SEED_SNAPSHOT_FALLBACK") {
+            let p = persistence.conversations
+            let now = Date()
+            let conv = AIConversation(
+                id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
+                createdAt: now.addingTimeInterval(-1000),
+                title: "菜谱快照对话",
+                lifecycleType: .dailyMeal,
+                entryAffinity: .dailyMeal,
+                lastActivityAt: now.addingTimeInterval(-100),
+                activeUntil: now.addingTimeInterval(3600),
+                isPinned: false
+            )
+            let recipe = Recipe(
+                id: "rec-deleted",
+                title: "秘制红烧肉",
+                cookingTime: 45,
+                difficulty: "中等",
+                tags: [],
+                ingredients: ["五花肉"],
+                steps: ["焖煮"]
+            )
+            let block = AIContentBlock.recipe(.init(id: UUID(), recipe: recipe, isTransient: false, reason: "快照回退测试"))
+            let mUser = AIConversationMessage(
+                conversationID: conv.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-1000),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "红烧肉做法"))],
+                turnID: UUID()
+            )
+            let mAsst = AIConversationMessage(
+                conversationID: conv.id,
+                role: .assistant,
+                createdAt: now.addingTimeInterval(-900),
+                state: .completed,
+                contentBlocks: [block],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(conv, message: mUser)
+            try? p.upsertMessage(mAsst)
+            try? conversationStoreInstance.loadHistory()
+        }
+        if testArgs.contains("UITEST_AI_CONVERSATION_SEED_PLAN") {
+            let sample = Recipe(
+                id: "rec-old",
+                title: "红烧肉",
+                cookingTime: 30,
+                difficulty: "中等",
+                tags: ["热菜"],
+                ingredients: ["五花肉 500克"],
+                steps: ["焯水", "焖煮"]
+            )
+            try? recipeStoreInstance.saveUserRecipe(sample)
+            let planItem = MealPlanItem(
+                id: UUID(uuidString: "99999999-9999-9999-9999-999999999999")!,
+                recipeID: sample.id,
+                recipeName: sample.title,
+                date: Date()
+            )
+            kitchenStoreInstance.appendPlans([planItem])
+        }
+        if testArgs.contains("UITEST_AI_CONVERSATION_SEED_HISTORY") {
+            let p = persistence.conversations
+            let now = Date()
+            let pinned = AIConversation(
+                id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+                createdAt: now.addingTimeInterval(-1000),
+                title: "置顶买菜建议",
+                lifecycleType: .dailyMeal,
+                entryAffinity: .dailyMeal,
+                lastActivityAt: now.addingTimeInterval(-100),
+                activeUntil: now.addingTimeInterval(3600),
+                isPinned: true
+            )
+            let m1 = AIConversationMessage(
+                conversationID: pinned.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-1000),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "买点什么菜"))],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(pinned, message: m1)
+
+            let recent = AIConversation(
+                id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+                createdAt: now.addingTimeInterval(-500),
+                title: "今晚快手菜",
+                lifecycleType: .dailyMeal,
+                entryAffinity: .dailyMeal,
+                lastActivityAt: now.addingTimeInterval(-50),
+                activeUntil: now.addingTimeInterval(3600),
+                isPinned: false
+            )
+            let m2 = AIConversationMessage(
+                conversationID: recent.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-500),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "快手菜推荐"))],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(recent, message: m2)
+
+            let plannerConv = AIConversation(
+                id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!,
+                createdAt: now.addingTimeInterval(-200),
+                title: "本周计划建议",
+                lifecycleType: .weeklyPlanning,
+                entryAffinity: .weeklyPlanning,
+                lastActivityAt: now.addingTimeInterval(-20),
+                activeUntil: now.addingTimeInterval(3600),
+                isPinned: false
+            )
+            let mPlanner = AIConversationMessage(
+                conversationID: plannerConv.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-200),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "调整本周菜单"))],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(plannerConv, message: mPlanner)
+
+            let expired = AIConversation(
+                id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+                createdAt: now.addingTimeInterval(-100000),
+                title: "上周聚餐规划",
+                lifecycleType: .dailyMeal,
+                entryAffinity: .dailyMeal,
+                lastActivityAt: now.addingTimeInterval(-100000),
+                activeUntil: now.addingTimeInterval(-5000),
+                isPinned: false
+            )
+            let m3 = AIConversationMessage(
+                conversationID: expired.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-100000),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "聚餐如何准备"))],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(expired, message: m3)
+            try? conversationStoreInstance.loadHistory()
+        }
+        if testArgs.contains("UITEST_AI_CONVERSATION_SEED_EXPIRED_ACTION") {
+            let p = persistence.conversations
+            let now = Date()
+            let conv = AIConversation(
+                id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!,
+                createdAt: now.addingTimeInterval(-100000),
+                title: "过期计划动作",
+                lifecycleType: .dailyMeal,
+                entryAffinity: .dailyMeal,
+                lastActivityAt: now.addingTimeInterval(-100000),
+                activeUntil: now.addingTimeInterval(-5000),
+                isPinned: false
+            )
+            let mUser = AIConversationMessage(
+                conversationID: conv.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-100000),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "替换菜谱"))],
+                turnID: UUID()
+            )
+            let mAsst = AIConversationMessage(
+                conversationID: conv.id,
+                role: .assistant,
+                createdAt: now.addingTimeInterval(-90000),
+                state: .completed,
+                contentBlocks: [
+                    .actionStatus(.init(
+                        id: UUID(),
+                        message: "已将晚餐替换为清蒸鲈鱼",
+                        actionID: UUID(),
+                        canUndo: false
+                    ))
+                ],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(conv, message: mUser)
+            try? p.upsertMessage(mAsst)
+            try? conversationStoreInstance.loadHistory()
+        }
         _syncSmokeController = StateObject(
             wrappedValue: SyncSmokeController(persistence: persistence.sync)
         )
@@ -227,6 +431,14 @@ struct KitchenManagerApp: App {
                     PlannerRegressionHost()
                 } else if AIRecipeRegenerationHost.isEnabled {
                     AIRecipeRegenerationHost()
+                } else if ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_HOME") {
+                    NavigationStack {
+                        AIConversationView(entryContext: .home)
+                    }
+                } else if ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_PLANNER") {
+                    NavigationStack {
+                        AIConversationView(entryContext: .planner(weekStart: Date(), specialPlanID: nil))
+                    }
                 } else {
                     ContentView()
                 }
