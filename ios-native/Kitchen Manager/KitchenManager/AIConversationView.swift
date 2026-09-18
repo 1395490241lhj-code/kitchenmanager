@@ -4,7 +4,6 @@ struct AIConversationView: View {
     let entryContext: AIConversationEntryContext
 
     @EnvironmentObject private var controller: AIConversationController
-    @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var hasOpenedEntryContext = false

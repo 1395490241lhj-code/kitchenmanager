@@ -41,9 +41,12 @@ struct AIRecipeSnapshotDetailView: View {
                     }
 
                     HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "clock")
-                            Text("\(recipe.cookingTime) 分钟")
+                        // Same rule as the recipe block: absent cooking time is omitted.
+                        if let cookingTime = recipe.cookingTime {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                Text("\(cookingTime) 分钟")
+                            }
                         }
                         if let difficulty = recipe.difficulty, !difficulty.isEmpty {
                             HStack(spacing: 4) {

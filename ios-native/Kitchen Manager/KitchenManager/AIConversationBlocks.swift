@@ -121,10 +121,14 @@ struct AIRecipeBlockView: View {
                 }
 
                 HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .accessibilityHidden(true)
-                        Text("\(displayRecipe.cookingTime) 分钟")
+                    // cookingTime is optional: nil means unknown, so the metadata
+                    // is omitted rather than rendered as Swift's debug description.
+                    if let cookingTime = displayRecipe.cookingTime {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .accessibilityHidden(true)
+                            Text("\(cookingTime) 分钟")
+                        }
                     }
                     if let difficulty = displayRecipe.difficulty, !difficulty.isEmpty {
                         HStack(spacing: 4) {

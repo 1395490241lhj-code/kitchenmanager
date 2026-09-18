@@ -60,7 +60,18 @@ actor UITestAIConversationTransport: AIConversationRuntimeTransport {
             if let result = request.messages.last(where: {
                 $0.role == .tool && $0.toolCallID == "acceptance-c-inventory"
             })?.content {
-                if result.contains("新鲜菠菜") && result.contains("2") && result.contains("把") && !result.contains("旧土豆") {
+                let json = (try? JSONSerialization.jsonObject(with: Data(result.utf8))) as? [String: Any]
+                let available = (json?["available"] as? [[String: Any]]) ?? []
+                let hasFreshSpinach = available.contains(where: {
+                    ($0["name"] as? String) == "新鲜菠菜"
+                        && ($0["quantity"] as? Double) == 2.0
+                        && ($0["unit"] as? String) == "把"
+                })
+                let hasOldPotato = available.contains(where: {
+                    let name = ($0["name"] as? String) ?? ""
+                    return name.contains("旧土豆") || name.contains("土豆")
+                })
+                if hasFreshSpinach && !hasOldPotato {
                     continuation.yield(.textDelta("当前库存有新鲜菠菜 2 把。"))
                 }
             } else {

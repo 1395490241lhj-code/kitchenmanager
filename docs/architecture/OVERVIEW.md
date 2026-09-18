@@ -51,6 +51,7 @@ Kitchen Manager 是一个 **Guest-first、Local-first 的双客户端厨房管�
 
 - SwiftUI View：展示、交互、导航和可访问性
 - Store/Controller：业务状态和流程协调
+- Kitchen AI 对话层：AIConversationController 与 ConversationStore、ConversationOrchestrator（有限语义工具循环）、ConversationActionCoordinator、SwiftData 对话记录，以及对接 KitchenStore/RecipeStore 的领域只读与变更协调；增量支持 `/api/ai-conversation` 云端流式协议
 - Business Model：Codable/Hashable、备份和领域语义
 - Persistence Record/Protocol：SwiftData 实体、查询、写入和迁移
 - Authentication/Networking：会话、Keychain、API 环境和请求
@@ -58,6 +59,13 @@ Kitchen Manager 是一个 **Guest-first、Local-first 的双客户端厨房管�
 - XCTest/XCUITest：领域、持久化、迁移、网络、同步和 UI 回归
 
 不要把 SwiftData 实体直接变成所有 UI/备份/网络层共同依赖的万能模型。遵循当前业务模型与持久化记录分离的边界。
+
+#### Kitchen AI 对话边界与持久化
+
+- 对话历史在 V1 中为纯本地（LOCAL-ONLY）。
+- 显式排除在当前备份与导出契约之外。
+- 显式排除在 Supabase 及当前同步实体之外。
+- 对话记录不是厨房领域数据的第二数据源；KitchenStore 与 RecipeStore 始终是唯一权威事实来源。
 
 ### 3.3 Express 服务端
 

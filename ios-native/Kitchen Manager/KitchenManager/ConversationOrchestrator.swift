@@ -54,7 +54,7 @@ final class ConversationOrchestrator: ConversationOrchestrating {
     static let maxToolCallsPerTurn = 12
 
     /// Cross-layer contract constant pinned to src/server/config.js: AI_PROMPT_MAX_CHARS = 12000.
-    static let serverPromptMaxChars = 12000
+    nonisolated static let serverPromptMaxChars = 12000
 
     nonisolated static func serverCompatibleCharacterCost(_ messages: [AIConversationTranscriptMessage]) -> Int {
         var total = 0

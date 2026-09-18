@@ -855,4 +855,47 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["kitchenAI.starter.调整这周菜单"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["kitchenAI.starter.用快过期的食材做饭"].exists)
     }
+
+    /// Recipe.cookingTime is Int?. Interpolating it directly renders Swift's
+    /// debug description ("Optional(10) 分钟" / "nil 分钟") into both visible text
+    /// and the accessibility tree. nil means UNKNOWN, so the metadata is omitted.
+    func testRecipeCookingTimeNeverExposesOptionalDebugDescription() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_TWO_RECIPES",
+            "UITEST_AI_CONVERSATION_SEED_RECIPES"
+        ])
+        let composer = composerField(app)
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("推荐两个菜")
+        app.buttons["kitchenAI.send"].tap()
+
+        // Live recipe rec-garlic-greens has cookingTime = 10.
+        XCTAssertTrue(app.staticTexts["蒜蓉上海青"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["家常豆腐"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["10 分钟"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Optional(10) 分钟"].exists)
+        assertNoOptionalDebugText(app, stage: "recipe cards")
+
+        // Transient 家常豆腐 supplies no cookingTime; its snapshot detail must
+        // omit the metadata rather than print nil, and stay read-only.
+        let viewRecipeButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'kitchenAI.recipe.view.'"))
+        let transientButton = viewRecipeButtons.element(boundBy: 1)
+        XCTAssertTrue(transientButton.waitForExistence(timeout: 5))
+        transientButton.tap()
+
+        XCTAssertTrue(app.staticTexts["推荐菜谱草稿"].waitForExistence(timeout: 5))
+        assertNoOptionalDebugText(app, stage: "transient snapshot detail")
+        XCTAssertFalse(app.buttons["菜谱操作"].exists)
+        XCTAssertFalse(app.buttons["加入今日计划"].exists)
+        XCTAssertFalse(app.buttons["加入买菜清单"].exists)
+    }
+
+    private func assertNoOptionalDebugText(_ app: XCUIApplication, stage: String) {
+        let leaked = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "nil 分钟", "Optional(")
+        )
+        XCTAssertEqual(leaked.count, 0, "\(stage) exposed Optional/nil debug text: \(leaked.firstMatch.label)")
+    }
 }

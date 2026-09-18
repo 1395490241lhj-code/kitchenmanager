@@ -615,7 +615,8 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["home.import.add.button"].exists)
         XCTAssertFalse(app.navigationBars.buttons["导入与添加"].exists)
-        XCTAssertEqual(app.navigationBars.firstMatch.buttons.count, 0, "Home's toolbar must be empty")
+        XCTAssertTrue(app.navigationBars.firstMatch.buttons["home.kitchenAI.open"].exists)
+        XCTAssertEqual(app.navigationBars.firstMatch.buttons.count, 1, "Home's toolbar must contain only the Kitchen AI entry")
         XCTAssertFalse(app.buttons["home.settings.button"].exists)
         XCTAssertFalse(app.buttons["home.add.menu"].exists)
 

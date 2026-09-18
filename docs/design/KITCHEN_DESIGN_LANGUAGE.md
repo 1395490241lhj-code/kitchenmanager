@@ -264,3 +264,22 @@ no Hero.
 
 Planner introduces no new canonical role and does not change PlannerProjection,
 SpecialPlan, weekly-plan models, shopping generation or AI contracts.
+
+## Kitchen AI conversation application
+
+Kitchen AI is a capability, not a second visual brand. It inherits the host surface's
+semantic hierarchy and Quiet Kitchen R3.1 discipline:
+
+- No independent AI gradient, glow, particle effect, or separate AI palette.
+- Assistant prose is open content on the canvas, not enclosed in a chat bubble or card by default.
+- User message is a restrained trailing bubble using the host secondary fill.
+- Recipe, Planner preview, Context provenance, and Action status render as semantic domain blocks rather than generic chat bubbles.
+- Only real domain objects receive domain card surfaces.
+- Composer uses native safe-area and system material semantics with a standard text view and send button.
+- History is presented in a native sheet with standard NavigationStack, organized into pinned, recent, and ended conversations.
+- Context chips expose source identity (such as 库存 or 用餐计划), never raw payload data.
+- Next-turn context exclusions are transient one-turn state.
+- Structured mutation previews display the concrete before-and-after diff.
+- Apply executes the validated, app-owned pending action directly without model round-trip.
+- Prose never directly mutates kitchen truth; all mutations route through the domain coordinator.
+- No provider picker, prompt template picker, or attachment action in V1.
