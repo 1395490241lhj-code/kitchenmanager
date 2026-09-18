@@ -364,6 +364,77 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertFalse(f.controller.messages.contains { $0.plainTextSummary.contains("迟到") })
     }
 
+    private func pendingMeal(_ f: Fixture) async throws -> (AIConversation, PreparedAIAction) {
+        let conversation = try makePersistedConversation(f)
+        f.controller.openConversation(id: conversation.id)
+        let recipe = Recipe(id: "pending-tofu", title: "清蒸豆腐", cookingTime: 10,
+                            difficulty: "简单", tags: [], ingredients: ["豆腐"], steps: ["蒸熟"] )
+        try f.recipeStore.saveUserRecipe(recipe)
+        let meal = MealPlanItem(recipeID: "old", recipeName: "香辣鸡丁", date: f.fixedDate)
+        f.kitchenStore.plans = [meal]
+        let prepared = try f.coordinator.prepare(.replacePlannedMeal(planID: meal.id,
+            replacement: AIRecipeBlock(id: UUID(), recipe: recipe, isTransient: false)),
+            conversationID: conversation.id, turnID: UUID())
+        f.orchestrator.scripts = [.events([.pendingAction(prepared), .state(.awaitingConfirmation)])]
+        await send("换清淡一点", in: f)
+        XCTAssertEqual(f.controller.preparedAction, prepared)
+        XCTAssertEqual(try f.persistence.action(id: prepared.id)?.status, .awaitingConfirmation)
+        return (conversation, prepared)
+    }
+
+    func testReopenSameActiveConversationPreservesExactPendingAction() async throws {
+        let f = try Fixture()
+        let (conversation, prepared) = try await pendingMeal(f)
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertEqual(f.controller.preparedAction, prepared)
+        XCTAssertEqual(f.controller.turnState, .awaitingConfirmation)
+    }
+
+    func testReopenConfirmationExecutesOriginalActionOnceWithoutProvider() async throws {
+        let f = try Fixture()
+        let (conversation, prepared) = try await pendingMeal(f)
+        let count = f.orchestrator.inputs.count
+        let mealID = f.kitchenStore.plans.first?.id
+        f.controller.openConversation(id: conversation.id)
+        f.controller.confirmPreparedAction()
+        f.controller.confirmPreparedAction()
+        XCTAssertEqual(f.orchestrator.inputs.count, count)
+        XCTAssertEqual(f.kitchenStore.plans.count, 1)
+        XCTAssertEqual(f.kitchenStore.plans.first?.id, mealID)
+        XCTAssertEqual(f.kitchenStore.plans.first?.recipeName, "清蒸豆腐")
+        XCTAssertEqual(try f.persistence.action(id: prepared.id)?.status, .succeeded)
+        XCTAssertNil(f.controller.preparedAction)
+    }
+
+    func testReopenDifferentConversationClearsPendingAction() async throws {
+        let f = try Fixture()
+        _ = try await pendingMeal(f)
+        let other = try makePersistedConversation(f)
+        f.controller.openConversation(id: other.id)
+        XCTAssertNil(f.controller.preparedAction)
+        XCTAssertEqual(f.controller.turnState, .idle)
+    }
+
+    func testReopenTerminalActionDoesNotPreserveCapability() async throws {
+        let f = try Fixture()
+        let (conversation, prepared) = try await pendingMeal(f)
+        _ = try f.coordinator.execute(prepared)
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertNil(f.controller.preparedAction)
+        XCTAssertEqual(f.controller.turnState, .idle)
+    }
+
+    func testReopenExpiredConversationClearsPendingAction() async throws {
+        let f = try Fixture()
+        var (conversation, _) = try await pendingMeal(f)
+        conversation.activeUntil = f.fixedDate.addingTimeInterval(-1)
+        try f.persistence.upsertConversation(conversation)
+        try f.store.loadHistory()
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertNil(f.controller.preparedAction)
+        XCTAssertEqual(f.controller.turnState, .idle)
+    }
+
     func testPendingActionOnlySetsPreparedAction() async throws {
         let f = try Fixture()
         let conversation = try makePersistedConversation(f)

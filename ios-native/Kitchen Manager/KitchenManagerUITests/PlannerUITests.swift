@@ -4,6 +4,29 @@ import XCTest
 /// its detail opens with dishes, dishes can be toggled, the edit form persists,
 /// and the delete flow removes the event. Also exercises creating a new plan.
 final class PlannerUITests: XCTestCase {
+    func testKitchenAIEntryPreservesDisplayedWeekAndExistingTools() throws {
+        let app = launch("UITEST_SEED_EMPTY_HOME", "UITEST_AI_CONVERSATION_FAKE")
+        openPlanner(from: app)
+        app.buttons["切换周"].tap()
+        app.buttons["下一周"].tap()
+        let week = app.staticTexts["planner.week.range"].label
+        XCTAssertTrue(app.buttons["planner.create.menu"].exists)
+        app.buttons["planner.tools.menu"].tap()
+        XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
+        let entry = app.buttons["planner.kitchenAI.open"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        guard entry.exists else { return }
+        entry.tap()
+        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["kitchenAI.starter.调整这周菜单"].exists)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["planner.week.range"].label, week)
+        XCTAssertTrue(app.buttons["planner.create.menu"].exists)
+        app.buttons["planner.tools.menu"].tap()
+        XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
+    }
+
     private func launch(_ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments

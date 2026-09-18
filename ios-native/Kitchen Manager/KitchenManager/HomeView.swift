@@ -43,6 +43,7 @@ struct HomeView: View {
     /// presenting. Empty by default: the 用餐计划 row always opens the plain
     /// current-week sheet.
     @State private var plannerInitialPath: [PlannerRoute] = []
+    @State private var isShowingKitchenAI = false
     @State private var isShowingRecommendations = false
     @State private var isShowingPreparedComponents = false
     @State private var selectedPlan: MealPlanItem?
@@ -238,6 +239,20 @@ struct HomeView: View {
         // task's own heading (今天做什么 / 今天做这些 / 今天怎么吃 / 今天备的菜 /
         // 今晚), so the navigation layer never moves under the reader.
         .navigationTitle("今天")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isShowingKitchenAI = true
+                } label: {
+                    Label("问 Kitchen AI", systemImage: "sparkles")
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityIdentifier("home.kitchenAI.open")
+            }
+        }
+        .navigationDestination(isPresented: $isShowingKitchenAI) {
+            AIConversationView(entryContext: .home)
+        }
         // Same rule Inventory and Recipes use: large at normal sizes, collapsing
         // to inline at Accessibility sizes where a large title would otherwise
         // take most of the first screen. Home used to render its greeting inside

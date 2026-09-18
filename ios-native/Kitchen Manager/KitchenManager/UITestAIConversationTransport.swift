@@ -1,5 +1,12 @@
 #if DEBUG
 import Foundation
+import Combine
+
+@MainActor
+final class UITestConversationObservation: ObservableObject {
+    static let shared = UITestConversationObservation()
+    @Published var requests = 0
+}
 
 actor UITestAIConversationTransport: AIConversationRuntimeTransport {
     private var requestCount = 0
@@ -19,7 +26,93 @@ actor UITestAIConversationTransport: AIConversationRuntimeTransport {
         continuation: AsyncThrowingStream<AIConversationStreamEvent, Error>.Continuation
     ) async {
         requestCount += 1
+        await MainActor.run { UITestConversationObservation.shared.requests += 1 }
         let args = ProcessInfo.processInfo.arguments
+        if AIConversationAcceptanceFixture.scenario == "D" {
+            let planID = AIConversationAcceptanceFixture.specialPlanID.uuidString
+            if let result = request.messages.last(where: {
+                $0.role == .tool && $0.toolCallID == "acceptance-d-special"
+            })?.content {
+                let ids = AIConversationAcceptanceFixture.spicyDishIDs.map(\.uuidString)
+                if ids.allSatisfy({ result.contains($0) }) && result.contains("麻辣豆腐") && result.contains("辣子鸡") {
+                    let arguments = """
+                    {"planID":"\(planID)","changes":[{"dishID":"\(ids[0])","replacement":{"recipeID":"acceptance-tofu","title":"清蒸豆腐"}},{"dishID":"\(ids[1])","replacement":{"recipeID":"acceptance-spinach","title":"清炒菠菜"}}]}
+                    """
+                    continuation.yield(.toolCall(id: "acceptance-d-replace", name: "propose_special_plan_changes", arguments: Data(arguments.utf8)))
+                }
+            } else if let result = request.messages.last(where: {
+                $0.role == .tool && $0.toolCallID == "acceptance-d-week"
+            })?.content, result.contains(planID) {
+                continuation.yield(.toolCall(id: "acceptance-d-special", name: "read_special_plan", arguments: Data("{\"planID\":\"\(planID)\"}".utf8)))
+            } else {
+                let transcript = request.messages.compactMap(\.content).joined(separator: "\n")
+                let pattern = #""weekStart"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"#
+                if let range = transcript.range(of: pattern, options: .regularExpression),
+                   let dateRange = transcript[range].range(of: #"[0-9]{4}-[0-9]{2}-[0-9]{2}"#, options: .regularExpression) {
+                    continuation.yield(.toolCall(id: "acceptance-d-week", name: "read_planner_week", arguments: Data("{\"weekStart\":\"\(transcript[dateRange])\"}".utf8)))
+                }
+            }
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
+        if AIConversationAcceptanceFixture.scenario == "C" {
+            if let result = request.messages.last(where: {
+                $0.role == .tool && $0.toolCallID == "acceptance-c-inventory"
+            })?.content {
+                if result.contains("新鲜菠菜") && result.contains("2") && result.contains("把") && !result.contains("旧土豆") {
+                    continuation.yield(.textDelta("当前库存有新鲜菠菜 2 把。"))
+                }
+            } else {
+                continuation.yield(.toolCall(id: "acceptance-c-inventory", name: "read_inventory", arguments: Data("{}".utf8)))
+            }
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
+        if AIConversationAcceptanceFixture.scenario == "B" {
+            if let result = request.messages.last(where: {
+                $0.role == .tool && $0.toolCallID == "acceptance-b-week"
+            })?.content, result.contains(AIConversationAcceptanceFixture.mealID.uuidString), result.contains("香辣鸡丁") {
+                let arguments = """
+                {"planID":"\(AIConversationAcceptanceFixture.mealID.uuidString)","replacement":{"recipeID":"acceptance-tofu","title":"清蒸豆腐"}}
+                """
+                continuation.yield(.toolCall(id: "acceptance-b-replace", name: "propose_replace_planned_meal", arguments: Data(arguments.utf8)))
+            } else {
+                let pattern = #""weekStart"\s*:\s*"([0-9]{4}-[0-9]{2}-[0-9]{2})"#
+                let transcript = request.messages.compactMap(\.content).joined(separator: "\n")
+                guard let range = transcript.range(of: pattern, options: .regularExpression),
+                      let dateRange = transcript[range].range(of: #"[0-9]{4}-[0-9]{2}-[0-9]{2}"#, options: .regularExpression) else {
+                    continuation.finish()
+                    return
+                }
+                let arguments = "{\"weekStart\":\"\(transcript[dateRange])\"}"
+                continuation.yield(.toolCall(id: "acceptance-b-week", name: "read_planner_week", arguments: Data(arguments.utf8)))
+            }
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
+        if AIConversationAcceptanceFixture.scenario == "A" {
+            let content = request.messages.last(where: { $0.role == .user })?.content ?? ""
+            let user = (try? JSONDecoder().decode([String: String].self, from: Data(content.utf8)))?["message"] ?? content
+            if user == "第二个加入今晚。" {
+                continuation.yield(.toolCall(id: "acceptance-a-add", name: "propose_add_recipe_to_tonight",
+                    arguments: Data(#"{"recipe":{"recipeID":"acceptance-tofu","title":"清蒸豆腐"}}"#.utf8)))
+            } else if let result = request.messages.last(where: {
+                $0.role == .tool && $0.toolCallID == "acceptance-a-inventory"
+            })?.content, result.contains("新鲜菠菜") {
+                continuation.yield(.toolCall(id: "acceptance-a-first", name: "present_recipe_card",
+                    arguments: Data(#"{"recipe":{"recipeID":"acceptance-spinach","title":"清炒菠菜"}}"#.utf8)))
+                continuation.yield(.toolCall(id: "acceptance-a-second", name: "present_recipe_card",
+                    arguments: Data(#"{"recipe":{"recipeID":"acceptance-tofu","title":"清蒸豆腐"}}"#.utf8)))
+            } else {
+                continuation.yield(.toolCall(id: "acceptance-a-inventory", name: "read_inventory", arguments: Data("{}".utf8)))
+            }
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
 
         if args.contains("UITEST_AI_CONVERSATION_SCRIPT_STREAM_STOP") {
             continuation.yield(.textDelta("正在逐步为您生成长篇建议第一部分内容…"))

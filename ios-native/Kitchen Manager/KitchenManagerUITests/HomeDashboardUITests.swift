@@ -9,6 +9,26 @@ import XCTest
 /// be preserved without preserving the IA they described. Each rewritten test
 /// below says what replaced it.
 final class HomeDashboardUITests: XCTestCase {
+    func testKitchenAIEntryReturnsToHomeAndPreservesRecommendation() throws {
+        let app = launch("UITEST_SEED_HOME_DASHBOARD", "UITEST_AI_CONVERSATION_FAKE")
+        let entry = app.buttons["home.kitchenAI.open"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        guard entry.exists else { return }
+        XCTAssertEqual(entry.label, "问 Kitchen AI")
+        XCTAssertTrue(app.buttons["home.recommendation.more"].exists)
+        let selectedTab = app.tabBars.buttons.matching(NSPredicate(format: "isSelected == true")).firstMatch.label
+        // Native toolbar accessibility frames describe the visual control;
+        // exercise its effective 44pt hit target outside that visual frame.
+        entry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .withOffset(CGVector(dx: 0, dy: 21)).tap()
+        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["kitchenAI.starter.用快过期的食材做饭"].exists)
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.navigationBars["今天"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.tabBars.buttons.matching(NSPredicate(format: "isSelected == true")).firstMatch.label, selectedTab)
+        XCTAssertTrue(app.buttons["home.recommendation.more"].exists)
+    }
+
     private func attachScreenshot(of app: XCUIApplication, named name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name

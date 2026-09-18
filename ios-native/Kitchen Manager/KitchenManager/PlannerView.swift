@@ -19,6 +19,7 @@ enum PlannerRoute: Hashable {
     case plannedMeal(UUID)
     case todayShopping
     case weeklyGenerator
+    case kitchenAI(Date, UUID?)
 }
 
 private enum PlannerSheet: Identifiable {
@@ -217,6 +218,10 @@ struct PlannerView: View {
                                 }
                             }
                             .accessibilityIdentifier("planner.weekly.open")
+                            Button("问 Kitchen AI", systemImage: "sparkles") {
+                                path.append(.kitchenAI(weekStart, nil))
+                            }
+                            .accessibilityIdentifier("planner.kitchenAI.open")
                         } label: {
                             Label("更多", systemImage: "ellipsis.circle")
                         }
@@ -263,6 +268,10 @@ struct PlannerView: View {
                         plannedMealDestination(id)
                     case .todayShopping:
                         ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
+                    case let .kitchenAI(weekStart, specialPlanID):
+                        AIConversationView(entryContext: .planner(
+                            weekStart: weekStart, specialPlanID: specialPlanID
+                        ))
                     case .weeklyGenerator:
                         WeeklyMenuPlannerView(onWorkflowActive: { activeWeeklyWorkflow = $0 }) { summary in
                             weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
@@ -545,7 +554,7 @@ struct PlannerView: View {
         path.removeAll { route in
             switch route {
             case .specialPlan(let routeID): return routeID == id
-            case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator: return false
+            case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator, .kitchenAI: return false
             }
         }
     }

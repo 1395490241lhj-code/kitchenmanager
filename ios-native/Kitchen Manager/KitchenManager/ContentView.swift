@@ -9,6 +9,7 @@ struct KitchenManagerApp: App {
     @StateObject private var accountDeletionController: AccountDeletionController
     @StateObject private var aiConversationController: AIConversationController
     #if DEBUG
+    @ObservedObject private var conversationObservation = UITestConversationObservation.shared
     @StateObject private var syncSmokeController: SyncSmokeController
     /// UI-test-only handle used solely to seed deterministic merge-conflict
     /// fixtures. Never read on a normal launch.
@@ -30,6 +31,8 @@ struct KitchenManagerApp: App {
         #if DEBUG
         let isConversationUITest = ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_HOME")
             || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_PLANNER")
+            || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_FAKE")
+            || AIConversationAcceptanceFixture.scenario != nil
         let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
             || PlannerRegressionFixture.isEnabled || PlanPersistenceFailureFixture.failingWriteIndex != nil
             || isConversationUITest
@@ -63,7 +66,12 @@ struct KitchenManagerApp: App {
         let kitchenStoreInstance = KitchenStore(
             userDefaults: recipeTestDefaults,
             persistence: persistence,
-            recoverySnapshot: .applicationSupport()
+            recoverySnapshot: {
+                #if DEBUG
+                if isConversationUITest { return .isolated() }
+                #endif
+                return .applicationSupport()
+            }()
         )
         #if DEBUG
         // The generic account fixture resets local data and adds 测试库存 under a
@@ -162,8 +170,17 @@ struct KitchenManagerApp: App {
             "UITEST_AI_CONVERSATION_FAKE"
         ) || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_HOME")
           || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_PLANNER")
+          || AIConversationAcceptanceFixture.scenario != nil
         let fakeConversationTransport = UITestAIConversationTransport()
         #endif
+        let conversationMetadataService: ConversationMetadataService = {
+            #if DEBUG
+            if useUITestConversationTransport {
+                return ConversationMetadataService(request: { _, _ in "" })
+            }
+            #endif
+            return ConversationMetadataService()
+        }()
         let conversationTransportFactory: (AIRecommendationProvider) -> any AIConversationRuntimeTransport = { provider in
             #if DEBUG
             if useUITestConversationTransport {
@@ -184,11 +201,12 @@ struct KitchenManagerApp: App {
                 store: conversationStoreInstance,
                 orchestrator: conversationOrchestrator,
                 actionCoordinator: conversationActionCoordinator,
-                metadataService: ConversationMetadataService()
+                metadataService: conversationMetadataService
             )
         )
         #if DEBUG
         let testArgs = ProcessInfo.processInfo.arguments
+        AIConversationAcceptanceFixture.seed(kitchenStore: kitchenStoreInstance, recipeStore: recipeStoreInstance, conversationStore: conversationStoreInstance)
         if testArgs.contains("UITEST_AI_CONVERSATION_SEED_RECIPES") || testArgs.contains("UITEST_AI_CONVERSATION_SCRIPT_TWO_RECIPES") {
             let sample = Recipe(
                 id: "rec-garlic-greens",
@@ -471,6 +489,19 @@ struct KitchenManagerApp: App {
                 }
                 #if DEBUG
                 .environmentObject(syncSmokeController)
+                .overlay(alignment: .bottomLeading) {
+                    if AIConversationAcceptanceFixture.scenario != nil {
+                        Text("fake transport; local metadata; in-memory persistence")
+                            .font(.system(size: 1))
+                            .accessibilityIdentifier("kitchenAI.fixture.isolation")
+                        Text("\(conversationObservation.requests)")
+                            .font(.system(size: 1))
+                            .accessibilityIdentifier("kitchenAI.fixture.requests")
+                        Text(aiConversationController.actuallyUsedContextKinds.map(\.rawValue).sorted().joined(separator: ","))
+                            .font(.system(size: 1))
+                            .accessibilityIdentifier("kitchenAI.fixture.usedContexts")
+                    }
+                }
                 // UI-5B2B-B1: writes a deterministic `.conflict` session so the
                 // merge flow opens on the conflict screen. Local persistence only —
                 // no network, no sync coordinator run, no staged mutation — and it

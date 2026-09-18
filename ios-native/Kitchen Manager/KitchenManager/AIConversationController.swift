@@ -401,6 +401,10 @@ final class AIConversationController: ObservableObject {
     }
 
     private func load(_ conversation: AIConversation) {
+        let pendingAction = currentConversation?.id == conversation.id
+            && !conversation.isExpired(now: now()) ? preparedAction : nil
+        preparedAction = nil
+        turnState = .idle
         if currentConversation?.id != conversation.id {
             resetNextTurnComposerState()
         }
@@ -408,9 +412,15 @@ final class AIConversationController: ObservableObject {
         currentConversation = conversation
         do {
             messages = try store.messages(conversationID: conversation.id)
+            if let pendingAction,
+               try store.actions(conversationID: conversation.id).contains(where: {
+                   $0.id == pendingAction.id && $0.conversationID == conversation.id
+                       && $0.status == .awaitingConfirmation
+               }) {
+                preparedAction = pendingAction
+                turnState = .awaitingConfirmation
+            }
             reconcileActionStatusBlocks(conversationID: conversation.id)
-            turnState = .idle
-            preparedAction = nil
             actuallyUsedContextKinds = []
             localErrorMessage = nil
         } catch {
