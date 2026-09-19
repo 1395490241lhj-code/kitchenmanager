@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-enum RecommendationSource: String, Codable {
+nonisolated enum RecommendationSource: String, Codable {
     case local
     case ai
 }

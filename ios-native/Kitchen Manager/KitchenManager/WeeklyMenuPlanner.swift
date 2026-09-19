@@ -9,7 +9,7 @@ import UIKit
 // in one canonical batch, which also records a receipt on the draft so an
 // interrupted attempt can be finished later. See `WeeklyMenuMaterializer`.
 
-struct WeeklyMealPlanRecipe: Identifiable, Codable, Hashable {
+nonisolated struct WeeklyMealPlanRecipe: Identifiable, Codable, Hashable {
     var id: String
     var title: String
     var ingredients: [String]
@@ -24,20 +24,20 @@ struct WeeklyMealPlanRecipe: Identifiable, Codable, Hashable {
     var isSavedToLibrary = false
 }
 
-struct WeeklyMealPlanMeal: Identifiable, Codable, Hashable {
+nonisolated struct WeeklyMealPlanMeal: Identifiable, Codable, Hashable {
     var id = UUID()
     var mealIndex: Int
     var title: String?
     var recipes: [WeeklyMealPlanRecipe]
 }
 
-struct WeeklyMealPlanDay: Identifiable, Codable, Hashable {
+nonisolated struct WeeklyMealPlanDay: Identifiable, Codable, Hashable {
     var id = UUID()
     var dayIndex: Int
     var meals: [WeeklyMealPlanMeal]
 }
 
-struct WeeklyMealPlanShoppingItem: Identifiable, Codable, Hashable {
+nonisolated struct WeeklyMealPlanShoppingItem: Identifiable, Codable, Hashable {
     var id = UUID()
     var name: String
     var quantityText: String?
@@ -156,7 +156,7 @@ nonisolated enum WeeklyMaterializationStatus: Equatable {
     }
 }
 
-struct WeeklyMealPlan: Codable, Hashable {
+nonisolated struct WeeklyMealPlan: Codable, Hashable {
     var startDate: Date
     var days: [WeeklyMealPlanDay]
     var shoppingItems: [WeeklyMealPlanShoppingItem]

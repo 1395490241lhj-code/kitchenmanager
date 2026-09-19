@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 /// Immutable capability produced only by prepare. Apply cannot substitute a proposal.
-struct PreparedAIAction: Identifiable, Equatable {
+nonisolated struct PreparedAIAction: Identifiable, Equatable {
     let id: UUID
     let proposal: AIActionProposal
     let risk: AIActionRisk

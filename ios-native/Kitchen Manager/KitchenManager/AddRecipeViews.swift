@@ -989,7 +989,7 @@ struct AIRecipeRegenerationHost: View {
                 ingredientsText: "鸡蛋\n番茄",
                 stepsText: "鸡蛋打散备用\n番茄切块后与鸡蛋同炒"
             )
-            await generatorStore.generate(
+            _ = await generatorStore.generate(
                 inventory: kitchenStore.recipeCreationInventory,
                 regenerate: true
             )

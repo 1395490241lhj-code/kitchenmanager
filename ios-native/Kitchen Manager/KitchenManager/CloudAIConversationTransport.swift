@@ -57,17 +57,14 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
     private func pump(request: AIConversationRuntimeRequest, into continuation: AsyncThrowingStream<AIConversationStreamEvent, Error>.Continuation) async {
         do {
             let lineStream = try await buildLineStream(request)
-            var sawTerminal = false
             for try await line in lineStream {
                 let event = try Self.decodeEvent(line: line)
                 switch event {
                 case .error(let code, let message):
-                    sawTerminal = true
                     continuation.yield(.error(code: code, message: message))
                     continuation.finish()
                     return
                 case .completed(let finishReason):
-                    sawTerminal = true
                     continuation.yield(.completed(finishReason: finishReason))
                     continuation.finish()
                     return
@@ -75,8 +72,7 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
                     continuation.yield(event)
                 }
             }
-            guard sawTerminal else { throw APIError.protocolViolation("服务器流式响应缺少终止事件。") }
-            continuation.finish()
+            throw APIError.protocolViolation("服务器流式响应缺少终止事件。")
         } catch {
             continuation.finish(throwing: error)
         }

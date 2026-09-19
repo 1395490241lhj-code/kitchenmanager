@@ -3,7 +3,7 @@ import FoundationModels
 import Network
 import SwiftUI
 
-enum AIRecommendationProvider: String, CaseIterable, Identifiable {
+nonisolated enum AIRecommendationProvider: String, CaseIterable, Identifiable {
     static let storageKey = "aiRecommendationProvider"
     static let defaultProvider: Self = .gemini
 

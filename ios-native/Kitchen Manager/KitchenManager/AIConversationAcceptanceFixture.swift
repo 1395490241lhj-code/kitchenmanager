@@ -1,7 +1,7 @@
 #if DEBUG
 import Foundation
 
-enum AIConversationAcceptanceFixture {
+nonisolated enum AIConversationAcceptanceFixture {
     static let mealID = UUID(uuidString: "12000000-0000-0000-0000-000000000002")!
     static let specialPlanID = UUID(uuidString: "12000000-0000-0000-0000-000000000004")!
     static let spicyDishIDs = [
