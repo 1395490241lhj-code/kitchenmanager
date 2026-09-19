@@ -1751,6 +1751,9 @@ struct SettingsView: View {
                         Section("菜谱推荐") {
                             AIRecommendationProviderSettingsRow()
                         }
+                        Section("AI 对话") {
+                            AIConversationProviderSettingsRow()
+                        }
                         Section {
                             NavigationLink {
                                 AIServiceDiagnosticsView(authStore: authStore)

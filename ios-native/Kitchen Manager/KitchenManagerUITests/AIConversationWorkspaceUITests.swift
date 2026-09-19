@@ -100,6 +100,41 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.buttons["kitchenAI.attachment"].exists)
     }
 
+    // D-044: a legacy device-local recipe recommendation choice is asked to
+    // pick a conversation model in place, and answering it unblocks sending
+    // straight away. test06 pins that no provider control is on screen once a
+    // conversation provider is settled; this pins the one state where it is.
+    func test07b_LegacyAppleRecommendationAsksForConversationModelInPlace() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_LEGACY_APPLE_RECOMMENDATION"
+        ])
+
+        let gemini = app.buttons["kitchenAI.selectProvider.gemini"]
+        XCTAssertTrue(
+            gemini.waitForExistence(timeout: 5),
+            "a legacy device-local member must be asked to choose, not refused"
+        )
+        XCTAssertTrue(app.buttons["kitchenAI.selectProvider.groq"].exists)
+        XCTAssertFalse(
+            app.buttons["kitchenAI.selectProvider.apple"].exists,
+            "Apple is not an eligible conversation model"
+        )
+        XCTAssertGreaterThanOrEqual(gemini.frame.height, 44)
+        XCTAssertFalse(
+            composerField(app).exists,
+            "no composer is offered while the provider choice is still pending"
+        )
+
+        gemini.tap()
+
+        XCTAssertTrue(
+            composerField(app).waitForExistence(timeout: 5),
+            "answering the setup state must make sending available immediately"
+        )
+        XCTAssertFalse(app.buttons["kitchenAI.selectProvider.gemini"].exists)
+    }
+
     // MARK: - STREAM & MESSAGES (Tests 8-11)
 
     func test08_SendShowsUserMessage() {

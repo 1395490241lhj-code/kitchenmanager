@@ -189,6 +189,19 @@ struct KitchenManagerApp: App {
             #endif
             return CloudAIConversationTransport(client: .shared, provider: provider)
         }
+        #if DEBUG
+        // UI-test-only legacy state: the pre-D-044 shape, where the member's
+        // only stored choice is the device-local recipe recommendation model.
+        if ProcessInfo.processInfo.arguments.contains("UITEST_LEGACY_APPLE_RECOMMENDATION") {
+            recipeTestDefaults.set(
+                AIRecommendationProvider.apple.rawValue,
+                forKey: AIRecommendationProvider.storageKey
+            )
+        }
+        #endif
+        // One-time carry-over from the older shared preference, performed at
+        // the composition root so no surface has to know migration exists.
+        AIConversationProviderPreference.migrateIfNeeded(in: recipeTestDefaults)
         let conversationOrchestrator = ConversationOrchestrator(
             contextAssembler: conversationContextAssembler,
             domainTools: conversationDomainTools,
@@ -201,7 +214,8 @@ struct KitchenManagerApp: App {
                 store: conversationStoreInstance,
                 orchestrator: conversationOrchestrator,
                 actionCoordinator: conversationActionCoordinator,
-                metadataService: conversationMetadataService
+                metadataService: conversationMetadataService,
+                userDefaults: recipeTestDefaults
             )
         )
         #if DEBUG

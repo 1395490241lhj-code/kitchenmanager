@@ -97,61 +97,138 @@ final class AIConversationTransportTests: XCTestCase {
         XCTAssertNil(AIConversationTranscriptMessage(role: .assistant, content: "x", toolCallID: "call-1"))
     }
 
-    // MARK: Router
+    // MARK: Conversation provider preference (D-044)
+    //
+    // The conversation provider is its own preference. The recipe
+    // recommendation model no longer decides whether conversation works, and a
+    // legacy device-local choice is never converted into a cloud one.
 
-    func testRouterRoutesGeminiAndGroqToCloud() {
+    private func emptySuite(
+        _ label: String = #function
+    ) -> (defaults: UserDefaults, name: String) {
+        let name = "AIConversationProviderPreferenceTests.\(label).\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return (defaults, name)
+    }
+
+    // A: a fresh install takes the one canonical cloud default and stores nothing.
+    func testFreshInstallResolvesCanonicalCloudDefaultWithoutWriting() {
+        let suite = emptySuite()
+        defer { suite.defaults.removePersistentDomain(forName: suite.name) }
+
+        XCTAssertEqual(AIRecommendationProvider.defaultProvider, .gemini)
         XCTAssertEqual(
-            AIConversationProviderRouter.route(selectedProvider: .gemini),
-            .cloud(provider: .gemini)
+            AIConversationProviderPreference.resolve(in: suite.defaults),
+            .cloud(provider: AIRecommendationProvider.defaultProvider)
         )
-        XCTAssertEqual(
-            AIConversationProviderRouter.route(selectedProvider: .groq),
-            .cloud(provider: .groq)
+        XCTAssertNil(
+            suite.defaults.string(forKey: AIConversationProviderPreference.storageKey),
+            "resolving must stay a pure read"
         )
     }
 
-    func testRouterRefusesAppleWithExactCopy() {
+    // B and C: a legacy cloud recommendation choice carries over unchanged.
+    func testLegacyCloudRecommendationCarriesOverAndMaterializesOnce() {
+        for legacy in [AIRecommendationProvider.gemini, .groq] {
+            let suite = emptySuite()
+            defer { suite.defaults.removePersistentDomain(forName: suite.name) }
+            suite.defaults.set(legacy.rawValue, forKey: AIRecommendationProvider.storageKey)
+
+            XCTAssertEqual(
+                AIConversationProviderPreference.resolve(in: suite.defaults),
+                .cloud(provider: legacy)
+            )
+            AIConversationProviderPreference.migrateIfNeeded(in: suite.defaults)
+            XCTAssertEqual(
+                suite.defaults.string(forKey: AIConversationProviderPreference.storageKey),
+                legacy.rawValue,
+                "migration materializes the carry-over so a later recommendation change cannot move it"
+            )
+        }
+    }
+
+    // D: a legacy device-local choice asks for a decision instead of picking a cloud.
+    func testLegacyAppleRecommendationRequiresExplicitConversationChoice() {
+        let suite = emptySuite()
+        defer { suite.defaults.removePersistentDomain(forName: suite.name) }
+        suite.defaults.set(AIRecommendationProvider.apple.rawValue, forKey: AIRecommendationProvider.storageKey)
+
         XCTAssertEqual(
-            AIConversationProviderRouter.route(selectedProvider: .apple),
-            .unavailable(message: "Kitchen AI 对话暂不支持设备端模型。")
+            AIConversationProviderPreference.resolve(in: suite.defaults),
+            .needsProviderSelection
+        )
+        AIConversationProviderPreference.migrateIfNeeded(in: suite.defaults)
+        XCTAssertNil(
+            suite.defaults.string(forKey: AIConversationProviderPreference.storageKey),
+            "migration must never convert an explicit device-local choice into a cloud one"
+        )
+        XCTAssertEqual(
+            AIConversationProviderPreference.resolve(in: suite.defaults),
+            .needsProviderSelection
         )
     }
 
-    func testRouterProductionEntryReadsGlobalUserDefaultsSelection() {
-        let suiteName = "AIConversationProviderRouterTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+    // E and F: recommendation stays on device while conversation runs on cloud.
+    func testExplicitConversationProviderCoexistsWithAppleRecommendations() {
+        for conversation in AIConversationProviderPreference.eligibleProviders {
+            let suite = emptySuite()
+            defer { suite.defaults.removePersistentDomain(forName: suite.name) }
+            suite.defaults.set(AIRecommendationProvider.apple.rawValue, forKey: AIRecommendationProvider.storageKey)
 
-        XCTAssertEqual(
-            AIConversationProviderRouter.route(userDefaults: defaults),
-            .cloud(provider: .gemini),
-            "the production entry must read the same global selection — default Gemini"
-        )
+            AIConversationProviderPreference.select(conversation, in: suite.defaults)
 
-        defaults.set(AIRecommendationProvider.groq.rawValue, forKey: AIRecommendationProvider.storageKey)
-        XCTAssertEqual(
-            AIConversationProviderRouter.route(userDefaults: defaults),
-            .cloud(provider: .groq)
-        )
+            XCTAssertEqual(
+                AIConversationProviderPreference.resolve(in: suite.defaults),
+                .cloud(provider: conversation)
+            )
+            XCTAssertEqual(
+                AIRecommendationProvider.selected(in: suite.defaults),
+                .apple,
+                "choosing a conversation model must not disturb recipe recommendations"
+            )
+        }
+    }
 
-        defaults.set(AIRecommendationProvider.apple.rawValue, forKey: AIRecommendationProvider.storageKey)
+    // G: the coupling is gone in both directions.
+    func testRecipeRecommendationChangesNeverMoveTheChosenConversationProvider() {
+        let suite = emptySuite()
+        defer { suite.defaults.removePersistentDomain(forName: suite.name) }
+        AIConversationProviderPreference.select(.gemini, in: suite.defaults)
+
+        for legacy in AIRecommendationProvider.allCases {
+            suite.defaults.set(legacy.rawValue, forKey: AIRecommendationProvider.storageKey)
+            XCTAssertEqual(
+                AIConversationProviderPreference.resolve(in: suite.defaults),
+                .cloud(provider: .gemini),
+                "recipe recommendation = \(legacy.rawValue) must not reach conversation"
+            )
+        }
+
+        AIConversationProviderPreference.select(.groq, in: suite.defaults)
         XCTAssertEqual(
-            AIConversationProviderRouter.route(userDefaults: defaults),
-            .unavailable(message: AIConversationProviderRouter.appleUnavailableCopy)
+            AIConversationProviderPreference.resolve(in: suite.defaults),
+            .cloud(provider: .groq),
+            "and the next send picks up a conversation change with no restart"
         )
     }
 
-    func testRouterNeverPersistsConversationProviderPreference() {
-        let suiteName = "AIConversationProviderRouterTests"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+    // Apple is not offered, and a hand-written device-local value is honoured
+    // as a device-local intent rather than silently downgraded to a cloud default.
+    func testAppleIsNeitherSelectableNorSilentlyDowngraded() {
+        XCTAssertFalse(AIConversationProviderPreference.eligibleProviders.contains(.apple))
 
-        _ = AIConversationProviderRouter.route(selectedProvider: .apple)
-        _ = AIConversationProviderRouter.route(userDefaults: defaults)
+        let suite = emptySuite()
+        defer { suite.defaults.removePersistentDomain(forName: suite.name) }
 
-        XCTAssertNil(defaults.object(forKey: AIRecommendationProvider.storageKey))
+        AIConversationProviderPreference.select(.apple, in: suite.defaults)
+        XCTAssertNil(suite.defaults.string(forKey: AIConversationProviderPreference.storageKey))
+
+        suite.defaults.set(AIRecommendationProvider.apple.rawValue, forKey: AIConversationProviderPreference.storageKey)
+        XCTAssertEqual(
+            AIConversationProviderPreference.resolve(in: suite.defaults),
+            .needsProviderSelection
+        )
     }
 
     func testStreamEventsAreEquatableAndConstructible() {

@@ -24,6 +24,15 @@ final class AIConversationController: ObservableObject {
         turnState.acceptsUserInput
             && preparedAction == nil
             && !currentConversationRequiresReactivation
+            && !needsConversationProviderSelection
+    }
+    /// Resolved live on every read rather than cached. A cached availability
+    /// flag is precisely the shape of defect this surface is recovering from.
+    var conversationProviderRoute: AIConversationProviderRoute {
+        AIConversationProviderPreference.resolve(in: userDefaults)
+    }
+    var needsConversationProviderSelection: Bool {
+        conversationProviderRoute == .needsProviderSelection
     }
     var canRetryGeneration: Bool {
         retryInput != nil && currentConversation?.id == retryInput?.conversationID && (turnState == .failed || turnState == .cancelled)
@@ -52,6 +61,7 @@ final class AIConversationController: ObservableObject {
     private let orchestrator: any ConversationOrchestrating
     private let actionCoordinator: ConversationActionCoordinator
     private let metadataService: ConversationMetadataService
+    private let userDefaults: UserDefaults
     private let now: () -> Date
     private let uuid: () -> UUID
 
@@ -73,6 +83,7 @@ final class AIConversationController: ObservableObject {
         orchestrator: any ConversationOrchestrating,
         actionCoordinator: ConversationActionCoordinator,
         metadataService: ConversationMetadataService,
+        userDefaults: UserDefaults = .standard,
         now: @escaping () -> Date = Date.init,
         uuid: @escaping () -> UUID = UUID.init
     ) {
@@ -80,6 +91,7 @@ final class AIConversationController: ObservableObject {
         self.orchestrator = orchestrator
         self.actionCoordinator = actionCoordinator
         self.metadataService = metadataService
+        self.userDefaults = userDefaults
         self.now = now
         self.uuid = uuid
         self.storeCancellable = store.objectWillChange.sink { [weak self] _ in
@@ -147,11 +159,21 @@ final class AIConversationController: ObservableObject {
         }
     }
 
+    /// The member's explicit answer to the setup state. Writing the canonical
+    /// preference is the whole action — nothing else is cached to go stale.
+    func selectConversationProvider(_ provider: AIRecommendationProvider) {
+        AIConversationProviderPreference.select(provider, in: userDefaults)
+        objectWillChange.send()
+    }
+
     func send() {
         localErrorMessage = nil
         let text = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         guard turnState.acceptsUserInput, preparedAction == nil else { return }
+        // A pending provider choice is a setup state, not a failed turn: no
+        // message is consumed and no conversation record is written.
+        guard !needsConversationProviderSelection else { return }
 
         if currentConversation == nil {
             currentConversation = store.createDraft(entryContext: entryContext)

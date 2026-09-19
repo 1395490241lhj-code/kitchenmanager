@@ -201,7 +201,7 @@ final class ConversationOrchestrator: ConversationOrchestrating {
         domainTools: any AIConversationDomainTooling,
         actionCoordinator: ConversationActionCoordinator,
         interpreter: ConversationResponseInterpreter = ConversationResponseInterpreter(),
-        providerRouter: @escaping (UserDefaults) -> AIConversationProviderRoute = { AIConversationProviderRouter.route(userDefaults: $0) },
+        providerRouter: @escaping (UserDefaults) -> AIConversationProviderRoute = { AIConversationProviderPreference.resolve(in: $0) },
         userDefaults: UserDefaults = .standard,
         transportFactory: @escaping (AIRecommendationProvider) -> any AIConversationRuntimeTransport,
         now: @escaping () -> Date = Date.init,
@@ -322,8 +322,16 @@ final class ConversationOrchestrator: ConversationOrchestrating {
         switch route {
         case .cloud(let provider):
             transport = transportFactory(provider)
-        case .unavailable(let message):
-            _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: message, retry: nil))))
+        case .needsProviderSelection:
+            // Defensive terminal state, not the product path. The surface
+            // blocks sending while a choice is pending, so a turn should never
+            // arrive here — and if one does it must end without a transport
+            // rather than pick a cloud provider on the member's behalf.
+            _ = emit(.appendBlock(.error(.init(
+                id: uuidGenerator(),
+                message: AIConversationProviderPreference.setupTitle + AIConversationProviderPreference.setupDetail,
+                retry: nil
+            ))))
             _ = emit(.state(.failed))
             continuation.finish()
             cleanupActiveRun(runID)

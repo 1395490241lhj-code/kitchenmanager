@@ -295,7 +295,39 @@ struct ComposerContainerView: View {
                 .background(KitchenTheme.separator)
 
             VStack(spacing: 8) {
-                if isReactivationRequired {
+                if controller.needsConversationProviderSelection {
+                    // Setup, not failure. Shown before anything can be sent, so
+                    // a pending choice never becomes a failed turn, and answered
+                    // in place so the member does not have to leave for Settings.
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(AIConversationProviderPreference.setupTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(KitchenTheme.textPrimary)
+                        Text(AIConversationProviderPreference.setupDetail)
+                            .font(.caption)
+                            .foregroundStyle(KitchenTheme.textSecondary)
+                        HStack(spacing: 8) {
+                            ForEach(AIConversationProviderPreference.eligibleProviders) { provider in
+                                Button(provider.title) {
+                                    controller.selectConversationProvider(provider)
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .frame(minHeight: KitchenTheme.controlHeight)
+                                .background(KitchenTheme.cookingFill, in: Capsule())
+                                .contentShape(Capsule())
+                                .accessibilityIdentifier("kitchenAI.selectProvider.\(provider.rawValue)")
+                            }
+                            Spacer()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
+                    .padding(.horizontal, KitchenTheme.pageGutter)
+                    .padding(.top, 8)
+                } else if isReactivationRequired {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("此对话已过期")

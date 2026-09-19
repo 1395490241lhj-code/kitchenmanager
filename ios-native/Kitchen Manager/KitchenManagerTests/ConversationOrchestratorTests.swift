@@ -1011,15 +1011,15 @@ final class ConversationOrchestratorTests: XCTestCase {
         XCTAssertEqual(selectedProvider, .groq)
     }
 
-    // 33: Apple route emits exact unavailable behavior and creates no cloud request
-    func testAppleRouteEmitsExactUnavailableBehaviorAndCreatesNoCloudRequest() async throws {
+    // 33: A pending conversation provider choice creates no cloud request
+    func testNeedsProviderSelectionCreatesNoCloudRequest() async throws {
         let env = try TestEnv()
         var cloudFactoryCalled = false
         let orchestrator = ConversationOrchestrator(
             contextAssembler: env.assembler,
             domainTools: env.domainTools,
             actionCoordinator: env.coordinator,
-            providerRouter: { _ in .unavailable(message: "Kitchen AI 对话暂不支持设备端模型。") },
+            providerRouter: { _ in .needsProviderSelection },
             transportFactory: { _ in
                 cloudFactoryCalled = true
                 return ScriptedTransport()
@@ -1033,7 +1033,84 @@ final class ConversationOrchestratorTests: XCTestCase {
             if case let .appendBlock(.error(err)) = ev { return err }
             return nil
         }
-        XCTAssertEqual(errorBlocks.first?.message, "Kitchen AI 对话暂不支持设备端模型。")
+        XCTAssertEqual(
+            errorBlocks.first?.message,
+            AIConversationProviderPreference.setupTitle + AIConversationProviderPreference.setupDetail
+        )
+    }
+
+    // 33b: Production wiring against real UserDefaults. Tests 31-33 inject a
+    // route, so nothing above pins what the app itself resolves at send time.
+    func testProductionResolverScopesConversationToItsOwnPreference() async throws {
+        let env = try TestEnv()
+        let suiteName = "ConversationOrchestratorProductionRouting.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Fresh install: a first send reaches the canonical cloud default with
+        // nothing persisted and no Settings visit in between.
+        var freshProvider: AIRecommendationProvider?
+        let freshOrchestrator = ConversationOrchestrator(
+            contextAssembler: env.assembler,
+            domainTools: env.domainTools,
+            actionCoordinator: env.coordinator,
+            userDefaults: defaults,
+            transportFactory: { provider in
+                freshProvider = provider
+                return ScriptedTransport(stepResponses: [[.completed(finishReason: "stop")]])
+            }
+        )
+        _ = try await collectEvents(from: freshOrchestrator.runTurn(env.defaultInput))
+        XCTAssertNil(defaults.string(forKey: AIConversationProviderPreference.storageKey))
+        XCTAssertEqual(freshProvider, AIRecommendationProvider.defaultProvider)
+
+        // Legacy device-local recommendation with no conversation choice yet:
+        // the turn ends without a transport instead of picking a cloud model.
+        defaults.set(AIRecommendationProvider.apple.rawValue, forKey: AIRecommendationProvider.storageKey)
+        var transportBuiltWhileAwaitingChoice = false
+        let appleOrchestrator = ConversationOrchestrator(
+            contextAssembler: env.assembler,
+            domainTools: env.domainTools,
+            actionCoordinator: env.coordinator,
+            userDefaults: defaults,
+            transportFactory: { _ in
+                transportBuiltWhileAwaitingChoice = true
+                return ScriptedTransport()
+            }
+        )
+        let appleEvents = try await collectEvents(from: appleOrchestrator.runTurn(env.defaultInput))
+        XCTAssertFalse(transportBuiltWhileAwaitingChoice)
+        let appleErrors = appleEvents.compactMap { ev -> AIErrorBlock? in
+            if case let .appendBlock(.error(err)) = ev { return err }
+            return nil
+        }
+        XCTAssertEqual(
+            appleErrors.first?.message,
+            AIConversationProviderPreference.setupTitle + AIConversationProviderPreference.setupDetail
+        )
+
+        // The member answers the setup state. Recipe recommendations stay on
+        // the device model while the next send goes to the chosen cloud one.
+        AIConversationProviderPreference.select(.groq, in: defaults)
+        var providerAfterChoice: AIRecommendationProvider?
+        let afterSettingsOrchestrator = ConversationOrchestrator(
+            contextAssembler: env.assembler,
+            domainTools: env.domainTools,
+            actionCoordinator: env.coordinator,
+            userDefaults: defaults,
+            transportFactory: { provider in
+                providerAfterChoice = provider
+                return ScriptedTransport(stepResponses: [[.completed(finishReason: "stop")]])
+            }
+        )
+        _ = try await collectEvents(from: afterSettingsOrchestrator.runTurn(env.defaultInput))
+        XCTAssertEqual(providerAfterChoice, .groq)
+        XCTAssertEqual(
+            AIRecommendationProvider.selected(in: defaults),
+            .apple,
+            "recipe recommendations must still run on the device model"
+        )
     }
 
     // 34: State machine: valid successful no-tool turn transition sequence
