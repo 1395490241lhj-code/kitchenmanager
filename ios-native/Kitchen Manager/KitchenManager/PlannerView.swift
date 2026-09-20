@@ -95,7 +95,9 @@ private struct PlannerRow: View {
 
 /// Week heading text, pinned to zh_Hans_CN (same convention as
 /// `HomeDatePresentation` / `MealPrepBoard`).
-private enum PlannerDateText {
+/// Shared with the Kitchen AI task header so the two surfaces cannot disagree
+/// about how a week or a day reads.
+enum PlannerDateText {
     static func weekRange(start: Date, calendar: Calendar = .current) -> String {
         let end = PlannerProjection.nextWeekStart(after: start, calendar: calendar)
         let endDay = calendar.date(byAdding: .day, value: -1, to: end) ?? end

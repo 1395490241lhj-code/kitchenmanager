@@ -29,6 +29,12 @@ struct AIConversationView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
+                // The empty state carries the strongest framing in the product
+                // and used to vanish at the first turn. The same semantics
+                // continue here in one compact line, so the task stays stated
+                // without competing with the transcript.
+                TaskContextHeaderView(identity: taskIdentity)
+
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 16) {
@@ -73,7 +79,10 @@ struct AIConversationView: View {
             )
         }
         .background(KitchenTheme.canvas)
-        .navigationTitle("Kitchen AI")
+        // The conversation's own title is the task identity. A draft that owns
+        // no conversation yet keeps the product name rather than inventing a
+        // second title for this one screen.
+        .navigationTitle(taskIdentity.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -154,6 +163,13 @@ struct AIConversationView: View {
         }
     }
 
+    private var taskIdentity: AIConversationTaskIdentity {
+        AIConversationTaskIdentity(
+            conversation: controller.currentConversation,
+            isPersisted: controller.isPersisted
+        )
+    }
+
     private func scrollToBottom(proxy: ScrollViewProxy, id: AnyHashable = "conversationBottomAnchor") {
         if reduceMotion || controller.isGenerating {
             proxy.scrollTo(id, anchor: .bottom)
@@ -161,6 +177,47 @@ struct AIConversationView: View {
             withAnimation(KitchenMotion.quick) {
                 proxy.scrollTo(id, anchor: .bottom)
             }
+        }
+    }
+}
+
+// MARK: - Task Context Header
+
+/// One compact line naming the task the conversation belongs to. It carries no
+/// title, because the navigation bar already does: the two regions are
+/// complementary rather than a repeat.
+struct TaskContextHeaderView: View {
+    let identity: AIConversationTaskIdentity
+
+    var body: some View {
+        if !identity.contextLine.isEmpty {
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    Image(systemName: identity.symbolName)
+                        .font(.caption)
+                        .foregroundStyle(KitchenTheme.textSecondary)
+                        .accessibilityHidden(true)
+                    Text(identity.contextLine)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(KitchenTheme.textSecondary)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                }
+                // Chrome keeps the repo's existing header cap so the line stays
+                // readable at accessibility sizes without eating the first
+                // screen the transcript needs.
+                .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
+                .padding(.horizontal, KitchenTheme.pageGutter)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(identity.accessibilityLabel)
+                .accessibilityIdentifier("kitchenAI.taskContext")
+
+                Divider()
+                    .background(KitchenTheme.separator)
+            }
+            .background(KitchenTheme.canvas)
         }
     }
 }

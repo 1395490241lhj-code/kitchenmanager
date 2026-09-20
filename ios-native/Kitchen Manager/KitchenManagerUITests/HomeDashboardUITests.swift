@@ -21,7 +21,10 @@ final class HomeDashboardUITests: XCTestCase {
         // exercise its effective 44pt hit target outside that visual frame.
         entry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
             .withOffset(CGVector(dx: 0, dy: 21)).tap()
-        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 5))
+        // The workspace title is the conversation's own task identity, so
+        // arrival is proven by a control the workspace always owns plus the
+        // Home-affinity starter below, never by the literal product name.
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["kitchenAI.starter.用快过期的食材做饭"].exists)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.navigationBars["今天"].waitForExistence(timeout: 5))

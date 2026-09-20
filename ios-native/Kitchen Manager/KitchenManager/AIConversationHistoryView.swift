@@ -204,12 +204,20 @@ struct ConversationHistoryRow: View {
         conversation.isExpired(now: Date())
     }
 
+    /// The app's user-facing dates are Simplified Chinese throughout; leaving
+    /// this formatter on the device locale printed 11/14/23 inside an otherwise
+    /// Chinese screen.
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_Hans_CN")
         f.dateStyle = .short
         f.timeStyle = .short
         return f
     }()
+
+    private var identity: AIConversationTaskIdentity {
+        AIConversationTaskIdentity(conversation: conversation, isPersisted: true)
+    }
 
     var body: some View {
         Button(action: onSelect) {
@@ -237,10 +245,25 @@ struct ConversationHistoryRow: View {
                     .foregroundStyle(KitchenTheme.textSecondary)
                     .lineLimit(2)
 
-                Text(Self.dateFormatter.string(from: conversation.lastActivityAt))
-                    .font(.caption2)
-                    .foregroundStyle(KitchenTheme.textSecondary)
-                    .padding(.top, 2)
+                // Which kitchen task this was, above when it last moved. A row
+                // that only carried title, excerpt and a timestamp read as a
+                // generic chat session rather than a task.
+                HStack(spacing: 6) {
+                    Image(systemName: identity.symbolName)
+                        .font(.caption2)
+                        .accessibilityHidden(true)
+                    Text(identity.contextLine)
+                        .font(.caption.weight(.medium))
+                    Text("·")
+                        .font(.caption2)
+                        .accessibilityHidden(true)
+                    Text(Self.dateFormatter.string(from: conversation.lastActivityAt))
+                        .font(.caption2)
+                }
+                .foregroundStyle(KitchenTheme.textSecondary)
+                .lineLimit(2)
+                .padding(.top, 2)
+                .accessibilityElement(children: .combine)
             }
             .padding(.vertical, 4)
         }

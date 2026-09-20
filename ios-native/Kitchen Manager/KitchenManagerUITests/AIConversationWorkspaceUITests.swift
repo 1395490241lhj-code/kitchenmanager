@@ -17,8 +17,19 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         allArgs.append(contentsOf: ["-UIPreferredContentSizeCategoryName", contentSize])
         app.launchArguments = allArgs
         app.launch()
-        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 10), "Kitchen AI workspace did not open")
+        // Waits on a control the workspace always owns rather than on the
+        // title: the title is the conversation's own task identity now, so a
+        // launch that resumes an existing conversation legitimately shows that
+        // conversation's name instead of the product name.
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 10),
+                      "Kitchen AI workspace did not open")
         return app
+    }
+
+    /// The task header renders as one combined element, so it is matched by
+    /// identifier across element types rather than assumed to be a static text.
+    private func taskContextHeader(_ app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "kitchenAI.taskContext").firstMatch
     }
 
     private func composerField(_ app: XCUIApplication) -> XCUIElement {
@@ -38,8 +49,50 @@ final class AIConversationWorkspaceUITests: XCTestCase {
     // MARK: - EMPTY / COMPOSER (Tests 1-7)
 
     func test01_HomeTitleKitchenAI() {
+        // A draft owns no task yet, so it keeps the product name rather than
+        // inventing a title for one screen.
         let app = launchApp(arguments: ["UITEST_AI_CONVERSATION_WORKSPACE_HOME"])
         XCTAssertTrue(app.navigationBars["Kitchen AI"].exists)
+        XCTAssertFalse(taskContextHeader(app).exists,
+                       "an empty conversation states its context in the empty state, not in the header")
+    }
+
+    /// Phase 2 task-identity slice: the workspace used to fall back to the
+    /// fixed product name and no context at all once a transcript existed, so
+    /// the only way to tell what a conversation was about was to reread it.
+    func test01b_ActiveConversationStatesItsTaskWithoutTheTranscript() {
+        let app = launchApp(arguments: ["UITEST_AI_CONVERSATION_WORKSPACE_HOME"])
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("今晚吃什么")
+        app.buttons["kitchenAI.send"].tap()
+
+        let header = taskContextHeader(app)
+        XCTAssertTrue(header.waitForExistence(timeout: 8),
+                      "an active conversation must keep naming its task")
+        XCTAssertTrue(header.label.contains("今天"),
+                      "a Home conversation started today is about today: \(header.label)")
+        XCTAssertFalse(app.navigationBars["Kitchen AI"].exists,
+                       "the product name must stop being the identity once a conversation exists")
+    }
+
+    func test01c_PlannerConversationNamesItsWeekRatherThanTheProductName() {
+        let app = launchApp(arguments: ["UITEST_AI_CONVERSATION_WORKSPACE_PLANNER"])
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("这周怎么安排")
+        app.buttons["kitchenAI.send"].tap()
+
+        let header = taskContextHeader(app)
+        XCTAssertTrue(header.waitForExistence(timeout: 8))
+        XCTAssertTrue(header.label.contains("计划"),
+                      "a Planner conversation is about a week of planning: \(header.label)")
+        // The anchor is the week itself, so the line carries a real date range
+        // rather than a bare label.
+        XCTAssertTrue(header.label.contains("月"),
+                      "the planning header must carry its week anchor: \(header.label)")
+        XCTAssertFalse(header.label.hasSuffix("·"),
+                       "a missing anchor must never leave a dangling separator")
     }
 
     func test02_FourExactHomeStartersExist() {
@@ -267,7 +320,10 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         app.buttons["kitchenAI.send"].tap()
 
         XCTAssertTrue(app.staticTexts["蒜蓉上海青"].waitForExistence(timeout: 8))
-        app.navigationBars["Kitchen AI"].tap()
+        // Tapped only to scroll the transcript to the top. Matched by position
+        // rather than by title, because the title is now the conversation's own
+        // task identity instead of the fixed product name.
+        app.navigationBars.firstMatch.tap()
         let scroll = app.scrollViews.firstMatch
         if scroll.exists { scroll.swipeDown() }
         let viewButton = app.buttons["kitchenAI.recipe.view.rec-garlic-greens"]

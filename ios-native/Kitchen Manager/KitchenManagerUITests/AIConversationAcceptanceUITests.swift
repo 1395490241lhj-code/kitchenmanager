@@ -67,7 +67,9 @@ final class AIConversationAcceptanceUITests: XCTestCase {
 
     private func openKitchenAIFromHome(_ app: XCUIApplication) {
         app.buttons["home.kitchenAI.open"].tap()
-        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 5))
+        // Identity-agnostic on purpose: entering may resume an existing
+        // conversation, whose own title is now the navigation identity.
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 5))
     }
 
     private func send(_ text: String, in app: XCUIApplication) {
@@ -107,7 +109,7 @@ final class AIConversationAcceptanceUITests: XCTestCase {
     private func openKitchenAIFromPlanner(_ app: XCUIApplication) {
         app.buttons["planner.tools.menu"].tap()
         app.buttons["planner.kitchenAI.open"].tap()
-        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 5))
     }
 
     func testScenarioB_PlannerPreviewRequiresApplyAndMatchesPlannerTruth() throws {

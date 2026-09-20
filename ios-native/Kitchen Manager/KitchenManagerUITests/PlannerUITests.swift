@@ -17,7 +17,9 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
         guard entry.exists else { return }
         entry.tap()
-        XCTAssertTrue(app.navigationBars["Kitchen AI"].waitForExistence(timeout: 5))
+        // Same identity-agnostic arrival signal the conversation suites use;
+        // the Planner-affinity starter below proves which workspace opened.
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["kitchenAI.starter.调整这周菜单"].exists)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
