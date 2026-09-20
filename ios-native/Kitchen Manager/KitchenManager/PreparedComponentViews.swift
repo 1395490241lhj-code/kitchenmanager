@@ -82,11 +82,6 @@ struct PreparedComponentsView: View {
                 FeedbackToast(message: toastMessage, style: .success)
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
-        }
     }
 
     private func consume(_ component: PreparedComponent) {

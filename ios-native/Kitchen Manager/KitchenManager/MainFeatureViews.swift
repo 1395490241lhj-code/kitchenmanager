@@ -10,8 +10,6 @@ enum ChromeMetrics {
     static let summaryTypeLimit = DynamicTypeSize.accessibility1
     static let headerTypeLimit = DynamicTypeSize.accessibility1
     static let symbolTypeLimit = DynamicTypeSize.xxLarge
-    /// Bottom clearance for the expanded floating (iOS 26) tab bar.
-    static let bottomClearance: CGFloat = 72
     /// Minimum row height for Settings rows. Matches `AppTheme.minimumHitTarget`.
     static let minimumRowHeight: CGFloat = 44
 }
@@ -382,18 +380,6 @@ struct InventoryView: View {
                 }
             }
 
-            // Clearance for the floating tab bar as a real trailing row rather
-            // than a safe-area inset: with `.listStyle(.plain)` the inset is
-            // consumed by the scroll edge effect, and the final row came to
-            // rest underneath the expanded bar.
-            Section {
-                Color.clear
-                    .frame(height: ChromeMetrics.bottomClearance)
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .accessibilityHidden(true)
-            }
-            .listSectionSeparator(.hidden)
         }
         // Open page surface: section titles, rows and hairlines directly on the
         // page. The grouped style wrapped every section in a rounded card, which
@@ -962,11 +948,6 @@ struct ShoppingView: View {
         .background(KitchenTheme.canvas)
         .environment(\.defaultMinListHeaderHeight, 0)
         .listSectionSpacing(0)
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
-        }
         .navigationTitle("买菜")
     }
 
@@ -1072,11 +1053,6 @@ struct ShoppingView: View {
         .background(KitchenTheme.canvas)
         .environment(\.defaultMinListHeaderHeight, 0)
         .listSectionSpacing(0)
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
-        }
         .accessibilityIdentifier("shopping.mode.container")
     }
 
@@ -1866,13 +1842,6 @@ struct SettingsView: View {
                 }
             }
             #endif
-        }
-        // One Settings-level inset so the destructive row and the About footer can
-        // come to rest above the floating tab bar instead of under it.
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
         }
         .navigationTitle("我的")
         .alert("无法开启提醒", isPresented: $isShowingPermissionDeniedAlert) {

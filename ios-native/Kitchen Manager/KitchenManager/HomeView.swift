@@ -242,7 +242,6 @@ struct HomeView: View {
             .padding(.top, 8)
             .padding(.bottom, 24)
         }
-        .safeAreaPadding(.bottom, 112)
         // Home no longer groups its content into cards, so the grouped-grey
         // backdrop has nothing left to separate. The page is the surface.
         .background(AppTheme.canvas)

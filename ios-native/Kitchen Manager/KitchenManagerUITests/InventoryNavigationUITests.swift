@@ -65,7 +65,7 @@ final class InventoryNavigationUITests: XCTestCase {
         XCTAssertTrue(element.isHittable, "\(label) 不可点击（可能被 Tab Bar 遮挡）", file: file, line: line)
         XCTAssertLessThanOrEqual(
             element.frame.maxY,
-            tabBarTop,
+            tabBarTop + Self.clearanceTolerance,
             "\(label) 底部 \(element.frame.maxY) 仍在 Tab Bar 上边缘 \(tabBarTop) 之下，被遮挡",
             file: file,
             line: line
@@ -125,6 +125,65 @@ final class InventoryNavigationUITests: XCTestCase {
         }
     }
 
+    /// Companion to the obstruction contract above. That one proves the final
+    /// row is not *under* the tab bar, and it would still pass with a large
+    /// fixed spacer holding the row far above the bar — it stops scrolling as
+    /// soon as the row clears. This one scrolls to the true end of the list and
+    /// bounds the remaining gap, so reintroducing a legacy-sized bottom
+    /// clearance block fails here. Default Dynamic Type only; the XXXL
+    /// obstruction coverage above is unchanged.
+    func testInventoryEndOfListLeavesNoLegacyBlankBand() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_INVENTORY_LARGE",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"]
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["嫩豆腐"].waitForExistence(timeout: 5))
+        let tabBarTop = expandedTabBarTop(of: app)
+
+        let lastRow = app.buttons["最近消耗"]
+        XCTAssertTrue(scrollToEndOfInventory(lastRow, in: app), "未能滚动到库存列表真正的末尾")
+
+        // Still not obscured, measured against the bar's own reported frame.
+        assertClearsTabBar(lastRow, tabBarTop: tabBarTop, label: "列表末尾最后一行")
+
+        let gap = tabBarTop - lastRow.frame.maxY
+        print("=====ENDGAP===== expandedTabBarTop=\(tabBarTop) lastRow=\(lastRow.frame) gap=\(gap)")
+        XCTAssertLessThanOrEqual(
+            gap,
+            Self.maximumEndOfListGap,
+            "列表滚到底后，最后一行与 Tab Bar 上边缘之间留下 \(gap)pt 空白，疑似重新引入了固定底部留白"
+        )
+        attachScreenshot(of: app, named: "inventory-end-of-list-gap")
+    }
+
+    /// Generous on purpose: ordinary content padding is allowed, and only an
+    /// obviously legacy-sized band is rejected.
+    private static let maximumEndOfListGap: CGFloat = 48
+
+    /// Scrolls until the list stops moving, so the gap is measured at the true
+    /// end rather than at the first position that happens to clear the bar.
+    private func scrollToEndOfInventory(
+        _ target: XCUIElement,
+        in app: XCUIApplication,
+        swipes: Int = 12
+    ) -> Bool {
+        let scrollable = inventoryList(of: app)
+        guard scrollable.exists else {
+            XCTFail("库存列表不存在，无法滚动")
+            return false
+        }
+        var previous = CGFloat.greatestFiniteMagnitude
+        for _ in 0..<swipes {
+            scrollable.swipeUp()
+            guard target.exists else { continue }
+            let current = target.frame.maxY
+            if abs(current - previous) < Self.clearanceTolerance { return true }
+            previous = current
+        }
+        return false
+    }
+
     @discardableResult
     private func scrollUntilClearsTabBar(
         _ target: XCUIElement,
@@ -138,12 +197,23 @@ final class InventoryNavigationUITests: XCTestCase {
             return false
         }
         for _ in 0..<swipes {
-            if target.exists && target.isHittable && target.frame.maxY <= tabBarTop {
+            if target.exists && target.isHittable && clears(target, tabBarTop: tabBarTop) {
                 return true
             }
             scrollable.swipeUp()
         }
-        return target.exists && target.isHittable && target.frame.maxY <= tabBarTop
+        return target.exists && target.isHittable && clears(target, tabBarTop: tabBarTop)
+    }
+
+    /// The system tab-bar safe area now rests the final row exactly on the
+    /// expanded bar's top edge, so an exact-equality comparison lands on
+    /// floating-point noise (a measured 791.0000000000001 against 791.0). The
+    /// tolerance is sub-point — smaller than a pixel at any scale — so it
+    /// admits that noise without admitting a visible overlap.
+    private static let clearanceTolerance: CGFloat = 0.5
+
+    private func clears(_ element: XCUIElement, tabBarTop: CGFloat) -> Bool {
+        element.frame.maxY <= tabBarTop + Self.clearanceTolerance
     }
 
     /// Phase UI-3 blocking fix: at Accessibility sizes the `.searchable` field

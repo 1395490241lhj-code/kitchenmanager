@@ -251,11 +251,6 @@ struct WeeklyRhythmSettingsView: View {
         }
         .navigationTitle("每周用餐节奏")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
-        }
     }
 
     private func binding(for weekday: Weekday) -> Binding<DayType> {

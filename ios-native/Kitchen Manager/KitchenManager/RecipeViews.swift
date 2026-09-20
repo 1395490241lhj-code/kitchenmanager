@@ -227,11 +227,6 @@ struct RecipeListView: View {
         .listRowSpacing(0)
         .scrollContentBackground(.hidden)
         .background(KitchenTheme.canvas)
-        .safeAreaInset(edge: .bottom) {
-            Color.clear
-                .frame(height: ChromeMetrics.bottomClearance)
-                .accessibilityHidden(true)
-        }
         .navigationTitle("菜谱")
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
         .searchable(
