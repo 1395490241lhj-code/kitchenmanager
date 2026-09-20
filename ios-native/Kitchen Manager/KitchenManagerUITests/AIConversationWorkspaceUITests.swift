@@ -245,6 +245,61 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         stopButton.tap()
 
         XCTAssertTrue(app.staticTexts["正在逐步为您生成长篇建议第一部分内容…"].waitForExistence(timeout: 5))
+
+        // Phase 2B.2: a stopped partial answer must not read as a finished
+        // one, and stopping is the member's choice rather than a failure.
+        let stopped = app.descendants(matching: .any).matching(identifier: "kitchenAI.turn.stopped").firstMatch
+        XCTAssertTrue(stopped.waitForExistence(timeout: 5), "a cancelled turn must carry its stopped marker")
+        XCTAssertFalse(app.buttons["kitchenAI.error.retry"].exists,
+                       "stopping is not an error and must not borrow the error retry")
+        XCTAssertFalse(app.buttons["kitchenAI.stop"].exists, "streaming has ended")
+    }
+
+    func test11b_CompletedAnswerCarriesNoStoppedMarker() {
+        let app = launchApp(arguments: ["UITEST_AI_CONVERSATION_WORKSPACE_HOME"])
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("正常完成")
+        app.buttons["kitchenAI.send"].tap()
+
+        XCTAssertTrue(app.staticTexts["这是本地测试回复。"].waitForExistence(timeout: 8))
+        let stopped = app.descendants(matching: .any).matching(identifier: "kitchenAI.turn.stopped").firstMatch
+        XCTAssertFalse(stopped.exists, "normal completion stays visually quiet")
+    }
+
+    /// The marker derives from the persisted message state, so it must still be
+    /// there after the conversation is left and reopened from History.
+    func test11c_StoppedMarkerSurvivesReopeningTheConversation() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_STREAM_STOP"
+        ])
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("停止后重开")
+        app.buttons["kitchenAI.send"].tap()
+        let stopButton = app.buttons["kitchenAI.stop"]
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 5))
+        stopButton.tap()
+        let stopped = app.descendants(matching: .any).matching(identifier: "kitchenAI.turn.stopped").firstMatch
+        XCTAssertTrue(stopped.waitForExistence(timeout: 5))
+
+        // Leave to a fresh draft, then come back through History.
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["新建对话"].tap()
+        XCTAssertFalse(stopped.exists, "a fresh draft shows no earlier turn")
+
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["历史记录"].tap()
+        let row = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "kitchenAI.history.row")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        XCTAssertTrue(app.staticTexts["正在逐步为您生成长篇建议第一部分内容…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(stopped.waitForExistence(timeout: 5),
+                      "the stopped marker is persisted state, not controller memory")
     }
 
     // MARK: - RECIPES (Tests 12-15)
@@ -505,6 +560,9 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
         let retryButton = app.buttons["kitchenAI.error.retry"]
         XCTAssertTrue(retryButton.waitForExistence(timeout: 8))
+        // Phase 2B.2: the button says what it will do. A provider failure is a
+        // generation-scoped retry, and the wording must say so.
+        XCTAssertEqual(retryButton.label, "重新生成这条回复")
         retryButton.tap()
 
         XCTAssertTrue(app.staticTexts["重试成功，已为您生成回复。"].waitForExistence(timeout: 8))

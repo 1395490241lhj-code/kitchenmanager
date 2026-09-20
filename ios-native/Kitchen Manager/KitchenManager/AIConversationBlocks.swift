@@ -31,6 +31,25 @@ struct MessageRowView: View {
                     .padding(.top, 4)
                     .accessibilityLabel("AI 正在回复中")
                 }
+                if message.state == .cancelled {
+                    // Derived from the persisted message state, so it survives
+                    // leaving, reopening and relaunch exactly as the partial
+                    // text above it does. Neutral by design: the member chose
+                    // to stop, nothing failed, so it borrows none of the error
+                    // treatment and stays inside this turn rather than
+                    // becoming page-level chrome.
+                    HStack(spacing: 6) {
+                        Image(systemName: "stop.circle")
+                            .font(.footnote)
+                        Text("已停止")
+                            .font(.footnote.weight(.medium))
+                    }
+                    .foregroundStyle(KitchenTheme.textSecondary)
+                    .padding(.top, 4)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("回复已在完成前被停止")
+                    .accessibilityIdentifier("kitchenAI.turn.stopped")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.trailing, 16)
@@ -324,13 +343,45 @@ struct AIActionStatusBlockView: View {
     }
 }
 
+/// User-facing wording for what a retry will actually do. Presentation only:
+/// every renderable scope still invokes the one existing command,
+/// `retryGeneration()`, which re-runs the turn from its stored input. The
+/// wording differs because what the member cares about differs — whether the
+/// model is asked again, the kitchen is re-read first, or the request is
+/// re-prepared.
+///
+/// `.action` returns `nil` rather than a generic title. There is no scoped
+/// action retry today and the error block must never offer one, so the type
+/// itself refuses to describe that button: a caller cannot render an action
+/// retry by accident because there is nothing to render.
+nonisolated struct AIRetryScopePresentation: Equatable {
+    let title: String
+    let accessibilityLabel: String
+
+    static func retry(for scope: AIRetryScope) -> AIRetryScopePresentation? {
+        switch scope {
+        case .generation:
+            return .init(title: "重新生成回复", accessibilityLabel: "重新生成这条回复")
+        case .contextRead:
+            return .init(title: "重新读取厨房数据", accessibilityLabel: "重新读取当前厨房数据后再回复")
+        case .interpretation:
+            return .init(title: "重新处理请求", accessibilityLabel: "重新处理这条请求")
+        case .action:
+            return nil
+        }
+    }
+}
+
 struct AIErrorBlockView: View {
     let block: AIErrorBlock
     @EnvironmentObject private var controller: AIConversationController
 
-    var isRetrySafe: Bool {
-        guard let retry = block.retry else { return false }
-        return retry != .action && controller.canRetryGeneration
+    /// A button exists only when the controller can retry generation right now
+    /// and the scope has a retry presentation at all. `.action` yields no
+    /// presentation, so it stays structurally unable to render one.
+    private var retryPresentation: AIRetryScopePresentation? {
+        guard controller.canRetryGeneration, let scope = block.retry else { return nil }
+        return AIRetryScopePresentation.retry(for: scope)
     }
 
     var body: some View {
@@ -343,18 +394,19 @@ struct AIErrorBlockView: View {
                     .foregroundStyle(KitchenTheme.textPrimary)
             }
 
-            if isRetrySafe {
+            if let retry = retryPresentation {
                 Button {
                     controller.retryGeneration()
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.clockwise")
-                        Text("重试")
+                        Text(retry.title)
                     }
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(KitchenTheme.cookingGreen)
                     .frame(minHeight: KitchenTheme.controlHeight)
                 }
+                .accessibilityLabel(retry.accessibilityLabel)
                 .accessibilityIdentifier("kitchenAI.error.retry")
             }
         }
