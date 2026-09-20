@@ -93,6 +93,45 @@ final class PlannerMealCreateUITests: XCTestCase {
         XCTAssertFalse(app.buttons["planner.meal.create"].exists, "no intermediate menu")
     }
 
+    /// An unplanned day is the one place the week is still open, so it carries
+    /// the affordance that opens creation *for that date* — not the week's
+    /// implicit default. A day that already has meals keeps its plain header.
+    func testAnUnplannedDayCreatesForItsOwnDate() {
+        let app = launch("UITEST_SEED_SPECIAL_PLAN")
+        openPlanner(from: app)
+
+        // The seed plans today and puts the event on another day, so the week
+        // renders day groups rather than the empty-week state.
+        XCTAssertFalse(app.buttons["planner.empty.create"].exists, "this week has entries")
+
+        let add = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "planner.day.add.")
+        ).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "an unplanned day offers no way to plan it")
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44, "the empty-day affordance is below the hit-target floor")
+
+        // The identifier carries the day-of-month the row stands for, so where
+        // the saved meal lands answers whether the form opened on that date.
+        // Asserting the outcome rather than the DatePicker's internals keeps
+        // this independent of how the control exposes its value.
+        let day = add.identifier.replacingOccurrences(of: "planner.day.add.", with: "")
+        add.tap()
+
+        XCTAssertTrue(app.navigationBars["新建一餐"].waitForExistence(timeout: 5), "the meal form did not open")
+        _ = pickFirstRecipe(in: app)
+        app.buttons["planner.mealForm.save"].tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "saving did not return to the week")
+
+        XCTAssertFalse(
+            app.buttons["planner.day.add.\(day)"].exists,
+            "the meal did not land on day \(day): that day still renders as unplanned"
+        )
+        XCTAssertTrue(
+            app.staticTexts["planner.day.\(day)"].waitForExistence(timeout: 5),
+            "a day that now has a meal must render the plain planned header"
+        )
+    }
+
     // MARK: - Form rules
 
     func testSaveIsDisabledUntilARecipeIsChosen() {

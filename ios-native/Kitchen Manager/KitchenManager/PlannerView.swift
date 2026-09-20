@@ -135,6 +135,9 @@ struct PlannerView: View {
     @State private var toast: (message: String, style: AppFeedbackStyle, removable: Bool)?
     @State private var weekStart: Date
     @State private var sheet: PlannerSheet?
+    /// The day an explicit empty-day tap named, if one did. `nil` falls back to
+    /// the implicit default the toolbar's 新建一餐 has always used.
+    @State private var creationDay: Date?
     /// A menu the creation sheet composed for a plan that was just added. Held
     /// until the detail for that plan is pushed, which seeds its draft store;
     /// cleared when that detail leaves the path so a reopened plan never
@@ -322,7 +325,7 @@ struct PlannerView: View {
                             pendingDraft = (result.plan.id, result.dishes)
                         }
                     case .createMeal:
-                        PlannerMealFormView(defaultDate: creationDefaultDate, calendar: calendar) { item in
+                        PlannerMealFormView(defaultDate: creationDay ?? creationDefaultDate, calendar: calendar) { item in
                             // A meal saved outside the week on screen would
                             // otherwise land somewhere the user cannot see, so
                             // the Planner follows it to its own week.
@@ -469,7 +472,12 @@ struct PlannerView: View {
                         // meal is what an empty week is for, and 聚餐 stays one
                         // tap away in the toolbar menu.
                         Button("新建一餐") { createMeal() }
-                            .buttonStyle(.borderedProminent)
+                            // The page's only action, in the primary treatment
+                            // the rest of the product already uses for one.
+                            // `.borderedProminent` rendered it at 28.3pt: below
+                            // the 44pt floor, and lighter than every row it was
+                            // asking to replace.
+                            .buttonStyle(KitchenButtonStyle(role: .primary))
                             .accessibilityIdentifier("planner.empty.create")
                     }
                 }
@@ -492,17 +500,54 @@ struct PlannerView: View {
                         }
                     } header: {
                         let today = calendar.isDate(group.day, inSameDayAs: currentDate)
-                        Text(PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : ""))
-                            .font(.subheadline.weight(today ? .semibold : .regular))
-                            .foregroundStyle(today ? Color.primary : Color.secondary)
-                            .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
-                            .accessibilityAddTraits(.isHeader)
-                            .textCase(nil)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 8)
-                            .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
-                                                     bottom: 0, trailing: KitchenTheme.pageGutter))
-                            .background(KitchenTheme.canvas)
+                        let dayText = PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : "")
+                        Group {
+                            if group.entries.isEmpty {
+                                // An unplanned day is the one place the week is
+                                // still open, so it is the one place the week
+                                // can be acted on. The affordance rides on the
+                                // header the day already has: no extra row, no
+                                // card, and nothing added to days that are
+                                // already planned.
+                                Button {
+                                    createMeal(on: group.day)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Text(dayText)
+                                            .font(.subheadline.weight(today ? .semibold : .regular))
+                                            .foregroundStyle(today ? Color.primary : Color.secondary)
+                                        Spacer(minLength: 8)
+                                        Image(systemName: "plus")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                                            .accessibilityHidden(true)
+                                    }
+                                    .frame(minHeight: AppTheme.minimumHitTarget)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("planner.day.add.\(calendar.component(.day, from: group.day))")
+                                .accessibilityLabel("\(dayText)，安排一餐")
+                            } else {
+                                Text(dayText)
+                                    .font(.subheadline.weight(today ? .semibold : .regular))
+                                    .foregroundStyle(today ? Color.primary : Color.secondary)
+                                    .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
+                                    .accessibilityAddTraits(.isHeader)
+                            }
+                        }
+                        .textCase(nil)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        // Asymmetric on purpose: the gap belongs above the day,
+                        // so a header groups with the meals under it instead of
+                        // floating equidistant between two days. This is the
+                        // whole day-boundary treatment — no rules, no cards.
+                        .padding(.top, 16)
+                        .padding(.bottom, 4)
+                        .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
+                                                 bottom: 0, trailing: KitchenTheme.pageGutter))
+                        .background(KitchenTheme.canvas)
                     }
                 }
             }
@@ -684,8 +729,11 @@ struct PlannerView: View {
 
     /// Implicit creation: no day was named, so the default is resolved now
     /// rather than carried from whenever this Planner was built.
-    private func createMeal() {
+    private func createMeal(on day: Date? = nil) {
         refreshCurrentDay()
+        // Every entry point sets this, so an explicit day chosen once can never
+        // leak into the next implicit creation.
+        creationDay = day
         sheet = .createMeal
     }
 

@@ -181,6 +181,23 @@ struct HomeView: View {
                     onViewAll: { navigationStore.showInventory(.all) }
                 )
 
+                // Discovery is the page's lowest-priority layer, so it follows
+                // 需要处理 rather than preceding it: a problem the kitchen
+                // already has outranks another dish it might have. One
+                // presentation for both modes — the same Level 4 navigation row
+                // — because the same identifier reaching the same destination
+                // rendered two different ways was the inconsistency, not the
+                // placement.
+                if primaryTask.isDecisionMode || primaryTask.showsRecommendationLink {
+                    HomeSecondaryLinkRow(
+                        title: "更多推荐",
+                        systemImage: "sparkles",
+                        symbolTint: KitchenTheme.aiIndigo,
+                        identifier: "home.recommendation.more",
+                        action: { isShowingRecommendations = true }
+                    )
+                }
+
                 // Tomorrow's food is not today's context. It sits below the
                 // page's own three layers rather than inside the day summary,
                 // where it used to be concatenated onto the rhythm line and read
@@ -652,8 +669,7 @@ struct HomeView: View {
                     inventoryNames: kitchenStore.recipeCreationInventory.map(\.name),
                     expiringNames: kitchenStore.recipeCreationExpiringItems.map(\.name),
                     onAddToToday: addRecommendationToPlan,
-                    onViewRecipe: { selectedRecipe = $0 },
-                    onMore: { isShowingRecommendations = true }
+                    onViewRecipe: { selectedRecipe = $0 }
                 )
 
             case .quickMeal:
@@ -681,17 +697,6 @@ struct HomeView: View {
                 HomeMealPrepBoardSection(
                     entries: MealPrepBoard.entries(from: kitchenStore.preparedComponents),
                     onAdd: { isShowingPreparedComponents = true }
-                )
-            }
-
-            // Execution mode keeps recommendation one tap away and nothing more.
-            if task.showsRecommendationLink {
-                HomeSecondaryLinkRow(
-                    title: "更多推荐",
-                    systemImage: "sparkles",
-                    symbolTint: KitchenTheme.aiIndigo,
-                    identifier: "home.recommendation.more",
-                    action: { isShowingRecommendations = true }
                 )
             }
 
@@ -1226,7 +1231,6 @@ private struct HomeRecommendationSection: View {
     let expiringNames: [String]
     let onAddToToday: (Recipe) -> Void
     let onViewRecipe: (Recipe) -> Void
-    let onMore: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1269,17 +1273,10 @@ private struct HomeRecommendationSection: View {
                     .accessibilityIdentifier("home.recommendation.notice")
             }
 
-            // The one discovery affordance lives below the card rather than
-            // beside a section title, so nothing competes with the primary
-            // heading. Level 3 — utility.
-            Button(action: onMore) {
-                Text("更多推荐")
-                    .font(.subheadline.weight(.medium))
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .contentShape(Rectangle())
-            }
-            .kitchenUtilityButton(tint: KitchenTheme.cookingGreen)
-            .accessibilityIdentifier("home.recommendation.more")
+            // 更多推荐 is no longer emitted here. Discovery is one control with
+            // one presentation, rendered once by `HomeView` below 需要处理, so
+            // decision mode and execution mode can no longer disagree about what
+            // the same identifier looks like.
         }
     }
 

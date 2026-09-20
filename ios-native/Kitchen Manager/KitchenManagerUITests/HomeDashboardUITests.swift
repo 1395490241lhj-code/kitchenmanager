@@ -247,6 +247,13 @@ final class HomeDashboardUITests: XCTestCase {
         // 更多推荐 is now the last secondary row: the planning row it used to sit
         // above is gone, because Planner owns a tab.
         XCTAssertFalse(app.buttons["home.planner.link"].exists)
+        // D-042 precedence: a problem the kitchen already has outranks another
+        // dish it might have, so discovery follows 需要处理 rather than
+        // preceding it.
+        let attention = app.staticTexts["home.attention.section"]
+        XCTAssertTrue(attention.exists, "this fixture has attention items")
+        XCTAssertLessThan(attention.frame.minY, more.frame.minY,
+                          "需要处理 must come before 更多推荐")
         makeHittable(more, in: app)
         more.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))

@@ -145,36 +145,6 @@ struct InventoryView: View {
     var body: some View {
         List {
             let tonight = tonightSummaries
-            // 买菜 is a push on this tab rather than a tab of its own, so the
-            // route that used to be a tab-bar button is the first actionable
-            // row on the page: what is missing comes before what is stocked.
-            // Hidden while searching, where the query owns the list.
-            if !hasSearchQuery {
-                Section {
-                    NavigationLink(value: InventoryRoute.shopping) {
-                        Label {
-                            HStack(spacing: 8) {
-                                Text("买菜清单")
-                                if pendingShoppingCount > 0 {
-                                    Text("\(pendingShoppingCount)")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        } icon: {
-                            Image(systemName: "checklist")
-                        }
-                        .frame(minHeight: AppTheme.minimumHitTarget)
-                    }
-                    .accessibilityIdentifier("inventory.shopping.open")
-                    .accessibilityLabel(
-                        pendingShoppingCount > 0
-                        ? "买菜清单，\(pendingShoppingCount) 项待买"
-                        : "买菜清单"
-                    )
-                }
-                .listSectionSeparator(.hidden)
-            }
             // The control layer: the counts *are* the filters, and the picker
             // names the same `InventoryFocus` the list already filters by. The
             // read-only summary row and the separate "正在查看 … 清除" banner
@@ -196,6 +166,37 @@ struct InventoryView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: KitchenTheme.pageGutter, bottom: 12, trailing: KitchenTheme.pageGutter))
                     .listRowBackground(AppTheme.canvas)
                     .listRowSeparator(.hidden)
+                }
+                .listSectionSeparator(.hidden)
+            }
+
+            // 买菜 is a push on this tab rather than a tab of its own, and it
+            // stays one visible tap away — but it leaves the screen, so it must
+            // not outrank the screen's own problem state. It sits below the
+            // filters that carry 临期 / 已过期 / 缺货, in the same compact
+            // navigation-row treatment 最近消耗 already uses at the foot of this
+            // list. Hidden while searching, where the query owns the list.
+            if !hasSearchQuery {
+                Section {
+                    NavigationLink(value: InventoryRoute.shopping) {
+                        Label {
+                            HStack(spacing: 8) {
+                                Text("买菜清单")
+                                if pendingShoppingCount > 0 {
+                                    Text("\(pendingShoppingCount)")
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } icon: {
+                            Image(systemName: "checklist")
+                        }
+                    }
+                    .accessibilityIdentifier("inventory.shopping.open")
+                    .accessibilityLabel(
+                        pendingShoppingCount > 0
+                        ? "买菜清单，\(pendingShoppingCount) 项待买"
+                        : "买菜清单"
+                    )
                 }
                 .listSectionSeparator(.hidden)
             }
