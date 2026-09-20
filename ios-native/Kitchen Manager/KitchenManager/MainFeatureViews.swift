@@ -1472,7 +1472,14 @@ private struct AddShoppingItemView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: KitchenStore
     @State private var name = ""
-    @State private var quantity = 1.0
+    /// Held as text rather than as a `Double` behind `TextField(value:format:)`.
+    /// That form only commits its parse when the field gives up focus, so a
+    /// member who typed a quantity and went straight for 添加 was validated
+    /// against the *previous* value: the guard below then rejected the entry and
+    /// the form stayed open on a screen that already showed a valid number. A
+    /// text binding commits on every keystroke, so `save()` reads what is on
+    /// screen.
+    @State private var quantityText = "1"
     @State private var unit = "份"
     @State private var source = "手动添加"
     @State private var remark = ""
@@ -1488,7 +1495,7 @@ private struct AddShoppingItemView: View {
                             .multilineTextAlignment(.trailing)
                     }
                     LabeledContent("数量") {
-                        TextField("数量", value: $quantity, format: .number)
+                        TextField("数量", text: $quantityText)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
@@ -1524,6 +1531,7 @@ private struct AddShoppingItemView: View {
 
     private func save() {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quantity = Double(quantityText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .nan
         guard !cleanName.isEmpty, quantity.isFinite, quantity > 0 else {
             errorMessage = "请填写名称和有效数量。"; return
         }

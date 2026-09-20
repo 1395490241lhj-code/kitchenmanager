@@ -131,6 +131,10 @@ final class ShoppingRegressionUITests: XCTestCase {
         replace("数量", with: "12", in: app)
         replace("单位", with: "杯", in: app)
         app.navigationBars.buttons["添加"].tap()
+        // The entered quantity must reach `save()`: a stale binding fails the
+        // validation guard and leaves this form open on a screen that already
+        // shows a valid number.
+        XCTAssertTrue(app.navigationBars["添加买菜项目"].waitForNonExistence(timeout: 5), "添加 did not close the form")
         XCTAssertTrue(app.buttons["无糖希腊酸奶，12 杯，未购买"].waitForExistence(timeout: 5))
         capture("06-Entered-Quantity-Unit", in: app)
     }
