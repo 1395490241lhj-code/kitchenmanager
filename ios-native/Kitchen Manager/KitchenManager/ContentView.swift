@@ -386,6 +386,34 @@ struct KitchenManagerApp: App {
             try? p.createConversationWithFirstMessage(expired, message: m3)
             try? conversationStoreInstance.loadHistory()
         }
+        // Continuity boundaries a UI test can actually watch cross. Production
+        // retention is untouched: these only seed a stored activeUntil seconds
+        // away, the same strategy as UITEST_AI_ACTION_SHORT_EXPIRY.
+        if testArgs.contains("UITEST_AI_LIFETIME_SHORT_ACTIVE") || testArgs.contains("UITEST_AI_LIFETIME_SHORT_PINNED") {
+            let p = persistence.conversations
+            let now = Date()
+            let pinned = testArgs.contains("UITEST_AI_LIFETIME_SHORT_PINNED")
+            let conv = AIConversation(
+                id: UUID(uuidString: "77777777-7777-7777-7777-777777777777")!,
+                createdAt: now.addingTimeInterval(-600),
+                title: "今晚吃什么",
+                lifecycleType: .dailyMeal,
+                entryAffinity: .dailyMeal,
+                lastActivityAt: now.addingTimeInterval(-10),
+                activeUntil: now.addingTimeInterval(pinned ? 4 : 15),
+                isPinned: pinned
+            )
+            let m = AIConversationMessage(
+                conversationID: conv.id,
+                role: .user,
+                createdAt: now.addingTimeInterval(-600),
+                state: .completed,
+                contentBlocks: [.text(.init(text: "今晚做点什么好"))],
+                turnID: UUID()
+            )
+            try? p.createConversationWithFirstMessage(conv, message: m)
+            try? conversationStoreInstance.loadHistory()
+        }
         if testArgs.contains("UITEST_AI_CONVERSATION_SEED_EXPIRED_ACTION") {
             let p = persistence.conversations
             let now = Date()

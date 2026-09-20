@@ -11,19 +11,25 @@ struct AIConversationHistoryView: View {
     @State private var showingRenameAlert = false
     @State private var conversationToDelete: AIConversation?
     @State private var showingDeleteConfirmation = false
+    /// Presentation clock. Refreshed once at each upcoming continuity boundary
+    /// so a sheet left open never keeps a row under 最近 after it archived.
+    @State private var presentationNow = Date()
 
     private var pinnedConversations: [AIConversation] {
         controller.history.filter { $0.isPinned }
     }
 
     private var recentConversations: [AIConversation] {
-        let now = Date()
-        return controller.history.filter { !$0.isPinned && !$0.isExpired(now: now) }
+        controller.history.filter { !$0.isPinned && !$0.isExpired(now: presentationNow) }
     }
 
-    private var endedConversations: [AIConversation] {
-        let now = Date()
-        return controller.history.filter { !$0.isPinned && $0.isExpired(now: now) }
+    private var archivedConversations: [AIConversation] {
+        controller.history.filter { !$0.isPinned && $0.isExpired(now: presentationNow) }
+    }
+
+    /// The next moment any loaded row would change group.
+    private var nextBoundary: Date? {
+        recentConversations.map(\.activeUntil).min()
     }
 
     var body: some View {
@@ -32,7 +38,7 @@ struct AIConversationHistoryView: View {
                 if !pinnedConversations.isEmpty {
                     Section {
                         ForEach(pinnedConversations) { conv in
-                            ConversationHistoryRow(conversation: conv) {
+                            ConversationHistoryRow(conversation: conv, now: presentationNow) {
                                 select(conv)
                             }
                             .swipeActions(edge: .leading) {
@@ -69,7 +75,7 @@ struct AIConversationHistoryView: View {
                 if !recentConversations.isEmpty {
                     Section {
                         ForEach(recentConversations) { conv in
-                            ConversationHistoryRow(conversation: conv) {
+                            ConversationHistoryRow(conversation: conv, now: presentationNow) {
                                 select(conv)
                             }
                             .swipeActions(edge: .leading) {
@@ -103,10 +109,10 @@ struct AIConversationHistoryView: View {
                     }
                 }
 
-                if !endedConversations.isEmpty {
+                if !archivedConversations.isEmpty {
                     Section {
-                        ForEach(endedConversations) { conv in
-                            ConversationHistoryRow(conversation: conv) {
+                        ForEach(archivedConversations) { conv in
+                            ConversationHistoryRow(conversation: conv, now: presentationNow) {
                                 select(conv)
                             }
                             .swipeActions(edge: .leading) {
@@ -135,13 +141,25 @@ struct AIConversationHistoryView: View {
                             }
                         }
                     } header: {
-                        Text("已结束")
-                            .accessibilityIdentifier("kitchenAI.history.section.ended")
+                        Text(AIConversationLifetimePresentation.archived)
+                            .accessibilityIdentifier("kitchenAI.history.section.archived")
                     }
                 }
             }
             .navigationTitle("历史记录")
             .navigationBarTitleDisplayMode(.inline)
+            .task(id: nextBoundary) {
+                guard let nextBoundary else { return }
+                do {
+                    try await Task.sleep(nanoseconds: UInt64(max(nextBoundary.timeIntervalSince(Date()), 0) * 1_000_000_000) + 50_000_000)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                // Recomputes the groups; nextBoundary moves on and the task
+                // reschedules itself to the following row, if any.
+                presentationNow = Date()
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {
@@ -187,8 +205,10 @@ struct AIConversationHistoryView: View {
 
 struct ConversationHistoryRow: View {
     let conversation: AIConversation
+    let now: Date
     let onSelect: () -> Void
     @EnvironmentObject private var controller: AIConversationController
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var excerpt: String {
         if !conversation.summary.isEmpty {
@@ -200,8 +220,8 @@ struct ConversationHistoryRow: View {
         return "暂无消息"
     }
 
-    private var isExpired: Bool {
-        conversation.isExpired(now: Date())
+    private var isArchived: Bool {
+        conversation.isExpired(now: now)
     }
 
     /// The app's user-facing dates are Simplified Chinese throughout; leaving
@@ -222,22 +242,35 @@ struct ConversationHistoryRow: View {
     var body: some View {
         Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(conversation.title)
-                        .font(.headline)
-                        .foregroundStyle(KitchenTheme.textPrimary)
-                    Spacer()
-                    if conversation.isPinned {
-                        Image(systemName: "pin.fill")
-                            .font(.caption2)
-                            .foregroundStyle(KitchenTheme.cookingGreen)
+                // Title and status share a line at ordinary sizes; at
+                // accessibility sizes the status chip drops below, because
+                // three competing items squeezed the title down to about one
+                // character per line. The pin stays with the title so the row
+                // still reads as one pinned task.
+                let topLine = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout())
+                topLine {
+                    HStack(spacing: 6) {
+                        Text(conversation.title)
+                            .font(.headline)
+                            .foregroundStyle(KitchenTheme.textPrimary)
+                        // Ordinary sizes keep the pin pushed to the trailing
+                        // edge exactly as before; accessibility sizes tuck it
+                        // beside the title, which now owns the full width.
+                        if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+                        if conversation.isPinned {
+                            Image(systemName: "pin.fill")
+                                .font(.caption2)
+                                .foregroundStyle(KitchenTheme.cookingGreen)
+                        }
                     }
-                    Text(isExpired ? "已结束" : "活跃")
+                    Text(AIConversationLifetimePresentation.status(for: conversation, now: now))
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(isExpired ? KitchenTheme.filterSurface : KitchenTheme.cookingGreen.opacity(0.12), in: Capsule())
-                        .foregroundStyle(isExpired ? KitchenTheme.textSecondary : KitchenTheme.cookingGreen)
+                        .background(isArchived ? KitchenTheme.filterSurface : KitchenTheme.cookingGreen.opacity(0.12), in: Capsule())
+                        .foregroundStyle(isArchived ? KitchenTheme.textSecondary : KitchenTheme.cookingGreen)
                 }
 
                 Text(excerpt)

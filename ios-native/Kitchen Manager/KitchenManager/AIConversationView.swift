@@ -101,29 +101,38 @@ struct AIConversationView: View {
 
                     Divider()
 
-                    Button {
-                        renameText = controller.currentConversation?.title ?? ""
-                        showingRenameAlert = true
-                    } label: {
-                        Label("重命名", systemImage: "pencil")
-                    }
-                    .disabled(!controller.isPersisted)
+                    // Lifetime is secondary metadata: it lives here as the
+                    // header of the conversation's own actions, never in the
+                    // task header or transcript. A draft has none.
+                    Section {
+                        Button {
+                            renameText = controller.currentConversation?.title ?? ""
+                            showingRenameAlert = true
+                        } label: {
+                            Label("重命名", systemImage: "pencil")
+                        }
+                        .disabled(!controller.isPersisted)
 
-                    Button {
-                        let isPinned = controller.currentConversation?.isPinned ?? false
-                        controller.setPinned(!isPinned)
-                    } label: {
-                        let isPinned = controller.currentConversation?.isPinned ?? false
-                        Label(isPinned ? "取消置顶" : "置顶", systemImage: isPinned ? "pin.slash" : "pin")
-                    }
-                    .disabled(!controller.isPersisted)
+                        Button {
+                            let isPinned = controller.currentConversation?.isPinned ?? false
+                            controller.setPinned(!isPinned)
+                        } label: {
+                            let isPinned = controller.currentConversation?.isPinned ?? false
+                            Label(isPinned ? "取消置顶" : "置顶", systemImage: isPinned ? "pin.slash" : "pin")
+                        }
+                        .disabled(!controller.isPersisted)
 
-                    Button(role: .destructive) {
-                        showingDeleteConfirmation = true
-                    } label: {
-                        Label("删除", systemImage: "trash")
+                        Button(role: .destructive) {
+                            showingDeleteConfirmation = true
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                        .disabled(!controller.isPersisted)
+                    } header: {
+                        if let lifetime {
+                            Text(lifetime)
+                        }
                     }
-                    .disabled(!controller.isPersisted)
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.body)
@@ -161,6 +170,36 @@ struct AIConversationView: View {
         } message: {
             Text("删除后将清除当前对话的所有历史记录，已应用的厨房数据不受影响。")
         }
+        // Wake once at the continuity boundary so an open workspace flips to
+        // 已归档 without the member touching anything. Keyed on conversation,
+        // deadline and pin so any of those changes cancels and reschedules;
+        // cancellation is terminal and never falls through to the refresh.
+        .task(id: lifetimeBoundaryKey) {
+            guard let conversation = controller.currentConversation,
+                  controller.isPersisted, !conversation.isPinned,
+                  !conversation.isExpired(now: Date()) else { return }
+            let remaining = conversation.activeUntil.timeIntervalSince(Date())
+            do {
+                try await Task.sleep(nanoseconds: UInt64(max(remaining, 0) * 1_000_000_000) + 50_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            controller.lifetimeBoundaryCrossed()
+        }
+    }
+
+    private var lifetime: String? {
+        AIConversationLifetimePresentation.overflow(
+            for: controller.currentConversation,
+            isPersisted: controller.isPersisted,
+            now: Date()
+        )
+    }
+
+    private var lifetimeBoundaryKey: String? {
+        guard let conversation = controller.currentConversation else { return nil }
+        return "\(conversation.id)|\(conversation.activeUntil.timeIntervalSinceReferenceDate)|\(conversation.isPinned)"
     }
 
     private var taskIdentity: AIConversationTaskIdentity {
@@ -339,6 +378,7 @@ struct EmptyWorkspaceView: View {
 
 struct ComposerContainerView: View {
     @EnvironmentObject private var controller: AIConversationController
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let onTapChips: () -> Void
     let onReactivate: () -> Void
 
@@ -385,16 +425,25 @@ struct ComposerContainerView: View {
                     .padding(.horizontal, KitchenTheme.pageGutter)
                     .padding(.top, 8)
                 } else if isReactivationRequired {
-                    HStack {
+                    // Side by side at ordinary sizes; stacked at accessibility
+                    // sizes, where the text column and the button squeeze each
+                    // other into three-line fragments (same rule as the action
+                    // outcome block).
+                    let layout = dynamicTypeSize.isAccessibilitySize
+                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+                        : AnyLayout(HStackLayout())
+                    layout {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("此对话已过期")
+                            Text("此对话已归档")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(KitchenTheme.textPrimary)
-                            Text("聊天记录已归档，点击即可继续使用最新厨房数据对话。")
+                            Text("记录仍可查看；继续后将使用最新厨房数据。")
                                 .font(.caption)
                                 .foregroundStyle(KitchenTheme.textSecondary)
                         }
-                        Spacer()
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("kitchenAI.archivedCard")
+                        if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                         Button("继续此对话", action: onReactivate)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.white)

@@ -704,6 +704,27 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertEqual(f.orchestrator.inputs.count, 1)
     }
 
+    /// A pin keeps a conversation active past its stored deadline; unpinning
+    /// must not quietly invent a new one. The stored date stays, so the
+    /// conversation archives at once and only 继续 refreshes continuity.
+    func testUnpinAfterStoredDeadlineArchivesImmediatelyWithoutFreshDeadline() throws {
+        let f = try Fixture()
+        let pastDeadline = f.fixedDate.addingTimeInterval(-1)
+        let conversation = try makePersistedConversation(f, activeUntil: pastDeadline)
+        f.controller.setPinned(id: conversation.id, isPinned: true)
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertFalse(f.controller.currentConversationRequiresReactivation, "pinned conversations do not archive")
+
+        f.controller.setPinned(id: conversation.id, isPinned: false)
+        XCTAssertTrue(f.controller.currentConversationRequiresReactivation)
+        XCTAssertEqual(f.controller.currentConversation?.activeUntil, pastDeadline, "unpin must not extend the deadline")
+
+        f.controller.reactivate(id: conversation.id)
+        XCTAssertFalse(f.controller.currentConversationRequiresReactivation)
+        XCTAssertEqual(f.controller.currentConversation?.id, conversation.id)
+        XCTAssertGreaterThan(f.controller.currentConversation!.activeUntil, f.fixedDate)
+    }
+
     func testOpeningWeeklyHistoryRestoresItsPlannerEntryContext() async throws {
         let f = try Fixture()
         let weekStart = Fixture.calendar.date(from: DateComponents(year: 2027, month: 1, day: 4))!

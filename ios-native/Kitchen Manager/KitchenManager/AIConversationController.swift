@@ -180,7 +180,7 @@ final class AIConversationController: ObservableObject {
         }
         guard var conversation = currentConversation else { return }
         guard !conversation.isExpired(now: now()) else {
-            localErrorMessage = "该对话已过期，请先选择“继续此对话”。"
+            localErrorMessage = "该对话已归档，请先选择“继续此对话”。"
             turnState = .failed
             return
         }
@@ -359,6 +359,13 @@ final class AIConversationController: ObservableObject {
     func setPinned(_ isPinned: Bool) {
         guard let id = currentConversation?.id else { return }
         setPinned(id: id, isPinned: isPinned)
+    }
+
+    /// Called once when the current conversation's continuity boundary passes
+    /// while the workspace is open. Nothing is stored: every reader of
+    /// `isExpired(now:)` simply evaluates again against the clock.
+    func lifetimeBoundaryCrossed() {
+        objectWillChange.send()
     }
 
     func setPinned(id: UUID, isPinned: Bool) {

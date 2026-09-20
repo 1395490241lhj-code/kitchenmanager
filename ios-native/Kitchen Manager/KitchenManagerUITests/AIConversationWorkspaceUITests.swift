@@ -740,7 +740,9 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["置顶"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["最近"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["已结束"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["kitchenAI.history.section.archived"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["已结束"].exists)
+        XCTAssertFalse(app.staticTexts["已过期"].exists, "conversation lifecycle never says 过期")
     }
 
     func test28_BlankDraftAbsentFromHistory() {
@@ -782,8 +784,16 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
         // Expired message visible
         XCTAssertTrue(app.staticTexts["聚餐如何准备"].waitForExistence(timeout: 5))
+        // Archived, never expired: the record is intact and resumable.
+        XCTAssertTrue(app.staticTexts["此对话已归档"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["此对话已过期"].exists)
+        XCTAssertFalse(composerField(app).exists)
         // Prominent continue button visible
         XCTAssertTrue(app.buttons["kitchenAI.reactivate"].waitForExistence(timeout: 5))
+        // Overflow says 已归档 and shows no stale deadline.
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        XCTAssertTrue(lifetimeText(app).waitForExistence(timeout: 5))
+        XCTAssertEqual(lifetimeText(app).label, "已归档")
     }
 
     func test31_ContinueReactivatesExpiredConversation() {
@@ -804,6 +814,14 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         // Composer is enabled, reactivate button disappears
         XCTAssertFalse(reactivateButton.waitForExistence(timeout: 5))
         XCTAssertTrue(composerField(app).waitForExistence(timeout: 5))
+        // Same conversation, same transcript; continuity is visible again
+        // through the overflow only.
+        XCTAssertTrue(app.staticTexts["聚餐如何准备"].exists)
+        XCTAssertTrue(app.navigationBars["上周聚餐规划"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '自动延续至'")).firstMatch.exists)
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        XCTAssertTrue(lifetimeText(app).waitForExistence(timeout: 5))
+        XCTAssertTrue(lifetimeText(app).label.hasPrefix("自动延续至"), lifetimeText(app).label)
     }
 
     func test32_RenameReflectedInRow() {
@@ -860,10 +878,136 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         unpinBtn.tap()
 
         XCTAssertFalse(recentRow.images["pin.fill"].exists)
-        let endedHeader = app.staticTexts["kitchenAI.history.section.ended"]
-        XCTAssertTrue(endedHeader.exists)
+        let archivedHeader = app.staticTexts["kitchenAI.history.section.archived"]
+        XCTAssertTrue(archivedHeader.exists)
         XCTAssertGreaterThanOrEqual(recentRow.frame.minY, recentHeader.frame.maxY)
-        XCTAssertLessThanOrEqual(recentRow.frame.maxY, endedHeader.frame.minY)
+        XCTAssertLessThanOrEqual(recentRow.frame.maxY, archivedHeader.frame.minY)
+    }
+
+    // MARK: - Lifetime presentation (Phase 2C.1)
+
+    /// The single overflow header line. The native Menu drops identifiers from
+    /// its header, and the label also carries the VoiceOver detail, so tests
+    /// match on the visible prefix.
+    private func lifetimeText(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(
+            format: "label BEGINSWITH '自动延续至' OR label BEGINSWITH '已置顶' OR label BEGINSWITH '已归档'"
+        )).firstMatch
+    }
+
+    private func lifetimeLine(_ app: XCUIApplication) -> XCUIElement {
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH '自动延续至'")).firstMatch
+    }
+
+    /// The deadline is overflow metadata only: nowhere in the workspace until
+    /// the menu opens, and worded as continuity rather than expiry.
+    func test35_ActiveLifetimeLivesOnlyInOverflow() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SEED_HISTORY"
+        ])
+        XCTAssertTrue(app.staticTexts["快手菜推荐"].waitForExistence(timeout: 5), "Home resumes the active daily conversation")
+        XCTAssertFalse(lifetimeLine(app).exists)
+        XCTAssertTrue(taskContextHeader(app).exists)
+        XCTAssertFalse(taskContextHeader(app).label.contains("自动延续至"))
+
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        let line = lifetimeLine(app)
+        XCTAssertTrue(line.waitForExistence(timeout: 5))
+        XCTAssertTrue(line.label.contains(":"), "carries a HH:mm time: \(line.label)")
+        XCTAssertFalse(line.label.contains("过期"))
+        XCTAssertFalse(line.label.contains("小时"), "no policy constants in copy")
+    }
+
+    /// A pinned conversation says 已置顶 and never its underlying deadline.
+    func test36_PinnedOverflowHidesDeadline() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SEED_HISTORY"
+        ])
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["历史记录"].tap()
+        let pinnedRow = app.buttons["kitchenAI.history.row.11111111-1111-1111-1111-111111111111"]
+        XCTAssertTrue(pinnedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(pinnedRow.staticTexts["已置顶"].exists)
+        pinnedRow.tap()
+
+        XCTAssertTrue(app.staticTexts["买点什么菜"].waitForExistence(timeout: 5))
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        XCTAssertTrue(lifetimeText(app).waitForExistence(timeout: 5))
+        XCTAssertTrue(lifetimeText(app).label.hasPrefix("已置顶"), lifetimeText(app).label)
+        XCTAssertFalse(lifetimeText(app).label.contains(":"), "no deadline while pinned")
+        XCTAssertFalse(lifetimeLine(app).exists)
+    }
+
+    /// The continuity boundary crosses inside a workspace nobody touches:
+    /// composer gives way to the archived card, transcript and identity stay.
+    func test37_WorkspaceArchivesAtBoundaryWithoutInteraction() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_LIFETIME_SHORT_ACTIVE"
+        ])
+        XCTAssertTrue(app.staticTexts["今晚做点什么好"].waitForExistence(timeout: 5))
+        XCTAssertTrue(composerField(app).exists, "still active at launch")
+        XCTAssertFalse(app.buttons["kitchenAI.reactivate"].exists)
+
+        let card = app.descendants(matching: .any).matching(identifier: "kitchenAI.archivedCard").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 25), "archived card never appeared at the boundary")
+        XCTAssertTrue(card.label.contains("已归档"))
+        XCTAssertFalse(card.label.contains("过期"))
+        XCTAssertTrue(app.buttons["kitchenAI.reactivate"].exists)
+        XCTAssertFalse(composerField(app).exists)
+        XCTAssertTrue(app.staticTexts["今晚做点什么好"].exists, "transcript stays readable")
+        XCTAssertTrue(taskContextHeader(app).exists, "task identity stays")
+        XCTAssertTrue(app.navigationBars["今晚吃什么"].exists)
+    }
+
+    /// History left open across the boundary moves the row from 最近 to 已归档
+    /// on its own.
+    func test38_HistoryRegroupsAtBoundaryWhileSheetStaysOpen() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_LIFETIME_SHORT_ACTIVE"
+        ])
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["历史记录"].tap()
+        let row = app.buttons["kitchenAI.history.row.77777777-7777-7777-7777-777777777777"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["kitchenAI.history.section.recent"].exists, "sheet opened before the boundary")
+        XCTAssertFalse(app.staticTexts["kitchenAI.history.section.archived"].exists)
+        XCTAssertTrue(row.staticTexts["活跃"].exists)
+
+        let archivedHeader = app.staticTexts["kitchenAI.history.section.archived"]
+        XCTAssertTrue(archivedHeader.waitForExistence(timeout: 25), "row never regrouped at the boundary")
+        XCTAssertFalse(app.staticTexts["kitchenAI.history.section.recent"].exists)
+        XCTAssertTrue(row.staticTexts["已归档"].waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(row.frame.minY, archivedHeader.frame.maxY)
+    }
+
+    /// Pinned past its stored deadline stays usable; unpinning archives it at
+    /// once with no fresh deadline, no grace and no dialog.
+    func test39_UnpinAfterStoredDeadlineArchivesImmediately() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_LIFETIME_SHORT_PINNED"
+        ])
+        XCTAssertTrue(app.staticTexts["今晚做点什么好"].waitForExistence(timeout: 5))
+        // Let the stored activeUntil (+4s at seed) pass while pinned.
+        sleep(6)
+        XCTAssertTrue(composerField(app).exists, "pinned conversation stays active past its stored deadline")
+        XCTAssertFalse(app.buttons["kitchenAI.reactivate"].exists)
+
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        XCTAssertTrue(lifetimeText(app).waitForExistence(timeout: 5))
+        XCTAssertTrue(lifetimeText(app).label.hasPrefix("已置顶"), lifetimeText(app).label)
+        XCTAssertFalse(lifetimeLine(app).exists)
+        app.buttons["取消置顶"].tap()
+
+        let card = app.descendants(matching: .any).matching(identifier: "kitchenAI.archivedCard").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 3), "unpin must archive immediately")
+        XCTAssertFalse(composerField(app).exists)
+        XCTAssertTrue(app.buttons["kitchenAI.reactivate"].exists)
+        XCTAssertTrue(app.staticTexts["今晚做点什么好"].exists)
     }
 
     func test34_DeleteRemovesConversation() {
