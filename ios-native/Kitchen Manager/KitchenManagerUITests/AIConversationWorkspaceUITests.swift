@@ -443,6 +443,54 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
         // After confirming, pending action is consumed, apply disappears
         XCTAssertFalse(applyButton.waitForExistence(timeout: 5))
+
+        // Phase 2B.3: the result names what changed, where it lives, and how
+        // long it can be taken back — all read from the persisted record.
+        XCTAssertTrue(app.staticTexts["已更新计划中的这餐"].waitForExistence(timeout: 5),
+                      "outcome must name the real kitchen effect")
+        XCTAssertFalse(app.staticTexts["操作已完成"].exists)
+        XCTAssertTrue(app.buttons["kitchenAI.action.destination.planner"].exists,
+                      "a planner change must offer the planner as its destination")
+        XCTAssertFalse(app.buttons["kitchenAI.action.destination.shopping"].exists, "wrong destination")
+        XCTAssertFalse(app.buttons["kitchenAI.action.destination.today"].exists, "wrong destination")
+        let availability = app.staticTexts["kitchenAI.action.undoAvailability"]
+        XCTAssertTrue(availability.exists, "undo must state its finite window")
+        XCTAssertTrue(availability.label.hasPrefix("可撤销至 "), availability.label)
+    }
+
+    /// Outcome, destination and undo availability come from the record, so
+    /// they must all still be there after leaving and reopening from History.
+    func test18b_OutcomeSurvivesReopeningTheConversation() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_PLANNER",
+            "UITEST_AI_CONVERSATION_SCRIPT_PLANNER_PREVIEW",
+            "UITEST_AI_CONVERSATION_SEED_PLAN"
+        ])
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("调整菜单")
+        app.buttons["kitchenAI.send"].tap()
+        let apply = app.buttons["kitchenAI.planner.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 8))
+        apply.tap()
+        XCTAssertTrue(app.staticTexts["已更新计划中的这餐"].waitForExistence(timeout: 5))
+
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["新建对话"].tap()
+        XCTAssertFalse(app.staticTexts["已更新计划中的这餐"].exists)
+
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["历史记录"].tap()
+        let row = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "kitchenAI.history.row")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+
+        XCTAssertTrue(app.staticTexts["已更新计划中的这餐"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["kitchenAI.action.destination.planner"].exists)
+        XCTAssertTrue(app.buttons["kitchenAI.action.undo"].exists, "undo is still within its window")
+        XCTAssertTrue(app.staticTexts["kitchenAI.action.undoAvailability"].exists)
     }
 
     // MARK: - CONTEXT CHIPS (Tests 19-22)
@@ -530,6 +578,61 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
         let undoButton = app.buttons["kitchenAI.action.undo"]
         XCTAssertTrue(undoButton.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["kitchenAI.action.undoAvailability"].exists)
+
+        // Phase 2B.3: after Undo the block says the change was reversed and
+        // stops advertising a place to inspect it or a second undo.
+        undoButton.tap()
+        XCTAssertTrue(app.staticTexts["已撤销，这餐已恢复"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["kitchenAI.action.undo"].exists)
+        XCTAssertFalse(app.buttons["kitchenAI.action.destination.planner"].exists,
+                       "a reversed change has nothing to go and look at")
+        XCTAssertFalse(app.staticTexts["kitchenAI.action.undoAvailability"].exists)
+    }
+
+    /// Destination routing needs the real four-tab root, so this runs the
+    /// production app rather than the bare workspace host.
+    func test23b_DestinationReachesThePlannerWithoutASecondMutation() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_HOME_FULL_DAY", "UITEST_AI_CONVERSATION_FAKE",
+            "UITEST_AI_CONVERSATION_SCRIPT_PLANNER_PREVIEW",
+            "UITEST_FORCE_LIGHT_APPEARANCE",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"
+        ]
+        app.launch()
+        let entry = app.buttons["home.kitchenAI.open"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 10))
+        entry.tap()
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 10))
+
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("把今晚换成清蒸鲈鱼")
+        app.buttons["kitchenAI.send"].tap()
+        let apply = app.buttons["kitchenAI.planner.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 8))
+        apply.tap()
+
+        let destination = app.buttons["kitchenAI.action.destination.planner"]
+        XCTAssertTrue(destination.waitForExistence(timeout: 8))
+        let outcomeCount = app.staticTexts.matching(identifier: "kitchenAI.action.outcome").count
+        destination.tap()
+
+        // The destination is the changed meal itself, whose detail hides the
+        // tab bar; popping once lands on the Plan root with the tab selected.
+        XCTAssertTrue(app.staticTexts["清蒸鲈鱼"].waitForExistence(timeout: 8),
+                      "the replaced meal must be visible at the destination")
+        XCTAssertFalse(app.buttons["kitchenAI.overflowMenu"].exists, "the workspace is no longer frontmost")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.tabBars.buttons["计划"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["计划"].isSelected, "destination must select the Plan tab")
+
+        // Going back to the conversation shows exactly one outcome: viewing
+        // the result executed nothing.
+        app.tabBars.buttons["今天"].tap()
+        XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts.matching(identifier: "kitchenAI.action.outcome").count, outcomeCount)
     }
 
     func test24_ExpiredActionDoesNotExposeUndo() {
@@ -544,8 +647,59 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.tap()
 
-        XCTAssertTrue(app.staticTexts["已将晚餐替换为清蒸鲈鱼"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["已更新计划中的这餐"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.buttons["kitchenAI.action.undo"].exists)
+        XCTAssertFalse(app.staticTexts["kitchenAI.action.undoAvailability"].exists)
+    }
+
+    /// Proves that when a workspace is left open across undoExpiresAt without
+    /// navigation or user actions:
+    /// 1. successful outcome appears
+    /// 2. Undo is initially visible
+    /// 3. availability is initially visible
+    /// 4. expiry boundary passes
+    /// 5. Undo disappears automatically
+    /// 6. availability disappears automatically
+    /// 7. outcome remains
+    /// 8. destination remains
+    func test24b_OneShotExpiryInvalidationHidesUndoAutomatically() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_PLANNER",
+            "UITEST_AI_CONVERSATION_SCRIPT_PLANNER_PREVIEW",
+            "UITEST_AI_CONVERSATION_SEED_PLAN",
+            "UITEST_AI_ACTION_SHORT_EXPIRY"
+        ])
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("调整菜单")
+        app.buttons["kitchenAI.send"].tap()
+        let apply = app.buttons["kitchenAI.planner.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 8))
+        apply.tap()
+
+        // 1. Outcome & destination are visible after Apply
+        XCTAssertTrue(app.staticTexts["已更新计划中的这餐"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["kitchenAI.action.destination.planner"].exists)
+
+        // 2 & 3. Undo and availability initially visible
+        let undoButton = app.buttons["kitchenAI.action.undo"]
+        let availability = app.staticTexts["kitchenAI.action.undoAvailability"]
+        XCTAssertTrue(undoButton.exists, "Undo must be initially visible before expiry")
+        XCTAssertTrue(availability.exists, "Availability line must be initially visible before expiry")
+
+        // 4. Wait for the 2.5s expiry boundary to pass without touching the screen
+        let predicate = NSPredicate(format: "exists == false")
+        let expectationUndo = XCTNSPredicateExpectation(predicate: predicate, object: undoButton)
+        let expectationAvail = XCTNSPredicateExpectation(predicate: predicate, object: availability)
+        wait(for: [expectationUndo, expectationAvail], timeout: 8.0)
+
+        // 5 & 6. Undo & availability disappeared automatically
+        XCTAssertFalse(undoButton.exists, "Undo must automatically disappear after expiry")
+        XCTAssertFalse(availability.exists, "Availability line must automatically disappear after expiry")
+
+        // 7 & 8. Outcome & destination remain intact
+        XCTAssertTrue(app.staticTexts["已更新计划中的这餐"].exists, "Outcome text must remain after Undo expires")
+        XCTAssertTrue(app.buttons["kitchenAI.action.destination.planner"].exists, "Destination must remain after Undo expires")
     }
 
     func test25_GenerationRetryInvokesSameTurnRetry() {

@@ -576,12 +576,11 @@ final class ConversationOrchestrator: ConversationOrchestrating {
                             return
                         }
                         let execResult = try actionCoordinator.execute(prepared)
-                        let statusMsg: String
-                        switch proposal {
-                        case .addRecipeToTonight: statusMsg = "已加入今晚计划"
-                        case .addShoppingItems: statusMsg = "已加入购物清单"
-                        default: statusMsg = "操作已完成"
-                        }
+                        // One source of outcome copy, shared with the
+                        // controller's confirm and reconcile paths, so a
+                        // block never reads differently before and after a
+                        // reopen.
+                        let statusMsg = AIActionOutcomePresentation.outcomeTitle(for: proposal.actionType)
                         let statusBlock = AIActionStatusBlock(
                             id: uuidGenerator(),
                             message: statusMsg,

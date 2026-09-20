@@ -550,7 +550,7 @@ final class AIConversationControllerTests: XCTestCase {
             return status
         }.first
         XCTAssertNotNil(status)
-        XCTAssertEqual(status?.message, "已撤销")
+        XCTAssertEqual(status?.message, AIActionOutcomePresentation.undoneTitle(for: prepared.proposal.actionType))
         XCTAssertFalse(status?.canUndo ?? true)
     }
 
@@ -673,7 +673,7 @@ final class AIConversationControllerTests: XCTestCase {
             guard case let .actionStatus(value) = block, value.actionID == prepared.id else { return nil }
             return value
         }.first
-        XCTAssertEqual(updatedStatus?.message, "已撤销")
+        XCTAssertEqual(updatedStatus?.message, AIActionOutcomePresentation.undoneTitle(for: prepared.proposal.actionType))
     }
 
     func testExpiredUndoRefusesAndDoesNotMarkUndone() throws {

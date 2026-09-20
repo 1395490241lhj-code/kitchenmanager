@@ -160,7 +160,14 @@ struct KitchenManagerApp: App {
         let conversationActionCoordinator = ConversationActionCoordinator(
             domainTools: conversationDomainTools,
             persistence: persistence.conversations,
-            undoExpiresAt: { $0.addingTimeInterval(AIConversationProductionPolicy.undoWindow) }
+            undoExpiresAt: {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("UITEST_AI_ACTION_SHORT_EXPIRY") {
+                    return $0.addingTimeInterval(2.5)
+                }
+                #endif
+                return $0.addingTimeInterval(AIConversationProductionPolicy.undoWindow)
+            }
         )
         let conversationContextAssembler = ConversationContextAssembler(
             domainTools: conversationDomainTools
@@ -382,6 +389,7 @@ struct KitchenManagerApp: App {
         if testArgs.contains("UITEST_AI_CONVERSATION_SEED_EXPIRED_ACTION") {
             let p = persistence.conversations
             let now = Date()
+            let actionID = UUID(uuidString: "55555555-5555-5555-5555-444444444444")!
             let conv = AIConversation(
                 id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!,
                 createdAt: now.addingTimeInterval(-100000),
@@ -408,14 +416,28 @@ struct KitchenManagerApp: App {
                 contentBlocks: [
                     .actionStatus(.init(
                         id: UUID(),
-                        message: "已将晚餐替换为清蒸鲈鱼",
-                        actionID: UUID(),
+                        message: "已更新计划中的这餐",
+                        actionID: actionID,
                         canUndo: false
                     ))
                 ],
                 turnID: UUID()
             )
+            let actRecord = AIConversationActionRecord(
+                actionID: actionID,
+                conversationID: conv.id,
+                turnID: mAsst.turnID,
+                actionType: .replacePlannedMeal,
+                idempotencyKey: "test-expired-action-key",
+                status: .succeeded,
+                createdAt: now.addingTimeInterval(-90000),
+                completedAt: now.addingTimeInterval(-90000),
+                relatedEntityIDs: ["99999999-9999-9999-9999-999999999999"],
+                undoReference: .plannerReplacement(before: [], after: [], createdRecipeIDs: []),
+                undoExpiresAt: now.addingTimeInterval(-50000)
+            )
             try? p.createConversationWithFirstMessage(conv, message: mUser)
+            try? p.upsertAction(actRecord)
             try? p.upsertMessage(mAsst)
             try? conversationStoreInstance.loadHistory()
         }

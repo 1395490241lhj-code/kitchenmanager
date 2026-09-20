@@ -320,13 +320,13 @@ final class AIConversationController: ObservableObject {
 
     func undo(actionID: UUID) {
         do {
-            _ = try actionCoordinator.undo(actionID: actionID)
+            let result = try actionCoordinator.undo(actionID: actionID)
             for messageIndex in messages.indices {
                 var changed = false
                 for blockIndex in messages[messageIndex].contentBlocks.indices {
                     guard case var .actionStatus(status) = messages[messageIndex].contentBlocks[blockIndex],
                           status.actionID == actionID else { continue }
-                    status.message = "已撤销"
+                    status.message = actionStatusMessage(for: result.record.actionType, isUndone: true)
                     status.canUndo = false
                     messages[messageIndex].contentBlocks[blockIndex] = .actionStatus(status)
                     changed = true
@@ -639,12 +639,18 @@ final class AIConversationController: ObservableObject {
     }
 
     private func actionStatusMessage(for actionType: AIActionType, isUndone: Bool) -> String {
-        if isUndone { return "已撤销" }
-        switch actionType {
-        case .addRecipeToTonight: return "已加入今晚计划"
-        case .addShoppingItems: return "已加入购物清单"
-        default: return "操作已完成"
-        }
+        isUndone
+            ? AIActionOutcomePresentation.undoneTitle(for: actionType)
+            : AIActionOutcomePresentation.outcomeTitle(for: actionType)
+    }
+
+    /// Read-only view of the persisted action truth a status block projects,
+    /// so presentation can derive destination and undo expiry from the record
+    /// instead of from a second stored copy. Nil when the record is gone.
+    func actionRecord(id: UUID) -> AIConversationActionRecord? {
+        guard let conversationID = currentConversation?.id,
+              let records = try? store.actions(conversationID: conversationID) else { return nil }
+        return records.first { $0.id == id }
     }
 
     private func reconcileActionStatusBlocks(conversationID: UUID) {

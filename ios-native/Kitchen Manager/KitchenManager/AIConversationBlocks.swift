@@ -314,32 +314,134 @@ struct AIContextResultBlockView: View {
 struct AIActionStatusBlockView: View {
     let block: AIActionStatusBlock
     @EnvironmentObject private var controller: AIConversationController
+    @EnvironmentObject private var navigationStore: AppNavigationStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var presentationNow = Date()
+
+    /// The persisted record behind this block. Destination and undo expiry come
+    /// from here, never from the block's cached fields, so a reopened
+    /// transcript reads the same truth the domain holds.
+    private var record: AIConversationActionRecord? {
+        controller.actionRecord(id: block.actionID)
+    }
+
+    private var destination: AIActionOutcomePresentation.Destination? {
+        guard !block.isFailure, let record else { return nil }
+        return AIActionOutcomePresentation.destination(for: record)
+    }
+
+    /// Authoritative Undo availability: derived strictly from the current
+    /// persisted record and `presentationNow`, never from cached `block.canUndo`.
+    private var canUndoNow: Bool {
+        guard let record, record.status == .succeeded else { return false }
+        return record.canUndo(now: presentationNow)
+    }
+
+    private var undoAvailability: String? {
+        guard canUndoNow, let record else { return nil }
+        return AIActionOutcomePresentation.undoAvailability(for: record, now: presentationNow)
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: block.isFailure ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(block.isFailure ? KitchenTheme.statusTerracotta : KitchenTheme.cookingGreen)
+        // Outcome → optional destination → undo availability. The outcome line
+        // is the subject; the two controls stay secondary and never share its
+        // weight.
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: block.isFailure ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                    .foregroundStyle(block.isFailure ? KitchenTheme.statusTerracotta : KitchenTheme.cookingGreen)
+                    .accessibilityHidden(true)
+                Text(block.message)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(KitchenTheme.textPrimary)
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("kitchenAI.action.outcome")
 
-            Text(block.message)
-                .font(.subheadline)
-                .foregroundStyle(KitchenTheme.textPrimary)
+            if destination != nil || canUndoNow {
+                // Side by side at ordinary sizes; stacked at accessibility
+                // sizes, where two labels on one line wrap into each other.
+                let controls = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout(spacing: 16))
+                controls {
+                    if let destination {
+                        Button {
+                            open(destination)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(destination.label)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2.weight(.semibold))
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(KitchenTheme.cookingGreen)
+                            .frame(minHeight: KitchenTheme.controlHeight)
+                        }
+                        .accessibilityIdentifier(destination.accessibilityIdentifier)
+                    }
 
-            Spacer()
+                    if canUndoNow {
+                        Button {
+                            controller.undo(actionID: block.actionID)
+                        } label: {
+                            Text("撤销")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(KitchenTheme.textSecondary)
+                                .frame(minHeight: KitchenTheme.controlHeight)
+                        }
+                        .accessibilityLabel(undoAvailability.map { "撤销这次改动，\($0)" } ?? "撤销这次改动")
+                        .accessibilityIdentifier("kitchenAI.action.undo")
+                    }
 
-            if block.canUndo {
-                Button("撤销") {
-                    controller.undo(actionID: block.actionID)
+                    Spacer(minLength: 0)
                 }
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(KitchenTheme.cookingGreen)
-                .frame(minHeight: KitchenTheme.controlHeight)
-                .accessibilityIdentifier("kitchenAI.action.undo")
+            }
+
+            if let undoAvailability {
+                Text(undoAvailability)
+                    .font(.caption2)
+                    .foregroundStyle(KitchenTheme.textSecondary)
+                    .accessibilityIdentifier("kitchenAI.action.undoAvailability")
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
         .padding(.vertical, 4)
+        .task(id: record?.undoExpiresAt) {
+            guard let expiry = record?.undoExpiresAt, canUndoNow else { return }
+            let remaining = expiry.timeIntervalSince(Date())
+            guard remaining > 0 else {
+                presentationNow = Date()
+                return
+            }
+            // Sleep until exactly the boundary to wake and trigger a single UI refresh
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000) + 50_000_000)
+            presentationNow = Date()
+        }
+    }
+
+    /// Every case is an existing `AppNavigationStore` command. Today has no
+    /// path of its own: the workspace is pushed on that tab's stack, so
+    /// reaching Home means popping this screen and selecting the tab.
+    private func open(_ destination: AIActionOutcomePresentation.Destination) {
+        switch destination {
+        case .today:
+            navigationStore.selectedTab = .today
+            dismiss()
+        case let .plannedMeal(id):
+            navigationStore.showPlanner([.plannedMeal(id)])
+        case .plannerWeek:
+            navigationStore.showPlanner()
+        case let .specialPlan(id):
+            navigationStore.showPlanner([.specialPlan(id)])
+        case .shopping:
+            navigationStore.showShopping()
+        }
     }
 }
 
