@@ -14,6 +14,7 @@
 - 产品原则：[`product/PRINCIPLES.md`](product/PRINCIPLES.md)
 - 架构概览：[`architecture/OVERVIEW.md`](architecture/OVERVIEW.md)
 - 开发工作流：[`development/WORKFLOW.md`](development/WORKFLOW.md)
+- AI Coding 验收矩阵：[`development/AI_CODING_ACCEPTANCE_MATRIX.md`](development/AI_CODING_ACCEPTANCE_MATRIX.md)
 - 编码规则：[`development/CODING.md`](development/CODING.md)
 - 测试规则与命令：[`development/TESTING.md`](development/TESTING.md)
 
@@ -37,6 +38,7 @@
 ### Development
 
 - [`development/WORKFLOW.md`](development/WORKFLOW.md)：任务生命周期、增量测试和失败处理。
+- [`development/AI_CODING_ACCEPTANCE_MATRIX.md`](development/AI_CODING_ACCEPTANCE_MATRIX.md)：AI coding 风险识别、证据下限、升级条件与 compact handoff；不拥有具体测试选择。
 - [`development/CODING.md`](development/CODING.md)：编码与安全约束。
 - [`development/TESTING.md`](development/TESTING.md)：测试矩阵和具体命令。
 - [`mvp-regression-checklist.md`](mvp-regression-checklist.md)：PWA 手动回归清单。

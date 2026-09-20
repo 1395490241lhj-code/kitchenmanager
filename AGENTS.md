@@ -265,6 +265,34 @@ hard boundaries (section 5), the existing suites and design-language requirement
 against committing or pushing unless explicitly requested all continue to apply unchanged. Where an
 existing project rule demands stronger verification than this section, follow the stronger rule.
 
+### 4.2 AI coding acceptance and convergence
+
+For meaningful implementation work, establish a bounded acceptance contract before mutation when the
+answer is not already obvious from a focused bug or test: observable completion, impact surface,
+validation surface, scope / do-not-touch boundaries, stop conditions and exit criteria. Use
+`docs/development/AI_CODING_ACCEPTANCE_MATRIX.md` to route risk to proportionate evidence; it does not
+replace `docs/development/TESTING.md` test ownership.
+
+- Keep **implemented**, **verified** and **not verified** distinct. Completion claims require current,
+  reproducible evidence; an older green run is historical evidence only.
+- Validation follows impact, not file count. A change to a shared component, helper, protocol, model or
+  contract requires inspecting its relevant consumers and validating representative affected paths.
+- High-risk behavior — state transitions, async/cancellation/retry, persistence or data loss, auth/security,
+  migrations and sync — must not rely only on unchanged green tests. When practical, add or strengthen a
+  regression that proves the failure mode; for especially critical logic, use mutation/negative proof or an
+  equivalent check showing the test would fail if the defect returned. Test ownership remains with
+  `docs/development/TESTING.md` section 5.
+- Stop expanding the task when new evidence conflicts with an Active Decision or hard boundary, requires
+  unapproved scope/environment changes, materially contradicts the stated repository state, or two
+  consecutive attempts attack the same root cause without new evidence. Report: evidence, hypotheses
+  eliminated, blocking unknown, affected decision/scope and the smallest next investigation.
+- Prefer executable enforcement over prose. If an invariant can be checked reliably by a test, lint, script
+  or gate, put enforcement there; keep docs/prompts for rationale and routing. Do not grow `AGENTS.md` with
+  feature-specific acceptance checklists.
+- Delegated implementation handoffs should stay compact and include Goal, Current State, Accepted Decisions,
+  Impact Surface, Scope / Do Not Touch, Validation, Stop Conditions and Exit Criteria. Broad repository
+  archaeology is opt-in investigation work, not a default implementation step.
+
 ## 5. Hard boundaries
 
 Do not change these without explicit approval and a compatibility/migration plan where applicable:
