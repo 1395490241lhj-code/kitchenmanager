@@ -419,8 +419,14 @@ struct AIActionStatusBlockView: View {
                 presentationNow = Date()
                 return
             }
-            // Sleep until exactly the boundary to wake and trigger a single UI refresh
-            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000) + 50_000_000)
+            // Sleep until exactly the boundary to wake and trigger a single UI refresh.
+            // Task cancellation must terminate immediately without falling through.
+            do {
+                try await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000) + 50_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
             presentationNow = Date()
         }
     }
