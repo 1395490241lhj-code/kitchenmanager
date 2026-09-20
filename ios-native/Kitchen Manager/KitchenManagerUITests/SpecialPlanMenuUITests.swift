@@ -17,13 +17,11 @@ final class SpecialPlanMenuUITests: XCTestCase {
     }
 
     private func openSeededPlanDetail(from app: XCUIApplication) {
-        // The canonical route, which is also the only one: Home reaches the
-        // planner in one tap on every day. This used to go through the today
-        // plan card, a path that only existed when the seed had created a plan
-        // for today — see D-030's lesson and D-031.
-        let plannerLink = app.buttons["home.planner.link"]
-        XCTAssertTrue(plannerLink.waitForExistence(timeout: 10), "planner entry link missing on Home")
-        plannerLink.tap()
+        // The canonical route, which is also the only one: Planner is its own
+        // tab, reachable in one tap on every day regardless of what today holds.
+        let planTab = app.tabBars.buttons["计划"]
+        XCTAssertTrue(planTab.waitForExistence(timeout: 10), "计划 tab missing")
+        planTab.tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "planner did not open")
 
         // Narrowed to buttons: the row is a NavigationLink. A descendants(.any)

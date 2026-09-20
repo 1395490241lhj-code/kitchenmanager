@@ -377,14 +377,14 @@ final class InventoryNavigationUITests: XCTestCase {
     ) {
         // Follow the real Home reminder path so Inventory is entered with
         // inventoryFocus != .all rather than relying on test-only state.
-        let homeTab = app.tabBars.buttons["首页"]
-        XCTAssertTrue(homeTab.waitForExistence(timeout: 5), "首页 Tab 缺失", file: file, line: line)
+        let homeTab = app.tabBars.buttons["今天"]
+        XCTAssertTrue(homeTab.waitForExistence(timeout: 5), "今天 Tab 缺失", file: file, line: line)
         homeTab.tap()
 
         // Home V2: 即将到期 2 became one row per item, soonest first.
         let expiringReminder = app.buttons["home.attention.expiring.嫩豆腐"]
-        XCTAssertTrue(expiringReminder.waitForExistence(timeout: 5), "首页临期提醒缺失", file: file, line: line)
-        XCTAssertTrue(scrollHomeUntilHittable(expiringReminder, in: app), "首页临期行不可达", file: file, line: line)
+        XCTAssertTrue(expiringReminder.waitForExistence(timeout: 5), "今天临期提醒缺失", file: file, line: line)
+        XCTAssertTrue(scrollHomeUntilHittable(expiringReminder, in: app), "今天临期行不可达", file: file, line: line)
         expiringReminder.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5), file: file, line: line)
     }

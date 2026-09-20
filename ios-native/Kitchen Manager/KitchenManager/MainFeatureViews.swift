@@ -40,6 +40,11 @@ struct InventoryView: View {
         RestockSuggestionEngine().generate(kitchenStore: store, recipeStore: recipeStore)
     }
 
+    /// What is still to buy. Read for the 买菜清单 row's count only.
+    private var pendingShoppingCount: Int {
+        store.shoppingItems.lazy.filter { !$0.isDone }.count
+    }
+
     /// Which of tonight's dishes each stocked food is already spoken for by.
     /// Built once per render rather than per row: every row would otherwise
     /// re-parse every recipe line in today's plan.
@@ -140,6 +145,36 @@ struct InventoryView: View {
     var body: some View {
         List {
             let tonight = tonightSummaries
+            // 买菜 is a push on this tab rather than a tab of its own, so the
+            // route that used to be a tab-bar button is the first actionable
+            // row on the page: what is missing comes before what is stocked.
+            // Hidden while searching, where the query owns the list.
+            if !hasSearchQuery {
+                Section {
+                    NavigationLink(value: InventoryRoute.shopping) {
+                        Label {
+                            HStack(spacing: 8) {
+                                Text("买菜清单")
+                                if pendingShoppingCount > 0 {
+                                    Text("\(pendingShoppingCount)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        } icon: {
+                            Image(systemName: "checklist")
+                        }
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                    }
+                    .accessibilityIdentifier("inventory.shopping.open")
+                    .accessibilityLabel(
+                        pendingShoppingCount > 0
+                        ? "买菜清单，\(pendingShoppingCount) 项待买"
+                        : "买菜清单"
+                    )
+                }
+                .listSectionSeparator(.hidden)
+            }
             // The control layer: the counts *are* the filters, and the picker
             // names the same `InventoryFocus` the list already filters by. The
             // read-only summary row and the separate "正在查看 … 清除" banner
@@ -435,6 +470,8 @@ struct InventoryView: View {
             switch route {
             case .detail(let itemID):
                 InventoryItemDetailView(itemID: itemID)
+            case .shopping:
+                ShoppingView()
             }
         }
         .alert("删除这项食材？", isPresented: Binding(

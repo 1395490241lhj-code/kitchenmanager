@@ -718,11 +718,10 @@ struct ContentView: View {
     @EnvironmentObject private var mealPortionStore: MealPortionStore
 #endif
     @Environment(\.scenePhase) private var scenePhase
-    @State private var inventoryPath = NavigationPath()
 
     var body: some View {
         TabView(selection: $navigationStore.selectedTab) {
-            Tab("首页", systemImage: "house", value: AppTab.today) {
+            Tab("今天", systemImage: "house", value: AppTab.today) {
                 NavigationStack {
                     HomeView()
                 }
@@ -735,51 +734,28 @@ struct ContentView: View {
                 .tint(AppTheme.brand)
             }
 
+            // Planning is a first-class destination now, hosted by the
+            // canonical Planner: same view, same store, same routes. It brings
+            // its own NavigationStack, so there is no wrapper here.
+            Tab("计划", systemImage: "calendar", value: AppTab.plan) {
+                PlannerView(path: $navigationStore.planPath)
+                    // Planning sits on the cooking-journey path, and the
+                    // library it can push is the Recipes surface that used to
+                    // carry `brand` from its own tab.
+                    .tint(AppTheme.brand)
+            }
+
             Tab("食材", systemImage: "shippingbox", value: AppTab.inventory) {
-                NavigationStack(path: $inventoryPath) {
+                NavigationStack(path: $navigationStore.inventoryPath) {
                     InventoryView(onSelectItem: { itemID in
-                        inventoryPath.append(InventoryRoute.detail(itemID))
+                        navigationStore.inventoryPath.append(.detail(itemID))
                     })
                 }
                 #if DEBUG
-                .onChange(of: inventoryPath.count) { oldValue, newValue in
+                .onChange(of: navigationStore.inventoryPath.count) { oldValue, newValue in
                     print("[InventoryNavigation] path \(oldValue) -> \(newValue)")
                 }
                 #endif
-            }
-
-            Tab("买菜", systemImage: "checklist", value: AppTab.shopping) {
-                NavigationStack {
-                    ShoppingView()
-                }
-            }
-
-            Tab("菜谱", systemImage: "book.closed", value: AppTab.recipes) {
-                // Recipes is on the cooking-journey path, which AppTheme assigns
-                // `brand`. This has to sit on the NavigationStack rather than on
-                // the list inside it: toolbar content is hoisted into the
-                // navigation bar and resolves its tint from the navigation
-                // container, so a tint applied further down never reached the
-                // filter and add buttons — they stayed `primary` blue directly
-                // above green filter chips and green empty-state CTAs.
-                Group {
-                    #if DEBUG
-                    if ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") {
-                        NavigationStack {
-                            RecipeDetailView(recipe: RecipeUITestSeed.longRecipe)
-                        }
-                    } else {
-                        NavigationStack {
-                            RecipeListView()
-                        }
-                    }
-                    #else
-                    NavigationStack {
-                        RecipeListView()
-                    }
-                    #endif
-                }
-                .tint(AppTheme.brand)
             }
 
             Tab("我的", systemImage: "person", value: AppTab.settings) {
@@ -790,6 +766,19 @@ struct ContentView: View {
         }
         .tint(AppTheme.primary)
         #if DEBUG
+        // The recipe-detail screenshot fixture used to replace the Recipes
+        // tab's content. That tab is gone, so it takes the same shape the
+        // cooking screenshot already had: a cover over the whole root.
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") },
+                set: { _ in }
+            )
+        ) {
+            NavigationStack {
+                RecipeDetailView(recipe: RecipeUITestSeed.longRecipe)
+            }
+        }
         .fullScreenCover(
             isPresented: Binding(
                 get: { ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_COOKING_SCREENSHOT") },
@@ -846,13 +835,13 @@ struct ContentView: View {
         .task {
             guard ShoppingRegressionFixture.isEnabled else { return }
             kitchenStore.shoppingItems = ShoppingRegressionFixture.items
-            navigationStore.selectedTab = .shopping
+            navigationStore.showShopping()
         }
         .task {
             guard RecipeRegressionFixture.isEnabled else { return }
             for recipe in RecipeRegressionFixture.recipes.reversed() { recipeStore.add(recipe) }
             recipeStore.toggleFavorite("regression-mapo")
-            navigationStore.selectedTab = .recipes
+            navigationStore.showRecipeLibrary()
         }
         // UI-test-only seed hook: only runs when KitchenManagerUITests passes this
         // launch argument, so it never fires for a real user or a normal debug run.
@@ -1358,14 +1347,14 @@ struct ContentView: View {
             for recipe in RecipeUITestSeed.cookingRecipes.reversed() {
                 recipeStore.add(recipe)
             }
-            navigationStore.selectedTab = .recipes
+            navigationStore.showRecipeLibrary()
         }
         #if DEBUG
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_EMPTY_SCREENSHOT") else { return }
             kitchenStore.clearAllLocalData()
             recipeStore.clearLocalData()
-            navigationStore.selectedTab = .recipes
+            navigationStore.showRecipeLibrary()
         }
         // Deliberately absent from `isolatesRecipeStore`, so the real
         // `loadRecipes()` runs and fails against the unreachable test backend —
@@ -1374,19 +1363,19 @@ struct ContentView: View {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_LOAD_FAILURE") else { return }
             kitchenStore.clearAllLocalData()
             recipeStore.clearLocalData()
-            navigationStore.selectedTab = .recipes
+            navigationStore.showRecipeLibrary()
         }
         .task {
             let arguments = ProcessInfo.processInfo.arguments
             guard arguments.contains("UITEST_RECIPE_DETAIL_SCREENSHOT") || arguments.contains("UITEST_RECIPE_COOKING_SCREENSHOT") else { return }
-            navigationStore.selectedTab = .recipes
+            navigationStore.showRecipeLibrary()
         }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECIPE_LONG") else { return }
             kitchenStore.clearAllLocalData()
             recipeStore.clearLocalData()
             recipeStore.add(RecipeUITestSeed.longRecipe)
-            navigationStore.selectedTab = .recipes
+            navigationStore.showRecipeLibrary()
         }
         #endif
         .task {
@@ -1398,7 +1387,7 @@ struct ContentView: View {
             if let milk = kitchenStore.shoppingItems.first(where: { $0.name == "牛奶" }) {
                 kitchenStore.toggleShopping(milk)
             }
-            navigationStore.selectedTab = .shopping
+            navigationStore.showShopping()
         }
         #endif
     }

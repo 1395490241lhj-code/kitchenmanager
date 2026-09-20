@@ -16,7 +16,9 @@ final class AIRecipeWaitStateUITests: XCTestCase {
         ]
         app.launch()
         XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 10), "home did not open")
-        app.tabBars.buttons["菜谱"].tap()
+        // 菜谱库 is a visible Plan toolbar action now, not a tab of its own.
+        app.tabBars.buttons["计划"].tap()
+        app.buttons["planner.recipes.open"].tap()
         let add = app.buttons["添加菜谱"]
         XCTAssertTrue(add.waitForExistence(timeout: 8), "the recipe tab did not settle")
         add.tap()

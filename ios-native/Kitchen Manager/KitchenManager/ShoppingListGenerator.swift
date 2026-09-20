@@ -819,7 +819,7 @@ struct ShoppingListGenerationView: View {
                     let count = store.importSelectedItems(into: kitchenStore)
                     guard count > 0 else { return }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    navigationStore.selectedTab = .shopping
+                    navigationStore.showShopping()
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)

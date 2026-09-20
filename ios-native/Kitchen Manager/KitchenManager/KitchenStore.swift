@@ -2,8 +2,12 @@ import Foundation
 import Combine
 import SwiftUI
 
+/// The four top-level destinations, one per user intent: execute today, plan
+/// what is next, know what is in the kitchen, manage the account. 买菜 and 菜谱
+/// are no longer tabs — they are pushes on the tab that owns their subject
+/// (see `InventoryRoute.shopping` and `PlannerRoute.recipeLibrary`).
 enum AppTab: Hashable {
-    case today, inventory, shopping, recipes, settings
+    case today, plan, inventory, settings
 }
 
 enum InventoryFocus: Equatable {
@@ -63,6 +67,10 @@ enum InventoryNoticeText {
 /// registration is unambiguous and can't collide with an unrelated UUID-keyed route.
 enum InventoryRoute: Hashable {
     case detail(UUID)
+    /// 买菜 in the four-destination IA: buying is what refills the inventory
+    /// this tab is about, and stock-in already lands here, so the list is a
+    /// push on the Inventory stack rather than a tab of its own.
+    case shopping
 }
 
 @MainActor
@@ -70,15 +78,47 @@ final class AppNavigationStore: ObservableObject {
     @Published var selectedTab: AppTab = .today
     @Published var inventoryFocus: InventoryFocus = .all
     @Published private(set) var isShoppingStockInRequested = false
+    /// The two tab-root paths that carry a formerly-top-level surface. They
+    /// live here rather than in `ContentView`'s `@State` because every deep
+    /// link that used to be a bare tab switch now has to seed the host tab's
+    /// stack as well as select it.
+    @Published var inventoryPath: [InventoryRoute] = []
+    @Published var planPath: [PlannerRoute] = []
 
     func showInventory(_ focus: InventoryFocus) {
         inventoryFocus = focus
+        // The filtered list is the destination, so a stack left on an item
+        // detail or on 买菜 must not swallow the jump.
+        inventoryPath.removeAll()
         selectedTab = .inventory
+    }
+
+    /// The inventory list itself, without touching the current filter.
+    func showInventoryList() {
+        inventoryPath.removeAll()
+        selectedTab = .inventory
+    }
+
+    func showShopping() {
+        inventoryPath = [.shopping]
+        selectedTab = .inventory
+    }
+
+    func showRecipeLibrary() {
+        planPath = [.recipeLibrary]
+        selectedTab = .plan
+    }
+
+    /// Opens the Plan tab, optionally already standing on the route a contextual
+    /// deep link names. The Planner owns the route values; this only carries them.
+    func showPlanner(_ path: [PlannerRoute] = []) {
+        planPath = path
+        selectedTab = .plan
     }
 
     func showShoppingStockIn() {
         isShoppingStockInRequested = true
-        selectedTab = .shopping
+        showShopping()
     }
 
     func consumeShoppingStockInRequest() {

@@ -548,7 +548,7 @@ struct RecipeImageImportView: View {
                 isSaved = true
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
                 isSaving = false
-                navigationStore.selectedTab = .recipes
+                navigationStore.showRecipeLibrary()
                 dismiss()
             } catch {
                 isSaving = false

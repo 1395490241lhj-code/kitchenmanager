@@ -20,8 +20,8 @@ final class PlannerMealDeleteUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME",
                                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"] + extra
         app.launch()
-        let link = app.buttons["home.planner.link"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10), "planner entry link missing on Home")
+        let link = app.tabBars.buttons["计划"]
+        XCTAssertTrue(link.waitForExistence(timeout: 10), "计划 tab missing")
         link.tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "planner did not open")
         return app

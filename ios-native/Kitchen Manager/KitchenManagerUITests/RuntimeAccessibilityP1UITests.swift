@@ -15,13 +15,13 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     }
 
     /// D-042 retired the Home → 今天的计划 route; today's meal row and its 做好了
-    /// now live on Planner (Slice A), reached through Home's one planning row.
+    /// now live on Planner (Slice A), reached through the 计划 tab.
     func testTodayPlanRowAdaptsWithoutClipping() throws {
         for (name, size, _) in sizes {
             let app = launch("UITEST_SEED_ACCESSIBILITY_PLANNER_MEAL", size: size)
-            let planner = app.buttons["home.planner.link"]
+            // A tab-bar button needs no scrolling to reach at any text size.
+            let planner = app.tabBars.buttons["计划"]
             XCTAssertTrue(planner.waitForExistence(timeout: 5))
-            XCTAssertTrue(scrollUntilFullyHittable(planner, in: app))
             planner.tap()
             XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "\(name): 用餐计划未打开")
 

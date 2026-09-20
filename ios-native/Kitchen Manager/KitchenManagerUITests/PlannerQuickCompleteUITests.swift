@@ -27,9 +27,9 @@ final class PlannerQuickCompleteUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME",
                                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"]
         app.launch()
-        let link = app.buttons["home.planner.link"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10), "planner entry link missing on Home")
-        link.tap()
+        let planTab = app.tabBars.buttons["计划"]
+        XCTAssertTrue(planTab.waitForExistence(timeout: 10), "计划 tab missing")
+        planTab.tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "planner did not open")
         return app
     }

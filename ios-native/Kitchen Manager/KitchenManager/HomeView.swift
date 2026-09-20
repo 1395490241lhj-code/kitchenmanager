@@ -38,11 +38,6 @@ struct HomeView: View {
     @State private var activeSheet: HomeSheet?
     @State private var toastMessage: String?
     @State private var toastStyle: AppFeedbackStyle = .success
-    @State private var isShowingPlanner = false
-    /// Where in the Planner sheet a deep link should land, set just before
-    /// presenting. Empty by default: the 用餐计划 row always opens the plain
-    /// current-week sheet.
-    @State private var plannerInitialPath: [PlannerRoute] = []
     @State private var isShowingKitchenAI = false
     @State private var isShowingRecommendations = false
     @State private var isShowingPreparedComponents = false
@@ -219,7 +214,7 @@ struct HomeView: View {
                             action: { issue in
                                 switch issue {
                                 case .inventory: navigationStore.showInventory(.all)
-                                case .shopping: navigationStore.selectedTab = .shopping
+                                case .shopping: navigationStore.showShopping()
                                 }
                             }
                         )
@@ -260,19 +255,6 @@ struct HomeView: View {
         // could not collapse — the title measured 17.7pt against the 30.0pt
         // large titles one tab away, and sat 31pt higher on the screen.
         .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .inline : .large)
-        // A sheet, which is the shape the planner has always been presented in.
-        // Home is now its only entry point, so this is also the only place that
-        // shape is decided.
-        .sheet(isPresented: $isShowingPlanner) {
-            // D-042: 查看聚餐 opens the same sheet, seeded through Planner
-            // own initial-path mechanism so the route belongs to Planner and
-            // no Home-owned detail surface appears. Reset after dismissal so
-            // the plain 用餐计划 row never inherits a stale deep link.
-            PlannerView(initialPath: plannerInitialPath)
-        }
-        .onChange(of: isShowingPlanner) { _, isShowing in
-            if !isShowing { plannerInitialPath = [] }
-        }
         .navigationDestination(isPresented: $isShowingRecommendations) {
             RecipeRecommendationBrowserView()
         }
@@ -436,7 +418,7 @@ struct HomeView: View {
         case .shopping:
             PendingShoppingSheet {
                 activeSheet = nil
-                navigationStore.selectedTab = .shopping
+                navigationStore.showShopping()
             }
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
@@ -635,10 +617,12 @@ struct HomeView: View {
                 // kind; showsRecommendationLink already gates on
                 // planExecution only.
                 Button {
-                    if let id = task.specialPlanID {
-                        plannerInitialPath = [.specialPlan(id)]
-                    }
-                    isShowingPlanner = true
+                    // A contextual deep link, not a directory entry: it opens the
+                    // Plan tab already standing on *this* event. Planner is a
+                    // top-level destination now, so Home routes into the one
+                    // canonical Planner rather than presenting a second copy of
+                    // it in a sheet of its own.
+                    navigationStore.showPlanner(task.specialPlanID.map { [.specialPlan($0)] } ?? [])
                 } label: {
                     Label("查看聚餐", systemImage: "person.3")
                         .font(.callout.weight(.semibold))
@@ -711,23 +695,6 @@ struct HomeView: View {
                 )
             }
 
-            // Everything beyond today: later meals, and the special plans that
-            // sit among them. Unconditional on purpose, and Home's *only*
-            // planning route (D-042): a plan that is not today's headline is a
-            // fact in Today Context, not a second destination.
-            //
-            // It stays a link rather than a card because planning ahead is
-            // never today's primary task. The extra top padding is the only
-            // thing marking the boundary the two links above do not cross:
-            // those are about today, this one is not.
-            HomeSecondaryLinkRow(
-                title: "用餐计划",
-                systemImage: "calendar",
-                symbolTint: AppTheme.textSecondary,
-                identifier: "home.planner.link",
-                action: { isShowingPlanner = true }
-            )
-            .padding(.top, 4)
         }
     }
 
@@ -746,7 +713,7 @@ struct HomeView: View {
         case .purchasedAwaitingStockIn:
             navigationStore.showShoppingStockIn()
         case .pendingShopping:
-            navigationStore.selectedTab = .shopping
+            navigationStore.showShopping()
         }
     }
 
@@ -2426,6 +2393,11 @@ private struct HomeStatusSheetContainer<Content: View>: View {
                 switch route {
                 case .detail(let itemID):
                     InventoryItemDetailView(itemID: itemID)
+                // This sheet only ever pushes item details. The case exists
+                // because the route type is shared; it resolves to the real
+                // list rather than to a dead end.
+                case .shopping:
+                    ShoppingView()
                 }
             }
         }

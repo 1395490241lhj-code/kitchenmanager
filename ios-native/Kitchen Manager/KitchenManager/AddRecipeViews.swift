@@ -185,7 +185,10 @@ struct AIGeneratorView: View {
         .navigationDestination(isPresented: $isShowingConfirmation) {
             AIRecipeConfirmationView(generatorStore: generatorStore) { destination in
                 dismiss()
-                navigationStore.selectedTab = destination
+                switch destination {
+                case .recipeLibrary: navigationStore.showRecipeLibrary()
+                case .today: navigationStore.selectedTab = .today
+                }
             }
         }
         .alert(
@@ -277,12 +280,20 @@ struct AIGeneratorView: View {
     }
 }
 
+/// Where the confirmation wants the app to land once it closes. Deliberately
+/// not an `AppTab`: the library it can ask for is a push on the Plan tab, not
+/// a top-level destination.
+enum AIRecipeFinishDestination {
+    case recipeLibrary
+    case today
+}
+
 private struct AIRecipeConfirmationView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @ObservedObject var generatorStore: AIRecipeGeneratorStore
-    let onFinish: (AppTab) -> Void
+    let onFinish: (AIRecipeFinishDestination) -> Void
 
     private enum ConfirmationAction {
         case saveAndPlan, saveOnly, addToPlan
@@ -433,7 +444,7 @@ private struct AIRecipeConfirmationView: View {
         do {
             _ = try generatorStore.save(into: recipeStore)
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            finish(at: .recipes)
+            finish(at: .recipeLibrary)
         } catch {
             generatorStore.errorMessage = error.localizedDescription
             performingAction = nil
@@ -472,7 +483,7 @@ private struct AIRecipeConfirmationView: View {
     }
 
     @MainActor
-    private func finish(at destination: AppTab) {
+    private func finish(at destination: AIRecipeFinishDestination) {
         dismiss()
         Task {
             await Task.yield()
@@ -883,7 +894,7 @@ struct ImportRecipeView: View {
             if let onSaved {
                 onSaved()
             } else {
-                navigationStore.selectedTab = .recipes
+                navigationStore.showRecipeLibrary()
                 dismiss()
             }
         } catch {

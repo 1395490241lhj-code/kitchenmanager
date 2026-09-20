@@ -24,10 +24,11 @@ final class SpecialPlanNormalSessionUITests: XCTestCase {
     private typealias Draft = SpecialPlanDraftObservation
 
     private func openSeededPlan(in app: XCUIApplication) {
-        // Home's own unconditional planner route — the same one a user takes,
-        // and no longer dependent on today happening to have a plan.
-        XCTAssertTrue(app.buttons["home.planner.link"].waitForExistence(timeout: 15))
-        app.buttons["home.planner.link"].tap()
+        // Planner is a top-level destination, so the route a user takes is the
+        // tab itself. Home no longer carries a generic 用餐计划 row.
+        let planTab = app.tabBars.buttons["计划"]
+        XCTAssertTrue(planTab.waitForExistence(timeout: 15), "计划 tab missing")
+        planTab.tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10))
         let entry = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "planner.special.entry.")

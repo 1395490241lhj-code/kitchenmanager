@@ -509,7 +509,7 @@ struct RecordFoodSheet: View {
                     let count = receiptStore.importSelected(into: kitchenStore)
                     guard count > 0 else { return }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    navigationStore.selectedTab = .inventory
+                    navigationStore.showInventoryList()
                     dismiss()
                 } label: {
                     Label("确认入库（\(receiptStore.selectedCount)）", systemImage: "shippingbox.and.arrow.backward")
@@ -582,7 +582,7 @@ struct RecordFoodSheet: View {
                 let items = manualItems
                 guard kitchenStore.importInventory(items) > 0 else { return }
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
-                navigationStore.selectedTab = .inventory
+                navigationStore.showInventoryList()
                 dismiss()
             }
             .disabled(manualDrafts.isEmpty)

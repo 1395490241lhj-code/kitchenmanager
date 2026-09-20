@@ -20,6 +20,9 @@ enum PlannerRoute: Hashable {
     case todayShopping
     case weeklyGenerator
     case kitchenAI(Date, UUID?)
+    /// 菜谱 in the four-destination IA. Choosing a dish is a planning act, so
+    /// the library is a push on the Plan stack rather than a tab of its own.
+    case recipeLibrary
 }
 
 private enum PlannerSheet: Identifiable {
@@ -120,7 +123,9 @@ struct PlannerView: View {
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
-    @State private var path: [PlannerRoute] = []
+    /// The path this Planner owns when nobody hands it one — the Home sheet
+    /// presentation, previews and DEBUG fixtures.
+    @State private var ownedPath: [PlannerRoute] = []
     /// One active delete-undo opportunity. A later successful delete replaces
     /// it (never queued); the earlier deletion becomes final. Session-scoped.
     @State private var activeUndo: PlanRemoval?
@@ -152,6 +157,11 @@ struct PlannerView: View {
     /// back to the foreground, and a significant time change while it is
     /// already there. No timer, and no `Date()` in rendering.
     @State private var currentDate: Date
+    /// Supplied when the Planner is a tab root, so `AppNavigationStore` can
+    /// seed the stack for a deep link. `nil` keeps the owned path above, which
+    /// is what every non-tab presentation still uses.
+    private let hostPath: Binding<[PlannerRoute]>?
+    private var path: Binding<[PlannerRoute]> { hostPath ?? $ownedPath }
 
     init(
         weekStart: Date? = nil,
@@ -164,18 +174,20 @@ struct PlannerView: View {
         // the old one while `currentDate` refreshed around it. Tests and
         // fixtures still pass a fixed calendar and stay deterministic.
         calendar: Calendar = .autoupdatingCurrent,
-        initialPath: [PlannerRoute] = []
+        initialPath: [PlannerRoute] = [],
+        path: Binding<[PlannerRoute]>? = nil
     ) {
         let reference = now ?? Date()
         self.calendar = calendar
-        _path = State(initialValue: initialPath)
+        _ownedPath = State(initialValue: initialPath)
+        self.hostPath = path
         self.injectedNow = now
         _currentDate = State(initialValue: reference)
         _weekStart = State(initialValue: weekStart ?? PlannerProjection.startOfWeek(containing: reference, calendar: calendar))
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: path) {
             weekList
                 // Not 本周安排: the toolbar pages to any week, and the list holds
                 // ordinary meals as well as special plans. The week actually on
@@ -204,11 +216,11 @@ struct PlannerView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("生成今日购物清单", systemImage: "cart.badge.plus") {
-                                path.append(.todayShopping)
+                                path.wrappedValue.append(.todayShopping)
                             }
                             .accessibilityIdentifier("planner.shopping.generateToday")
                             Button {
-                                path.append(.weeklyGenerator)
+                                path.wrappedValue.append(.weeklyGenerator)
                             } label: {
                                 Label {
                                     Text(kitchenStore.weeklyPlan == nil ? "AI 生成一周菜单" : "查看已生成的一周菜单")
@@ -219,13 +231,31 @@ struct PlannerView: View {
                             }
                             .accessibilityIdentifier("planner.weekly.open")
                             Button("问 Kitchen AI", systemImage: "sparkles") {
-                                path.append(.kitchenAI(weekStart, nil))
+                                path.wrappedValue.append(.kitchenAI(weekStart, nil))
                             }
                             .accessibilityIdentifier("planner.kitchenAI.open")
                         } label: {
                             Label("更多", systemImage: "ellipsis.circle")
                         }
                         .accessibilityIdentifier("planner.tools.menu")
+                    }
+                    // 菜谱库 is one visible tap from the Plan root rather than a
+                    // row inside 更多. Browsing dishes is how a plan gets filled,
+                    // so it is a primary planning tool, not a low-frequency one —
+                    // and it lost its tab, so burying it would have demoted it
+                    // twice. Same route every existing deep link already uses.
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            path.wrappedValue.append(.recipeLibrary)
+                        } label: {
+                            Image(systemName: "book.closed")
+                                // Clamp the glyph the way Inventory's toolbar
+                                // actions do, so Accessibility sizes cannot grow
+                                // it out of the bar.
+                                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                                .accessibilityLabel("菜谱库")
+                        }
+                        .accessibilityIdentifier("planner.recipes.open")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         // Two things can be created here now, so the one control
@@ -275,8 +305,10 @@ struct PlannerView: View {
                     case .weeklyGenerator:
                         WeeklyMenuPlannerView(onWorkflowActive: { activeWeeklyWorkflow = $0 }) { summary in
                             weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
-                            path.removeAll()
+                            path.wrappedValue.removeAll()
                         }
+                    case .recipeLibrary:
+                        RecipeListView()
                     }
                 }
                 .sheet(item: $sheet) { sheet in
@@ -331,16 +363,16 @@ struct PlannerView: View {
                     // Push the new plan's detail once the composer has fully
                     // dismissed, so the draft is on screen without a second tap.
                     guard current == nil, let pending = pendingDraft else { return }
-                    if !path.contains(.specialPlan(pending.planID)) {
-                        path.append(.specialPlan(pending.planID))
+                    if !path.wrappedValue.contains(.specialPlan(pending.planID)) {
+                        path.wrappedValue.append(.specialPlan(pending.planID))
                     }
                 }
-            .onChange(of: path) { _, current in
+            .onChange(of: path.wrappedValue) { _, current in
                 guard let pending = pendingDraft,
                       !current.contains(.specialPlan(pending.planID)) else { return }
                 pendingDraft = nil
             }
-            .onChange(of: path) { previous, current in
+            .onChange(of: path.wrappedValue) { previous, current in
                 // Popping the generator abandons the workflow. Its own child
                 // pickers and its result screen never touch the path, so they
                 // leave it running.
@@ -551,10 +583,10 @@ struct PlannerView: View {
     /// view that owns the path.
     private func deleteSpecialPlan(id: UUID) {
         kitchenStore.removeSpecialPlan(id: id)
-        path.removeAll { route in
+        path.wrappedValue.removeAll { route in
             switch route {
             case .specialPlan(let routeID): return routeID == id
-            case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator, .kitchenAI: return false
+            case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator, .kitchenAI, .recipeLibrary: return false
             }
         }
     }

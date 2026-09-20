@@ -79,7 +79,7 @@ final class AIConversationAcceptanceUITests: XCTestCase {
     }
 
     private func openPlanner(_ app: XCUIApplication) {
-        app.buttons["home.planner.link"].tap()
+        app.tabBars.buttons["计划"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
         // Navigate the real Planner to the fixed fixture week, independent of run date.
         var calendar = Calendar.current

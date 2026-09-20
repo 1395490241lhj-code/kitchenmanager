@@ -19,7 +19,9 @@ final class ClipboardRecipeImportUITests: XCTestCase {
     /// Navigates Recipes → 添加菜谱 → 从链接导入, where the shared paste
     /// control is rendered. Home no longer carries an import entry (FR-007).
     private func openLinkImport(in app: XCUIApplication) {
-        app.tabBars.buttons["菜谱"].tap()
+        // 菜谱库 is a visible Plan toolbar action now, not a tab of its own.
+        app.tabBars.buttons["计划"].tap()
+        app.buttons["planner.recipes.open"].tap()
         let add = app.buttons["添加菜谱"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         add.tap()
@@ -273,7 +275,9 @@ final class ClipboardRecipeImportUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME", seed] + extraArguments
         app.launch()
         XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["菜谱"].tap()
+        // 菜谱库 is a visible Plan toolbar action now, not a tab of its own.
+        app.tabBars.buttons["计划"].tap()
+        app.buttons["planner.recipes.open"].tap()
         app.buttons["添加菜谱"].tap()
         app.buttons["AI 做菜"].tap()
         XCTAssertTrue(
@@ -325,7 +329,7 @@ final class ClipboardRecipeImportUITests: XCTestCase {
             "保存成功后确认页未关闭"
         )
         XCTAssertFalse(app.alerts.firstMatch.exists, "成功路径不应出现错误弹窗")
-        XCTAssertTrue(app.tabBars.buttons["首页"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["今天"].waitForExistence(timeout: 5))
         XCTAssertFalse(
             app.activityIndicators.firstMatch.exists,
             "成功后仍有残留 spinner"

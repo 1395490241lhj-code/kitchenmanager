@@ -38,17 +38,15 @@ final class PlannerUITests: XCTestCase {
         app.descendants(matching: .any)[identifier]
     }
 
-    /// The canonical route, and since D-031 the only one: Home -> 用餐计划.
-    ///
-    /// This used to go Home -> today plan card -> 查看全部 -> 查看本周安排 · 特殊计划,
-    /// which is exactly the shape D-030 warned about — every assertion below it
-    /// depended on a seed having created a plan for today, so the suite proved
-    /// the screens worked while a real user on an unplanned day could not open
-    /// them at all. A helper that takes only taps a user can find is the point.
+    /// The canonical route: the 计划 tab. Planner is a top-level destination, so
+    /// it no longer depends on Home carrying an entry for it at all — which is
+    /// the strongest form of the lesson D-030 taught. Earlier shapes routed
+    /// through the today plan card and then through a generic Home row; both
+    /// only worked when a seed happened to have planned today.
     private func openPlanner(from app: XCUIApplication) {
-        let plannerLink = app.buttons["home.planner.link"]
-        XCTAssertTrue(plannerLink.waitForExistence(timeout: 10), "planner entry link missing on Home")
-        plannerLink.tap()
+        let planTab = app.tabBars.buttons["计划"]
+        XCTAssertTrue(planTab.waitForExistence(timeout: 10), "计划 tab missing")
+        planTab.tap()
         XCTAssertTrue(
             app.navigationBars["用餐计划"].waitForExistence(timeout: 5),
             "planner did not open"
@@ -106,10 +104,10 @@ final class PlannerUITests: XCTestCase {
         let app = launch("UITEST_SEED_EMPTY_HOME", "UITEST_SPECIAL_PLAN_AI_MENU")
 
         // Precondition: Home has no today plan, so the plan-gated route is gone.
-        XCTAssertTrue(app.buttons["home.planner.link"].waitForExistence(timeout: 10), "planner link missing on an empty Home")
+        XCTAssertTrue(app.tabBars.buttons["计划"].waitForExistence(timeout: 10), "计划 tab missing on an empty Home")
         XCTAssertFalse(app.buttons["home.today.plan.start"].exists, "fixture must have no today plan")
 
-        app.buttons["home.planner.link"].tap()
+        app.tabBars.buttons["计划"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10), "the planner did not open from Home")
 
         openSpecialPlanComposer(from: app)
@@ -122,38 +120,36 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["planner.compose.generate"].exists, "generate action missing")
     }
 
-    /// The link is navigation, not a second headline: it stays a plain row and
-    /// never becomes a competing card, on a day with plans or without.
-    func testPlannerLinkStaysSecondaryInBothHomeModes() {
+    /// Planner owns a tab, so Home carries no generic entry for it in either
+    /// mode. A top-level destination must not also be a directory row: that is
+    /// what made 用餐计划 obsolete rather than merely redundant.
+    func testHomeCarriesNoGenericPlannerRowInEitherMode() {
         let empty = launch("UITEST_SEED_EMPTY_HOME")
-        let link = empty.buttons["home.planner.link"]
-        XCTAssertTrue(link.waitForExistence(timeout: 10))
-        // Exactly the label, with nothing appended: no subtitle, no count, no
-        // badge. A row that grows a second line stops being a link.
-        XCTAssertEqual(link.label, "用餐计划", "the row says only where it goes")
+        XCTAssertTrue(empty.staticTexts["home.primary.title"].waitForExistence(timeout: 10))
+        XCTAssertFalse(empty.buttons["home.planner.link"].exists, "the generic planning row must be gone")
+        XCTAssertFalse(empty.buttons["用餐计划"].exists, "no Home row may stand in for the 计划 tab")
+        XCTAssertTrue(empty.tabBars.buttons["计划"].exists, "the tab is the planning route")
         XCTAssertFalse(empty.staticTexts["本周安排"].exists, "the old week-scoped label must be gone")
         empty.terminate()
 
-        // With a today plan the prominent path is still the plan card; the link
-        // is present in addition to it, not instead of it — and it is the only
-        // planning row (D-042).
+        // With a today plan the prominent path is still the plan card, and the
+        // absent row does not come back in execution mode.
         let seeded = launch("UITEST_SEED_SPECIAL_PLAN")
         XCTAssertTrue(seeded.buttons["home.today.plan.start"].waitForExistence(timeout: 10), "the plan card must still lead the page")
-        let seededLink = seeded.buttons["home.planner.link"]
-        XCTAssertTrue(seededLink.exists, "the link must survive execution mode")
-        XCTAssertEqual(seededLink.label, "用餐计划")
+        XCTAssertFalse(seeded.buttons["home.planner.link"].exists, "the generic planning row must stay gone in execution mode")
+        XCTAssertTrue(seeded.tabBars.buttons["计划"].exists)
     }
 
-    /// D-042: Home has exactly one planning route, 用餐计划 → Planner. The
-    /// card's own 今天的计划 route is gone, and what it used to reach — today's
-    /// meal with 做好了, 生成今日购物清单 and the weekly generator — is on Planner.
-    func testHomeHasOnePlanningRouteAndItReachesPlannerCapabilities() {
+    /// The 计划 tab is the planning route, and it reaches everything the Home
+    /// card's retired 今天的计划 route used to: today's meal with 做好了,
+    /// 生成今日购物清单 and the weekly generator.
+    func testPlanTabReachesPlannerCapabilities() {
         let app = launch("UITEST_SEED_SPECIAL_PLAN")
 
         XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["今天的计划"].exists)
         XCTAssertFalse(app.buttons["home.plan.secondaryLink"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1, "exactly one planning row")
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 0, "no generic planning row on Home")
 
         openPlanner(from: app)
 
@@ -172,7 +168,7 @@ final class PlannerUITests: XCTestCase {
     }
 
     /// D-042: exactly one `更多推荐` in execution mode and none in eat-out;
-    /// `用餐计划` is always present and is the only planning row. A plan that
+    /// planning lives on its own tab rather than in a Home row. A plan that
     /// another task displaces is stated as static context, never a second route.
     func testHomeSecondaryRowsFollowTheCanonicalIA() {
         let execution = launch("UITEST_SEED_SPECIAL_PLAN")
@@ -181,7 +177,7 @@ final class PlannerUITests: XCTestCase {
         XCTAssertFalse(execution.buttons["home.plan.secondaryLink"].exists)
         XCTAssertFalse(execution.buttons["home.today.plan.viewAll"].exists)
         XCTAssertFalse(execution.staticTexts["home.context.otherPlans"].exists, "the plan is the primary task, not context")
-        XCTAssertEqual(execution.buttons.matching(identifier: "home.planner.link").count, 1)
+        XCTAssertEqual(execution.buttons.matching(identifier: "home.planner.link").count, 0)
         execution.terminate()
 
         let eatOut = launch("UITEST_SEED_HOME_EAT_OUT_WITH_PLAN")
@@ -192,7 +188,8 @@ final class PlannerUITests: XCTestCase {
         XCTAssertFalse(eatOut.buttons["home.plan.secondaryLink"].exists)
         XCTAssertFalse(eatOut.buttons["home.recommendation.more"].exists,
                        "Home must not propose another dish for an evening already settled")
-        XCTAssertEqual(eatOut.buttons.matching(identifier: "home.planner.link").count, 1, "the planner link belongs to neither mode")
+        XCTAssertEqual(eatOut.buttons.matching(identifier: "home.planner.link").count, 0,
+                       "planning is a tab, so neither mode carries a Home row for it")
     }
 
     /// An entirely empty week states the absence once and can be acted on,

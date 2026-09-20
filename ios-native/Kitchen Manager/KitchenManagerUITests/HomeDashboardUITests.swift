@@ -244,10 +244,9 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertEqual(more.label, "更多推荐")
         XCTAssertEqual(app.buttons.matching(identifier: "home.recommendation.more").count, 1,
                        "exactly one discovery control per state")
-        // 更多推荐 is task-local discovery, so it sits above the planning row (OD-6).
-        let planner = app.buttons["home.planner.link"]
-        XCTAssertTrue(planner.exists)
-        XCTAssertLessThan(more.frame.minY, planner.frame.minY, "更多推荐 must sit above 用餐计划")
+        // 更多推荐 is now the last secondary row: the planning row it used to sit
+        // above is gone, because Planner owns a tab.
+        XCTAssertFalse(app.buttons["home.planner.link"].exists)
         makeHittable(more, in: app)
         more.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5))
@@ -297,10 +296,9 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["今日计划已全部完成"].exists)
         attachScreenshot(of: app, named: "home-v2-eat-out-context-line")
 
-        let planner = app.buttons["home.planner.link"]
-        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1, "one planning route")
-        makeHittable(planner, in: app)
-        planner.tap()
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 0,
+                       "planning is a tab, not a Home row")
+        app.tabBars.buttons["计划"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.meal.'")).firstMatch.exists,
                       "the displaced plans are on Planner")
@@ -316,8 +314,8 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["home.primary.title"].label, "家宴")
         XCTAssertEqual(app.staticTexts["home.primary.detail"].label, "18:00 · 6 人")
         XCTAssertFalse(app.buttons["home.recommendation.more"].exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1,
-                       "the general planning row is still exactly one")
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 0,
+                       "the general planning row is gone; 查看聚餐 is a contextual deep link")
         attachScreenshot(of: app, named: "home-special-plan-today")
 
         let cta = app.buttons["home.specialPlan.open"]
@@ -590,14 +588,11 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertTrue(app.buttons["home.today.plan.viewRecipe"].exists)
 
         let more = app.buttons["home.recommendation.more"]
-        let planner = app.buttons["home.planner.link"]
         XCTAssertTrue(more.exists)
-        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 1)
-        XCTAssertLessThan(more.frame.minY, planner.frame.minY)
+        XCTAssertEqual(app.buttons.matching(identifier: "home.planner.link").count, 0)
         attachScreenshot(of: app, named: "home-v2-execution-one-planning-route")
 
-        makeHittable(planner, in: app)
-        planner.tap()
+        app.tabBars.buttons["计划"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
         let todayHeader = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'planner.day.' AND label CONTAINS '今天'")).firstMatch
         XCTAssertTrue(todayHeader.waitForExistence(timeout: 5), "Planner opens on the current week with today marked")
@@ -620,7 +615,9 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertFalse(app.buttons["home.settings.button"].exists)
         XCTAssertFalse(app.buttons["home.add.menu"].exists)
 
-        app.tabBars.buttons["菜谱"].tap()
+        // 菜谱库 is a visible Plan toolbar action now, not a tab of its own.
+        app.tabBars.buttons["计划"].tap()
+        app.buttons["planner.recipes.open"].tap()
         let add = app.buttons["添加菜谱"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         add.tap()

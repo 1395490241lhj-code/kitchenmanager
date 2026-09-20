@@ -12,7 +12,9 @@ final class LinkImportWaitStateUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_EMPTY_HOME", "UITEST_LINK_IMPORT_STUB"]
         app.launch()
         XCTAssertTrue(app.staticTexts["home.primary.title"].waitForExistence(timeout: 10))
-        app.tabBars.buttons["菜谱"].tap()
+        // 菜谱库 is a visible Plan toolbar action now, not a tab of its own.
+        app.tabBars.buttons["计划"].tap()
+        app.buttons["planner.recipes.open"].tap()
         let add = app.buttons["添加菜谱"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
         add.tap()
