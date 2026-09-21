@@ -138,6 +138,14 @@ actor UITestAIConversationTransport: AIConversationRuntimeTransport {
             return
         }
 
+        if args.contains("UITEST_AI_CONVERSATION_SCRIPT_HOLD_STREAMING") {
+            continuation.yield(.textDelta("正在整理本周食谱与烹饪建议..."))
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
+
         if args.contains("UITEST_AI_CONVERSATION_SCRIPT_LONG_STREAM") {
             var longText = "为您详细规划整周备餐与制作流程：\n\n"
             for i in 1...14 {

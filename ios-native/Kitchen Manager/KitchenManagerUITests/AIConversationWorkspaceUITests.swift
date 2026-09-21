@@ -46,6 +46,84 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         }
     }
 
+
+
+    func testVisualSnapshotReduceMotion() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_HOLD_STREAMING"
+        ], appearance: .light)
+        let composer = composerField(app)
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("做菜建议")
+        app.buttons["kitchenAI.send"].tap()
+        XCTAssertTrue(app.buttons["kitchenAI.stop"].waitForExistence(timeout: 5))
+        sleep(1)
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.lifetime = .keepAlways
+        attachment.name = "AIConversation_ReduceMotion"
+        add(attachment)
+    }
+
+    func testVisualSnapshotNormalLightMode() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_HOLD_STREAMING"
+        ], appearance: .light)
+        let composer = composerField(app)
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("做菜建议")
+        app.buttons["kitchenAI.send"].tap()
+        XCTAssertTrue(app.buttons["kitchenAI.stop"].waitForExistence(timeout: 5))
+        sleep(1)
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.lifetime = .keepAlways
+        attachment.name = "AIConversation_Normal_Light"
+        add(attachment)
+    }
+
+    func testVisualSnapshotDarkMode() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_HOLD_STREAMING"
+        ], appearance: .dark)
+        let composer = composerField(app)
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("做菜建议")
+        app.buttons["kitchenAI.send"].tap()
+        XCTAssertTrue(app.buttons["kitchenAI.stop"].waitForExistence(timeout: 5))
+        sleep(1)
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.lifetime = .keepAlways
+        attachment.name = "AIConversation_DarkMode"
+        add(attachment)
+    }
+
+    func testVisualSnapshotDynamicTypeXXXL() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_HOLD_STREAMING"
+        ], appearance: .light, contentSize: "UICTContentSizeCategoryAccessibilityXXXL")
+        let composer = composerField(app)
+        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        composer.tap()
+        composer.typeText("做菜建议")
+        app.buttons["kitchenAI.send"].tap()
+        XCTAssertTrue(app.buttons["kitchenAI.stop"].waitForExistence(timeout: 5))
+        sleep(1)
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.lifetime = .keepAlways
+        attachment.name = "AIConversation_DynamicType_XXXL"
+        add(attachment)
+    }
+
     // MARK: - EMPTY / COMPOSER (Tests 1-7)
 
     func test01_HomeTitleKitchenAI() {

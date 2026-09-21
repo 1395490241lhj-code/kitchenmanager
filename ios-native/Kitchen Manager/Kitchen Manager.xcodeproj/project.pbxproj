@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		000000000000000000000601 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000603 /* Supabase */; };
+		000000000000000000000701 /* ThinkingOrbs in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000703 /* ThinkingOrbs */; };
 		A8EEDE79B2F133653C270ADB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 20BF990C21F749C4C906C5C2 /* Foundation.framework */; };
 		E7669623572A63B98C51FF06 /* KitchenManagerShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 9321DA734E5A5F3A9FEA53FA /* KitchenManagerShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -114,6 +115,7 @@
 			isa = PBXFrameworksBuildPhase;
 			files = (
 				000000000000000000000601 /* Supabase in Frameworks */,
+				000000000000000000000701 /* ThinkingOrbs in Frameworks */,
 			);
 		};
 		000000000000000230000000 /* Frameworks */ = {
@@ -209,6 +211,7 @@
 			name = KitchenManager;
 			packageProductDependencies = (
 				000000000000000000000603 /* Supabase */,
+				000000000000000000000703 /* ThinkingOrbs */,
 			);
 			productName = MyApp;
 			productReference = 000000000000000000000120 /* KitchenManager.app */;
@@ -312,6 +315,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				000000000000000000000602 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				000000000000000000000702 /* XCRemoteSwiftPackageReference "ThinkingOrbs" */,
 			);
 			preferredProjectObjectVersion = 90;
 			productRefGroup = 000000000000000000000020 /* Products */;
@@ -449,8 +453,8 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				LM_SKIP_METADATA_EXTRACTION = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -515,8 +519,8 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				LM_SKIP_METADATA_EXTRACTION = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MACOSX_DEPLOYMENT_TARGET = 27.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -762,6 +766,14 @@
 				minimumVersion = 2.51.0;
 			};
 		};
+		000000000000000000000702 /* XCRemoteSwiftPackageReference "ThinkingOrbs" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/haplollc/ThinkingOrbs";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.1.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -769,6 +781,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 000000000000000000000602 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		000000000000000000000703 /* ThinkingOrbs */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 000000000000000000000702 /* XCRemoteSwiftPackageReference "ThinkingOrbs" */;
+			productName = ThinkingOrbs;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

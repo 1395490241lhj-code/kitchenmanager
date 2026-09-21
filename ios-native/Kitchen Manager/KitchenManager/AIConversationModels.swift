@@ -73,6 +73,28 @@ nonisolated enum AIConversationTurnState: Equatable, Sendable {
     case cancelled
     case failed
 
+    /// Maps an active AI conversation turn state to a semantic Kitchen AI activity phase.
+    ///
+    /// Returns nil if the state does not represent an active AI operation in progress.
+    var aiActivityPhase: KitchenAIActivityPhase? {
+        switch self {
+        case .preparingContext:
+            return .searching
+        case .requesting:
+            return .waiting
+        case .streaming:
+            return .composing
+        case .toolRequested, .executing:
+            return .toolCall
+        case .idle, .awaitingConfirmation, .completed, .cancelled, .failed:
+            return nil
+        }
+    }
+
+    var activeActivityPhase: KitchenAIActivityPhase {
+        aiActivityPhase ?? .composing
+    }
+
     /// Whether a new user message may start while this state is current.
     var acceptsUserInput: Bool {
         switch self {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MessageRowView: View {
     let message: AIConversationMessage
+    @EnvironmentObject private var controller: AIConversationController
 
     var body: some View {
         if message.role == .user {
@@ -21,15 +22,16 @@ struct MessageRowView: View {
                     ContentBlockView(block: block)
                 }
                 if message.state == .streaming {
-                    HStack(spacing: 6) {
-                        ProgressView()
-                            .controlSize(.small)
+                    let phase = controller.turnState.activeActivityPhase
+                    HStack(spacing: 8) {
+                        KitchenAIActivityIndicator(phase: phase, size: .small)
                         Text("思考并回复中…")
                             .font(.footnote)
                             .foregroundStyle(KitchenTheme.textSecondary)
                     }
                     .padding(.top, 4)
-                    .accessibilityLabel("AI 正在回复中")
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("AI 正在回复中，\(phase.accessibilityLabel)")
                 }
                 if message.state == .cancelled {
                     // Derived from the persisted message state, so it survives

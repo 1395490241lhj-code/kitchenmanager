@@ -1,5 +1,5 @@
 {
-  "originHash" : "5f3436049b395fcbc71828c07d82e81a46af698ebe0b146cdc52345a5a60558d",
+  "originHash" : "1126c59cc7b03d29c9d961195c1bb3d52748ff86d2271f18454e3fc0c9450f93",
   "pins" : [
     {
       "identity" : "supabase-swift",
@@ -53,6 +53,15 @@
       "state" : {
         "revision" : "db774a277f60063a32d854f2980299caf06da041",
         "version" : "1.6.0"
+      }
+    },
+    {
+      "identity" : "thinkingorbs",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/haplollc/ThinkingOrbs",
+      "state" : {
+        "revision" : "e2c07bbdec4db797fb302300ef0159b1806a909f",
+        "version" : "1.1.0"
       }
     },
     {
