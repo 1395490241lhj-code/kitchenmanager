@@ -93,6 +93,61 @@ final class PlannerMealCreateUITests: XCTestCase {
         XCTAssertFalse(app.buttons["planner.meal.create"].exists, "no intermediate menu")
     }
 
+    /// An unplanned day must stay cheaper than a day that owns content: it
+    /// used to render as a dated section header, so six empty days outweighed
+    /// the one planned day and pushed it off the first screen. The assertion is
+    /// the relationship, not a pixel count — an empty day is shorter than a
+    /// planned meal row, while still clearing the 44pt target.
+    func testUnplannedDaysWeighLessThanPlannedContent() {
+        let app = launch("UITEST_SEED_SPECIAL_PLAN")
+        openPlanner(from: app)
+
+        let add = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "planner.day.add.")
+        ).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "an unplanned day offers no way to plan it")
+        XCTAssertGreaterThanOrEqual(add.frame.height, 44, "the empty-day affordance is below the hit-target floor")
+
+        let plannedRow = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "planner.meal.")
+        ).firstMatch
+        if plannedRow.exists {
+            XCTAssertLessThan(
+                add.frame.height, plannedRow.frame.height,
+                "an unplanned day must not claim as much height as a day that owns a meal"
+            )
+        }
+
+        // The full date is spoken, never printed: the week range above already
+        // scopes the month, so the visible label stays compact.
+        XCTAssertTrue(add.label.contains("安排一餐"), add.label)
+        XCTAssertTrue(add.label.contains("月"), "the accessibility label must keep the full date: \(add.label)")
+    }
+
+    /// Compacting the empty days must not visually reorder the week:
+    /// unplanned day rows remain in monotonically increasing vertical order
+    /// down the screen, regardless of mixing bare rows and Sections.
+    func testUnplannedDayRowsRemainInVisualOrder() {
+        let app = launch("UITEST_SEED_SPECIAL_PLAN")
+        openPlanner(from: app)
+
+        let adds = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "planner.day.add.")
+        )
+        XCTAssertTrue(adds.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(adds.count, 1, "a partially planned week renders several unplanned days")
+
+        var previousBottom = -Double.greatestFiniteMagnitude
+        for index in 0..<adds.count {
+            let row = adds.element(boundBy: index)
+            XCTAssertGreaterThanOrEqual(
+                row.frame.minY, previousBottom,
+                "unplanned row \(row.identifier) is visually placed above the previous one"
+            )
+            previousBottom = row.frame.minY
+        }
+    }
+
     /// An unplanned day is the one place the week is still open, so it carries
     /// the affordance that opens creation *for that date* — not the week's
     /// implicit default. A day that already has meals keeps its plain header.

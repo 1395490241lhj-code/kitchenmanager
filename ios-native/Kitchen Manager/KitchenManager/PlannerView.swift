@@ -120,6 +120,31 @@ enum PlannerDateText {
     }
 }
 
+extension PlannerDateText {
+    /// `周一 14日`, or `今天 20日` for the current day. Used where a day is
+    /// repeated once per unplanned date and the week range above already names
+    /// the month: printing `9月14日 星期一` six times spends a full line each
+    /// on information the heading already gave. The full string stays the
+    /// accessibility label, so nothing is lost to VoiceOver.
+    static func compactDay(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "EEE"
+        let weekday = calendar.isDate(date, inSameDayAs: now) ? "今天" : formatter.string(from: date)
+        return "\(weekday) \(calendar.component(.day, from: date))日"
+    }
+
+    /// The full date a day is *spoken* as, today marked the way the planned
+    /// header has always marked it. Shared so a planned and an unplanned day
+    /// cannot disagree about the same date, and so compacting the visible
+    /// label can never quietly drop 今天 from VoiceOver.
+    static func spokenDay(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let full = day(date, calendar: calendar)
+        return calendar.isDate(date, inSameDayAs: now) ? full + " · 今天" : full
+    }
+}
+
 struct PlannerView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
@@ -487,74 +512,89 @@ struct PlannerView: View {
                 .plannerRow()
             } else {
                 ForEach(groups) { group in
-                    Section {
-                        // An empty day renders its dated header and nothing
-                        // else. 暂无安排 gave a day with no plans the same
-                        // vertical weight as a day with one, so a sparse week
-                        // read as a wall of absence with the real entries
-                        // scattered through it. Empty is the default state of a
-                        // week, not news — the header still marks the day, so
-                        // the calendar skeleton survives at a fraction of the
-                        // height.
-                        ForEach(group.entries) { entry in
-                            row(for: entry)
-                                .plannerRow()
-                        }
-                    } header: {
-                        let today = calendar.isDate(group.day, inSameDayAs: currentDate)
-                        let dayText = PlannerDateText.day(group.day, calendar: calendar) + (today ? " · 今天" : "")
-                        Group {
-                            if group.entries.isEmpty {
-                                // An unplanned day is the one place the week is
-                                // still open, so it is the one place the week
-                                // can be acted on. The affordance rides on the
-                                // header the day already has: no extra row, no
-                                // card, and nothing added to days that are
-                                // already planned.
-                                Button {
-                                    createMeal(on: group.day)
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Text(dayText)
-                                            .font(.subheadline.weight(today ? .semibold : .regular))
-                                            .foregroundStyle(today ? Color.primary : Color.secondary)
-                                        Spacer(minLength: 8)
-                                        Image(systemName: "plus")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.tertiary)
-                                            .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                                            .accessibilityHidden(true)
-                                    }
-                                    .frame(minHeight: AppTheme.minimumHitTarget)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("planner.day.add.\(calendar.component(.day, from: group.day))")
-                                .accessibilityLabel("\(dayText)，安排一餐")
-                            } else {
-                                Text(dayText)
-                                    .font(.subheadline.weight(today ? .semibold : .regular))
-                                    .foregroundStyle(today ? Color.primary : Color.secondary)
-                                    .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
-                                    .accessibilityAddTraits(.isHeader)
+                    if group.entries.isEmpty {
+                        // An unplanned day is one compact scheduling row, not a
+                        // dated section header with nothing under it. The old
+                        // shape spent a header's full band — 44pt target plus
+                        // 16/4 padding, ~137pt at Accessibility XXXL — on every
+                        // empty day, so six of them outweighed the one day that
+                        // owned meals and pushed it off the first screen. Same
+                        // action, same identifier, same spoken date; only the
+                        // vertical cost changes.
+                        // No Section wrapper: each one would add the plain
+                        // list's inter-section spacing to every repetition.
+                        unplannedDayRow(for: group.day)
+                    } else {
+                        Section {
+                            ForEach(group.entries) { entry in
+                                row(for: entry)
+                                    .plannerRow()
                             }
+                        } header: {
+                            let today = calendar.isDate(group.day, inSameDayAs: currentDate)
+                            let dayText = PlannerDateText.spokenDay(group.day, now: currentDate, calendar: calendar)
+                            Text(dayText)
+                                .font(.subheadline.weight(today ? .semibold : .regular))
+                                .foregroundStyle(today ? Color.primary : Color.secondary)
+                                .accessibilityIdentifier("planner.day.\(calendar.component(.day, from: group.day))")
+                                .accessibilityAddTraits(.isHeader)
+                                .textCase(nil)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                // Asymmetric on purpose: the gap belongs above
+                                // the day, so a header groups with the meals
+                                // under it instead of floating equidistant
+                                // between two days. This is the whole
+                                // day-boundary treatment — no rules, no cards.
+                                .padding(.top, 16)
+                                .padding(.bottom, 4)
+                                .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
+                                                         bottom: 0, trailing: KitchenTheme.pageGutter))
+                                .background(KitchenTheme.canvas)
                         }
-                        .textCase(nil)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        // Asymmetric on purpose: the gap belongs above the day,
-                        // so a header groups with the meals under it instead of
-                        // floating equidistant between two days. This is the
-                        // whole day-boundary treatment — no rules, no cards.
-                        .padding(.top, 16)
-                        .padding(.bottom, 4)
-                        .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
-                                                 bottom: 0, trailing: KitchenTheme.pageGutter))
-                        .background(KitchenTheme.canvas)
                     }
                 }
             }
         }
         .plannerList()
+    }
+
+    /// One compact, quiet row for a day the week has not used yet: the short
+    /// date the week range does not already give, and the same trailing `+`.
+    /// Deliberately lighter than a planned day's header so real content keeps
+    /// the stronger weight.
+    private func unplannedDayRow(for day: Date) -> some View {
+        // Spoken date keeps the full string *and* the 今天 marker the dated
+        // header used to carry; only the visible label is compact.
+        let spokenDate = PlannerDateText.spokenDay(day, now: currentDate, calendar: calendar)
+        return Button {
+            createMeal(on: day)
+        } label: {
+            HStack(spacing: 8) {
+                Text(PlannerDateText.compactDay(day, now: currentDate, calendar: calendar))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Image(systemName: "plus")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: AppTheme.minimumHitTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("planner.day.add.\(calendar.component(.day, from: day))")
+        .accessibilityLabel("\(spokenDate)，安排一餐")
+        // The 44pt target is the row's whole height here: an unplanned day
+        // carries no content that needs breathing room, and the shared row
+        // inset would add 12pt to each of six repetitions. Planned rows keep
+        // `.plannerRow()` and therefore stay visibly taller.
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
+                                  bottom: 0, trailing: KitchenTheme.pageGutter))
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
     }
 
     @ViewBuilder
