@@ -1033,6 +1033,45 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
     // MARK: - ACCESSIBILITY & LAYOUT (Tests 35-38)
 
+    func test35b_AccessibilityXXXLHistoryMetadataShowsContextAndDateNaturally() {
+        let app = launchApp(
+            arguments: [
+                "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+                "UITEST_AI_CONVERSATION_SEED_HISTORY"
+            ],
+            contentSize: "UICTContentSizeCategoryAccessibilityXXXL"
+        )
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["历史记录"].tap()
+
+        let pinnedRow = app.buttons["kitchenAI.history.row.11111111-1111-1111-1111-111111111111"]
+        XCTAssertTrue(pinnedRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(pinnedRow.isHittable)
+        XCTAssertTrue(pinnedRow.staticTexts["置顶买菜建议"].exists)
+        XCTAssertTrue(pinnedRow.staticTexts["已置顶"].exists)
+
+        let pinnedMeta = pinnedRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "今天，")).firstMatch
+        XCTAssertTrue(pinnedMeta.waitForExistence(timeout: 5), "Metadata accessibility label should read naturally without isolated separator")
+
+        app.swipeUp()
+
+        let homeRow = app.buttons["kitchenAI.history.row.22222222-2222-2222-2222-222222222222"]
+        XCTAssertTrue(homeRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(homeRow.isHittable)
+        XCTAssertTrue(homeRow.staticTexts["今晚快手菜"].exists)
+        XCTAssertTrue(homeRow.staticTexts["活跃"].exists)
+        let homeMeta = homeRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "今天，")).firstMatch
+        XCTAssertTrue(homeMeta.waitForExistence(timeout: 5), "Home metadata accessibility label should read naturally without isolated separator")
+
+        let plannerRow = app.buttons["kitchenAI.history.row.66666666-6666-6666-6666-666666666666"]
+        XCTAssertTrue(plannerRow.waitForExistence(timeout: 5))
+        XCTAssertTrue(plannerRow.isHittable)
+        XCTAssertTrue(plannerRow.staticTexts["本周计划建议"].exists)
+        XCTAssertTrue(plannerRow.staticTexts["活跃"].exists)
+        let plannerMeta = plannerRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "一周计划，")).firstMatch
+        XCTAssertTrue(plannerMeta.waitForExistence(timeout: 5), "Planner metadata accessibility label should read naturally without isolated separator")
+    }
+
     func test35_AccessibilityXXXLStillExposesComposerAndAction() {
         let app = launchApp(
             arguments: [

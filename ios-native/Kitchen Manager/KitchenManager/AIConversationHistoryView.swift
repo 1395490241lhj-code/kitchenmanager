@@ -281,22 +281,22 @@ struct ConversationHistoryRow: View {
                 // Which kitchen task this was, above when it last moved. A row
                 // that only carried title, excerpt and a timestamp read as a
                 // generic chat session rather than a task.
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: identity.symbolName)
                         .font(.caption2)
                         .accessibilityHidden(true)
-                    Text(identity.contextLine)
+                    (Text(identity.contextLine)
                         .font(.caption.weight(.medium))
-                    Text("·")
+                    // NBSP keeps the separator attached to the surrounding metadata.
+                    + Text("\u{00A0}·\u{00A0}")
                         .font(.caption2)
-                        .accessibilityHidden(true)
-                    Text(Self.dateFormatter.string(from: conversation.lastActivityAt))
-                        .font(.caption2)
+                    + Text(Self.dateFormatter.string(from: conversation.lastActivityAt))
+                        .font(.caption2))
+                    .accessibilityLabel("\(identity.contextLine)，\(Self.dateFormatter.string(from: conversation.lastActivityAt))")
                 }
                 .foregroundStyle(KitchenTheme.textSecondary)
-                .lineLimit(2)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
                 .padding(.top, 2)
-                .accessibilityElement(children: .combine)
             }
             .padding(.vertical, 4)
         }
