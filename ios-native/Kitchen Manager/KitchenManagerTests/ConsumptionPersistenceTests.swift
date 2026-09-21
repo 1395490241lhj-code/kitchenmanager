@@ -259,6 +259,78 @@ final class ConsumptionPersistenceTests: XCTestCase {
         store.clearAllLocalData()
         XCTAssertTrue(try bundle.consumption.loadRecords().isEmpty)
     }
+
+    func testLegacyRawUUIDPayloadDecodesWithNilSpecialPlanFields() throws {
+        let persistence = try makePersistence()
+        let legacyID = UUID()
+        let rawPlanIDsData = try JSONEncoder().encode([legacyID])
+        let itemsData = try JSONEncoder().encode([makeItem()])
+        let entity = try ConsumptionRecordEntity(record: makeRecord(planIDs: [legacyID]), sortIndex: 0)
+        // Force legacy raw [UUID] data into planIDsData
+        entity.planIDsData = rawPlanIDsData
+        entity.itemsData = itemsData
+        let record = try entity.consumptionRecord()
+        XCTAssertEqual(record.planIDs, [legacyID])
+        XCTAssertNil(record.specialPlanID)
+        XCTAssertNil(record.specialPlanDishID)
+        XCTAssertNil(record.specialPlanTitleSnapshot)
+    }
+
+    func testSpecialPlanPayloadRoundTripsThroughEntity() throws {
+        let persistence = try makePersistence()
+        let specialPlanID = UUID()
+        let specialPlanDishID = UUID()
+        let record = InventoryConsumptionRecord(
+            id: UUID(),
+            date: Date(timeIntervalSince1970: 1_700_000_000),
+            recipeID: "rec-special",
+            recipeName: "麻婆豆腐",
+            planIDs: [],
+            specialPlanID: specialPlanID,
+            specialPlanDishID: specialPlanDishID,
+            specialPlanTitleSnapshot: "朋友聚餐",
+            items: [makeItem()]
+        )
+        try persistence.upsert(record)
+        let loaded = try persistence.loadRecords()
+        XCTAssertEqual(loaded.count, 1)
+        let first = loaded[0]
+        XCTAssertEqual(first.id, record.id)
+        XCTAssertEqual(first.planIDs, [])
+        XCTAssertEqual(first.specialPlanID, specialPlanID)
+        XCTAssertEqual(first.specialPlanDishID, specialPlanDishID)
+        XCTAssertEqual(first.specialPlanTitleSnapshot, "朋友聚餐")
+        XCTAssertEqual(first.recipeName, "麻婆豆腐")
+    }
+
+    func testLegacyBackupRecordJSONWithoutSpecialPlanFieldsDecodesSafely() throws {
+        let legacyJSON = """
+        {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "date": 1700000000,
+            "recipeID": "recipe-old",
+            "recipeName": "老番茄炒蛋",
+            "planIDs": ["22222222-2222-2222-2222-222222222222"],
+            "items": [],
+            "isUndone": false
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(InventoryConsumptionRecord.self, from: legacyJSON)
+        XCTAssertEqual(decoded.id, UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        XCTAssertEqual(decoded.planIDs, [UUID(uuidString: "22222222-2222-2222-2222-222222222222")!])
+        XCTAssertNil(decoded.specialPlanID)
+        XCTAssertNil(decoded.specialPlanDishID)
+        XCTAssertNil(decoded.specialPlanTitleSnapshot)
+    }
+
+    func testCorruptedPlanIDsDataThrowsInsteadOfConstructingEmptyTarget() throws {
+        let persistence = try makePersistence()
+        let entity = try ConsumptionRecordEntity(record: makeRecord(), sortIndex: 0)
+        // Corrupt planIDsData with non-JSON junk bytes
+        entity.planIDsData = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        XCTAssertThrowsError(try entity.consumptionRecord())
+    }
 }
 
 @MainActor

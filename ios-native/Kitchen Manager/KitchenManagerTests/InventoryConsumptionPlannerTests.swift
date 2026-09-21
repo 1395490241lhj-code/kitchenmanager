@@ -273,4 +273,291 @@ final class InventoryConsumptionPlannerTests: XCTestCase {
         )
         XCTAssertNotNil(drafts[0].warning)
     }
+
+    // MARK: - Special Plan Dish Consumption
+
+    func test_specialPlanDishDraft_usesRecipeQuantitiesAsWritten_notMultipliedByPeopleCount() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let specialRecipe = recipe(title: "大盘鸡", ingredients: ["鸡肉 500g", "土豆 2个"])
+        kitchenStore.addInventory(name: "鸡肉", quantity: 1000, unit: "g", expiryDate: nil)
+        kitchenStore.addInventory(name: "土豆", quantity: 5, unit: "个", expiryDate: nil)
+
+        let specialPlanID = UUID()
+        let dishID = UUID()
+        let store = CookConsumptionStore()
+
+        // Target with 10 people in the plan must STILL use exact recipe quantities (500g and 2个),
+        // NOT multiplied by peopleCount (which would be 5000g and 20个).
+        store.buildDrafts(
+            target: .specialPlanDish(
+                planID: specialPlanID,
+                dishID: dishID,
+                planTitleSnapshot: "十人聚餐",
+                recipe: specialRecipe
+            ),
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        )
+
+        XCTAssertEqual(store.drafts.count, 2)
+        let chicken = try XCTUnwrap(store.drafts.first { $0.ingredientName == "鸡肉" })
+        XCTAssertEqual(chicken.requiredQuantity, 500)
+        XCTAssertEqual(chicken.consumedQuantity, 500)
+
+        let potato = try XCTUnwrap(store.drafts.first { $0.ingredientName == "土豆" })
+        XCTAssertEqual(potato.requiredQuantity, 2)
+        XCTAssertEqual(potato.consumedQuantity, 2)
+    }
+
+    func test_specialPlanDish_idempotencyPreventsDuplicateDeduction() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dishRecipe = recipe(title: "麻婆豆腐", ingredients: ["豆腐 1盒"])
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "盒", expiryDate: nil)
+
+        let specialPlanID = UUID()
+        let dishID = UUID()
+        let target = CookConsumptionTarget.specialPlanDish(
+            planID: specialPlanID,
+            dishID: dishID,
+            planTitleSnapshot: "周末聚会",
+            recipe: dishRecipe
+        )
+
+        let store1 = CookConsumptionStore()
+        store1.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(store1.confirm(
+            target: target,
+            recipeID: dishRecipe.id,
+            recipeName: dishRecipe.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertTrue(kitchenStore.hasConsumedSpecialPlanDish(planID: specialPlanID, dishID: dishID))
+        let firstRecord = try XCTUnwrap(kitchenStore.consumptionRecords.first)
+        XCTAssertEqual(firstRecord.specialPlanID, specialPlanID)
+        XCTAssertEqual(firstRecord.specialPlanDishID, dishID)
+        XCTAssertEqual(firstRecord.specialPlanTitleSnapshot, "周末聚会")
+
+        // Second attempt for the exact same special plan dish must NOT deduct again
+        let store2 = CookConsumptionStore()
+        store2.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(store2.isTargetAlreadySatisfied(target: target, kitchenStore: kitchenStore))
+        XCTAssertTrue(store2.confirm(
+            target: target,
+            recipeID: dishRecipe.id,
+            recipeName: dishRecipe.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+        // Quantity remains 4, not 3
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+    }
+
+    func test_sameRecipeInDifferentSpecialPlansMayLegitimatelyDeductSeparately() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dishRecipe = recipe(title: "麻婆豆腐", ingredients: ["豆腐 1盒"])
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "盒", expiryDate: nil)
+
+        let plan1 = UUID(), dish1 = UUID()
+        let plan2 = UUID(), dish2 = UUID()
+
+        let target1 = CookConsumptionTarget.specialPlanDish(planID: plan1, dishID: dish1, planTitleSnapshot: "聚餐A", recipe: dishRecipe)
+        let target2 = CookConsumptionTarget.specialPlanDish(planID: plan2, dishID: dish2, planTitleSnapshot: "聚餐B", recipe: dishRecipe)
+
+        let store1 = CookConsumptionStore()
+        store1.buildDrafts(target: target1, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        _ = store1.confirm(target: target1, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+
+        let store2 = CookConsumptionStore()
+        store2.buildDrafts(target: target2, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        _ = store2.confirm(target: target2, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        // Deducts second time because it's a different event/dish target
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 3)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 2)
+    }
+
+    func test_undoneSpecialPlanReceiptAllowsLaterReDeduction() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dishRecipe = recipe(title: "麻婆豆腐", ingredients: ["豆腐 1盒"])
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "盒", expiryDate: nil)
+
+        let planID = UUID(), dishID = UUID()
+        let target = CookConsumptionTarget.specialPlanDish(planID: planID, dishID: dishID, planTitleSnapshot: "聚会", recipe: dishRecipe)
+
+        let store1 = CookConsumptionStore()
+        store1.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        _ = store1.confirm(target: target, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertTrue(kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID))
+
+        // Undo receipt
+        let record = try XCTUnwrap(kitchenStore.consumptionRecords.first)
+        kitchenStore.undoConsumption(record)
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 5)
+        XCTAssertFalse(kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID), "undone receipt must not block subsequent consumption")
+
+        // Now retry consumption
+        let store2 = CookConsumptionStore()
+        store2.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertFalse(store2.isTargetAlreadySatisfied(target: target, kitchenStore: kitchenStore))
+        _ = store2.confirm(target: target, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+    }
+
+    func test_specialPlanDish_partialFailureRetainsInventoryAndAllowsRetryWithoutDoubleDeduction() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dishRecipe = recipe(title: "麻婆豆腐", ingredients: ["豆腐 1盒"])
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "盒", expiryDate: nil)
+
+        let planID = UUID(), dishID = UUID()
+        let target = CookConsumptionTarget.specialPlanDish(planID: planID, dishID: dishID, planTitleSnapshot: "聚会", recipe: dishRecipe)
+
+        let store = CookConsumptionStore()
+        store.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        // First confirmation succeeds on inventory deduction
+        XCTAssertTrue(store.confirm(target: target, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertTrue(kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID))
+
+        // Injected dish state failure outcome
+        store.setCompletionOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
+        XCTAssertEqual(store.completionOutcome, .dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
+
+        // Inventory must remain deducted, receipt must remain active, NOT undone
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+        XCTAssertFalse(kitchenStore.consumptionRecords[0].isUndone)
+
+        // Retry attempt: is already satisfied, confirms without second deduction
+        let retryStore = CookConsumptionStore()
+        retryStore.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(retryStore.isTargetAlreadySatisfied(target: target, kitchenStore: kitchenStore))
+        XCTAssertTrue(retryStore.confirm(target: target, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+    }
+
+    func test_specialPlanDish_withoutRecipeAndWithoutActiveReceipt_refusesConfirmation() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "盒", expiryDate: nil)
+
+        let planID = UUID(), dishID = UUID()
+        // Target has recipe == nil and no active receipt exists
+        let target = CookConsumptionTarget.specialPlanDish(planID: planID, dishID: dishID, planTitleSnapshot: "聚会", recipe: nil)
+
+        let store = CookConsumptionStore()
+        store.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertFalse(store.confirm(target: target, recipeID: nil, recipeName: "未知菜品", kitchenStore: kitchenStore, recipeStore: recipeStore), "Must refuse confirmation when recipe is nil and no receipt exists")
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 5, "Inventory must remain unchanged")
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 0, "No receipt must be fabricated")
+    }
+
+    func test_specialPlanDish_realPersistenceFailure_leavesReceiptAndDeductionActiveAndRetriesSuccessfully() throws {
+        struct InjectedFailure: Error {}
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let inventory = InventoryPersistenceFactory.isolatedInMemory()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(
+            userDefaults: defaults,
+            inventoryPersistence: inventory,
+            shoppingListPersistence: bundle.shoppingList,
+            todayPlanPersistence: bundle.todayPlan,
+            consumptionPersistence: bundle.consumption,
+            specialPlanPersistence: bundle.specialPlans
+        )
+        let recipeStore = RecipeStore(userDefaults: defaults)
+        let dishRecipe = recipe(title: "麻婆豆腐", ingredients: ["豆腐 1盒"])
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "盒", expiryDate: nil)
+
+        let dish = SpecialPlanDish(recipeID: dishRecipe.id, recipeName: dishRecipe.title, isCooked: false)
+        var plan = SpecialPlan(title: "家宴", scheduledAt: Date(), peopleCount: 4, usesHomeInventory: true, dishes: [dish])
+        kitchenStore.addSpecialPlan(plan)
+        let planID = plan.id
+        let dishID = dish.id
+
+        let target = CookConsumptionTarget.specialPlanDish(planID: planID, dishID: dishID, planTitleSnapshot: "家宴", recipe: dishRecipe)
+        let store = CookConsumptionStore()
+        store.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        // 1. Consumption succeeds
+        XCTAssertTrue(store.confirm(target: target, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertTrue(kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID))
+
+        // 2. Inject one-shot save failure into SpecialPlanPersistence
+        kitchenStore.injectSpecialPlanPersistenceFailureForTesting(InjectedFailure())
+
+        // 3. Attempt persist-first dish completion
+        let outcome = kitchenStore.setSpecialPlanDishCookedPersisted(planID: planID, dishID: dishID, isCooked: true)
+        guard case .persistenceFailed = outcome else {
+            return XCTFail("Expected .persistenceFailed, got \(outcome)")
+        }
+        // Dish must remain unfinished in published memory
+        XCTAssertEqual(kitchenStore.specialPlans.first?.dishes.first?.isCooked, false)
+        // Inventory remains deducted and receipt remains active
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+        XCTAssertFalse(kitchenStore.consumptionRecords[0].isUndone)
+
+        // 4. Retry after failure (failNextReplaceSaveForTesting was consumed, so next save succeeds)
+        let retryStore = CookConsumptionStore()
+        retryStore.buildDrafts(target: target, kitchenStore: kitchenStore, recipeStore: recipeStore)
+        XCTAssertTrue(retryStore.isTargetAlreadySatisfied(target: target, kitchenStore: kitchenStore))
+        XCTAssertTrue(retryStore.confirm(target: target, recipeID: dishRecipe.id, recipeName: dishRecipe.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+        // No double deduction
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 4)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 1)
+
+        // 5. Completion persistence now succeeds
+        let retryOutcome = kitchenStore.setSpecialPlanDishCookedPersisted(planID: planID, dishID: dishID, isCooked: true)
+        guard case .saved(let updatedPlan) = retryOutcome else {
+            return XCTFail("Expected .saved on retry, got \(retryOutcome)")
+        }
+        XCTAssertEqual(updatedPlan.dishes.first?.isCooked, true)
+        XCTAssertEqual(kitchenStore.specialPlans.first?.dishes.first?.isCooked, true)
+    }
+
+    func test_specialPlanDish_missingRecipeCompletesWithoutFabricatedDeduction() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchenStore = KitchenStore(userDefaults: defaults)
+        let plan = SpecialPlan(
+            title: "家宴",
+            scheduledAt: Date(),
+            peopleCount: 4,
+            usesHomeInventory: true,
+            dishes: [
+                SpecialPlanDish(recipeID: "missing-recipe-id", recipeName: "已删菜谱菜")
+            ]
+        )
+        kitchenStore.addSpecialPlan(plan)
+        kitchenStore.addInventory(name: "豆腐", quantity: 5, unit: "块", expiryDate: nil)
+
+        let dishID = plan.dishes[0].id
+        let outcome = kitchenStore.setSpecialPlanDishCookedPersisted(planID: plan.id, dishID: dishID, isCooked: true)
+        guard case .saved(let updatedPlan) = outcome else {
+            return XCTFail("Expected .saved, got \(outcome)")
+        }
+        XCTAssertEqual(updatedPlan.dishes[0].isCooked, true)
+        // Inventory is completely untouched, no consumption record fabricated
+        XCTAssertEqual(kitchenStore.inventory.first?.quantity, 5)
+        XCTAssertEqual(kitchenStore.consumptionRecords.count, 0)
+        XCTAssertFalse(kitchenStore.hasConsumedSpecialPlanDish(planID: plan.id, dishID: dishID))
+    }
 }

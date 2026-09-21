@@ -1503,6 +1503,12 @@ final class KitchenStore: ObservableObject {
         }
     }
 
+    #if DEBUG
+    func injectSpecialPlanPersistenceFailureForTesting(_ error: Error) {
+        (specialPlanPersistence as? SwiftDataSpecialPlanPersistence)?.failNextReplaceSaveForTesting = error
+    }
+    #endif
+
     /// `plannedServings` defaults to `nil`, not `1`: a caller that has not asked
     /// the user how much to make must not silently assert one serving.
     func addPlan(recipe: Recipe, plannedServings: Int? = nil) {
@@ -1862,6 +1868,26 @@ final class KitchenStore: ObservableObject {
         return .saved(updated[index])
     }
 
+    /// Persist-first completion update for one dish in a Special Plan.
+    /// Uses `commitSpecialPlans` so disk durability precedes in-memory publication.
+    @discardableResult
+    func setSpecialPlanDishCookedPersisted(
+        planID: UUID,
+        dishID: UUID,
+        isCooked: Bool,
+        now: Date = Date()
+    ) -> DomainMutationOutcome<SpecialPlan> {
+        guard let planIndex = specialPlans.firstIndex(where: { $0.id == planID }),
+              let dishIndex = specialPlans[planIndex].dishes.firstIndex(where: { $0.id == dishID }) else {
+            return .notFound
+        }
+        var updated = specialPlans
+        updated[planIndex].dishes[dishIndex].isCooked = isCooked
+        updated[planIndex].updatedAt = now
+        guard commitSpecialPlans(updated) else { return .persistenceFailed }
+        return .saved(updated[planIndex])
+    }
+
     /// Restates which recipe named dishes point at, leaving the rest of the
     /// event alone. One durable write for the whole set.
     ///
@@ -1988,6 +2014,14 @@ final class KitchenStore: ObservableObject {
         consumptionRecords.contains { !$0.isUndone && $0.planIDs.contains(planID) }
     }
 
+    /// A Special Plan dish covered by a non-undone consumption record must not be deducted
+    /// twice when the same dish is confirmed again.
+    func hasConsumedSpecialPlanDish(planID: UUID, dishID: UUID) -> Bool {
+        consumptionRecords.contains {
+            !$0.isUndone && $0.specialPlanID == planID && $0.specialPlanDishID == dishID
+        }
+    }
+
     /// Deducts the selected drafts from inventory, spilling across every matching
     /// batch (earliest-expiring first) rather than just the one row shown in the
     /// confirmation UI — this is what "同名食材有多个批次" actually resolves to, since
@@ -1997,7 +2031,10 @@ final class KitchenStore: ObservableObject {
         _ drafts: [InventoryConsumptionDraft],
         planIDs: [UUID],
         recipeID: String?,
-        recipeName: String
+        recipeName: String,
+        specialPlanID: UUID? = nil,
+        specialPlanDishID: UUID? = nil,
+        specialPlanTitleSnapshot: String? = nil
     ) -> InventoryConsumptionRecord {
         // R1b: this path writes the database from the in-memory snapshot
         // *before* publishing, so the `didSet` gate cannot protect it — it
@@ -2009,7 +2046,11 @@ final class KitchenStore: ObservableObject {
             consumptionNotice = Self.inventoryLockedForSyncNotice
             return InventoryConsumptionRecord(
                 id: UUID(), date: Date(), recipeID: recipeID,
-                recipeName: recipeName, planIDs: planIDs, items: []
+                recipeName: recipeName, planIDs: planIDs,
+                specialPlanID: specialPlanID,
+                specialPlanDishID: specialPlanDishID,
+                specialPlanTitleSnapshot: specialPlanTitleSnapshot,
+                items: []
             )
         }
         var recordItems: [InventoryConsumptionRecordItem] = []
@@ -2061,6 +2102,9 @@ final class KitchenStore: ObservableObject {
             recipeID: recipeID,
             recipeName: recipeName,
             planIDs: planIDs,
+            specialPlanID: specialPlanID,
+            specialPlanDishID: specialPlanDishID,
+            specialPlanTitleSnapshot: specialPlanTitleSnapshot,
             items: recordItems
         )
         let updatedRecords = [record] + consumptionRecords

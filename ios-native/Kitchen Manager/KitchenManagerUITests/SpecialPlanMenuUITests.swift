@@ -301,3 +301,113 @@ final class SpecialPlanMenuUITests: XCTestCase {
         }
     }
 }
+
+extension SpecialPlanMenuUITests {
+    func testSpecialPlanDishCompletionFlows() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_SPECIAL_PLAN",
+            "UITEST_SEED_SPECIAL_PLAN_WITH_INVENTORY"
+        ]
+        app.launch()
+        openSeededPlanDetail(from: app)
+
+        // A: Home-inventory event: tap completion -> reconciliation sheet appears -> confirm
+        let mapoDoneBtn = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "planner.dish.done.")).element(boundBy: 0)
+        XCTAssertTrue(mapoDoneBtn.waitForExistence(timeout: 5))
+        mapoDoneBtn.tap()
+
+        // Confirmation sheet should appear with "更新冰箱"
+        let updateFridgeBtn = app.buttons["更新冰箱"]
+        XCTAssertTrue(updateFridgeBtn.waitForExistence(timeout: 5))
+        updateFridgeBtn.tap()
+
+        // Sheet confirms and finishes
+        let finishBtn = app.buttons["完成"]
+        XCTAssertTrue(finishBtn.waitForExistence(timeout: 5))
+        finishBtn.tap()
+
+        // Confirmation sheet dismisses and dish is now completed in the view
+        XCTAssertTrue(app.staticTexts["已完成"].waitForExistence(timeout: 10))
+
+        // Uncheck the dish (asserting completion toggle behavior without claiming inventory is restored)
+        mapoDoneBtn.tap()
+        XCTAssertTrue(app.staticTexts["待准备"].waitForExistence(timeout: 5))
+    }
+
+    func testSpecialPlanDishCompletionWithoutHomeInventoryDirectlyCompletes() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_SPECIAL_PLAN",
+            "UITEST_SEED_SPECIAL_PLAN_NO_HOME_INVENTORY"
+        ]
+        app.launch()
+        openSeededPlanDetail(from: app)
+
+        let mapoDoneBtn = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "planner.dish.done.")).element(boundBy: 0)
+        XCTAssertTrue(mapoDoneBtn.waitForExistence(timeout: 5))
+        mapoDoneBtn.tap()
+
+        // No sheet should open
+        XCTAssertFalse(app.buttons["更新冰箱"].exists)
+        // Dish becomes completed
+        XCTAssertTrue(app.staticTexts["已完成"].waitForExistence(timeout: 5))
+
+        // Uncheck toggles back to false
+        mapoDoneBtn.tap()
+        XCTAssertTrue(app.staticTexts["待准备"].waitForExistence(timeout: 5))
+    }
+
+    func testSpecialPlanDishCompletionPartialFailureAndRecoveryFlow() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "UITEST_SEED_SPECIAL_PLAN",
+            "UITEST_SEED_SPECIAL_PLAN_WITH_INVENTORY",
+            "UITEST_SPECIAL_PLAN_FAIL_NEXT_SAVE"
+        ]
+        app.launch()
+        openSeededPlanDetail(from: app)
+
+        // Tap completion on the first dish
+        let mapoDoneBtn = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "planner.dish.done.")).element(boundBy: 0)
+        XCTAssertTrue(mapoDoneBtn.waitForExistence(timeout: 5))
+        mapoDoneBtn.tap()
+
+        // Confirm consumption
+        let updateFridgeBtn = app.buttons["更新冰箱"]
+        XCTAssertTrue(updateFridgeBtn.waitForExistence(timeout: 5))
+        updateFridgeBtn.tap()
+
+        // Injected failure kicks in for dish completion save:
+        // Sheet must visibly show "库存已更新" and "菜品完成状态未保存，请重试。"
+        XCTAssertTrue(app.staticTexts["库存已更新"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["菜品完成状态未保存，请重试。"].waitForExistence(timeout: 5))
+
+        // Dismiss sheet
+        let finishBtn = app.buttons["完成"]
+        XCTAssertTrue(finishBtn.waitForExistence(timeout: 5))
+        finishBtn.tap()
+
+        // Dish remains unfinished because its save failed
+        XCTAssertTrue(app.staticTexts["待准备"].waitForExistence(timeout: 5))
+
+        // Retry: tap dish completion again
+        mapoDoneBtn.tap()
+
+        // Recovery state: sheet must NOT show editable consumption drafts or "更新冰箱",
+        // but instead the already-satisfied treatment "确认完成这道菜" / "确认完成"
+        let confirmCompleteBtn = app.buttons["确认完成"]
+        XCTAssertTrue(confirmCompleteBtn.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["更新冰箱"].exists)
+        XCTAssertTrue(app.staticTexts["食材消耗已经记录，本次确认不会再次扣减库存。"].waitForExistence(timeout: 5))
+
+        // Confirm completes the dish save
+        confirmCompleteBtn.tap()
+        let finishRetryBtn = app.buttons["完成"]
+        XCTAssertTrue(finishRetryBtn.waitForExistence(timeout: 5))
+        finishRetryBtn.tap()
+
+        // Dish is now completed
+        XCTAssertTrue(app.staticTexts["已完成"].waitForExistence(timeout: 10))
+    }
+}

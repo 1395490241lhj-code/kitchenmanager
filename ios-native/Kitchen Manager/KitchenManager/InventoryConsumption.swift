@@ -21,6 +21,11 @@ struct InventoryConsumptionRecord: Identifiable, Codable, Hashable {
     /// Every `MealPlanItem.id` this record marks as consumed (the plural exists for
     /// multi-meal confirmations and for records written before D-042) — no second record type.
     var planIDs: [UUID]
+    /// Optional Special Plan identity. Invariants: when present, `planIDs` is empty;
+    /// when absent/ordinary meal, these fields are nil.
+    var specialPlanID: UUID? = nil
+    var specialPlanDishID: UUID? = nil
+    var specialPlanTitleSnapshot: String? = nil
     var items: [InventoryConsumptionRecordItem]
     var isUndone = false
 }
@@ -337,6 +342,17 @@ enum ExpiryNotificationScheduler {
 
 // MARK: - Confirmation flow store
 
+enum CookConsumptionTarget: Equatable {
+    case plannedMeals(planIDs: [UUID], recipe: Recipe?, servings: Int)
+    case directRecipe(recipe: Recipe, servings: Int)
+    case specialPlanDish(planID: UUID, dishID: UUID, planTitleSnapshot: String, recipe: Recipe?)
+}
+
+enum CookConsumptionCompletionOutcome: Equatable {
+    case completed
+    case dishStateSaveFailed(message: String)
+}
+
 @MainActor
 final class CookConsumptionStore: ObservableObject {
     // Not private(set): the confirmation view binds directly to individual drafts
@@ -344,6 +360,7 @@ final class CookConsumptionStore: ObservableObject {
     @Published var drafts: [InventoryConsumptionDraft] = []
     @Published private(set) var restockSuggestions: [RestockSuggestion] = []
     @Published private(set) var didConfirm = false
+    @Published private(set) var completionOutcome: CookConsumptionCompletionOutcome? = nil
     @Published private(set) var unresolvedPlanNames: [String] = []
 
     private let planner = InventoryConsumptionPlanner()
@@ -351,6 +368,30 @@ final class CookConsumptionStore: ObservableObject {
     private var isDirectRecipeConsumption = false
     private var preparedPlanIDs: Set<UUID> = []
     private var preparedUnconsumedIDs: Set<UUID> = []
+    private var currentTarget: CookConsumptionTarget? = nil
+
+    func isTargetAlreadySatisfied(target: CookConsumptionTarget, kitchenStore: KitchenStore) -> Bool {
+        switch target {
+        case .plannedMeals(let planIDs, _, _):
+            return allTargetsAlreadySatisfied(planIDs, kitchenStore: kitchenStore)
+        case .directRecipe:
+            return false
+        case .specialPlanDish(let planID, let dishID, _, _):
+            return kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID)
+        }
+    }
+
+    func targetAlreadySatisfiedTitle(target: CookConsumptionTarget, kitchenStore: KitchenStore) -> String? {
+        guard isTargetAlreadySatisfied(target: target, kitchenStore: kitchenStore) else { return nil }
+        switch target {
+        case .plannedMeals(let planIDs, _, _):
+            return Set(planIDs).count == 1 ? "确认完成这道菜" : "确认完成这些菜"
+        case .directRecipe:
+            return nil
+        case .specialPlanDish:
+            return "确认完成这道菜"
+        }
+    }
 
     /// A no-deduction confirmation is proved by exact, still-existing targets,
     /// never by an empty ingredient list or matching recipe names.
@@ -366,12 +407,58 @@ final class CookConsumptionStore: ObservableObject {
     }
 
     func buildDrafts(
+        target: CookConsumptionTarget,
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore
+    ) {
+        currentTarget = target
+        switch target {
+        case .plannedMeals(let planIDs, let recipe, let servings):
+            buildDrafts(
+                planIDs: planIDs,
+                recipe: recipe,
+                servings: servings,
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore
+            )
+        case .directRecipe(let recipe, let servings):
+            buildDrafts(
+                planIDs: [],
+                recipe: recipe,
+                servings: servings,
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore
+            )
+        case .specialPlanDish(let planID, let dishID, _, let recipe):
+            preparedPlanIDs = []
+            preparedUnconsumedIDs = []
+            isDirectRecipeConsumption = false
+            var inputs: [InventoryConsumptionPlanner.RecipeConsumptionInput] = []
+            var unresolved: [String] = []
+            if let recipe {
+                inputs.append(.init(recipe: recipe, servings: 1))
+            } else {
+                unresolved.append("这道菜品")
+            }
+            unresolvedPlanNames = unresolved
+            drafts = planner.plan(for: inputs, inventory: kitchenStore.inventory)
+        }
+    }
+
+    func buildDrafts(
         planIDs: [UUID],
         recipe: Recipe? = nil,
         servings: Int = 1,
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore
     ) {
+        if currentTarget == nil {
+            if planIDs.isEmpty, let recipe {
+                currentTarget = .directRecipe(recipe: recipe, servings: servings)
+            } else {
+                currentTarget = .plannedMeals(planIDs: planIDs, recipe: recipe, servings: servings)
+            }
+        }
         preparedPlanIDs = Set(planIDs)
         preparedUnconsumedIDs = Set(planIDs.filter { !kitchenStore.hasConsumedPlan($0) })
         var inputs: [InventoryConsumptionPlanner.RecipeConsumptionInput] = []
@@ -420,6 +507,67 @@ final class CookConsumptionStore: ObservableObject {
             source: "做饭缺货"
         )
         drafts[index].isSelected = false
+    }
+
+    @discardableResult
+    func confirm(
+        target: CookConsumptionTarget,
+        recipeID: String?,
+        recipeName: String,
+        kitchenStore: KitchenStore,
+        recipeStore: RecipeStore
+    ) -> Bool {
+        switch target {
+        case .plannedMeals(let planIDs, _, _):
+            return confirm(
+                planIDs: planIDs,
+                recipeID: recipeID,
+                recipeName: recipeName,
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore
+            )
+        case .directRecipe:
+            return confirm(
+                planIDs: [],
+                recipeID: recipeID,
+                recipeName: recipeName,
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore
+            )
+        case .specialPlanDish(let planID, let dishID, let titleSnapshot, _):
+            if kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID) {
+                didConfirm = true
+                return true
+            }
+            guard case .specialPlanDish(_, _, _, let recipe) = target, recipe != nil else {
+                // A special plan dish without an existing active receipt must have a recipe
+                // to compute consumption; cannot fabricate a zero-item consumption receipt.
+                return false
+            }
+            let record = kitchenStore.applyConsumption(
+                drafts,
+                planIDs: [],
+                recipeID: recipeID,
+                recipeName: recipeName,
+                specialPlanID: planID,
+                specialPlanDishID: dishID,
+                specialPlanTitleSnapshot: titleSnapshot
+            )
+            guard kitchenStore.consumptionRecords.contains(where: { $0.id == record.id }) else {
+                return false
+            }
+            restockSuggestions = restockEngine.generate(
+                kitchenStore: kitchenStore,
+                recipeStore: recipeStore,
+                justConsumed: record.items
+            )
+            didConfirm = true
+            return true
+        }
+    }
+
+    func setCompletionOutcome(_ outcome: CookConsumptionCompletionOutcome) {
+        self.completionOutcome = outcome
     }
 
     @discardableResult
@@ -491,7 +639,51 @@ struct CookConsumptionConfirmationView: View {
     let recipeName: String
     var recipe: Recipe? = nil
     var servings = 1
-    let onConfirm: () -> Void
+    var target: CookConsumptionTarget? = nil
+    var onConfirmWithOutcome: (@MainActor (@escaping (CookConsumptionCompletionOutcome) -> Void) -> Void)? = nil
+    var onConfirm: (() -> Void)? = nil
+
+    init(
+        title: String,
+        planIDs: [UUID],
+        recipeID: String?,
+        recipeName: String,
+        recipe: Recipe? = nil,
+        servings: Int = 1,
+        onConfirm: @escaping () -> Void
+    ) {
+        self.title = title
+        self.planIDs = planIDs
+        self.recipeID = recipeID
+        self.recipeName = recipeName
+        self.recipe = recipe
+        self.servings = servings
+        if planIDs.isEmpty, let recipe {
+            self.target = .directRecipe(recipe: recipe, servings: servings)
+        } else {
+            self.target = .plannedMeals(planIDs: planIDs, recipe: recipe, servings: servings)
+        }
+        self.onConfirm = onConfirm
+        self.onConfirmWithOutcome = nil
+    }
+
+    init(
+        target: CookConsumptionTarget,
+        title: String,
+        recipeID: String?,
+        recipeName: String,
+        onConfirmWithOutcome: @escaping @MainActor (@escaping (CookConsumptionCompletionOutcome) -> Void) -> Void
+    ) {
+        self.title = title
+        self.planIDs = []
+        self.recipeID = recipeID
+        self.recipeName = recipeName
+        self.recipe = nil
+        self.servings = 1
+        self.target = target
+        self.onConfirm = nil
+        self.onConfirmWithOutcome = onConfirmWithOutcome
+    }
 
     var body: some View {
         NavigationStack {
@@ -542,7 +734,7 @@ struct CookConsumptionConfirmationView: View {
                     }
                 }
             }
-            .navigationTitle(store.didConfirm ? "已完成" : (alreadySatisfiedTitle ?? "确认本次食材消耗"))
+            .navigationTitle(confirmedOrPendingTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if store.didConfirm {
@@ -555,23 +747,29 @@ struct CookConsumptionConfirmationView: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button(alreadySatisfiedTitle == nil ? "更新冰箱" : "确认完成") {
+                            let resolvedTarget = target ?? .plannedMeals(planIDs: planIDs, recipe: recipe, servings: servings)
                             guard store.confirm(
-                                planIDs: planIDs,
+                                target: resolvedTarget,
                                 recipeID: recipeID,
                                 recipeName: recipeName,
                                 kitchenStore: kitchenStore,
                                 recipeStore: recipeStore
                             ) else { return }
-                            onConfirm()
+                            if let onConfirmWithOutcome {
+                                onConfirmWithOutcome({ outcome in
+                                    store.setCompletionOutcome(outcome)
+                                })
+                            } else if let onConfirm {
+                                onConfirm()
+                            }
                         }
                     }
                 }
             }
             .task {
+                let resolvedTarget = target ?? .plannedMeals(planIDs: planIDs, recipe: recipe, servings: servings)
                 store.buildDrafts(
-                    planIDs: planIDs,
-                    recipe: recipe,
-                    servings: servings,
+                    target: resolvedTarget,
                     kitchenStore: kitchenStore,
                     recipeStore: recipeStore
                 )
@@ -580,7 +778,20 @@ struct CookConsumptionConfirmationView: View {
     }
 
     private var alreadySatisfiedTitle: String? {
-        store.alreadySatisfiedTitle(planIDs, kitchenStore: kitchenStore)
+        if let target {
+            return store.targetAlreadySatisfiedTitle(target: target, kitchenStore: kitchenStore)
+        }
+        return store.alreadySatisfiedTitle(planIDs, kitchenStore: kitchenStore)
+    }
+
+    private var confirmedOrPendingTitle: String {
+        if store.didConfirm {
+            if case .dishStateSaveFailed = store.completionOutcome {
+                return "库存已更新"
+            }
+            return "已完成"
+        }
+        return alreadySatisfiedTitle ?? "确认本次食材消耗"
     }
 
     @ViewBuilder
@@ -643,9 +854,23 @@ struct CookConsumptionConfirmationView: View {
 
     @ViewBuilder
     private var confirmedSection: some View {
-        Section {
-            Label("已记录消耗，库存已更新", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(AppTheme.successInk)
+        if case .dishStateSaveFailed(let message) = store.completionOutcome {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("库存已更新", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(AppTheme.successInk)
+                        .font(.subheadline.weight(.medium))
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(AppTheme.warningInk)
+                        .font(.footnote)
+                }
+                .padding(.vertical, 4)
+            }
+        } else {
+            Section {
+                Label("已记录消耗，库存已更新", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(AppTheme.successInk)
+            }
         }
         if !store.restockSuggestions.isEmpty {
             Section("补货建议") {
@@ -714,7 +939,11 @@ struct RecentConsumptionView: View {
                             }
                         }
                     } header: {
-                        Text(record.recipeName)
+                        if let specialTitle = record.specialPlanTitleSnapshot, !specialTitle.isEmpty {
+                            Text("\(specialTitle) · \(record.recipeName)")
+                        } else {
+                            Text(record.recipeName)
+                        }
                     } footer: {
                         Text(record.date.formatted(date: .abbreviated, time: .shortened))
                     }

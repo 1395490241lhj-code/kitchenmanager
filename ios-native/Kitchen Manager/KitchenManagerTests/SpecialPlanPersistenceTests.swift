@@ -232,6 +232,38 @@ final class SpecialPlanPersistenceTests: XCTestCase {
         XCTAssertEqual(instanceC.specialPlans.first?.dishes.first?.isCooked, false)
     }
 
+    func testSetSpecialPlanDishCookedPersistedReturnsSavedAndPersists() throws {
+        let store = try makeStore()
+        let p = plan()
+        store.addSpecialPlan(p)
+        let dishID = try XCTUnwrap(p.dishes.first?.id)
+
+        let outcome = store.setSpecialPlanDishCookedPersisted(planID: p.id, dishID: dishID, isCooked: true)
+        guard case .saved(let updatedPlan) = outcome else {
+            return XCTFail("Expected .saved, got \(outcome)")
+        }
+        XCTAssertEqual(updatedPlan.dishes.first?.isCooked, true)
+
+        let reopened = try makeStore()
+        XCTAssertEqual(reopened.specialPlans.first?.dishes.first?.isCooked, true)
+    }
+
+    func testSetSpecialPlanDishCookedPersistedReturnsNotFoundForUnknownPlanOrDish() throws {
+        let store = try makeStore()
+        let p = plan()
+        store.addSpecialPlan(p)
+
+        let badPlanOutcome = store.setSpecialPlanDishCookedPersisted(planID: UUID(), dishID: UUID(), isCooked: true)
+        guard case .notFound = badPlanOutcome else {
+            return XCTFail("Expected .notFound, got \(badPlanOutcome)")
+        }
+
+        let badDishOutcome = store.setSpecialPlanDishCookedPersisted(planID: p.id, dishID: UUID(), isCooked: true)
+        guard case .notFound = badDishOutcome else {
+            return XCTFail("Expected .notFound, got \(badDishOutcome)")
+        }
+    }
+
     // MARK: - Home-inventory switch
 
     func testNewPlanDefaultsToNotUsingHomeInventory() {

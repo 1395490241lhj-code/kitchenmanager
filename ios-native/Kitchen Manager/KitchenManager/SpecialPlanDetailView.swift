@@ -11,6 +11,8 @@ struct SpecialPlanDetailView: View {
     /// and pops this screen in the same update.
     let onDelete: () -> Void
     @State private var sheet: SpecialPlanDetailSheet?
+    @State private var toast: (message: String, style: AppFeedbackStyle)?
+    @State private var toastToken: UUID?
     /// Transient AI menu state. Owned by the screen, never persisted: leaving
     /// the detail discards any unsaved draft.
     @StateObject private var menuDraft: SpecialPlanMenuDraftStore
@@ -32,6 +34,7 @@ struct SpecialPlanDetailView: View {
         case picker
         case shopping([Recipe], usesHomeInventory: Bool)
         case draftDish(SpecialPlanMenuDraftDish)
+        case consumption(dish: SpecialPlanDish, plan: SpecialPlan, recipe: Recipe)
 
         var id: String {
             switch self {
@@ -39,6 +42,7 @@ struct SpecialPlanDetailView: View {
             case .picker: "picker"
             case .shopping: "shopping"
             case .draftDish(let dish): "draft-\(dish.id.uuidString)"
+            case .consumption(let dish, _, _): "consumption-\(dish.id.uuidString)"
             }
         }
     }
@@ -90,6 +94,11 @@ struct SpecialPlanDetailView: View {
         .plannerList()
         .navigationTitle(plan.title)
         .navigationBarTitleDisplayMode(.inline)
+        .overlay(alignment: .bottom) {
+            if let current = toast {
+                FeedbackToast(message: current.message, style: current.style, action: nil)
+            }
+        }
         // Leaving the detail already discards the transient draft; it must also
         // stop whatever request is still running for it.
         .onDisappear { menuDraft.cancelGeneration() }
@@ -146,6 +155,32 @@ struct SpecialPlanDetailView: View {
             case .draftDish(let dish):
                 NavigationStack {
                     SpecialPlanDraftDishView(dish: dish)
+                }
+            case .consumption(let dish, let plan, let recipe):
+                CookConsumptionConfirmationView(
+                    target: .specialPlanDish(
+                        planID: plan.id,
+                        dishID: dish.id,
+                        planTitleSnapshot: plan.title,
+                        recipe: recipe
+                    ),
+                    title: dish.recipeName,
+                    recipeID: recipe.id,
+                    recipeName: dish.recipeName
+                ) { setOutcome in
+                    let result = kitchenStore.setSpecialPlanDishCookedPersisted(
+                        planID: plan.id,
+                        dishID: dish.id,
+                        isCooked: true
+                    )
+                    switch result {
+                    case .saved:
+                        setOutcome(.completed)
+                    case .notFound, .persistenceFailed:
+                        setOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
+                    case .rejected:
+                        setOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
+                    }
                 }
             }
         }
@@ -375,7 +410,7 @@ struct SpecialPlanDetailView: View {
     private func dishRow(_ dish: SpecialPlanDish, plan: SpecialPlan) -> some View {
         HStack(spacing: 12) {
             Button {
-                kitchenStore.setDishCooked(dish.id, inSpecialPlan: plan.id, isCooked: !dish.isCooked)
+                handleDishTap(dish, in: plan)
             } label: {
                 Image(systemName: dish.isCooked ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
@@ -403,6 +438,61 @@ struct SpecialPlanDetailView: View {
         .frame(minHeight: dynamicTypeSize.isAccessibilitySize
                ? AppTheme.minimumHitTarget * 1.6
                : AppTheme.minimumHitTarget)
+    }
+
+    private func handleDishTap(_ dish: SpecialPlanDish, in plan: SpecialPlan) {
+        if dish.isCooked {
+            // Unchecking an already-cooked dish simply toggles completion state.
+            // Inventory is NOT restored automatically (separate from undo).
+            let result = kitchenStore.setSpecialPlanDishCookedPersisted(planID: plan.id, dishID: dish.id, isCooked: false)
+            if case .saved = result {
+                // normal toggle
+            } else {
+                showToast("完成状态保存失败，请稍后重试。", style: .error)
+            }
+            return
+        }
+
+        // If the event does not use home inventory, complete directly without deduction.
+        guard plan.usesHomeInventory else {
+            let result = kitchenStore.setSpecialPlanDishCookedPersisted(planID: plan.id, dishID: dish.id, isCooked: true)
+            if case .saved = result {
+                // normal completion
+            } else {
+                showToast("完成状态保存失败，请稍后重试。", style: .error)
+            }
+            return
+        }
+
+        // If recipe cannot be resolved: complete directly with informational notice.
+        guard let recipe = recipeStore.recipe(id: dish.recipeID) else {
+            let result = kitchenStore.setSpecialPlanDishCookedPersisted(planID: plan.id, dishID: dish.id, isCooked: true)
+            if case .saved = result {
+                showToast("菜谱信息已不存在，已标记完成但未更新库存。", style: .informational)
+            } else {
+                showToast("完成状态保存失败，请稍后重试。", style: .error)
+            }
+            return
+        }
+
+        // Open explicit consumption confirmation flow.
+        sheet = .consumption(dish: dish, plan: plan, recipe: recipe)
+    }
+
+    private func showToast(_ message: String, style: AppFeedbackStyle) {
+        let token = UUID()
+        toastToken = token
+        withAnimation {
+            toast = (message: message, style: style)
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if toastToken == token {
+                withAnimation {
+                    toast = nil
+                }
+            }
+        }
     }
 
     private static func detailDateText(_ scheduledAt: Date) -> String {

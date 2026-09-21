@@ -921,15 +921,29 @@ struct ContentView: View {
                 requestText: "这周六 7 个人一起吃饭，1 人不吃辣",
                 // The seed is a home-cooked meal: shopping keeps reconciling
                 // against inventory the way the pre-composer tests expect.
-                usesHomeInventory: true,
+                usesHomeInventory: !ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SPECIAL_PLAN_NO_HOME_INVENTORY"),
                 dishes: startsWithoutAMenu ? [] : [
                     SpecialPlanDish(recipeID: "sample-mapotofu", recipeName: "麻婆豆腐"),
                     SpecialPlanDish(recipeID: "sample-tomato-eggs", recipeName: "番茄炒鸡蛋")
                 ]
             )
+            if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SPECIAL_PLAN_WITH_INVENTORY") {
+                let now = Date()
+                kitchenStore.importInventory([
+                    InventoryImportItem(name: "豆腐", quantity: 5, unit: "块", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now)),
+                    InventoryImportItem(name: "番茄", quantity: 5, unit: "个", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now))
+                ])
+            }
             plan.createdAt = Date()
             plan.updatedAt = plan.createdAt
             kitchenStore.addSpecialPlan(plan)
+            if ProcessInfo.processInfo.arguments.contains("UITEST_SPECIAL_PLAN_FAIL_NEXT_SAVE") {
+                kitchenStore.injectSpecialPlanPersistenceFailureForTesting(NSError(
+                    domain: "SpecialPlanPersistenceTest",
+                    code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "Injected SpecialPlan save failure"]
+                ))
+            }
             // The Planner routing tests require ordinary-plan execution mode.
             kitchenStore.addPlan(recipe: Recipe.samples[0], plannedServings: 2)
             navigationStore.selectedTab = .today
