@@ -63,6 +63,9 @@ final class ConversationOrchestratorTests: XCTestCase {
         var onCancel: (() -> Void)?
         var gate: AsyncGate?
         var isCancelled: Bool = false
+        var onEventYielded: ((AIConversationStreamEvent) async -> Void)?
+        var pauseBeforeEvent: ((AIConversationStreamEvent) async -> Void)?
+        var ignoreTaskCancellation: Bool = false
 
         init(stepResponses: [[AIConversationStreamEvent]] = [], gate: AsyncGate? = nil, onRequest: ((AIConversationRuntimeRequest) async -> [AIConversationStreamEvent])? = nil) {
             self.stepResponses = stepResponses
@@ -72,6 +75,9 @@ final class ConversationOrchestratorTests: XCTestCase {
 
         func setGate(_ gate: AsyncGate) { self.gate = gate }
         func setOnRequest(_ handler: @escaping (AIConversationRuntimeRequest) async -> [AIConversationStreamEvent]) { self.onRequest = handler }
+        func setOnEventYielded(_ handler: @escaping (AIConversationStreamEvent) async -> Void) { self.onEventYielded = handler }
+        func setPauseBeforeEvent(_ handler: @escaping (AIConversationStreamEvent) async -> Void) { self.pauseBeforeEvent = handler }
+        func setIgnoreTaskCancellation(_ ignore: Bool) { self.ignoreTaskCancellation = ignore }
 
         func stream(_ request: AIConversationRuntimeRequest) -> AsyncThrowingStream<AIConversationStreamEvent, Error> {
             capturedRequests.append(request)
@@ -80,7 +86,7 @@ final class ConversationOrchestratorTests: XCTestCase {
                     if let gate = self.gate {
                         await gate.wait()
                     }
-                    if Task.isCancelled {
+                    if Task.isCancelled && !self.ignoreTaskCancellation {
                         self.isCancelled = true
                         self.onCancel?()
                         continuation.finish()
@@ -97,13 +103,19 @@ final class ConversationOrchestratorTests: XCTestCase {
                     }
 
                     for event in events {
-                        if Task.isCancelled {
+                        if Task.isCancelled && !self.ignoreTaskCancellation {
                             self.isCancelled = true
                             self.onCancel?()
                             continuation.finish()
                             return
                         }
+                        if let pause = self.pauseBeforeEvent {
+                            await pause(event)
+                        }
                         continuation.yield(event)
+                        if let onYielded = self.onEventYielded {
+                            await onYielded(event)
+                        }
                     }
                     continuation.finish()
                 }
@@ -583,8 +595,20 @@ final class ConversationOrchestratorTests: XCTestCase {
     func testCancellationAfterTextPreservesText() async throws {
         let env = try TestEnv()
         let gate = AsyncGate()
+        let textDeliveredGate = AsyncGate()
+        let allowCompletedGate = AsyncGate()
         let transport = ScriptedTransport()
         await transport.setGate(gate)
+        await transport.setOnEventYielded { ev in
+            if case .textDelta = ev {
+                await textDeliveredGate.open()
+            }
+        }
+        await transport.setPauseBeforeEvent { ev in
+            if case .completed = ev {
+                await allowCompletedGate.wait()
+            }
+        }
         await transport.setOnRequest { _ in
             [
                 .textDelta("部分输出文字"),
@@ -604,7 +628,9 @@ final class ConversationOrchestratorTests: XCTestCase {
         let textEvent = try await iterator.next()
         XCTAssertEqual(textEvent, .appendText("部分输出文字"))
 
+        await textDeliveredGate.wait()
         orchestrator.cancelCurrentTurn()
+        await allowCompletedGate.open()
 
         let cancelledEvent = try await iterator.next()
         XCTAssertEqual(cancelledEvent, .state(.cancelled))
@@ -1792,5 +1818,95 @@ final class ConversationOrchestratorTests: XCTestCase {
         XCTAssertTrue(finalSnapshot.relatedEntityIDs.contains(plan.id.uuidString))
         // Optional failed read does NOT falsely register .specialPlan in snapshot
         XCTAssertFalse(finalSnapshot.contextKinds.contains(.specialPlan))
+    }
+
+    // 48: Cancellation after low-risk mutation tool call before provider step completion prevents domain mutation
+    func testCancellationAfterLowRiskToolCallBeforeStepCompletionPreventsDomainMutation() async throws {
+        let env = try TestEnv()
+        let recipe = Recipe(
+            id: "rec-tonight",
+            title: "西红柿鸡蛋汤",
+            cookingTime: 10,
+            difficulty: "简单",
+            tags: ["家常菜"],
+            ingredients: ["西红柿 2个", "鸡蛋 2个"],
+            steps: ["切番茄", "打蛋花", "出锅"]
+        )
+        try env.recipeStore.saveUserRecipe(recipe)
+
+        let toolCallEvent = AIConversationStreamEvent.toolCall(
+            id: "call-lowrisk-1",
+            name: "propose_add_recipe_to_tonight",
+            arguments: Data(#"{"recipe":{"recipeID":"rec-tonight","title":"西红柿鸡蛋汤"}}"#.utf8)
+        )
+        let completedEvent = AIConversationStreamEvent.completed(finishReason: "stop")
+
+        let toolCallDeliveredGate = AsyncGate()
+        let allowLateCompletionGate = AsyncGate()
+        let lateCompletionDeliveredGate = AsyncGate()
+
+        let transport = ScriptedTransport()
+        await transport.setIgnoreTaskCancellation(true) // Adversarial transport: does not stop immediately on Task.cancel()
+        await transport.setOnRequest { _ in
+            [toolCallEvent, completedEvent]
+        }
+        await transport.setOnEventYielded { event in
+            if case .toolCall = event {
+                await toolCallDeliveredGate.open()
+            }
+            if case .completed = event {
+                await lateCompletionDeliveredGate.open()
+            }
+        }
+        await transport.setPauseBeforeEvent { event in
+            if case .completed = event {
+                await allowLateCompletionGate.wait()
+            }
+        }
+
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let stream = orchestrator.runTurn(env.defaultInput)
+
+        var iterator = stream.makeAsyncIterator()
+        _ = try await iterator.next() // .state(.preparingContext)
+        _ = try await iterator.next() // .contextSnapshot
+        _ = try await iterator.next() // .state(.requesting)
+
+        // Wait until the low-risk mutation tool call has actually arrived and been consumed by orchestrator
+        await toolCallDeliveredGate.wait()
+        let toolReqEvent = try await iterator.next()
+        XCTAssertEqual(toolReqEvent, .state(.toolRequested), "Orchestrator must have observed and yielded toolRequested for the tool call")
+
+        // The member cancels NOW, while the provider step is still in-flight before .completed
+        orchestrator.cancelCurrentTurn()
+
+        // Next event received on stream must be .state(.cancelled)
+        let cancelEvent = try await iterator.next()
+        XCTAssertEqual(cancelEvent, .state(.cancelled))
+
+        // Now allow the adversarial provider to deliver its late .completed event and wait for acknowledgement
+        await allowLateCompletionGate.open()
+        await lateCompletionDeliveredGate.wait()
+        await Task.yield()
+
+        // Drain any remaining events in the stream
+        var trailingEvents: [AIConversationTurnEvent] = []
+        while let trailing = try await iterator.next() {
+            trailingEvents.append(trailing)
+        }
+
+        // 1. Kitchen Domain state: absolutely no plan added to today!
+        XCTAssertTrue(env.kitchenStore.plans.isEmpty, "Cancelled low-risk mutation must never modify KitchenStore plans")
+
+        // 2. Action persistence: no action receipt created or executed!
+        XCTAssertTrue(env.persistence.actions.isEmpty, "Cancelled low-risk mutation must never write action persistence")
+
+        // 3. Outward events: must not contain any actionStatus, completed or finished
+        XCTAssertFalse(trailingEvents.contains { event in
+            if case .appendBlock(.actionStatus) = event { return true }
+            if case .state(.completed) = event { return true }
+            if case .finished = event { return true }
+            return false
+        }, "No success or completion events may be produced after cancellation")
     }
 }
