@@ -47,7 +47,7 @@ nonisolated struct AIConversationTaskIdentity: Equatable {
             navigationTitle = AIConversationTaskIdentity.fallbackTitle
             contextLabel = ""
             anchorLabel = nil
-            symbolName = "sparkles"
+            symbolName = KitchenAISymbol.emblem
             return
         }
 

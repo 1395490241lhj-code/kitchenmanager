@@ -5,9 +5,11 @@ struct MessageRowView: View {
     @EnvironmentObject private var controller: AIConversationController
 
     /// The activity this row may show, or nil. Only a turn state that is really
-    /// running may show activity. A message persisted as streaming can outlive
-    /// its turn (for example after reopening the conversation mid-run), and
-    /// then there is nothing truthful to show — no phase is synthesized.
+    /// running may show activity. A row can stay persisted as `.streaming`
+    /// while the runtime turn is `.idle` — when stop-time persistence of
+    /// `.cancelled` fails, or when launch recovery of interrupted messages
+    /// fails — and then there is nothing truthful to show: no phase is
+    /// synthesized.
     static func activityPhase(
         for message: AIConversationMessage,
         turnState: AIConversationTurnState

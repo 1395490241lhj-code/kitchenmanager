@@ -256,11 +256,11 @@ struct PlannerView: View {
                                     Text(kitchenStore.weeklyPlan == nil ? "AI 生成一周菜单" : "查看已生成的一周菜单")
                                     Text(weeklyGeneratorSubtitle)
                                 } icon: {
-                                    Image(systemName: "calendar.badge.clock")
+                                    Image(systemName: KitchenAISymbol.emblem)
                                 }
                             }
                             .accessibilityIdentifier("planner.weekly.open")
-                            Button("问 Kitchen AI", systemImage: "sparkles") {
+                            Button("问 Kitchen AI", systemImage: KitchenAISymbol.emblem) {
                                 path.wrappedValue.append(.kitchenAI(weekStart, nil))
                             }
                             .accessibilityIdentifier("planner.kitchenAI.open")

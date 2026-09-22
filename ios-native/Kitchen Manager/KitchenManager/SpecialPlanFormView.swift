@@ -204,7 +204,7 @@ struct SpecialPlanComposerSheet: View {
 
     private var requestField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("用一句话描述这次做饭", systemImage: "sparkles")
+            Text("用一句话描述这次做饭")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(KitchenTheme.aiIndigo)
             TextField(Self.placeholder, text: $requestText, axis: .vertical)
@@ -259,7 +259,7 @@ struct SpecialPlanComposerSheet: View {
                 Button {
                     Task { await compose() }
                 } label: {
-                    Label("生成菜单", systemImage: "sparkles")
+                    Label("生成菜单", systemImage: KitchenAISymbol.emblem)
                         .font(.body.weight(.semibold))
                         .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 }

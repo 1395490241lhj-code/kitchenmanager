@@ -474,7 +474,7 @@ struct RecordFoodSheet: View {
                     if receiptStore.isRecognizing {
                         HStack { ProgressView(); Text("正在识别小票…") }
                     } else {
-                        Label("开始识别", systemImage: "sparkles")
+                        Label("开始识别", systemImage: "camera.viewfinder")
                     }
                 }
                 .disabled(!receiptStore.canRecognize)

@@ -110,7 +110,7 @@ struct AIGeneratorView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Label("生成菜谱", systemImage: "sparkles")
+                            Label("生成菜谱", systemImage: KitchenAISymbol.emblem)
                             Spacer()
                         }
                     }
@@ -359,7 +359,7 @@ private struct AIRecipeConfirmationView: View {
             } else {
                 ContentUnavailableView(
                     "没有生成结果",
-                    systemImage: "sparkles",
+                    systemImage: "fork.knife",
                     description: Text("返回后可以调整食材和要求重新生成。")
                 )
             }

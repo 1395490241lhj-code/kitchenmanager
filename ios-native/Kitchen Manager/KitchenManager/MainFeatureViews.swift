@@ -1794,7 +1794,7 @@ struct SettingsView: View {
                     .navigationTitle("AI 设置")
                     .navigationBarTitleDisplayMode(.inline)
                 } label: {
-                    SettingsRowLabel(symbol: "sparkles") {
+                    SettingsRowLabel(symbol: KitchenAISymbol.emblem) {
                         Text("AI 设置")
                     }
                 }

@@ -1920,7 +1920,7 @@ struct WeeklyMenuPlannerView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Label("生成菜单", systemImage: "sparkles")
+                            Label("生成菜单", systemImage: KitchenAISymbol.emblem)
                             Spacer()
                         }
                     }

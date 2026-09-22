@@ -258,7 +258,7 @@ struct RecipeListView: View {
                     Button { route = .manual } label: { Label("手动添加", systemImage: "square.and.pencil") }
                     Button { route = .linkImport } label: { Label("从链接导入", systemImage: "link") }
                     Button { route = .imageImport } label: { Label("从图片导入", systemImage: "photo.badge.plus") }
-                    Button { route = .aiGenerator } label: { Label("AI 做菜", systemImage: "sparkles") }
+                    Button { route = .aiGenerator } label: { Label("AI 做菜", systemImage: KitchenAISymbol.emblem) }
                 } label: { Image(systemName: "plus") }
                 .accessibilityLabel("添加菜谱")
             }

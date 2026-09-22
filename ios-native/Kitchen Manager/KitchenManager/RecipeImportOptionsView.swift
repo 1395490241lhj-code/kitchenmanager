@@ -23,7 +23,7 @@ struct RecipeImportOptionsView: View {
                         Label("从图片导入", systemImage: "photo.badge.plus")
                     }
                     NavigationLink(value: RecipeImportRoute.ai) {
-                        Label("AI 做菜", systemImage: "sparkles")
+                        Label("AI 做菜", systemImage: KitchenAISymbol.emblem)
                     }
                     NavigationLink(value: RecipeImportRoute.manual) {
                         Label("手动添加", systemImage: "square.and.pencil")

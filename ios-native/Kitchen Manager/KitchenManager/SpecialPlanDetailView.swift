@@ -242,7 +242,7 @@ struct SpecialPlanDetailView: View {
             } label: {
                 Label(
                     plan.dishes.isEmpty ? "AI 帮我设计菜单" : "AI 重新设计菜单",
-                    systemImage: "sparkles"
+                    systemImage: KitchenAISymbol.emblem
                 )
                 .frame(minHeight: AppTheme.minimumHitTarget)
             }

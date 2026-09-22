@@ -191,8 +191,7 @@ struct HomeView: View {
                 if primaryTask.isDecisionMode || primaryTask.showsRecommendationLink {
                     HomeSecondaryLinkRow(
                         title: "更多推荐",
-                        systemImage: "sparkles",
-                        symbolTint: KitchenTheme.aiIndigo,
+                        systemImage: "fork.knife",
                         identifier: "home.recommendation.more",
                         action: { isShowingRecommendations = true }
                     )
@@ -255,7 +254,7 @@ struct HomeView: View {
                 Button {
                     isShowingKitchenAI = true
                 } label: {
-                    Label("问 Kitchen AI", systemImage: "sparkles")
+                    Label("问 Kitchen AI", systemImage: KitchenAISymbol.emblem)
                         .frame(minWidth: 44, minHeight: 44)
                 }
                 .accessibilityIdentifier("home.kitchenAI.open")
@@ -1249,7 +1248,7 @@ private struct HomeRecommendationSection: View {
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
                 .accessibilityIdentifier("home.recommendation.loading")
             } else {
-                Label("暂时没有合适的推荐", systemImage: "sparkles")
+                Label("暂时没有合适的推荐", systemImage: "fork.knife")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
@@ -2033,7 +2032,8 @@ struct RecipeRecommendationBrowserView: View {
                         HStack(spacing: 7) {
                             // No second spinner here: the wait row above is the
                             // only place this request reports itself.
-                            Image(systemName: "sparkles")
+                            Image(systemName: KitchenAISymbol.emblem)
+                                .accessibilityHidden(true)
                             Text("AI 换几道")
                         }
                         .font(.subheadline.weight(.semibold))
@@ -2172,7 +2172,7 @@ struct RecipeRecommendationBrowserView: View {
 
     private var recommendationEmptyState: some View {
         ContentUnavailableView {
-            Label("暂时没有找到合适的菜", systemImage: "sparkles")
+            Label("暂时没有找到合适的菜", systemImage: "magnifyingglass")
         } description: {
             Text("换个菜名，或者输入几样食材试试。")
         } actions: {
@@ -2194,7 +2194,9 @@ struct RecipeRecommendationBrowserView: View {
 
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label(recommendation.source == .ai ? "AI 推荐" : "今日推荐", systemImage: "sparkles")
+                // Provenance is text only: the Kitchen AI emblem identifies AI
+                // features and actions, not where a recommendation came from.
+                Text(recommendation.source == .ai ? "AI 推荐" : "今日推荐")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(AppTheme.textSecondary)
                 Spacer()

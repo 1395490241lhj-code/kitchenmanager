@@ -490,7 +490,7 @@ struct RecipeImageImportView: View {
                     Button {
                         store.recognize()
                     } label: {
-                        Label("开始识别", systemImage: "sparkles")
+                        Label("开始识别", systemImage: "text.viewfinder")
                     }
                     .disabled(!store.canRecognize)
                 }
