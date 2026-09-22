@@ -2,9 +2,12 @@ import Foundation
 
 actor CloudAIConversationTransport: AIConversationRuntimeTransport {
     /// The server may spend a 45 s primary attempt plus a 20 s provider
-    /// fallback on one step before local and network overhead, which the
-    /// 60 s APIClient default cannot cover. Scoped to this endpoint only.
-    nonisolated static let conversationTimeout: TimeInterval = 90
+    /// fallback (~65 s) on one step, and a Render free-instance cold start
+    /// can delay the request by 50 s or more before that work begins. 150 s
+    /// leaves room for both plus network overhead; it is headroom, not a
+    /// guarantee. Scoped to this endpoint only — the 60 s APIClient default
+    /// still applies everywhere else.
+    nonisolated static let conversationTimeout: TimeInterval = 150
 
     private let client: APIClient
     private let provider: AIRecommendationProvider

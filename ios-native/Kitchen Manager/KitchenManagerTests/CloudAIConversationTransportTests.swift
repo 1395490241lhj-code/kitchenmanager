@@ -195,9 +195,10 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
         XCTAssertEqual(events, [.error(code: "provider_unavailable", message: "AI 服务暂时不可用。")])
     }
 
-    // The server may spend primary (45 s) + fallback (20 s) on one step; the
-    // conversation endpoint alone gets a longer timeout, and it carries the
-    // run's turn identity for the server's per-turn rate-limit ledger.
+    // The server may spend primary (45 s) + fallback (20 s) on one step, and a
+    // Render cold start can add 50 s or more; the conversation endpoint alone
+    // gets a longer timeout, and it carries the run's turn identity for the
+    // server's per-turn rate-limit ledger.
     func test_stream_usesDedicatedConversationTimeoutAndSendsTurnID() async throws {
         MockURLProtocol.install { _ in
             .init(statusCode: 200, data: Self.ndjson([#"{"type":"completed","finishReason":"stop"}"#]))
@@ -208,10 +209,32 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
 
         let request = try XCTUnwrap(MockURLProtocol.capturedRequests().first)
         XCTAssertEqual(request.url?.path, "/api/ai-conversation")
-        XCTAssertEqual(request.timeoutInterval, 90, accuracy: 0.001)
-        XCTAssertEqual(CloudAIConversationTransport.conversationTimeout, 90)
+        XCTAssertEqual(request.timeoutInterval, 150, accuracy: 0.001)
+        XCTAssertEqual(CloudAIConversationTransport.conversationTimeout, 150)
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
         XCTAssertEqual(body["turnID"] as? String, turnID.uuidString)
+    }
+
+    // The 150 s budget is endpoint-specific: a client built with the real
+    // APIClient default keeps 60 s for every other request it sends.
+    func test_conversationTimeoutDoesNotLeakIntoClientDefault() async throws {
+        MockURLProtocol.install { request in
+            request.url?.path == "/api/ai-conversation"
+                ? MockURLProtocol.Stub(statusCode: 200, data: Self.ndjson([#"{"type":"completed","finishReason":"stop"}"#]))
+                : MockURLProtocol.Stub(statusCode: 200, data: Data("{}".utf8))
+        }
+        let defaultClient = APIClient(environment: .production, session: .mocked())
+
+        let transport = CloudAIConversationTransport(client: defaultClient)
+        for try await _ in transport.stream(.init(messages: [], enabledTools: [], requestID: UUID())) {}
+        _ = try? await defaultClient.sendRaw(APIEndpoint.get(path: "/api/example"))
+
+        let requests = MockURLProtocol.capturedRequests()
+        XCTAssertEqual(requests.count, 2)
+        let conversation = try XCTUnwrap(requests.first { $0.url?.path == "/api/ai-conversation" })
+        let unrelated = try XCTUnwrap(requests.first { $0.url?.path == "/api/example" })
+        XCTAssertEqual(conversation.timeoutInterval, 150, accuracy: 0.001)
+        XCTAssertEqual(unrelated.timeoutInterval, 60, accuracy: 0.001)
     }
 
     func test_stream_truncatedStreamThrowsProtocolViolation() async throws {
