@@ -14,7 +14,7 @@ const sharedStorePath = resolve(process.cwd(), 'src/server/services/shared-windo
 const rateLimitPath = resolve(process.cwd(), 'src/server/services/rate-limit.js');
 const configPath = resolve(process.cwd(), 'src/server/config.js');
 
-const { createSharedWindowStore, toRetryAfterSeconds } = require(sharedStorePath);
+const { createSharedWindowStore, toRetryAfterSeconds, REQUIRED_CLIENT_COMMANDS } = require(sharedStorePath);
 const {
   checkAiRateLimit,
   setSharedAiRateLimitStore,
@@ -33,21 +33,25 @@ function createFakeRedis() {
   return {
     setFailing(value) { failing = value; },
     get calls() { return data; },
-    async incrby(key, amount) {
+    async incrBy(key, amount) {
       if (failing) throw new Error('connection refused');
       const next = (data.get(key) || 0) + amount;
       data.set(key, next);
       return next;
     },
-    async pexpire(key, ms) {
+    async pExpire(key, ms) {
       if (failing) throw new Error('connection refused');
       expiries.set(key, ms);
       return 1;
     },
-    async pttl(key) {
+    async pTTL(key) {
       if (failing) throw new Error('connection refused');
       if (!data.has(key)) return -2;
       return expiries.has(key) ? expiries.get(key) : -1;
+    },
+    async get(key) {
+      if (failing) throw new Error('connection refused');
+      return data.has(key) ? String(data.get(key)) : null;
     },
     // 测试用：模拟窗口过期。
     expire(key) { data.delete(key); expiries.delete(key); }
@@ -150,8 +154,8 @@ test('只有创建窗口的那次请求设置过期时间，窗口不会被不�
   const redis = createFakeRedis();
   const store = createSharedWindowStore({ client: redis });
   let pexpireCalls = 0;
-  const original = redis.pexpire.bind(redis);
-  redis.pexpire = async (key, ms) => { pexpireCalls += 1; return original(key, ms); };
+  const original = redis.pExpire.bind(redis);
+  redis.pExpire = async (key, ms) => { pexpireCalls += 1; return original(key, ms); };
   setSharedAiRateLimitStore(store);
   const req = fakeReq();
   for (let i = 0; i < 10; i += 1) await checkAiRateLimit(req);
@@ -184,9 +188,9 @@ test('丢失过期时间的 key 会被修复，不会把某个身份永久限死
   const store = createSharedWindowStore({ client: redis });
   await store.consume('ai:x', AI_RATE_LIMIT_WINDOW_MS, Date.now());
   // 模拟 PEXPIRE 丢失：key 存在但没有 TTL。
-  redis.pttl = async () => -1;
+  redis.pTTL = async () => -1;
   let repaired = false;
-  redis.pexpire = async () => { repaired = true; return 1; };
+  redis.pExpire = async () => { repaired = true; return 1; };
   const result = await store.consume('ai:x', AI_RATE_LIMIT_WINDOW_MS, Date.now());
   assert.ok(repaired, '没有 TTL 的 key 必须被重新设定过期时间');
   assert.ok(result.retryAfterSeconds > 0);
@@ -236,4 +240,74 @@ test('未配置共享 store 时保持现有进程内行为（配置可先于资�
 test('配额与窗口本轮未改变', () => {
   assert.equal(AI_RATE_LIMIT_MAX, 30);
   assert.equal(AI_RATE_LIMIT_WINDOW_MS, 10 * 60 * 1000);
+});
+
+test('peek 是真正的只读：缺失 key 读作 0 且不创建，已有 key 不改计数与过期', async () => {
+  const redis = createFakeRedis();
+  const store = createSharedWindowStore({ client: redis });
+  assert.equal(await store.peek('missing'), 0);
+  assert.equal(redis.calls.has('missing'), false);
+  assert.equal(await redis.pTTL('missing'), -2);
+
+  await store.consume('present', AI_RATE_LIMIT_WINDOW_MS, 0);
+  assert.equal(await store.peek('present'), 1);
+  assert.equal(redis.calls.get('present'), 1);
+  assert.equal(await redis.pTTL('present'), AI_RATE_LIMIT_WINDOW_MS);
+
+  redis.setFailing(true);
+  await assert.rejects(store.peek('present'));
+});
+
+// ── 四：客户端命令面契约（node-redis 只有 camelCase，没有小写别名） ────────────
+
+test('只暴露真实 camelCase 命令的 fake 完整支持 consume / 过期 / TTL / 修复 / peek', async () => {
+  const redis = createFakeRedis();
+  assert.equal(redis.incrby, undefined, 'fake must not carry lowercase aliases');
+  const store = createSharedWindowStore({ client: redis });
+
+  const first = await store.consume('k', AI_RATE_LIMIT_WINDOW_MS, 0);
+  assert.deepEqual(first, { count: 1, retryAfterSeconds: AI_RATE_LIMIT_WINDOW_MS / 1000 });
+  assert.equal(await redis.pTTL('k'), AI_RATE_LIMIT_WINDOW_MS);
+
+  const second = await store.consume('k', AI_RATE_LIMIT_WINDOW_MS, 0);
+  assert.equal(second.count, 2);
+  assert.equal(second.retryAfterSeconds, AI_RATE_LIMIT_WINDOW_MS / 1000);
+
+  redis.pTTL = async () => -1;
+  let repaired = 0;
+  redis.pExpire = async () => { repaired += 1; return 1; };
+  await store.consume('k', AI_RATE_LIMIT_WINDOW_MS, 0);
+  assert.equal(repaired, 1);
+
+  assert.equal(await store.peek('k'), 3);
+  assert.equal(await store.peek('absent'), 0);
+  assert.equal(redis.calls.has('absent'), false);
+});
+
+test('只有旧的小写方法的客户端在构造时被确定性拒绝，错误信息不含连接信息', () => {
+  const lowercaseOnly = {
+    async incrby() { return 1; },
+    async pexpire() { return 1; },
+    async pttl() { return -2; },
+    async get() { return null; },
+    url: 'redis://secret-host:6379'
+  };
+  assert.throws(
+    () => createSharedWindowStore({ client: lowercaseOnly }),
+    (error) => error.message === 'shared window store client is missing required Redis commands'
+  );
+  for (const missing of REQUIRED_CLIENT_COMMANDS) {
+    const client = createFakeRedis();
+    client[missing] = undefined;
+    assert.throws(() => createSharedWindowStore({ client }), /missing required Redis commands/, missing);
+  }
+});
+
+test('已安装的 redis 包（未连接的 client）确实提供适配器所需的全部命令', () => {
+  const { createClient } = require('redis');
+  const client = createClient({ url: 'redis://127.0.0.1:1' });
+  for (const command of REQUIRED_CLIENT_COMMANDS) {
+    assert.equal(typeof client[command], 'function', command);
+  }
+  assert.doesNotThrow(() => createSharedWindowStore({ client }));
 });

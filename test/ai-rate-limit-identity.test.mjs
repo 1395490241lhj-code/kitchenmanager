@@ -24,9 +24,10 @@ function createFakeRedis() {
   const data = new Map();
   const ttls = new Map();
   return {
-    async incrby(key, amount) { const n = (data.get(key) || 0) + amount; data.set(key, n); return n; },
-    async pexpire(key, ms) { ttls.set(key, ms); return 1; },
-    async pttl(key) { return data.has(key) ? (ttls.get(key) ?? -1) : -2; },
+    async incrBy(key, amount) { const n = (data.get(key) || 0) + amount; data.set(key, n); return n; },
+    async pExpire(key, ms) { ttls.set(key, ms); return 1; },
+    async pTTL(key) { return data.has(key) ? (ttls.get(key) ?? -1) : -2; },
+    async get(key) { return data.has(key) ? String(data.get(key)) : null; },
     keys() { return [...data.keys()]; }
   };
 }

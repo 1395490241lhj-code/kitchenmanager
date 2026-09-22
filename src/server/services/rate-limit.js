@@ -85,6 +85,11 @@ function hasSharedAiRateLimitStore() {
   return Boolean(sharedAiStore);
 }
 
+// 对话 turn 账本复用同一个 store，保证跨实例时 grant/step 计数与配额计数同源。
+function getSharedAiRateLimitStore() {
+  return sharedAiStore;
+}
+
 // store 短暂不可用时的策略：既不能让 limiter 故障把 AI 功能整个打死，也不能
 // 无保护地放行昂贵的 provider 调用。这里退回本进程计数，但**配额按实例数收紧**
 // （下取整、至少 1），这样 N 个实例加起来仍不超过全局配额，不会退回成当前这种
@@ -141,6 +146,7 @@ module.exports = {
   checkAiRateLimit,
   degradedInstanceMax,
   getClientIp,
+  getSharedAiRateLimitStore,
   hasSharedAiRateLimitStore,
   importRateLimitBuckets,
   isAiRateLimited,

@@ -246,6 +246,33 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertEqual(f.orchestrator.inputs[0].turnID, f.orchestrator.inputs[1].turnID)
     }
 
+    func testInterruptedPartialReplyKeepsTextMarksFailedAndRetriesWithoutDuplicatingUser() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        let interrupted = AIErrorBlock(message: ConversationFailurePresentation.partialReplyInterruptedMessage, retry: .generation)
+        f.orchestrator.scripts = [
+            .events([.state(.streaming), .appendText("先把番茄切块"), .appendBlock(.error(interrupted)), .state(.failed)]),
+            .events(completedScript())
+        ]
+        await send("番茄怎么做", in: f)
+        let conversationID = try XCTUnwrap(f.controller.currentConversation?.id)
+
+        let persisted = try f.persistence.loadMessages(conversationID: conversationID)
+        let failedReply = try XCTUnwrap(persisted.first { $0.role == .assistant })
+        XCTAssertEqual(failedReply.state, .failed, "a partial reply is not a clean success")
+        XCTAssertEqual(failedReply.contentBlocks.count, 2)
+        guard case let .text(text) = failedReply.contentBlocks.first else { return XCTFail("text must survive the failure") }
+        XCTAssertEqual(text.text, "先把番茄切块")
+        XCTAssertEqual(failedReply.contentBlocks.last, .error(interrupted))
+        XCTAssertTrue(f.controller.canRetryGeneration)
+
+        f.controller.retryGeneration()
+        await settle()
+        let after = try f.persistence.loadMessages(conversationID: conversationID)
+        XCTAssertEqual(after.filter { $0.role == .user }.count, 1)
+        XCTAssertEqual(after.first { $0.id == failedReply.id }?.contentBlocks.first, failedReply.contentBlocks.first)
+    }
+
     func testRetryDoesNotPersistUserAgain() async throws {
         let f = try Fixture()
         f.controller.open(entryContext: .home)

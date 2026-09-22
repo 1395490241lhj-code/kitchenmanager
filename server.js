@@ -84,6 +84,7 @@ const {
   streamErrorEvent,
   writeConversationEvent
 } = require('./src/server/services/ai-conversation');
+const { checkConversationStepRateLimit } = require('./src/server/services/ai-conversation-turn-limit');
 const {
   getSpecialPlanResponseFormat,
   isSchemaUnsupportedError,
@@ -1547,7 +1548,9 @@ const AI_CONVERSATION_FALLBACK_TIMEOUT_MS = 20000;
 
 app.post('/api/ai-conversation', async (req, res) => {
   // 限流先于任何 provider 工作：被限流的请求不应该产生一次上游调用。
-  const aiLimit = await checkAiRateLimit(req);
+  // 一个逻辑 turn 只计一次配额：同 turn 的 read-tool continuation 由服务端账本放行，
+  // 见 src/server/services/ai-conversation-turn-limit.js。
+  const aiLimit = await checkConversationStepRateLimit(req);
   if (aiLimit.limited) {
     logAiRateLimited(req, aiLimit, '/api/ai-conversation');
     return sendAiJsonError(res, 429, 'rate_limited', 'AI 请求太频繁，请稍后再试。', {

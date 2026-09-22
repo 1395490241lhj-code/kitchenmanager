@@ -342,6 +342,9 @@ final class ConversationOrchestrator: ConversationOrchestrating {
         var providerStepCount = 0
         var toolCallCount = 0
         var turnMutationCount = 0
+        // Once any non-blank assistant text reached the member, a later failure
+        // must not read as if nothing was generated.
+        var hasVisibleAssistantText = false
 
         while true {
             guard self.activeRunID == runID && !self.isCancellationRequested && !Task.isCancelled else {
@@ -377,7 +380,8 @@ final class ConversationOrchestrator: ConversationOrchestrating {
             let runtimeRequest = AIConversationRuntimeRequest(
                 messages: ephemeralTranscript,
                 enabledTools: Self.enabledTools,
-                requestID: uuidGenerator()
+                requestID: uuidGenerator(),
+                turnID: runID
             )
 
             var stepText = ""
@@ -406,6 +410,9 @@ final class ConversationOrchestrator: ConversationOrchestrating {
                             return
                         }
                         stepText += delta
+                        if !delta.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            hasVisibleAssistantText = true
+                        }
 
                     case .toolCall(let id, let name, let arguments):
                         toolCallCount += 1
@@ -449,13 +456,17 @@ final class ConversationOrchestrator: ConversationOrchestrating {
                     }
                 }
             } catch {
-                if self.isCancellationRequested || Task.isCancelled {
+                let category = ConversationFailurePresentation.category(for: error)
+                if self.isCancellationRequested || Task.isCancelled || category == .cancelled {
                     _ = emit(.state(.cancelled))
                     continuation.finish()
                     cleanupActiveRun(runID)
                     return
                 }
-                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: "服务暂时不可用，请稍后重试。", retry: .generation))))
+                let message = hasVisibleAssistantText
+                    ? ConversationFailurePresentation.partialReplyInterruptedMessage
+                    : (ConversationFailurePresentation.message(for: category) ?? ConversationFailurePresentation.unavailableMessage)
+                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: message, retry: .generation))))
                 _ = emit(.state(.failed))
                 continuation.finish()
                 cleanupActiveRun(runID)
@@ -470,7 +481,12 @@ final class ConversationOrchestrator: ConversationOrchestrating {
             }
 
             if let error = stepError {
-                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: error.message, retry: .generation))))
+                // Server stream error copy is already safe; after visible text it
+                // is replaced by copy that says the partial reply was kept.
+                let message = hasVisibleAssistantText
+                    ? ConversationFailurePresentation.partialReplyInterruptedMessage
+                    : error.message
+                _ = emit(.appendBlock(.error(.init(id: uuidGenerator(), message: message, retry: .generation))))
                 _ = emit(.state(.failed))
                 continuation.finish()
                 cleanupActiveRun(runID)

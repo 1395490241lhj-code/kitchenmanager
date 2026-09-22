@@ -1,6 +1,11 @@
 import Foundation
 
 actor CloudAIConversationTransport: AIConversationRuntimeTransport {
+    /// The server may spend a 45 s primary attempt plus a 20 s provider
+    /// fallback on one step before local and network overhead, which the
+    /// 60 s APIClient default cannot cover. Scoped to this endpoint only.
+    nonisolated static let conversationTimeout: TimeInterval = 90
+
     private let client: APIClient
     private let provider: AIRecommendationProvider
 
@@ -52,6 +57,7 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
         let messages: [WireMessage]
         let enabledTools: [String]
         let requestID: String
+        let turnID: String?
     }
 
     private func pump(request: AIConversationRuntimeRequest, into continuation: AsyncThrowingStream<AIConversationStreamEvent, Error>.Continuation) async {
@@ -95,9 +101,14 @@ actor CloudAIConversationTransport: AIConversationRuntimeTransport {
             provider: provider.rawValue,
             messages: wireMessages,
             enabledTools: request.enabledTools,
-            requestID: request.requestID.uuidString
+            requestID: request.requestID.uuidString,
+            turnID: request.turnID?.uuidString
         )
-        let endpoint = try APIEndpoint.json(path: "/api/ai-conversation", body: body)
+        let endpoint = try APIEndpoint.json(
+            path: "/api/ai-conversation",
+            body: body,
+            timeout: Self.conversationTimeout
+        )
         return try await client.streamLines(endpoint)
     }
 

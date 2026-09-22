@@ -554,6 +554,31 @@ test('/api/ai-conversation 限流在任何 provider 工作之前生效', async (
   assert.equal(providerCalls.length, 0);
 });
 
+test('/api/ai-conversation 一个逻辑 turn 只计一次配额：同 turn 的 continuation 免计，新 turn 仍受 30 次上限约束', async () => {
+  const { app, providerCalls } = loadServerWithStreams();
+  // 请求体在限流之后才规范化：这里用会被 400 拒绝的消息，只观察计费，不触发 provider。
+  const turnID = (index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`;
+  const first = (id) => ({ provider: 'groq', turnID: id, messages: [{ role: 'user' }] });
+  const continuation = (id) => ({ provider: 'groq', turnID: id, messages: [{ role: 'tool' }] });
+
+  // 第 1 个 turn：首步 + 5 个 continuation = 6 步，只计 1 次。
+  assert.equal((await runPost(app, '/api/ai-conversation', first(turnID(0)))).statusCode, 400);
+  for (let step = 0; step < 5; step += 1) {
+    assert.equal((await runPost(app, '/api/ai-conversation', continuation(turnID(0)))).statusCode, 400);
+  }
+  // 剩余 29 个新 turn 各计 1 次，第 31 个 turn 必须 429。
+  for (let index = 1; index < 30; index += 1) {
+    const res = await runPost(app, '/api/ai-conversation', first(turnID(index)));
+    assert.equal(res.statusCode, 400, `turn ${index} should still be admitted`);
+  }
+  const over = await runPost(app, '/api/ai-conversation', first(turnID(30)));
+  assert.equal(over.statusCode, 429);
+  // 伪造的 continuation 同样被限流，不能借 turnID 绕过。
+  const forged = await runPost(app, '/api/ai-conversation', continuation(turnID(99)));
+  assert.equal(forged.statusCode, 429);
+  assert.equal(providerCalls.length, 0);
+});
+
 test('/api/ai-conversation 客户端断开会中止上游生成', async () => {
   let observedSignal = null;
   let releaseGate;

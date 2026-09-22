@@ -64,6 +64,11 @@ const AI_RATE_LIMIT_MAX = 30;
 const IMPORT_RATE_LIMIT_MAX = 10;
 const AUTH_ME_RATE_LIMIT_MAX = 60;
 const AI_RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
+// 一次对话 turn 最多几个 provider step（与 iOS ConversationOrchestrator.maxProviderStepsPerTurn
+// 对齐）。首步计一次 AI 配额，同一 turn 的后续 continuation 在 TTL 内免计，超出上限重新计费。
+const AI_CONVERSATION_MAX_STEPS_PER_TURN = 6;
+// 固定 TTL、不滑动，与 AI 配额窗口一致；足够覆盖 6 步 ×（主 45s + 回退 20s）的最坏情况。
+const AI_CONVERSATION_TURN_TTL_MS = 10 * 60 * 1000;
 
 // 跨实例共享限流用的 Redis/Valkey 兼容连接串（Render Key Value 的 internal
 // URL）。未配置时保持进程内计数，即当前行为——所以这段配置可以先于资源上线，
@@ -290,6 +295,8 @@ module.exports = {
   ACCOUNT_DELETION_RATE_LIMIT_MAX,
   ACCOUNT_DELETION_REAUTH_TTL_MS,
   AI_RATE_LIMIT_SWEEP_INTERVAL_MS,
+  AI_CONVERSATION_MAX_STEPS_PER_TURN,
+  AI_CONVERSATION_TURN_TTL_MS,
   RATE_LIMIT_REDIS_URL,
   SYNC_READ_RATE_LIMIT_WINDOW_MS,
   SYNC_READ_RATE_LIMIT_MAX,

@@ -195,6 +195,25 @@ final class CloudAIConversationTransportTests: NetworkTestCase {
         XCTAssertEqual(events, [.error(code: "provider_unavailable", message: "AI 服务暂时不可用。")])
     }
 
+    // The server may spend primary (45 s) + fallback (20 s) on one step; the
+    // conversation endpoint alone gets a longer timeout, and it carries the
+    // run's turn identity for the server's per-turn rate-limit ledger.
+    func test_stream_usesDedicatedConversationTimeoutAndSendsTurnID() async throws {
+        MockURLProtocol.install { _ in
+            .init(statusCode: 200, data: Self.ndjson([#"{"type":"completed","finishReason":"stop"}"#]))
+        }
+        let turnID = UUID(uuidString: "0B1D2E3F-4A5B-4C6D-8E7F-901234567890")!
+        let transport = CloudAIConversationTransport(client: apiClient)
+        for try await _ in transport.stream(.init(messages: [], enabledTools: [], requestID: UUID(), turnID: turnID)) {}
+
+        let request = try XCTUnwrap(MockURLProtocol.capturedRequests().first)
+        XCTAssertEqual(request.url?.path, "/api/ai-conversation")
+        XCTAssertEqual(request.timeoutInterval, 90, accuracy: 0.001)
+        XCTAssertEqual(CloudAIConversationTransport.conversationTimeout, 90)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(request.httpBody)) as? [String: Any])
+        XCTAssertEqual(body["turnID"] as? String, turnID.uuidString)
+    }
+
     func test_stream_truncatedStreamThrowsProtocolViolation() async throws {
         MockURLProtocol.install { _ in
             .init(statusCode: 200, data: Data(#"{"type":"text_delta","text":"你"}"#.utf8))

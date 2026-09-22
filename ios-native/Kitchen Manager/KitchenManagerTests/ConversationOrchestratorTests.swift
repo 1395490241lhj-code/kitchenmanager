@@ -1910,3 +1910,130 @@ final class ConversationOrchestratorTests: XCTestCase {
         }, "No success or completion events may be produced after cancellation")
     }
 }
+
+// MARK: - Failure classification and partial-reply interruption
+
+extension ConversationOrchestratorTests {
+    /// Yields scripted events, then throws — the shape of a stream that dies
+    /// mid-flight (or before any output when events is empty).
+    private actor FailingTransport: AIConversationRuntimeTransport {
+        let events: [AIConversationStreamEvent]
+        let failure: Error
+        private(set) var capturedRequests: [AIConversationRuntimeRequest] = []
+
+        init(events: [AIConversationStreamEvent] = [], failure: Error) {
+            self.events = events
+            self.failure = failure
+        }
+
+        func stream(_ request: AIConversationRuntimeRequest) -> AsyncThrowingStream<AIConversationStreamEvent, Error> {
+            capturedRequests.append(request)
+            let events = events
+            let failure = failure
+            return AsyncThrowingStream { continuation in
+                events.forEach { continuation.yield($0) }
+                continuation.finish(throwing: failure)
+            }
+        }
+    }
+
+    private func errorMessages(_ events: [AIConversationTurnEvent]) -> [String] {
+        events.compactMap { if case let .appendBlock(.error(block)) = $0 { return block.message } else { return nil } }
+    }
+
+    func testFailureBeforeOutputShowsCategorizedSafeCopy() async throws {
+        let rawDiagnostic = "NSURLErrorDomain -1005 groq upstream body {\"error\":\"key sk-123\"}"
+        let cases: [(Error, String)] = [
+            (APIError.rateLimited(retryAfter: nil), "AI 请求有点频繁，请稍后再试。"),
+            (APIError.timeout, "AI 回复超时，可以重试。"),
+            (APIError.transport(rawDiagnostic), "网络连接中断，请检查网络后重试。"),
+            (APIError.server(status: 503, payload: nil), "AI 服务暂时不可用，请稍后重试。"),
+            (APIError.protocolViolation(rawDiagnostic), "AI 回复中断，请重试。"),
+            (APIError.server(status: 401, payload: nil), ConversationFailurePresentation.unauthorizedMessage),
+        ]
+        for (failure, expected) in cases {
+            let env = try TestEnv()
+            let orchestrator = env.makeOrchestrator(transport: FailingTransport(failure: failure))
+            let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+            XCTAssertEqual(errorMessages(events), [expected], "\(failure)")
+            XCTAssertEqual(events.last, .state(.failed), "\(failure)")
+            XCTAssertFalse(events.contains(.finished))
+            for message in errorMessages(events) {
+                XCTAssertFalse(message.contains("NSURLErrorDomain") || message.contains("groq") || message.contains("sk-"))
+            }
+        }
+    }
+
+    func testTransportCancellationStaysCancellationNotFailure() async throws {
+        let env = try TestEnv()
+        let orchestrator = env.makeOrchestrator(transport: FailingTransport(failure: APIError.cancelled))
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        XCTAssertEqual(events.last, .state(.cancelled))
+        XCTAssertFalse(events.contains(.state(.failed)))
+        XCTAssertTrue(errorMessages(events).isEmpty)
+    }
+
+    func testTransportFailureAfterTextKeepsTextAndReportsInterruptedReply() async throws {
+        let env = try TestEnv()
+        let transport = FailingTransport(
+            events: [.textDelta("先把番茄切块，"), .textDelta("再打两个鸡蛋")],
+            failure: APIError.transport("The network connection was lost.")
+        )
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let texts = events.compactMap { if case let .appendText(t) = $0 { return t } else { return nil } }
+        XCTAssertEqual(texts.joined(), "先把番茄切块，再打两个鸡蛋")
+        XCTAssertEqual(errorMessages(events), [ConversationFailurePresentation.partialReplyInterruptedMessage])
+        XCTAssertEqual(events.last, .state(.failed))
+        XCTAssertFalse(events.contains(.state(.completed)))
+        XCTAssertFalse(events.contains(.finished))
+        let retryScopes = events.compactMap { if case let .appendBlock(.error(b)) = $0 { return b.retry } else { return nil } }
+        XCTAssertEqual(retryScopes, [.generation])
+        // One provider step, no replay, no action.
+        let requestCount = await transport.capturedRequests.count
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertTrue(env.persistence.actions.isEmpty)
+    }
+
+    func testServerStreamErrorAfterTextReportsInterruptedReply() async throws {
+        let env = try TestEnv()
+        let transport = ScriptedTransport(stepResponses: [[
+            .textDelta("可以做番茄炒蛋"),
+            .error(code: "provider_unavailable", message: "AI 服务暂时不可用。")
+        ]])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        XCTAssertTrue(events.contains(.appendText("可以做番茄炒蛋")))
+        XCTAssertEqual(errorMessages(events), [ConversationFailurePresentation.partialReplyInterruptedMessage])
+        XCTAssertEqual(events.last, .state(.failed))
+    }
+
+    func testWhitespaceOnlyTextDoesNotCountAsUsefulOutput() async throws {
+        let env = try TestEnv()
+        let transport = FailingTransport(events: [.textDelta("  \n")], failure: APIError.timeout)
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        XCTAssertEqual(errorMessages(events), ["AI 回复超时，可以重试。"])
+    }
+
+    func testEveryProviderStepOfOneRunSharesOneWireTurnIDAndANewRunGetsANewOne() async throws {
+        let env = try TestEnv()
+        let step1: [AIConversationStreamEvent] = [
+            .toolCall(id: "c1", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let transport = ScriptedTransport(stepResponses: [step1, [.completed(finishReason: "stop")], [.completed(finishReason: "stop")]])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        _ = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+
+        let requests = await transport.capturedRequests
+        XCTAssertEqual(requests.count, 3)
+        let first = try XCTUnwrap(requests[0].turnID)
+        XCTAssertEqual(requests[1].turnID, first)
+        XCTAssertNotEqual(requests[0].requestID, requests[1].requestID)
+        XCTAssertNotNil(requests[2].turnID)
+        XCTAssertNotEqual(requests[2].turnID, first, "a retry or new run pays for its own turn")
+    }
+}

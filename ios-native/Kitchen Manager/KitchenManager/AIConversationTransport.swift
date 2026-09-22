@@ -11,6 +11,11 @@ nonisolated struct AIConversationRuntimeRequest: Sendable, Equatable {
     /// tool definitions.
     let enabledTools: [String]
     let requestID: UUID
+    /// Identity of one orchestrator run of a logical turn, shared by every
+    /// provider step of that run and fresh for each retry. The server only uses
+    /// it as a lookup key into its own rate-limit ledger: continuation steps of
+    /// a run it already charged are not charged again. Nil sends no field.
+    var turnID: UUID? = nil
 }
 
 /// One assistant tool call carried inside a conversation transcript. The
