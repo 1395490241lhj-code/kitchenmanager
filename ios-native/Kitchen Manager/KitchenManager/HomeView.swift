@@ -2037,11 +2037,9 @@ struct RecipeRecommendationBrowserView: View {
                             Text("AI 换几道")
                         }
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.aiAccentForeground)
                         .frame(maxWidth: .infinity, minHeight: 44)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(AppTheme.aiAccentForeground.opacity(0.30))
+                    .buttonStyle(KitchenButtonStyle(role: .secondary))
                     .accessibilityIdentifier("recommendation.regenerate.button")
                     .disabled(recommendationStore.isSearchingRecommendations
                               || recommendationStore.isGeneratingRecommendations)
@@ -2182,7 +2180,7 @@ struct RecipeRecommendationBrowserView: View {
                 .foregroundStyle(AppTheme.onCookingAction)
             if !recommendationStore.searchQuery.isEmpty {
                 Button("清除搜索", action: clearRecommendationSearch)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(KitchenButtonStyle(role: .secondary))
             }
         }
     }

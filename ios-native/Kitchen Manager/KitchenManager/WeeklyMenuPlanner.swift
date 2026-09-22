@@ -1925,8 +1925,8 @@ struct WeeklyMenuPlannerView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(KitchenTheme.aiIndigo)
-                    .foregroundStyle(AppTheme.onManagementAction)
+                    .tint(AppTheme.cookingActionFill)
+                    .foregroundStyle(AppTheme.onCookingAction)
                 }
 
                 if kitchenStore.weeklyPlan != nil {

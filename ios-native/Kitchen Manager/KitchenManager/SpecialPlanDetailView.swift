@@ -246,7 +246,6 @@ struct SpecialPlanDetailView: View {
                 )
                 .frame(minHeight: AppTheme.minimumHitTarget)
             }
-            .foregroundStyle(KitchenTheme.aiIndigo)
             .disabled(menuDraft.isBusy)
             .accessibilityIdentifier("planner.menu.generate")
             .plannerRow()
@@ -305,7 +304,7 @@ struct SpecialPlanDetailView: View {
                 .plannerRow()
             }
         } header: {
-            KitchenSectionLabel(title: "AI 菜单草稿", count: menuDraft.dishes.count, tint: KitchenTheme.aiIndigo).plannerSectionHeader()
+            KitchenSectionLabel(title: "AI 菜单草稿", count: menuDraft.dishes.count, tint: KitchenTheme.textSecondary).plannerSectionHeader()
         } footer: {
             Text("保存前这些菜谱不会进入菜谱库。")
                 .plannerFootnote()

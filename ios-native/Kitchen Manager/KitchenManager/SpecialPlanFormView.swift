@@ -206,7 +206,7 @@ struct SpecialPlanComposerSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("用一句话描述这次做饭")
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(KitchenTheme.aiIndigo)
+                .foregroundStyle(.secondary)
             TextField(Self.placeholder, text: $requestText, axis: .vertical)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3...8 : 4...10)
                 .font(.body)
@@ -264,7 +264,8 @@ struct SpecialPlanComposerSheet: View {
                         .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(KitchenTheme.aiIndigo)
+                .tint(AppTheme.cookingActionFill)
+                .foregroundStyle(AppTheme.onCookingAction)
                 .disabled(!canGenerate)
                 .accessibilityIdentifier("planner.compose.generate")
             }
