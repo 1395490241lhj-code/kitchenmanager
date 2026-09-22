@@ -242,7 +242,8 @@ struct SpecialPlanComposerSheet: View {
         VStack(spacing: 8) {
             if draft.isBusy {
                 HStack(spacing: 10) {
-                    ProgressView()
+                    KitchenAIActivityIndicator(phase: .waiting, size: .small)
+                        .accessibilityHidden(true)
                     Text("正在设计菜单…")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

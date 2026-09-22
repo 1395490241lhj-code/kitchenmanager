@@ -265,7 +265,8 @@ struct SpecialPlanDetailView: View {
         Section {
             if menuDraft.isGenerating {
                 HStack(spacing: 10) {
-                    ProgressView()
+                    KitchenAIActivityIndicator(phase: .waiting, size: .small)
+                        .accessibilityHidden(true)
                     Text("正在设计菜单…")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
