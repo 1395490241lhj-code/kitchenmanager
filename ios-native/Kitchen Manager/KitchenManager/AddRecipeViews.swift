@@ -14,7 +14,8 @@ private struct AIGenerationWaitRow: View {
 
     var body: some View {
         HStack {
-            ProgressView()
+            KitchenAIActivityIndicator(phase: .waiting, size: .small)
+                .accessibilityHidden(true)
             Text(message)
                 .foregroundStyle(.secondary)
             Spacer(minLength: KitchenTheme.pageGutter)
