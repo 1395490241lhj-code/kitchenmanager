@@ -4,6 +4,18 @@ struct MessageRowView: View {
     let message: AIConversationMessage
     @EnvironmentObject private var controller: AIConversationController
 
+    /// The activity this row may show, or nil. Only a turn state that is really
+    /// running may show activity. A message persisted as streaming can outlive
+    /// its turn (for example after reopening the conversation mid-run), and
+    /// then there is nothing truthful to show — no phase is synthesized.
+    static func activityPhase(
+        for message: AIConversationMessage,
+        turnState: AIConversationTurnState
+    ) -> KitchenAIActivityPhase? {
+        guard message.state == .streaming else { return nil }
+        return turnState.aiActivityPhase
+    }
+
     var body: some View {
         if message.role == .user {
             HStack {
@@ -21,17 +33,10 @@ struct MessageRowView: View {
                 ForEach(message.contentBlocks) { block in
                     ContentBlockView(block: block)
                 }
-                if message.state == .streaming {
-                    let phase = controller.turnState.activeActivityPhase
-                    HStack(spacing: 8) {
-                        KitchenAIActivityIndicator(phase: phase, size: .small)
-                        Text("思考并回复中…")
-                            .font(.footnote)
-                            .foregroundStyle(KitchenTheme.textSecondary)
-                    }
-                    .padding(.top, 4)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("AI 正在回复中，\(phase.accessibilityLabel)")
+                if let phase = Self.activityPhase(for: message, turnState: controller.turnState) {
+                    KitchenAIStatus(phase: phase, message: phase.statusText, presentation: .conversation)
+                        .font(.footnote)
+                        .padding(.top, 4)
                 }
                 if message.state == .cancelled {
                     // Derived from the persisted message state, so it survives

@@ -91,10 +91,6 @@ nonisolated enum AIConversationTurnState: Equatable, Sendable {
         }
     }
 
-    var activeActivityPhase: KitchenAIActivityPhase {
-        aiActivityPhase ?? .composing
-    }
-
     /// Whether a new user message may start while this state is current.
     var acceptsUserInput: Bool {
         switch self {

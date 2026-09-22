@@ -1802,33 +1802,6 @@ private extension String {
 
 // MARK: - Input view
 
-/// The waiting state for a whole-menu request: what is running, said in words,
-/// and the one way out of it. Both weekly surfaces show the same three parts,
-/// so the markup lives once — but the sentence and the identifier stay at the
-/// call site, because starting a menu and replacing one are different events.
-private struct WeeklyGenerationWaitRow: View {
-    let message: String
-    let cancelIdentifier: String
-    let cancel: () -> Void
-
-    var body: some View {
-        HStack {
-            KitchenAIActivityIndicator(phase: .waiting, size: .small)
-                .accessibilityHidden(true)
-            Text(message)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: KitchenTheme.pageGutter)
-            Button(action: cancel) {
-                // The height sits on the label so the tap target really is that
-                // tall; a borderless button is only as big as what it draws.
-                Text("取消").frame(minHeight: ChromeMetrics.minimumRowHeight)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier(cancelIdentifier)
-        }
-    }
-}
-
 struct WeeklyMenuPlannerView: View {
     /// Handed this screen's store while the generator is on the navigation
     /// stack, so the layer that owns the route can end the workflow when the
@@ -1924,12 +1897,13 @@ struct WeeklyMenuPlannerView: View {
                 if store.isGenerating {
                     // The waiting state takes the generate action's own place
                     // rather than covering the form: same row, same section.
-                    WeeklyGenerationWaitRow(
+                    KitchenAIStatus(
+                        phase: .waiting,
                         message: "正在生成一周菜单…",
-                        cancelIdentifier: "weekly.generate.cancel"
-                    ) {
-                        store.cancelGeneration()
-                    }
+                        cancel: .init(identifier: "weekly.generate.cancel") {
+                            store.cancelGeneration()
+                        }
+                    )
                 } else {
                     Button {
                         Task {
@@ -2114,12 +2088,13 @@ struct WeeklyMenuResultView: View {
                     // replacement is being prepared, so it stays on screen and
                     // the waiting state sits above it as one more row.
                     Section {
-                        WeeklyGenerationWaitRow(
+                        KitchenAIStatus(
+                            phase: .waiting,
                             message: "正在重新生成…",
-                            cancelIdentifier: "weekly.regenerate.cancel"
-                        ) {
-                            store.cancelGeneration()
-                        }
+                            cancel: .init(identifier: "weekly.regenerate.cancel") {
+                                store.cancelGeneration()
+                            }
+                        )
                     }
                 }
                 overviewSection(plan)

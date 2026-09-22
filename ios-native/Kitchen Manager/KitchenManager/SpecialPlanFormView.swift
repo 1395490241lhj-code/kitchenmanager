@@ -241,25 +241,19 @@ struct SpecialPlanComposerSheet: View {
     private var generateBar: some View {
         VStack(spacing: 8) {
             if draft.isBusy {
-                HStack(spacing: 10) {
-                    KitchenAIActivityIndicator(phase: .waiting, size: .small)
-                        .accessibilityHidden(true)
-                    Text("正在设计菜单…")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        // Leaf-level. An identifier on the enclosing HStack would
-                        // silently erase the cancel button's own — the same
-                        // SwiftUI override rule Home's section ids follow.
-                        .accessibilityIdentifier("planner.compose.generating")
-                    Spacer(minLength: 8)
-                    // Stop and stay. Distinct from the toolbar's 取消, which
-                    // stops and leaves: a user who wants to change one word of
-                    // the request should not have to reopen the sheet to do it.
-                    Button("取消生成") { draft.cancelGeneration() }
-                        .font(.subheadline.weight(.medium))
-                        .frame(minHeight: AppTheme.minimumHitTarget)
-                        .accessibilityIdentifier("planner.compose.cancelGeneration")
-                }
+                // Stop and stay. 取消生成 is distinct from the toolbar's 取消,
+                // which stops and leaves: a user who wants to change one word
+                // of the request should not have to reopen the sheet to do it.
+                KitchenAIStatus(
+                    phase: .waiting,
+                    message: "正在设计菜单…",
+                    messageIdentifier: "planner.compose.generating",
+                    cancel: .init("取消生成", identifier: "planner.compose.cancelGeneration") {
+                        draft.cancelGeneration()
+                    },
+                    presentation: .planner
+                )
+                .font(.subheadline)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
             } else {
                 Button {

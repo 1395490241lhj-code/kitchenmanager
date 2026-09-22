@@ -264,21 +264,16 @@ struct SpecialPlanDetailView: View {
     private func draftSection(_ plan: SpecialPlan) -> some View {
         Section {
             if menuDraft.isGenerating {
-                HStack(spacing: 10) {
-                    KitchenAIActivityIndicator(phase: .waiting, size: .small)
-                        .accessibilityHidden(true)
-                    Text("正在设计菜单…")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        // Leaf-level: an identifier on the row would erase the
-                        // cancel button's own.
-                        .accessibilityIdentifier("planner.menu.generating")
-                    Spacer(minLength: 8)
-                    Button("取消生成") { menuDraft.cancelGeneration() }
-                        .font(.subheadline.weight(.medium))
-                        .frame(minHeight: AppTheme.minimumHitTarget)
-                        .accessibilityIdentifier("planner.menu.cancelGeneration")
-                }
+                KitchenAIStatus(
+                    phase: .waiting,
+                    message: "正在设计菜单…",
+                    messageIdentifier: "planner.menu.generating",
+                    cancel: .init("取消生成", identifier: "planner.menu.cancelGeneration") {
+                        menuDraft.cancelGeneration()
+                    },
+                    presentation: .planner
+                )
+                .font(.subheadline)
                 .frame(minHeight: AppTheme.minimumHitTarget)
             } else {
                 ForEach(menuDraft.dishes) { dish in

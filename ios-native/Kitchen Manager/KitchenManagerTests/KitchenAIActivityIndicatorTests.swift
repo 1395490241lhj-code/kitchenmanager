@@ -30,8 +30,21 @@ final class KitchenAIActivityIndicatorTests: XCTestCase {
         XCTAssertNil(AIConversationTurnState.failed.aiActivityPhase)
     }
 
-    func testActiveActivityPhaseFallback() {
-        XCTAssertEqual(AIConversationTurnState.streaming.activeActivityPhase, .composing)
-        XCTAssertEqual(AIConversationTurnState.idle.activeActivityPhase, .composing)
+    /// Every phase a real turn state can produce says what the app knows, not
+    /// what a model might be doing internally.
+    func testObservablePhasesDescribeWhatTheAppKnows() {
+        XCTAssertEqual(KitchenAIActivityPhase.searching.statusText, "正在准备相关信息…")
+        XCTAssertEqual(KitchenAIActivityPhase.waiting.statusText, "正在等待 AI 回复…")
+        XCTAssertEqual(KitchenAIActivityPhase.toolCall.statusText, "正在处理相关操作…")
+        XCTAssertEqual(KitchenAIActivityPhase.composing.statusText, "正在生成回复…")
+
+        let observable = Set([
+            AIConversationTurnState.preparingContext, .requesting, .streaming, .toolRequested, .executing
+        ].compactMap(\.aiActivityPhase))
+        XCTAssertEqual(observable, [.searching, .waiting, .toolCall, .composing])
+        for phase in observable {
+            XCTAssertFalse(phase.statusText.contains("思考"), "\(phase) has no reasoning signal")
+            XCTAssertEqual(phase.accessibilityLabel, phase.statusText)
+        }
     }
 }

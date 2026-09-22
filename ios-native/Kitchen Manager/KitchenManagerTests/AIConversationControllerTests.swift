@@ -391,6 +391,39 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertFalse(f.controller.messages.contains { $0.plainTextSummary.contains("迟到") })
     }
 
+    /// An assistant row can be reloaded still persisted as `.streaming` while
+    /// the runtime turn is `.idle` — here because the stop that reopening
+    /// performs could not save the row as cancelled. No Kitchen AI activity may
+    /// be synthesized for it: the row shows no status and no orb, because
+    /// nothing is actually running for this row.
+    func testReopenedStreamingMessageWithIdleTurnShowsNoActivity() async throws {
+        let f = try Fixture()
+        let conversation = try makePersistedConversation(f)
+        f.controller.openConversation(id: conversation.id)
+        f.orchestrator.scripts = [.manual]
+        await send("还在回复", in: f)
+        f.orchestrator.emit(.state(.streaming))
+        await settle()
+
+        let live = try XCTUnwrap(f.controller.messages.last { $0.role == .assistant })
+        XCTAssertEqual(live.state, .streaming)
+        XCTAssertEqual(
+            MessageRowView.activityPhase(for: live, turnState: f.controller.turnState),
+            .composing,
+            "control: a truly streaming turn does show activity"
+        )
+
+        f.persistence.failSaveAssistant = true
+        f.controller.openConversation(id: conversation.id)
+        f.persistence.failSaveAssistant = false
+
+        let reopened = try XCTUnwrap(f.controller.messages.first { $0.id == live.id })
+        XCTAssertEqual(reopened.state, .streaming, "the persisted row still says streaming")
+        XCTAssertEqual(f.controller.turnState, .idle)
+        XCTAssertNil(f.controller.turnState.aiActivityPhase)
+        XCTAssertNil(MessageRowView.activityPhase(for: reopened, turnState: f.controller.turnState))
+    }
+
     private func pendingMeal(_ f: Fixture) async throws -> (AIConversation, PreparedAIAction) {
         let conversation = try makePersistedConversation(f)
         f.controller.openConversation(id: conversation.id)

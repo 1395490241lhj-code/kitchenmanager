@@ -1,36 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// The waiting state for a whole-recipe request: what is running, said in
-/// words, and the one way out of it. Both `AI 做菜` surfaces show the same
-/// three parts, so the markup lives once in this file — the sentence and the
-/// identifier stay at the call site, because generating a recipe and replacing
-/// one are different events. Deliberately not shared with the weekly surface:
-/// the presentation layer is not generalized yet.
-private struct AIGenerationWaitRow: View {
-    let message: String
-    let cancelIdentifier: String
-    let cancel: () -> Void
-
-    var body: some View {
-        HStack {
-            KitchenAIActivityIndicator(phase: .waiting, size: .small)
-                .accessibilityHidden(true)
-            Text(message)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: KitchenTheme.pageGutter)
-            Button(action: cancel) {
-                // The height sits on the label so the tap target really is
-                // that tall; a borderless button is only as big as what it
-                // draws.
-                Text("取消").frame(minHeight: ChromeMetrics.minimumRowHeight)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityIdentifier(cancelIdentifier)
-        }
-    }
-}
-
 struct AIGeneratorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var kitchenStore: KitchenStore
@@ -121,12 +91,13 @@ struct AIGeneratorView: View {
                 if generatorStore.isGenerating {
                     // The waiting state takes the generate action's own place
                     // rather than covering the form: same row, same section.
-                    AIGenerationWaitRow(
+                    KitchenAIStatus(
+                        phase: .waiting,
                         message: "正在生成菜谱…",
-                        cancelIdentifier: "ai.generate.cancel"
-                    ) {
-                        generatorStore.cancelGeneration()
-                    }
+                        cancel: .init(identifier: "ai.generate.cancel") {
+                            generatorStore.cancelGeneration()
+                        }
+                    )
                 } else {
                     Button {
                         Task {
@@ -311,12 +282,13 @@ private struct AIRecipeConfirmationView: View {
                     // state sits above it as one more row. This is the only
                     // wait presentation on this screen.
                     Section {
-                        AIGenerationWaitRow(
+                        KitchenAIStatus(
+                            phase: .waiting,
                             message: "正在重新生成…",
-                            cancelIdentifier: "ai.regenerate.cancel"
-                        ) {
-                            generatorStore.cancelGeneration()
-                        }
+                            cancel: .init(identifier: "ai.regenerate.cancel") {
+                                generatorStore.cancelGeneration()
+                            }
+                        )
                     }
                 }
                 RecipeDraftEditorSections(
