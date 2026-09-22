@@ -48,7 +48,6 @@ enum AppTheme {
     /// native bordered controls on their surrounding surfaces.
     static let managementAccentForeground = adaptive(light: 0x007AFF, dark: 0x0A84FF)
     static let cookingAccentForeground = adaptive(light: 0x3866D6, dark: 0xA5BDFF)
-    static let aiAccentForeground = adaptive(light: 0x5856D6, dark: 0x9290EE)
 
     /// Prominent fills are deliberately separate from accent foregrounds: a
     /// Dark Mode link needs to get lighter, while a fill behind white text must

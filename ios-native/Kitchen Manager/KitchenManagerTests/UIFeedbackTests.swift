@@ -61,10 +61,9 @@ final class UIFeedbackTests: XCTestCase {
         assertContrast(AppTheme.cookingAccentForeground, Color(uiColor: .systemGroupedBackground), traits: dark)
         assertContrast(AppTheme.cookingAccentForeground, AppTheme.secondarySurface, traits: light)
         assertContrast(AppTheme.cookingAccentForeground, AppTheme.secondarySurface, traits: dark)
-        assertContrast(AppTheme.aiAccentForeground, Color(uiColor: .systemGroupedBackground), traits: light)
-        assertContrast(AppTheme.aiAccentForeground, Color(uiColor: .systemGroupedBackground), traits: dark)
-        assertContrast(AppTheme.aiAccentForeground, AppTheme.secondarySurface, traits: light)
-        assertContrast(AppTheme.aiAccentForeground, AppTheme.secondarySurface, traits: dark)
+        // KitchenButtonStyle(role: .secondary): foreground on its own fill.
+        assertContrast(KitchenTheme.cookingGreen, KitchenTheme.elevatedSurface, traits: light)
+        assertContrast(KitchenTheme.cookingGreen, KitchenTheme.elevatedSurface, traits: dark)
         assertContrast(AppTheme.successInk, AppTheme.surface, traits: light)
         assertContrast(AppTheme.warningInk, AppTheme.surface, traits: light)
     }

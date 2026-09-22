@@ -62,6 +62,5 @@ enum KitchenTheme {
     static let sage = AppTheme.adaptive(light: 0x59616F, dark: 0xAFB7C5)
     static let terracotta = AppTheme.adaptive(light: 0xA6452D, dark: 0xF08A6D)
     static let ochre = AppTheme.adaptive(light: 0x806019, dark: 0xE2B85A)
-    static let aiIndigo = AppTheme.adaptive(light: 0x58538F, dark: 0xABA5E8)
     static let managementBlue = AppTheme.adaptive(light: 0x3866D6, dark: 0xA5BDFF)
 }
