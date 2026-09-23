@@ -6,7 +6,7 @@ Owner-approved at implementation `d9da474`; visual/IA design is frozen. [Enginee
 
 - Home: ordinary cooking/flexible days show one tappable date row; exceptional state may add one meaningful context line. No redundant hero `今晚`. Presence-only readiness uses `所需食材已在库` / `N/M 食材已在库` over all today's plans. One dish is hero-only; two add `配 …`; three or more use `另有 N 道` with only remaining dishes inside. No aggregate multi-dish duration. At most two named attention rows plus overflow. `开始做饭` enters the shared cooking flow; `查看菜谱` remains secondary beside it. Since the 002 Home IA consolidation (canonical D-042), planning management is the single secondary route `用餐计划` → Planner, discovery is the single control `更多推荐`, and `今天的计划` no longer exists.
 - Inventory: permanently discoverable native Search, one filter surface with counts in choices, persistent filter during search and independent clear behavior. Healthy rows suppress redundant expiry metadata; active constraints and no-results remain explicit. Accessibility sizes use the compact native Menu.
-- Planner: individually empty days keep only the dated header; no `暂无安排` body row or permanent per-day plus. Existing week navigation, planned/Special Plan rows, toolbar creation and whole-empty-week creation remain. No ordinary-meal CRUD or weekly AI materialization was added.
+- Planner: planned days retain date headers and planned/Special Plan rows; in a partially populated week, unplanned days use compact, quiet scheduling rows with a compact date and trailing `+` (44pt whole-row target; accessibility label is the spoken date plus `安排一餐`). A fully empty week keeps its single primary `新建一餐` action. Existing week navigation and toolbar creation remain.
 - AI identity (canonical D-038): AI is a capability, not a second visual brand. Actions normally inherit the host surface's semantic/accent hierarchy; sparkles may identify capability. Independent indigo is no longer prescribed merely for AI. AI does not own a global color: AI primary and secondary actions use the host's primary and secondary action styling, AI provenance and headings stay neutral, and AI activity is expressed by `KitchenAIStatus` + Orb rather than tint.
 - 44pt remains the app target. The sole segmented-control exception (D-039) is this exact unmodified four-choice Inventory Picker. The accepted iPhone 17 Pro probe recorded about 32pt visual/AX height; taps 3pt above and below inside a 44pt wrapper did not select a segment. Do not infer expanded hit testing from layout bounds or claim blanket HIG compliance. Retain native selection/spacing/VoiceOver state and the Accessibility Menu; custom actions still require >=44pt. The bounded test uses Apple's 28pt iOS platform floor; WCAG's 24 CSS-pixel reference does not lower the app target.
 
@@ -242,15 +242,19 @@ Planner is date-led: understand the arrangements across a week, find the relevan
 open a dish or event to inspect or adjust it. Home keeps the Today task hero; Planner has
 no Hero.
 
-- Week range and date headers are the structure. Every date is a section label with a
-  neutral horizontal mark; only today carries a sage mark and one `· 今天` annotation.
+- Week range and planned-day date headers are the structure. Each planned date is a
+  section label with a neutral horizontal mark; only today carries a sage mark and one `· 今天` annotation.
   Days are not color-coded and there is no selected-day mode or calendar picker; the
   existing native previous/current/next week menu remains the navigation.
 - Ordinary dishes are open rows on the plain canvas: name first, servings or 已完成 as
   subordinate caption, chevron destination. No per-row fork icons and no per-dish card.
   Several dishes on one day remain separate rows; nothing is truncated or previewed.
-- Empty dates stay in place with 暂无安排. A fully empty week keeps its single create
-  affordance. Planner adds no per-day add, edit, reorder or leftover projection.
+- In a partially populated week, unplanned dates stay in calendar order as compact,
+  quiet scheduling rows, not empty Sections. Each shows a compact date and trailing `+`,
+  uses the whole row as the 44pt interaction target, and exposes the spoken date plus
+  `安排一餐` as its accessibility label. A fully empty week keeps its single primary
+  `新建一餐` action rather than seven add rows. Planner adds no reorder or leftover
+  projection.
 - Special Plan events are open rows with a sage icon container and their existing
   people/time/constraint caption. The detail shows the request and essential context in
   one elevated Module Surface, then the saved menu and draft as open rows under
