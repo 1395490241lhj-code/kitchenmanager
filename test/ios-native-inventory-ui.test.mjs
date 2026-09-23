@@ -37,8 +37,8 @@ test("fresh inventory renders as list rows routed through the explicit detail pu
     /ForEach\(displayedFreshInventory\) \{ item in\s*Button \{\s*onSelectItem\(item\.id\)\s*\} label: \{\s*InventoryFoodCard\(\s*item: item,\s*tonight: InventoryTonightLinkage\.summary\(for: item, in: tonight\)\s*\)\s*\}/
   );
   assert.match(features, /KitchenSectionLabel\(title: "食材", count: displayedFreshInventory\.count, showsRail: false\)/);
-  assert.match(content, /NavigationStack\(path: \$inventoryPath\)/);
-  assert.match(content, /InventoryView\(onSelectItem:[\s\S]*inventoryPath\.append\(InventoryRoute\.detail\(itemID\)\)/);
+  assert.match(content, /NavigationStack\(path: \$navigationStore\.inventoryPath\)/);
+  assert.match(content, /InventoryView\(onSelectItem:[\s\S]*navigationStore\.inventoryPath\.append\(\.detail\(itemID\)\)/);
   assert.match(features, /\.navigationDestination\(for: InventoryRoute\.self\)/);
   assert.match(features, /\.swipeActions\(edge: \.trailing/);
   assert.match(features, /\.alert\("删除这项食材？"/);
