@@ -48,6 +48,13 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
 
 
+    private func attachHistoryScreenshot(_ app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.lifetime = .keepAlways
+        attachment.name = name
+        add(attachment)
+    }
+
     func testVisualSnapshotReduceMotion() {
         let app = launchApp(arguments: [
             "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
@@ -922,6 +929,15 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["kitchenAI.history.section.archived"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["已结束"].exists)
         XCTAssertFalse(app.staticTexts["已过期"].exists, "conversation lifecycle never says 过期")
+
+        let pinnedRow = app.buttons["kitchenAI.history.row.11111111-1111-1111-1111-111111111111"]
+        XCTAssertTrue(pinnedRow.staticTexts["置顶买菜建议"].exists)
+        XCTAssertTrue(pinnedRow.staticTexts["已置顶"].exists)
+        let pinnedMeta = pinnedRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "今天，")).firstMatch
+        XCTAssertTrue(pinnedMeta.waitForExistence(timeout: 5))
+        XCTAssertFalse(pinnedMeta.label.contains("·"))
+        XCTAssertFalse(pinnedMeta.label.contains("\u{00A0}"))
+        attachHistoryScreenshot(app, named: "History_Normal")
     }
 
     func test28_BlankDraftAbsentFromHistory() {
@@ -1231,6 +1247,10 @@ final class AIConversationWorkspaceUITests: XCTestCase {
 
         let pinnedMeta = pinnedRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "今天，")).firstMatch
         XCTAssertTrue(pinnedMeta.waitForExistence(timeout: 5), "Metadata accessibility label should read naturally without isolated separator")
+        XCTAssertFalse(pinnedMeta.label.contains("·"))
+        XCTAssertFalse(pinnedMeta.label.contains("\u{00A0}"))
+        XCTAssertFalse(pinnedMeta.label.contains("…"))
+        attachHistoryScreenshot(app, named: "History_Accessibility_XXXL_Initial")
 
         app.swipeUp()
 
@@ -1241,6 +1261,9 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertTrue(homeRow.staticTexts["活跃"].exists)
         let homeMeta = homeRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "今天，")).firstMatch
         XCTAssertTrue(homeMeta.waitForExistence(timeout: 5), "Home metadata accessibility label should read naturally without isolated separator")
+        XCTAssertFalse(homeMeta.label.contains("·"))
+        XCTAssertFalse(homeMeta.label.contains("\u{00A0}"))
+        XCTAssertFalse(homeMeta.label.contains("…"))
 
         let plannerRow = app.buttons["kitchenAI.history.row.66666666-6666-6666-6666-666666666666"]
         XCTAssertTrue(plannerRow.waitForExistence(timeout: 5))
@@ -1249,6 +1272,10 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertTrue(plannerRow.staticTexts["活跃"].exists)
         let plannerMeta = plannerRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "一周计划，")).firstMatch
         XCTAssertTrue(plannerMeta.waitForExistence(timeout: 5), "Planner metadata accessibility label should read naturally without isolated separator")
+        XCTAssertFalse(plannerMeta.label.contains("·"))
+        XCTAssertFalse(plannerMeta.label.contains("\u{00A0}"))
+        XCTAssertFalse(plannerMeta.label.contains("…"))
+        attachHistoryScreenshot(app, named: "History_Accessibility_XXXL_Scrolled")
     }
 
     func test35_AccessibilityXXXLStillExposesComposerAndAction() {

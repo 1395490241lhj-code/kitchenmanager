@@ -281,21 +281,33 @@ struct ConversationHistoryRow: View {
                 // Which kitchen task this was, above when it last moved. A row
                 // that only carried title, excerpt and a timestamp read as a
                 // generic chat session rather than a task.
+                let metadataTimestamp = Self.dateFormatter.string(from: conversation.lastActivityAt)
+                let metadataTextLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 0))
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: identity.symbolName)
                         .font(.caption2)
                         .accessibilityHidden(true)
-                    (Text(identity.contextLine)
-                        .font(.caption.weight(.medium))
-                    // NBSP keeps the separator attached to the surrounding metadata.
-                    + Text("\u{00A0}·\u{00A0}")
-                        .font(.caption2)
-                    + Text(Self.dateFormatter.string(from: conversation.lastActivityAt))
-                        .font(.caption2))
-                    .accessibilityLabel("\(identity.contextLine)，\(Self.dateFormatter.string(from: conversation.lastActivityAt))")
+                    metadataTextLayout {
+                        Text(identity.contextLine)
+                            .font(.caption.weight(.medium))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if dynamicTypeSize.isAccessibilitySize {
+                            Text(metadataTimestamp)
+                                .font(.caption2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            // NBSP keeps the separator attached to adjacent metadata.
+                            Text("\(Text("\u{00A0}·\u{00A0}").font(.caption2))\(Text(metadataTimestamp).font(.caption2))")
+                                .lineLimit(2)
+                        }
+                    }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isStaticText)
+                .accessibilityLabel("\(identity.contextLine)，\(metadataTimestamp)")
                 .foregroundStyle(KitchenTheme.textSecondary)
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
                 .padding(.top, 2)
             }
             .padding(.vertical, 4)
