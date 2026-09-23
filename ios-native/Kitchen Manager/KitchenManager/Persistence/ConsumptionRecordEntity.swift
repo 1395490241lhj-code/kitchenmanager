@@ -80,7 +80,7 @@ final class ConsumptionRecordEntity {
     }
 }
 
-private struct ConsumptionTargetPayload: Codable {
+nonisolated private struct ConsumptionTargetPayload: Codable {
     var planIDs: [UUID]
     var specialPlanID: UUID?
     var specialPlanDishID: UUID?

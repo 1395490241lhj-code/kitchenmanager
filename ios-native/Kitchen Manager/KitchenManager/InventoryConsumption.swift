@@ -429,7 +429,7 @@ final class CookConsumptionStore: ObservableObject {
                 kitchenStore: kitchenStore,
                 recipeStore: recipeStore
             )
-        case .specialPlanDish(let planID, let dishID, _, let recipe):
+        case .specialPlanDish(_, _, _, let recipe):
             preparedPlanIDs = []
             preparedUnconsumedIDs = []
             isDirectRecipeConsumption = false
