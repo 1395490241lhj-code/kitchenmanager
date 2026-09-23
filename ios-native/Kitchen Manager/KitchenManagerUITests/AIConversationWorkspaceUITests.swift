@@ -124,6 +124,107 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         add(attachment)
     }
 
+    // MARK: - Structured block appearance matrix
+    //
+    // Captures the existing scripted structured states — recipe objects, a
+    // pending Planner mutation, its outcome after Apply, and a retryable
+    // error — in each appearance. Presentation evidence only: each step waits
+    // on the element that proves the state was reached, nothing more.
+
+    func testStructuredBlocksLightNormal() { captureStructuredBlocks(dark: false, accessibility: false) }
+    func testStructuredBlocksDarkNormal() { captureStructuredBlocks(dark: true, accessibility: false) }
+    func testStructuredBlocksLightAccessibilityXXXL() { captureStructuredBlocks(dark: false, accessibility: true) }
+    func testStructuredBlocksDarkAccessibilityXXXL() { captureStructuredBlocks(dark: true, accessibility: true) }
+
+    private func captureStructuredBlocks(dark: Bool, accessibility: Bool) {
+        let appearance: UIUserInterfaceStyle = dark ? .dark : .light
+        let size = accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"
+        let prefix = "AIBlocks-\(dark ? "Dark" : "Light")-\(accessibility ? "AXXXL" : "Normal")-"
+
+        func drag(_ app: XCUIApplication, from start: CGFloat, to end: CGFloat) {
+            let window = app.windows.firstMatch
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: start))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: end)))
+        }
+        func send(_ app: XCUIApplication, _ text: String) {
+            let composer = composerField(app)
+            XCTAssertTrue(composer.waitForExistence(timeout: 5))
+            composer.tap()
+            composer.typeText(text)
+            app.buttons["kitchenAI.send"].tap()
+            // The transcript dismisses the keyboard interactively; a drag that
+            // ends inside the keyboard puts the whole transcript in frame.
+            drag(app, from: 0.3, to: 0.98)
+        }
+        // Scrolls the transcript until the element sits clear of the composer
+        // chrome, re-dismissing the keyboard if focus returns. At accessibility
+        // sizes a generic swipe can leave a control under the keyboard, where
+        // it still reports hittable and a tap lands on a key instead.
+        func bringIntoView(_ app: XCUIApplication, _ element: XCUIElement) {
+            let chips = app.buttons["kitchenAI.contextChips"]
+            var dismissals = 0
+            for _ in 0..<12 {
+                if element.exists, element.frame.minY > 140, element.frame.maxY < chips.frame.minY - 8 { return }
+                // A focused composer can report a keyboard even when none is
+                // drawn, and the dismissing drag also scrolls the transcript
+                // back, so it is attempted at most twice before scrolling on.
+                if app.keyboards.firstMatch.exists, dismissals < 2 {
+                    dismissals += 1
+                    drag(app, from: 0.3, to: 0.98)
+                    continue
+                }
+                drag(app, from: 0.4, to: 0.2)
+            }
+            XCTFail("Could not bring \(element) into view")
+        }
+        func capture(_ app: XCUIApplication, _ name: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = prefix + name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+
+        var app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_TWO_RECIPES",
+            "UITEST_AI_CONVERSATION_SEED_RECIPES"
+        ], appearance: appearance, contentSize: size)
+        send(app, "推荐两个菜")
+        XCTAssertTrue(app.staticTexts["家常豆腐"].waitForExistence(timeout: 8))
+        capture(app, "Recipes")
+        // The second, transient recipe sits below the fold at accessibility
+        // sizes; capture it too so its card width is inspected, not assumed.
+        bringIntoView(app, app.staticTexts["家常豆腐"])
+        capture(app, "RecipesDraft")
+        app.terminate()
+
+        app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_PLANNER",
+            "UITEST_AI_CONVERSATION_SCRIPT_PLANNER_PREVIEW",
+            "UITEST_AI_CONVERSATION_SEED_PLAN"
+        ], appearance: appearance, contentSize: size)
+        send(app, "调整菜单")
+        let apply = app.buttons["kitchenAI.planner.apply"]
+        XCTAssertTrue(apply.waitForExistence(timeout: 8))
+        capture(app, "PlannerPreview")
+        bringIntoView(app, apply)
+        apply.tap()
+        let undo = app.buttons["kitchenAI.action.undo"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 8))
+        bringIntoView(app, undo)
+        capture(app, "ActionOutcome")
+        app.terminate()
+
+        app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_ERROR"
+        ], appearance: appearance, contentSize: size)
+        send(app, "出错测试")
+        XCTAssertTrue(app.buttons["kitchenAI.error.retry"].waitForExistence(timeout: 8))
+        capture(app, "Error")
+        app.terminate()
+    }
+
     // MARK: - EMPTY / COMPOSER (Tests 1-7)
 
     func test01_HomeTitleKitchenAI() {

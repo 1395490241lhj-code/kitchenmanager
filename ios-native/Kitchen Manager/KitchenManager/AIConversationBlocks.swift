@@ -103,6 +103,7 @@ struct AITextBlockView: View {
 struct AIRecipeBlockView: View {
     let block: AIRecipeBlock
     @EnvironmentObject private var recipeStore: RecipeStore
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var displayRecipe: Recipe {
         if !block.isTransient, let live = recipeStore.recipe(id: block.recipe.id) {
@@ -133,11 +134,17 @@ struct AIRecipeBlockView: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline) {
+                // Side by side at ordinary sizes; stacked at accessibility
+                // sizes so neither the title nor the metadata is squeezed
+                // into a narrow column beside its neighbour.
+                let titleLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                titleLayout {
                     Text(displayRecipe.title)
                         .font(.headline)
                         .foregroundStyle(KitchenTheme.textPrimary)
-                    Spacer()
+                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                     if block.isTransient {
                         Text("AI 推荐草稿")
                             .font(.caption2)
@@ -148,7 +155,10 @@ struct AIRecipeBlockView: View {
                     }
                 }
 
-                HStack(spacing: 12) {
+                let metadataLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+                    : AnyLayout(HStackLayout(spacing: 12))
+                metadataLayout {
                     // cookingTime is optional: nil means unknown, so the metadata
                     // is omitted rather than rendered as Swift's debug description.
                     if let cookingTime = displayRecipe.cookingTime {
@@ -182,6 +192,9 @@ struct AIRecipeBlockView: View {
                 }
             }
             .padding(KitchenTheme.modulePadding)
+            // The domain card owns the transcript width, so a short draft
+            // recipe never collapses to its intrinsic content width.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
@@ -201,13 +214,13 @@ struct AIRecipeBlockView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("kitchenAI.recipe.view.\(displayRecipe.id)")
         }
-        .padding(.vertical, 4)
     }
 }
 
 struct AIPlannerPreviewBlockView: View {
     let block: AIPlannerPreviewBlock
     @EnvironmentObject private var controller: AIConversationController
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var isActionPending: Bool {
         guard let pendingID = block.pendingActionID,
@@ -216,50 +229,32 @@ struct AIPlannerPreviewBlockView: View {
     }
 
     var body: some View {
+        // One quiet functional module: the pending mutation's name and its
+        // before → after changes read as rows inside it, never as cards inside
+        // a card. Apply stays outside and below as the one filled control.
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "calendar.badge.clock")
-                    .foregroundStyle(KitchenTheme.cookingGreen)
-                Text(block.title)
-                    .font(.headline)
-                    .foregroundStyle(KitchenTheme.textPrimary)
-            }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar.badge.clock")
+                        .foregroundStyle(KitchenTheme.cookingGreen)
+                        .accessibilityHidden(true)
+                    Text(block.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(KitchenTheme.textPrimary)
+                }
 
-            VStack(spacing: 8) {
-                ForEach(block.changes) { change in
-                    HStack(alignment: .top, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("原有")
-                                .font(.caption2)
-                                .foregroundStyle(KitchenTheme.textSecondary)
-                            Text(change.before)
-                                .font(.subheadline)
-                                .foregroundStyle(KitchenTheme.textSecondary)
-                                .strikethrough(color: KitchenTheme.separator)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Image(systemName: "arrow.right")
-                            .font(.caption)
-                            .foregroundStyle(KitchenTheme.cookingGreen)
-                            .padding(.top, 14)
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("修改为")
-                                .font(.caption2)
-                                .foregroundStyle(KitchenTheme.cookingGreen)
-                            Text(change.after)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(KitchenTheme.textPrimary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(block.changes.enumerated()), id: \.element.id) { index, change in
+                        if index > 0 { Divider() }
+                        changeRow(change)
                     }
-                    .padding(10)
-                    .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
                 }
             }
             .padding(KitchenTheme.modulePadding)
-            .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The surface fill without the recipe card's outline: visible
+            // containment in Light, still quieter than a real domain object.
+            .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
 
             if isActionPending {
                 Button {
@@ -278,46 +273,134 @@ struct AIPlannerPreviewBlockView: View {
                 .accessibilityIdentifier("kitchenAI.planner.apply")
             }
         }
-        .padding(.vertical, 4)
+    }
+
+    /// Side by side at ordinary sizes; stacked with a downward arrow at
+    /// accessibility sizes, where two columns would squeeze both values.
+    @ViewBuilder
+    private func changeRow(_ change: AIPlannerChangeRow) -> some View {
+        let before = VStack(alignment: .leading, spacing: 2) {
+            Text("原有")
+                .font(.caption2)
+                .foregroundStyle(KitchenTheme.textSecondary)
+            Text(change.before)
+                .font(.subheadline)
+                .foregroundStyle(KitchenTheme.textSecondary)
+                .strikethrough(color: KitchenTheme.separator)
+        }
+        let after = VStack(alignment: .leading, spacing: 2) {
+            Text("修改为")
+                .font(.caption2)
+                .foregroundStyle(KitchenTheme.cookingGreen)
+            Text(change.after)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(KitchenTheme.textPrimary)
+        }
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 6) {
+                before
+                Image(systemName: "arrow.down")
+                    .font(.caption)
+                    .foregroundStyle(KitchenTheme.cookingGreen)
+                    .accessibilityHidden(true)
+                after
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                before.frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "arrow.right")
+                    .font(.caption)
+                    .foregroundStyle(KitchenTheme.cookingGreen)
+                    .padding(.top, 14)
+                    .accessibilityHidden(true)
+                after.frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }
 
 struct AIContextResultBlockView: View {
     let block: AIContextResultBlock
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        // Provenance supporting the answer: open on the canvas, at footnote
+        // weight, so it never competes with a recipe, a pending change or
+        // Apply. Values lead their labels.
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
                 Image(systemName: "doc.text.magnifyingglass")
                     .foregroundStyle(KitchenTheme.textSecondary)
+                    .accessibilityHidden(true)
                 Text(block.title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(KitchenTheme.textPrimary)
+                    .foregroundStyle(KitchenTheme.textSecondary)
             }
+            .font(.footnote.weight(.semibold))
 
-            VStack(spacing: 4) {
+            VStack(alignment: .leading, spacing: dynamicTypeSize.isAccessibilitySize ? 8 : 4) {
                 ForEach(block.rows) { row in
-                    HStack {
-                        Text(row.label)
-                            .font(.caption)
-                            .foregroundStyle(KitchenTheme.textSecondary)
-                        Spacer()
-                        Text(row.detail)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(KitchenTheme.textPrimary)
+                    // Label → trailing value at ordinary sizes; stacked and
+                    // leading-aligned at accessibility sizes, where two
+                    // columns would squeeze or truncate the pair.
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.label)
+                                .foregroundStyle(KitchenTheme.textSecondary)
+                            Text(row.detail)
+                                .foregroundStyle(KitchenTheme.textPrimary)
+                        }
+                        .font(.footnote)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(row.label)
+                                .foregroundStyle(KitchenTheme.textSecondary)
+                            Spacer(minLength: 12)
+                            Text(row.detail)
+                                .foregroundStyle(KitchenTheme.textPrimary)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        .font(.footnote)
                     }
-                    .padding(.vertical, 2)
                 }
             }
-            .padding(KitchenTheme.modulePadding)
-            .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous)
-                    .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 1)
-            )
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+#Preview("Context provenance between prose") {
+    VStack(alignment: .leading, spacing: 12) {
+        AITextBlockView(block: .init(text: "冰箱里的青椒明天到期，今晚可以先用掉。"))
+        AIContextResultBlockView(block: .init(title: "快过期", rows: [
+            .init(label: "青椒", detail: "明天"),
+            .init(label: "鸡蛋", detail: "4 个")
+        ]))
+        AITextBlockView(block: .init(text: "推荐做一道青椒炒蛋。"))
+    }
+    .padding(KitchenTheme.pageGutter)
+    .background(KitchenTheme.canvas)
+}
+
+#Preview("Context provenance — Dark") {
+    AIContextResultBlockView(block: .init(title: "快过期", rows: [
+        .init(label: "青椒", detail: "明天"),
+        .init(label: "鸡蛋", detail: "4 个")
+    ]))
+    .padding(KitchenTheme.pageGutter)
+    .background(KitchenTheme.canvas)
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Context provenance — AXXXL") {
+    AIContextResultBlockView(block: .init(title: "快过期", rows: [
+        .init(label: "青椒", detail: "明天"),
+        .init(label: "鸡蛋", detail: "4 个")
+    ]))
+    .padding(KitchenTheme.pageGutter)
+    .background(KitchenTheme.canvas)
+    .dynamicTypeSize(.accessibility5)
 }
 
 struct AIActionStatusBlockView: View {
@@ -355,8 +438,9 @@ struct AIActionStatusBlockView: View {
     var body: some View {
         // Outcome → optional destination → undo availability. The outcome line
         // is the subject; the two controls stay secondary and never share its
-        // weight.
-        VStack(alignment: .leading, spacing: 6) {
+        // weight. A status, not another card: it sits open on the canvas so a
+        // completed change reads quieter than the pending one did.
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: block.isFailure ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                     .foregroundStyle(block.isFailure ? KitchenTheme.statusTerracotta : KitchenTheme.cookingGreen)
@@ -416,11 +500,7 @@ struct AIActionStatusBlockView: View {
                     .accessibilityIdentifier("kitchenAI.action.undoAvailability")
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(KitchenTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
-        .padding(.vertical, 4)
         .task(id: record?.undoExpiresAt) {
             guard let expiry = record?.undoExpiresAt, canUndoNow else { return }
             let remaining = expiry.timeIntervalSince(Date())
@@ -502,13 +582,17 @@ struct AIErrorBlockView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // An exceptional state carried by its terracotta symbol and plain
+        // sentence rather than by an outlined card; retry stays a text action.
+        VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(KitchenTheme.statusTerracotta)
+                    .accessibilityHidden(true)
                 Text(block.message)
                     .font(.subheadline)
                     .foregroundStyle(KitchenTheme.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let retry = retryPresentation {
@@ -527,13 +611,6 @@ struct AIErrorBlockView: View {
                 .accessibilityIdentifier("kitchenAI.error.retry")
             }
         }
-        .padding(KitchenTheme.modulePadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous)
-                .stroke(KitchenTheme.statusTerracotta.opacity(0.3), lineWidth: 1)
-        )
-        .padding(.vertical, 4)
     }
 }
