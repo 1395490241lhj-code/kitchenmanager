@@ -15,15 +15,18 @@ test('原生链接导入使用完整媒体降级接口并从分享文案抽取�
   assert.doesNotMatch(view, /AI 整理成菜谱/);
 });
 
-test('原生导入展示六阶段进度、支持重试并保存来源元数据', () => {
-  for (const label of ['正在解析链接', '正在读取页面', '正在提取视频', '正在识别语音', '正在识别字幕', '正在整理菜谱']) {
-    assert.match(view, new RegExp(label));
-  }
-  assert.match(view, /Button\("重试"/);
+test('原生导入展示诚实等待态、支持取消重试并保存来源元数据', () => {
+  assert.match(view, /static let importingStatus = "正在读取链接并整理菜谱…"/);
+  assert.match(view, /static let cancelImportLabel = "取消"/);
+  assert.match(view, /if isImporting \{[\s\S]*ProgressView\(\)[\s\S]*Text\(Self\.importingStatus\)/);
+  assert.match(view, /Button\("重试", systemImage: "arrow\.clockwise"\)/);
   assert.match(view, /platform: "xiaohongshu"/);
   assert.match(view, /originalURL: imported\.originalURL/);
   assert.match(view, /canonicalURL: imported\.canonicalURL/);
   assert.match(view, /importedAt: Date\(\)/);
+  for (const retired of ['正在解析链接', '正在读取页面', '正在提取视频', '正在识别语音', '正在识别字幕', '正在整理菜谱']) {
+    assert.doesNotMatch(view, new RegExp(retired));
+  }
 });
 
 test('来源 URL 参与原生持久化去重且旧菜谱仍可解码', () => {

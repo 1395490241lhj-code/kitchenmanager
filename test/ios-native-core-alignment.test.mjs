@@ -33,45 +33,40 @@ test("shopping add button opens a focused medium form", () => {
   assert.match(features, /store\.addShopping\(name: cleanName/);
 });
 
-test("home record-food action opens the existing flow instead of switching tabs", () => {
-  // The Home header's "+" keeps opening `SmartImportSheet`; its
-  // "手动添加食材" and "扫描购物小票" rows still open the existing
-  // `RecordFoodSheet` flows.
+test("home keeps food-entry ownership out of Today after IA consolidation", () => {
   const homeView = home.slice(
     home.indexOf("struct HomeView: View"),
     home.indexOf("private struct HomeDashboardHeader")
   );
-  // 导入入口不再由 HomeDashboardHeader 通过 onImport 闭包注入，而是挂在 HomeView
-  // 自己的 toolbar 上。要守住的仍是行为：它打开既有的 smartImport sheet，不切 tab，
-  // 并保留同一个 accessibility identifier。
   const importToolbar = homeView.slice(
     homeView.indexOf(".toolbar {"),
     homeView.indexOf(".navigationDestination")
   );
-  assert.match(importToolbar, /Button\("导入与添加", systemImage: "plus"\) \{ activeSheet = \.smartImport \}/);
-  assert.match(importToolbar, /\.accessibilityIdentifier\("home\.import\.add\.button"\)/);
-  assert.doesNotMatch(importToolbar, /selectedTab/);
-  assert.match(
-    homeView,
-    /\.sheet\(item: \$activeSheet\) \{ sheet in\s*sheetContent\(sheet\)\s*\}/
-  );
-  assert.match(homeView, /case \.smartImport:\s*SmartImportSheet \{/);
-  const manualFoodActionStart = home.indexOf('childSheet = .manualIngredient');
-  const manualFoodAction = home.slice(manualFoodActionStart, home.indexOf('title: "手动添加食材"') + 100);
-  assert.match(manualFoodAction, /childSheet = \.manualIngredient/);
-  assert.doesNotMatch(manualFoodAction, /selectedTab/);
-  assert.match(home, /case \.manualIngredient:\s*RecordFoodSheet\(initialMode: \.manual\)/);
-  assert.match(home, /case \.receipt:\s*RecordFoodSheet\(initialMode: \.receipt\)/);
-});
 
+  // Today owns Kitchen AI, not the old all-purpose Smart Import launcher.
+  assert.match(importToolbar, /Label\("问 Kitchen AI", systemImage: KitchenAISymbol\.emblem\)/);
+  assert.match(importToolbar, /\.accessibilityIdentifier\("home\.kitchenAI\.open"\)/);
+  assert.doesNotMatch(importToolbar, /smartImport|recordMode|selectedTab/);
+  assert.doesNotMatch(homeView, /home\.import\.add\.button|SmartImportSheet|SmartImportRoute/);
+
+  // Food entry remains one tap away on the Inventory tab and reuses the
+  // existing RecordFoodSheet rather than introducing a second flow.
+  assert.match(
+    features,
+    /Button\("添加食材", systemImage: "plus"\)\s*\{\s*recordMode = \.manual\s*\}/
+  );
+  assert.match(
+    features,
+    /\.sheet\(item: \$recordMode\) \{ mode in\s*RecordFoodSheet\(initialMode: mode\)\s*\}/
+  );
+});
 test("recipe seasonings are a real backward-compatible field", () => {
   assert.match(recipeModel, /let seasonings: \[String\]/);
   assert.match(recipeModel, /decodeIfPresent\(\[String\]\.self, forKey: \.seasonings\)/);
   assert.match(recipeModel, /RecipeIngredientClassifier\.classify\(legacyIngredients, recipeTitle: title\)/);
-  assert.match(recipes, /RecipeDetailSection\("调料与辅料", systemImage: "leaf"\)/);
+  assert.match(recipes, /RecipeDetailSection\("调料与辅料"\)/);
   assert.match(recipes, /if !recipe\.seasonings\.isEmpty/);
 });
-
 test("classifier moves bean flour, starch, oil, and liquids into seasonings conservatively", () => {
   for (const term of ["豆粉", "水淀粉", "食用油", "高汤"]) {
     assert.match(recipeModel, new RegExp(`"${term}"`));
@@ -99,23 +94,25 @@ test("all editable recipe save and plan entries share draft eligibility", () => 
   assert.match(recipes, /\.disabled\(!draft\.isSaveEligible\)/);
 });
 
-test("home quick actions share one sheet navigation stack for recipe import", () => {
-  // Phase 2B-8 Home redesign: recipe import options ("从小红书导入菜谱"/
-  // "手动创建菜谱") no longer route through the standalone
-  // `RecipeImportOptionsView` — they're now `NavigationLink`s inside
-  // `SmartImportSheet`'s own `NavigationStack`, sharing one sheet with the
-  // food-entry rows rather than presenting a second sheet.
-  assert.match(home, /enum SmartImportRoute: Hashable/);
-  assert.match(home, /case xiaohongshu/);
-  assert.match(home, /case manualRecipe/);
-  assert.match(home, /struct SmartImportSheet: View/);
-  assert.match(home, /NavigationStack\(path: \$path\)/);
-  assert.match(home, /\.navigationDestination\(for: SmartImportRoute\.self\)/);
-  assert.match(home, /NavigationLink\(value: SmartImportRoute\.xiaohongshu\)/);
-  assert.match(home, /NavigationLink\(value: SmartImportRoute\.manualRecipe\)/);
-  assert.doesNotMatch(home, /RecipeImportOptionsView\(/);
-});
+test("home IA removes the legacy smart-import stack while share handoff keeps recipe import available", () => {
+  // Home IA consolidation deliberately removed the old multi-purpose
+  // SmartImportSheet/SmartImportRoute stack from Today.
+  assert.doesNotMatch(home, /enum SmartImportRoute: Hashable/);
+  assert.doesNotMatch(home, /struct SmartImportSheet: View/);
+  assert.doesNotMatch(home, /HomeSheet\.smartImport/);
 
+  // Link import still arrives from the share/clipboard handoff and reuses the
+  // canonical ImportRecipeView instead of reviving the removed Home stack.
+  assert.match(
+    home,
+    /\.sheet\(item: sharedImportSheetBinding\) \{ request in\s*sharedImportSheetContent\(request\)\s*\}/
+  );
+  assert.match(
+    home,
+    /private func sharedImportSheetContent\(_ request: SharedImportRequest\) -> some View \{[\s\S]*ImportRecipeView\([\s\S]*autoStart: true/
+  );
+  assert.match(home, /case \.clipboardImport\(let presentation\):[\s\S]*ImportRecipeView\(/);
+});
 test("all recipe generation and import prompts require auxiliary materials in seasonings", () => {
   assert.match(generator, /豆粉、淀粉、生粉、水淀粉/);
   assert.match(imageImport, /豆粉、淀粉、生粉、水淀粉/);

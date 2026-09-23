@@ -48,16 +48,18 @@ test("native pantry UI, persistence, backup, and settings stay connected", () =>
   const inventoryView = views.slice(views.indexOf("struct InventoryView"), views.indexOf("private struct InventoryNoticeOverlay"));
   const settingsView = views.slice(views.indexOf("struct SettingsView"), views.indexOf("struct BackupRestoreView"));
 
-  // UI-3 renamed the in-list section from the old "常备货架" heading to
-  // "常备食材" and replaced the bespoke header/metric views with
-  // the shared `ListSectionHeader`. What must not regress is the *wiring*: the
-  // staple section, its filter, its rows, and its empty state all still
-  // resolve to the same pre-existing pantry flows.
+  // The current open-page Inventory presentation uses KitchenSectionLabel
+  // rather than the retired ListSectionHeader card treatment. What must not
+  // regress is the wiring: the staple section, its filter, rows, and empty
+  // state all still resolve to the same pantry flows.
   assert.doesNotMatch(inventoryView, /Text\("常备货架"\)/);
 
   // 1. The staple section and its filter still exist, driven by the same
   //    `PantryStapleFilter` state and `store.pantryStaples` source.
-  assert.match(inventoryView, /ListSectionHeader\(title: "常备食材", count: displayedStaples\.count\)/);
+  assert.match(
+    inventoryView,
+    /KitchenSectionLabel\(\s*title: "常备食材",\s*count: displayedStaples\.count,[\s\S]*?showsRail: false\s*\)/
+  );
   assert.match(inventoryView, /@State private var stapleFilter: PantryStapleFilter = \.all/);
   assert.match(inventoryView, /store\.pantryStaples\.filter\(stapleFilter\.includes\)/);
   assert.match(inventoryView, /Picker\("筛选", selection: \$stapleFilter\)[\s\S]*ForEach\(PantryStapleFilter\.allCases\)/);
