@@ -78,7 +78,7 @@ test("inventory chrome is capped at accessibility sizes while food content is no
   assert.match(pantry, /dynamicTypeSize\.isAccessibilitySize/);
   assert.match(pantry, /\.dynamicTypeSize\(\.\.\.ChromeMetrics\.symbolTypeLimit\)/);
   assert.match(pantry, /private var detailLines: \[String\]/);
-  assert.match(pantry, /return \["当前 \\(item\.quantity\.formatted\(\)\) \\(item\.unit\)", "最低 \\(minimumText\)"\]/);
+  assert.ok(pantry.includes('return ["当前 \\(item.quantity.formatted()) \\(item.unit)", "最低 \\(minimumText)"]'));
   assert.doesNotMatch(pantry, /\.minimumScaleFactor\(/);
 });
 test("inventory relies on native tab safe-area handling without a manual bottom spacer", () => {
