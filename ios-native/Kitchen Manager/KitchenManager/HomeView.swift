@@ -243,7 +243,7 @@ struct HomeView: View {
         }
         // Home no longer groups its content into cards, so the grouped-grey
         // backdrop has nothing left to separate. The page is the surface.
-        .background(AppTheme.canvas)
+        .background(KitchenTheme.canvas)
         .scrollEdgeEffectStyle(.soft, for: .bottom)
         // Deliberately stable. Home V2 expresses its state in the primary
         // task's own heading (今天做什么 / 今天做这些 / 今天怎么吃 / 今天备的菜 /
@@ -757,8 +757,8 @@ private struct ClipboardRecipeImportPrompt: View {
                 }
             }
         }
-        .padding(10)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+        .padding(KitchenTheme.modulePadding)
+        .background(KitchenTheme.surface, in: .rect(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("home.clipboard.import.prompt")
     }
@@ -1010,8 +1010,10 @@ private struct HomePrimaryHeader: View {
     }
 
     private var title: some View {
+        // Section weight, one step below the hero title it introduces, so the
+        // dish (or proposal) stays the strongest line in the region.
         Text(task.title)
-            .font(.title2.weight(.bold))
+            .font(.title3.weight(.semibold))
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("home.primary.title")
     }
@@ -1030,16 +1032,13 @@ private struct HomePrimaryHeader: View {
 /// and it does not quietly fall back to proposing a meal.
 private struct HomeEatOutPrimary: View {
     var body: some View {
+        // A settled fact on the canvas; a card around one sentence added
+        // containment without grouping anything.
         Text("今天不用准备晚餐")
             .font(.subheadline)
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                Color(.secondarySystemGroupedBackground),
-                in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous)
-            )
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityIdentifier("home.primary.eatOut")
     }
 }
@@ -1070,8 +1069,6 @@ private struct HomeSecondaryLinkRow: View {
                     .accessibilityHidden(true)
             }
             .frame(minHeight: AppTheme.minimumHitTarget)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 0)
             .kitchenGroupedSurface()
             .contentShape(Rectangle())
         }
@@ -1098,7 +1095,7 @@ private struct TodayPlanSummaryCard: View {
 
     var body: some View {
         if let leadPlan = dashboard.allPlans.first {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: KitchenTheme.heroSpacing) {
                 // No 今晚 label. The section heading above already says
                 // 今天做这些; naming the same evening twice, four points apart,
                 // is the repetition this card exists to stop.
@@ -1244,16 +1241,14 @@ private struct HomeRecommendationSection: View {
                     Text("正在准备今日推荐…")
                         .foregroundStyle(.secondary)
                 }
-                .frame(maxWidth: .infinity, minHeight: 88)
-                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+                .font(.subheadline)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
                 .accessibilityIdentifier("home.recommendation.loading")
             } else {
                 Label("暂时没有合适的推荐", systemImage: "fork.knife")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+                    .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
                     .accessibilityIdentifier("home.recommendation.empty")
             }
 
@@ -1283,7 +1278,7 @@ private struct HomeRecommendationSection: View {
         // Same hero grammar as an existing plan: the dish leads, its metadata
         // sits on one quiet line, and a single action follows. A proposal and a
         // decision should not look like two different products.
-        return VStack(alignment: .leading, spacing: 8) {
+        return VStack(alignment: .leading, spacing: KitchenTheme.heroSpacing) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(recipe.title)
                     .font(.system(
@@ -1321,7 +1316,7 @@ private struct HomeRecommendationSection: View {
                 primaryAction: { onAddToToday(recipe) },
                 isPrimaryDisabled: isAddedToToday,
                 secondaryTitle: "查看菜谱",
-                secondaryTint: AppTheme.cookingAccentForeground,
+                secondaryTint: KitchenTheme.cookingGreen,
                 secondaryIdentifier: "home.recommendation.viewRecipe",
                 secondaryAction: { onViewRecipe(recipe) }
             )
@@ -1442,7 +1437,7 @@ private struct MealMenuModule: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(plan.recipeName)
-                        .font(.headline)
+                        .font(.body.weight(.medium))
                         .foregroundStyle(plan.isCooked ? .secondary : .primary)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     Text(plan.isCooked ? "已完成" : (plan.plannedServings.map { "\($0) 人份" } ?? "今天"))
@@ -1498,7 +1493,8 @@ private struct HomeNeedsAttentionSection: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         HomeAttentionRow(item: item) { onSelect(item) }
                         if index < items.count - 1 || additionalCount > 0 {
-                            Divider().padding(.leading, 34)
+                            // Starts under the row text: badge + row spacing.
+                            Divider().padding(.leading, KitchenTheme.destinationIconSize + 12)
                         }
                     }
 
@@ -1510,7 +1506,7 @@ private struct HomeNeedsAttentionSection: View {
                                 Image(systemName: "ellipsis.circle")
                                     .font(.footnote.weight(.semibold))
                                     .foregroundStyle(AppTheme.textSecondary)
-                                    .frame(width: 22)
+                                    .frame(width: KitchenTheme.destinationIconSize)
                                     .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                                     .accessibilityHidden(true)
                                 Text("还有 \(additionalCount) 项")
@@ -1530,10 +1526,9 @@ private struct HomeNeedsAttentionSection: View {
                         .accessibilityIdentifier("home.attention.overflow")
                     }
                 }
-                // A grouped surface, because these rows are one list of things
-                // to act on rather than page text. Quieter than the primary
-                // region: no controls of its own, just a place to tap.
-                .padding(.horizontal, KitchenTheme.modulePadding)
+                // Open rows on the page gutter, closed by one hairline. There
+                // is no fill here, so an inset would only push the rows off the
+                // heading's coordinate without expressing any containment.
                 .padding(.vertical, 2)
                 .kitchenGroupedSurface()
             }
@@ -1651,7 +1646,6 @@ private struct HomeCarryoverFooterRow: View {
         Label(text, systemImage: "arrow.turn.down.right")
             .font(.footnote)
             .foregroundStyle(.secondary)
-            .padding(.leading, 4)
             .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
             .accessibilityIdentifier("home.carryover.outgoing")
     }
@@ -1684,8 +1678,8 @@ private struct HomeModuleIssues: View {
                     }
                 }
             }
-            .padding(10)
-            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: AppTheme.radiusCard, style: .continuous))
+            .padding(KitchenTheme.modulePadding)
+            .background(KitchenTheme.surface, in: .rect(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
         }
     }
 
