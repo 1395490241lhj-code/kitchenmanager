@@ -1,6 +1,6 @@
 # AI Coding Acceptance Matrix
 
-This document turns the repository-wide acceptance principles in `AGENTS.md` §4.2 into a compact risk-routing table. It is a development aid, not a second source of product truth and not a replacement for `TESTING.md`.
+This document is the compact risk-routing table used by `km-acceptance` under the repository-wide acceptance rules in `AGENTS.md` §5. It is a development aid, not a second source of product truth and not a replacement for `TESTING.md`.
 
 ## 1. Authority and use
 
@@ -62,7 +62,11 @@ For material SwiftUI/PWA visual work, the task contract should name only the sta
 - Reduce Motion when animation changes;
 - touch targets and accessibility labels/identifiers when controls change.
 
-Source inspection is not visual evidence. Use the platform-specific render/simulator/browser path required by `AGENTS.md` §4.1 and `TESTING.md`.
+Source inspection is not visual evidence.
+
+For native iOS / SwiftUI visual work, use `km-ios-validation` and the applicable iOS paths in `TESTING.md`.
+
+For PWA visual work, use the browser/runtime validation path in `TESTING.md`.
 
 ## 6. Compact implementation handoff
 

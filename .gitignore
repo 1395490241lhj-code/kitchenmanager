@@ -16,9 +16,27 @@ ios-native/Kitchen Manager/Config/Local.xcconfig
 node_modules/
 npm-debug.log*
 
-# Local agent skills — regenerable, never committed. Two generators:
-# `npx skills` from skills-lock.json, and `speckit-*` from the Spec Kit CLI.
-.agents/
+# Agent skills
+# Third-party skills and Spec Kit skills remain local/regenerable.
+# Kitchen Manager-owned km-* repo skills are committed for Codex progressive loading.
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/km-project-memory/
+!.agents/skills/km-project-memory/**
+!.agents/skills/km-task-routing/
+!.agents/skills/km-task-routing/**
+!.agents/skills/km-ios-validation/
+!.agents/skills/km-ios-validation/**
+!.agents/skills/km-acceptance/
+!.agents/skills/km-acceptance/**
+!.agents/skills/km-delivery/
+!.agents/skills/km-delivery/**
+!.agents/skills/km-ui/
+!.agents/skills/km-ui/**
+
+# Local Codex project preferences
+.codex/
 
 # Local env / secrets
 .env

@@ -15,8 +15,8 @@ git log -1 --oneline
 - Do not discard, reset, checkout over, or reformat unrelated existing work.
 - Identify whether uncommitted changes belong to the current task.
 - Resolve the exact target surface: PWA, iOS, server, Supabase, sync, shared contract, tests, or docs.
-- Read `AGENTS.md`, `PROJECT_STATUS.md`, the affected code, and the affected tests.
-- Follow the scoped reading route in `AGENTS.md`; do not preload every historical phase report.
+- Read `AGENTS.md`, then use `km-task-routing` and `km-project-memory` for the minimum task-specific context; inspect the affected code and tests.
+- Read `PROJECT_STATUS.md` only when the repo-side snapshot is relevant. Do not preload every historical phase report.
 
 ## 2. Define scope and risks
 
@@ -171,7 +171,7 @@ When requested:
 
 ## 11. Delivery format
 
-Use the report format in `AGENTS.md`. Never say “all tests passed” when only one subsystem ran, and never use an old validation count as a substitute for testing the current tree.
+Use the report format in `km-delivery`. Never say “all tests passed” when only one subsystem ran, and never use an old validation count as a substitute for testing the current tree.
 
 ## 12. Conversation handoff
 

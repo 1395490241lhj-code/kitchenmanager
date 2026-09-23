@@ -2,11 +2,11 @@
 
 仓库事实优先于文档。当前状态、稳定规则、长期契约和历史证据必须分开维护。
 
-**当前 canonical 项目状态位于仓库之外的 Obsidian 项目记忆中**，解析方式与读取协议见 [`AGENTS.md`](../AGENTS.md) 第 2 节「Project memory」。本目录中的文档不复制那份状态。
+**当前 canonical 项目状态位于仓库之外的 Obsidian 项目记忆中**。仓库级 authority 与 routing 见 [`AGENTS.md`](../AGENTS.md)，具体读取/校验/回写协议见 [`km-project-memory`](../.agents/skills/km-project-memory/SKILL.md)。本目录中的文档不复制那份状态。
 
 ## 当前权威文档
 
-- 当前 canonical 项目状态：Obsidian 项目记忆（见 [`AGENTS.md`](../AGENTS.md) §2）
+- 当前 canonical 项目状态：Obsidian 项目记忆（由 [`AGENTS.md`](../AGENTS.md) 路由至 [`km-project-memory`](../.agents/skills/km-project-memory/SKILL.md)）
 - 仓库侧时点快照：[`PROJECT_STATUS.md`](../PROJECT_STATUS.md)——审计/历史上下文，不是 canonical 当前状态
 - 已进入 main 的重要变化：[`CHANGELOG.md`](../CHANGELOG.md)
 - Agent 入口：[`AGENTS.md`](../AGENTS.md)
@@ -19,6 +19,10 @@
 - 测试规则与命令：[`development/TESTING.md`](development/TESTING.md)
 
 ## Focused docs
+
+### Design
+
+- [`design/UI_TASTE.md`](design/UI_TASTE.md)：iOS 实质性视觉 refinement 的轻量判断层与 Taste Pass；不定义新 Design System。
 
 ### Product
 
@@ -89,7 +93,7 @@
 
 ## 信息归属
 
-- 当前 canonical 项目状态 → Obsidian 项目记忆（`AGENTS.md` §2）
+- 当前 canonical 项目状态 → Obsidian 项目记忆（`AGENTS.md` + `.agents/skills/km-project-memory/`）
 - 仓库侧时点状态快照 → `PROJECT_STATUS.md`
 - 已进入 main 的重要变化 → `CHANGELOG.md`
 - 稳定产品原则 → `docs/product/`
