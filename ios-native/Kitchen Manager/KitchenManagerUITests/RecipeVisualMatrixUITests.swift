@@ -24,7 +24,7 @@ final class RecipeVisualMatrixUITests: XCTestCase {
             "UITEST_SEED_RECIPE_REGRESSION", "-UIPreferredContentSizeCategoryName",
             accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"
         ]
-        if dark { app.launchArguments.append("UITEST_FORCE_DARK_APPEARANCE") }
+        app.launchArguments.append(dark ? "UITEST_FORCE_DARK_APPEARANCE" : "UITEST_FORCE_LIGHT_APPEARANCE")
         app.launch()
         let mapo = app.buttons["recipe.list.regression-mapo"]
         XCTAssertTrue(mapo.waitForExistence(timeout: 10))

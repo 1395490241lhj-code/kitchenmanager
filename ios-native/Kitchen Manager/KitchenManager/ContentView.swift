@@ -490,10 +490,18 @@ struct KitchenManagerApp: App {
         // The preference persists in UserDefaults across launches on the same
         // simulator, so any UI-test launch *without* the flag explicitly resets
         // it — otherwise one dark screenshot would tint every later test.
+        // A Light case must say so with UITEST_FORCE_LIGHT_APPEARANCE: `.system`
+        // follows whatever appearance the simulator last saved, so omitting the
+        // Dark flag never guaranteed a light render.
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains(where: { $0.hasPrefix("UITEST_") }) {
-            let appearance: AppAppearance =
-                arguments.contains("UITEST_FORCE_DARK_APPEARANCE") ? .dark : .system
+            let forcesLight = arguments.contains("UITEST_FORCE_LIGHT_APPEARANCE")
+            let forcesDark = arguments.contains("UITEST_FORCE_DARK_APPEARANCE")
+            precondition(
+                !(forcesLight && forcesDark),
+                "UI test passed both UITEST_FORCE_LIGHT_APPEARANCE and UITEST_FORCE_DARK_APPEARANCE; pass exactly one."
+            )
+            let appearance: AppAppearance = forcesDark ? .dark : (forcesLight ? .light : .system)
             UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
         }
         // Same reasoning, same place, for the day rhythm: Home's recommendation

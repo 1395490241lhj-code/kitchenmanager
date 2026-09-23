@@ -11,7 +11,7 @@ final class ShoppingRegressionUITests: XCTestCase {
         app.launchArguments = ["UITEST_SEED_SHOPPING_REGRESSION", state,
                                "-UIPreferredContentSizeCategoryName",
                                accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"]
-        if dark { app.launchArguments.append("UITEST_FORCE_DARK_APPEARANCE") }
+        app.launchArguments.append(dark ? "UITEST_FORCE_DARK_APPEARANCE" : "UITEST_FORCE_LIGHT_APPEARANCE")
         app.launch()
         XCTAssertTrue(app.navigationBars.staticTexts["买菜"].waitForExistence(timeout: 10))
         return app

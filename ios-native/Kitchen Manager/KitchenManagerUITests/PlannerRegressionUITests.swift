@@ -11,7 +11,7 @@ final class PlannerRegressionUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_PLANNER_REGRESSION", "PLANNER_DATA_" + state,
                                "-UIPreferredContentSizeCategoryName", accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge", "UITEST_SPECIAL_PLAN_AI_MENU"]
-        if dark { app.launchArguments.append("UITEST_FORCE_DARK_APPEARANCE") }
+        app.launchArguments.append(dark ? "UITEST_FORCE_DARK_APPEARANCE" : "UITEST_FORCE_LIGHT_APPEARANCE")
         app.launch()
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 10))
         return app
