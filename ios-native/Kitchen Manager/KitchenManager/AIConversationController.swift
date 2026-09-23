@@ -311,6 +311,8 @@ final class AIConversationController: ObservableObject {
             preparedAction = nil
             turnState = .completed
             appendToTurnAssistant(block, turnID: result.record.turnID)
+            // The action is terminal now; a cached pending excerpt would contradict it.
+            cachedExcerpts.removeValue(forKey: result.record.conversationID)
             contentRevision += 1
         } catch {
             localErrorMessage = safeMessage(error, fallback: "操作未完成。")
@@ -333,6 +335,7 @@ final class AIConversationController: ObservableObject {
                 }
                 if changed { try? store.saveMessage(messages[messageIndex]) }
             }
+            cachedExcerpts.removeValue(forKey: result.record.conversationID)
             contentRevision += 1
         } catch {
             localErrorMessage = safeMessage(error, fallback: "无法撤销该操作。")
@@ -423,10 +426,31 @@ final class AIConversationController: ObservableObject {
         }
         if let messages = try? store.messages(conversationID: conversationID),
            let last = messages.last(where: { !$0.plainTextSummary.isEmpty }) {
-            cachedExcerpts[conversationID] = last.plainTextSummary
-            return last.plainTextSummary
+            let excerpt = historyExcerpt(of: last)
+            cachedExcerpts[conversationID] = excerpt
+            return excerpt
         }
         return nil
+    }
+
+    /// History presentation only. `plainTextSummary` stays the stored truth for
+    /// the recent-message window; here a Planner preview's heading is projected
+    /// from its persisted action record, the same rule the transcript uses, so
+    /// an applied or undone change never reads as still awaiting confirmation.
+    private func historyExcerpt(of message: AIConversationMessage) -> String {
+        guard message.contentBlocks.contains(where: {
+            if case .plannerPreview = $0 { return true }
+            return false
+        }) else { return message.plainTextSummary }
+        let records = (try? store.actions(conversationID: message.conversationID)) ?? []
+        var projected = message
+        projected.contentBlocks = message.contentBlocks.map { block in
+            guard case var .plannerPreview(preview) = block else { return block }
+            let record = preview.pendingActionID.flatMap { id in records.first { $0.id == id } }
+            preview.title = AIPlannerPreviewPresentation.title(for: preview, record: record)
+            return .plannerPreview(preview)
+        }
+        return projected.plainTextSummary
     }
 
     private func load(_ conversation: AIConversation) {

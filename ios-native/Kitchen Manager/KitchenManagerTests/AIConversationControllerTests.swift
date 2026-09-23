@@ -484,6 +484,90 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertEqual(f.controller.turnState, .idle)
     }
 
+    /// The preview heading is derived from the persisted action record, never
+    /// from `preparedAction`: pending asks for confirmation, while succeeded and
+    /// undone — including after reopening — read as a neutral record. The
+    /// stored block keeps its original title throughout.
+    func testPlannerPreviewTitleFollowsPersistedActionStatusAcrossReopen() async throws {
+        let f = try Fixture()
+        let (conversation, prepared) = try await pendingMeal(f)
+        guard case let .plannerPreview(preview)? = prepared.preview else {
+            return XCTFail("expected a planner preview")
+        }
+        try f.store.saveMessage(AIConversationMessage(conversationID: conversation.id, role: .assistant,
+            state: .completed, contentBlocks: [.plannerPreview(preview)], turnID: UUID()))
+        func storedBlock() -> AIPlannerPreviewBlock? {
+            f.controller.messages.flatMap(\.contentBlocks).lazy.compactMap { block -> AIPlannerPreviewBlock? in
+                if case let .plannerPreview(value) = block, value.id == preview.id { return value }
+                return nil
+            }.first
+        }
+        func title() -> String? {
+            storedBlock().map { AIPlannerPreviewPresentation.title(for: $0, record: f.controller.actionRecord(id: prepared.id)) }
+        }
+
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertEqual(title(), "确认计划变更")
+
+        f.controller.confirmPreparedAction()
+        XCTAssertEqual(try f.persistence.action(id: prepared.id)?.status, .succeeded)
+        XCTAssertEqual(title(), "计划变更")
+
+        let other = try makePersistedConversation(f)
+        f.controller.openConversation(id: other.id)
+        f.controller.openConversation(id: conversation.id)
+        XCTAssertNil(f.controller.preparedAction)
+        XCTAssertEqual(title(), "计划变更")
+
+        f.controller.undo(actionID: prepared.id)
+        XCTAssertEqual(try f.persistence.action(id: prepared.id)?.status, .undone)
+        XCTAssertEqual(title(), "计划变更")
+        XCTAssertEqual(storedBlock()?.title, "确认计划变更")
+    }
+
+    /// History's fallback excerpt projects the Planner preview heading from the
+    /// persisted action record, and Apply/Undo drop a cached pending excerpt.
+    /// `plainTextSummary` — the recent-message window's text — keeps the stored
+    /// title, so model context is unchanged.
+    func testHistoryExcerptProjectsPlannerPreviewTitleWithoutChangingPlainTextSummary() async throws {
+        let f = try Fixture()
+        let (conversation, prepared) = try await pendingMeal(f)
+        guard case let .plannerPreview(preview)? = prepared.preview else {
+            return XCTFail("expected a planner preview")
+        }
+        let transcript = AIConversationMessage(conversationID: conversation.id, role: .assistant,
+            createdAt: f.fixedDate.addingTimeInterval(60), state: .completed,
+            contentBlocks: [.text(.init(text: "为您准备了以下计划修改：")), .plannerPreview(preview)], turnID: UUID())
+        try f.store.saveMessage(transcript)
+        f.controller.openConversation(id: conversation.id)
+
+        // Pending, and read once so the excerpt is cached before Apply.
+        let pending = try XCTUnwrap(f.controller.lastMessageExcerpt(for: conversation.id))
+        XCTAssertTrue(pending.contains("确认计划变更"))
+
+        f.controller.confirmPreparedAction()
+        XCTAssertEqual(try f.persistence.action(id: prepared.id)?.status, .succeeded)
+        let applied = try XCTUnwrap(f.controller.lastMessageExcerpt(for: conversation.id))
+        XCTAssertTrue(applied.contains("计划变更"))
+        XCTAssertFalse(applied.contains("确认计划变更"))
+
+        let other = try makePersistedConversation(f)
+        f.controller.openConversation(id: other.id)
+        f.controller.openConversation(id: conversation.id)
+        let reopened = try XCTUnwrap(f.controller.lastMessageExcerpt(for: conversation.id))
+        XCTAssertTrue(reopened.contains("计划变更"))
+        XCTAssertFalse(reopened.contains("确认计划变更"))
+
+        f.controller.undo(actionID: prepared.id)
+        XCTAssertEqual(try f.persistence.action(id: prepared.id)?.status, .undone)
+        let undone = try XCTUnwrap(f.controller.lastMessageExcerpt(for: conversation.id))
+        XCTAssertTrue(undone.contains("计划变更"))
+        XCTAssertFalse(undone.contains("确认计划变更"))
+
+        let stored = try XCTUnwrap(f.store.messages(conversationID: conversation.id).first { $0.id == transcript.id })
+        XCTAssertTrue(stored.plainTextSummary.hasPrefix("为您准备了以下计划修改： 确认计划变更"))
+    }
+
     func testReopenExpiredConversationClearsPendingAction() async throws {
         let f = try Fixture()
         var (conversation, _) = try await pendingMeal(f)

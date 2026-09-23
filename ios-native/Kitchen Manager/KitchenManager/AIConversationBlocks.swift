@@ -217,6 +217,24 @@ struct AIRecipeBlockView: View {
     }
 }
 
+/// The Planner preview's heading follows the persisted action truth. The stored
+/// block keeps the title it was prepared with; once the record is terminal the
+/// imperative "confirm" would contradict the outcome below it, so succeeded and
+/// undone read as a neutral record of the change. Any other or missing status
+/// keeps the stored title.
+nonisolated enum AIPlannerPreviewPresentation {
+    static let settledTitle = "计划变更"
+
+    static func title(for block: AIPlannerPreviewBlock, record: AIConversationActionRecord?) -> String {
+        switch record?.status {
+        case .succeeded, .undone:
+            return settledTitle
+        default:
+            return block.title
+        }
+    }
+}
+
 struct AIPlannerPreviewBlockView: View {
     let block: AIPlannerPreviewBlock
     @EnvironmentObject private var controller: AIConversationController
@@ -238,7 +256,10 @@ struct AIPlannerPreviewBlockView: View {
                     Image(systemName: "calendar.badge.clock")
                         .foregroundStyle(KitchenTheme.cookingGreen)
                         .accessibilityHidden(true)
-                    Text(block.title)
+                    Text(AIPlannerPreviewPresentation.title(
+                        for: block,
+                        record: block.pendingActionID.flatMap { controller.actionRecord(id: $0) }
+                    ))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(KitchenTheme.textPrimary)
                 }
