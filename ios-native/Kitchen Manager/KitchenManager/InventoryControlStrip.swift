@@ -112,7 +112,7 @@ struct InventoryControlStrip: View {
                     .foregroundStyle(KitchenTheme.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Text("更改筛选")
+                Text("筛选")
                     .font(.subheadline)
                     .foregroundStyle(KitchenTheme.managementBlue)
                     .fixedSize(horizontal: false, vertical: true)
