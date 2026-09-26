@@ -19,6 +19,10 @@ In execution mode, the current meal is the dominant task surface and `开始做�
 
 The older Home guidance below that prescribed a fully open Home or no Home task container is historical at this boundary; it must not be applied against this accepted local task/content/support hierarchy. ChunUI informed limited implementation details only; its design system and dependencies were not adopted. Home's business precedence, D-048 inline discovery and exclusions, Dynamic Type behavior, native navigation and existing data/provider semantics remain in force. Other screens have not been migrated to these Home-specific surfaces.
 
+### Inventory visual hierarchy — accepted Phase 1 (2026-09-26)
+
+The Inventory shopping-list entry is a quiet, full-width utility row with a 44pt minimum target, secondary text and no card treatment. A food row's `今晚` context is secondary to its name and relevant state. The `常备食材` heading remains a clear group boundary after ordinary food rows, including at Accessibility XXXL; its trailing native filter Menu stays fully visible and reachable, with the first Pantry row spaced as content within that group. These are local Inventory presentation rules. Search, filter, Pantry quantity behavior and other screens retain their existing contracts.
+
 Home semantic precedence is mealPrep → dinner eatOut → Special Plan today → Today Plan → quick → recommendation; the Special Plan step was added by 002 (D-042). Ordinary Planner CRUD shipped with D-040 and AI weekly materialization with D-041, so neither is deferred any longer. Quantity-aware sufficiency is still deferred. No AI-provenance label or field was added.
 
 The prior v1 text below is historical wherever it conflicts with this revision. In particular, old indigo references do not instruct future implementations to restore a separate AI brand; old console/empty-day descriptions do not restore removed repetition. Current code and the canonical vault remain authoritative.

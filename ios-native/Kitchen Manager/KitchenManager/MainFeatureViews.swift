@@ -188,7 +188,13 @@ struct InventoryView: View {
                         } icon: {
                             Image(systemName: "checklist")
                         }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(KitchenTheme.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     }
+                    .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter, bottom: 0, trailing: KitchenTheme.pageGutter))
+                    .listRowBackground(AppTheme.canvas)
+                    .listRowSeparator(.hidden)
                     .accessibilityIdentifier("inventory.shopping.open")
                     .accessibilityLabel(
                         pendingShoppingCount > 0
@@ -288,6 +294,7 @@ struct InventoryView: View {
                                 showsRail: false
                             )
                             .textCase(nil)
+                            .foregroundStyle(KitchenTheme.textPrimary)
                             Spacer()
                             Menu {
                                 Picker("筛选", selection: $stapleFilter) {
@@ -303,6 +310,7 @@ struct InventoryView: View {
                             .accessibilityIdentifier("inventory.staple.filter.button")
                             .accessibilityLabel("常备食材筛选：\(stapleFilter.rawValue)")
                         }
+                        .padding(.top, -6)
                         .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter, bottom: 0, trailing: KitchenTheme.pageGutter))
                     }
                 } else if !hasSearchQuery && store.pantryStaples.isEmpty && !store.inventory.isEmpty {
@@ -744,7 +752,8 @@ private struct InventoryFoodCard: View {
         if let tonight {
             Text(tonight)
                 .font(.caption)
-                .foregroundStyle(AppTheme.cookingAccentForeground)
+                .foregroundStyle(KitchenTheme.textSecondary)
+                .padding(.top, 2)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 .accessibilityHidden(true)
         }
