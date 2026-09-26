@@ -24,12 +24,10 @@ struct HomeMealHero: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-
-
             // Semantic title sizing preserves Dynamic Type reflow.
             Text(title)
                 .font(.system(
-                    .title2,
+                    .title,
                     design: KitchenTheme.heroFontDesign,
                     weight: .semibold
                 ))
@@ -48,13 +46,8 @@ struct HomeMealHero: View {
             }
 
             if !statusText.isEmpty {
-                Rectangle()
-                    .fill(.quaternary)
-                    .frame(height: 1)
-                    .padding(.top, 12)
-                    .padding(.bottom, 10)
-
                 statusLine
+                    .padding(.top, 12)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

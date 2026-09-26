@@ -15,6 +15,7 @@ struct HomeActionPair: View {
     let secondaryTint: Color
     let secondaryIdentifier: String
     let secondaryAction: () -> Void
+    var homeTactile = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -36,7 +37,7 @@ struct HomeActionPair: View {
             Label(primaryTitle, systemImage: primarySymbol)
                 .font(.callout.weight(.semibold))
         }
-        .buttonStyle(KitchenButtonStyle(role: .primary))
+        .buttonStyle(KitchenButtonStyle(role: .primary, homeTactile: homeTactile))
         .disabled(isPrimaryDisabled)
         .accessibilityIdentifier(primaryIdentifier)
 

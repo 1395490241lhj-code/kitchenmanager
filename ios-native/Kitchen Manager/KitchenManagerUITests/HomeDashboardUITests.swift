@@ -236,6 +236,40 @@ final class HomeDashboardUITests: XCTestCase {
         attachScreenshot(of: app, named: "home-v2-execution-mode")
     }
 
+    func testHomeVisualStatesKeepTheSameFixtureAcrossAppearances() throws {
+        for (name, appearance) in [
+            ("Light", "UITEST_FORCE_LIGHT_APPEARANCE"),
+            ("Dark", "UITEST_FORCE_DARK_APPEARANCE")
+        ] {
+            let app = launch("UITEST_SEED_EMPTY_HOME", appearance)
+            let add = app.buttons["home.recommendation.addToday"]
+            XCTAssertTrue(add.waitForExistence(timeout: 5))
+            attachScreenshot(of: app, named: "home-visual-\(name)-decision")
+            add.tap()
+            XCTAssertTrue(app.buttons["home.today.plan.start"].waitForExistence(timeout: 5))
+            attachScreenshot(of: app, named: "home-visual-\(name)-execution")
+            app.terminate()
+        }
+    }
+
+    func testSecondaryRecommendationActionsStackAtAccessibilityXXXL() throws {
+        let app = launch(
+            "UITEST_SEED_HOME_DASHBOARD",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        )
+        let add = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@",
+            "home.recommendation.", ".addToday"
+        )).firstMatch
+        let view = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@",
+            "home.recommendation.", ".viewRecipe"
+        )).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertTrue(view.exists)
+        XCTAssertGreaterThan(view.frame.minY, add.frame.maxY)
+    }
+
     /// D-048: once today's meal is decided, discovery stays secondary to the
     /// current task and 需要处理, but the choices themselves remain visible.
     func testExecutionModeShowsInlineRecommendationsAfterNeedsAttention() throws {
@@ -261,6 +295,9 @@ final class HomeDashboardUITests: XCTestCase {
                 .firstMatch.exists,
             "an unplanned recommendation still has a quieter inline add action"
         )
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS %@", "匹配度不错"
+        )).firstMatch.exists, "nonempty inventory alone cannot justify a matching claim")
     }
 
     func testExecutionModeHasExactlyOneProminentStartControl() throws {
@@ -273,6 +310,32 @@ final class HomeDashboardUITests: XCTestCase {
         XCTAssertEqual(app.buttons["home.today.plan.start"].label, "开始做饭")
         XCTAssertFalse(app.buttons["home.recommendation.addToday"].exists)
         XCTAssertFalse(app.buttons["home.mealPrep.add"].exists)
+    }
+
+    func testCompletedOrdinaryPlanKeepsRecipeActionSecondary() throws {
+        let app = launchSeededDashboard()
+        let start = app.buttons["home.today.plan.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        start.tap()
+
+        let finish = app.buttons["recipe.cooking.finish"]
+        for _ in 0..<20 where !finish.exists {
+            let next = app.buttons["recipe.cooking.next"]
+            XCTAssertTrue(next.waitForExistence(timeout: 2))
+            next.tap()
+        }
+        XCTAssertTrue(finish.exists)
+        finish.tap()
+        XCTAssertTrue(app.navigationBars["确认本次食材消耗"].waitForExistence(timeout: 5))
+        app.buttons["更新冰箱"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["已完成"].waitForExistence(timeout: 5))
+        app.buttons["完成"].firstMatch.tap()
+
+        let recipe = app.buttons["home.today.plan.start"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 5))
+        XCTAssertEqual(recipe.label, "查看菜谱")
+        XCTAssertFalse(app.buttons["开始做饭"].exists)
+        attachScreenshot(of: app, named: "home-visual-completed-ordinary-plan")
     }
 
     // MARK: - Eating out
@@ -654,12 +717,54 @@ final class HomeDashboardUITests: XCTestCase {
     /// so browsing another batch no longer requires entering a separate screen.
     func testRegenerationIsAvailableAtTheEndOfTheHomeShelf() throws {
         let app = launch("UITEST_SEED_EMPTY_HOME")
-        XCTAssertTrue(element(app, "home.recommendation.shelf").waitForExistence(timeout: 5))
+        let shelf = element(app, "home.recommendation.shelf")
+        XCTAssertTrue(shelf.waitForExistence(timeout: 5))
         let regenerate = app.buttons["home.recommendation.regenerate"]
+        for _ in 0..<5 where regenerate.frame.maxX > shelf.frame.maxX { shelf.swipeLeft() }
         XCTAssertTrue(regenerate.exists)
+        XCTAssertLessThanOrEqual(regenerate.frame.maxX, shelf.frame.maxX)
         XCTAssertEqual(regenerate.label, "换一批, 看看别的搭配")
+        XCTAssertTrue(regenerate.isHittable)
+        attachScreenshot(of: app, named: "home-polish-terminal-light")
+        regenerate.tap()
+        XCTAssertTrue(regenerate.label.contains("正在换一批"))
+        XCTAssertFalse(regenerate.isEnabled)
+        attachScreenshot(of: app, named: "home-polish-generating-light")
+        XCTAssertTrue(shelf.waitForExistence(timeout: 5))
+        XCTAssertTrue(regenerate.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["home.recommendation.more"].exists)
         XCTAssertFalse(app.navigationBars.staticTexts["推荐"].exists)
+    }
+
+    func testHomePolishVisualStates() throws {
+        for (name, appearance) in [
+            ("light", "UITEST_FORCE_LIGHT_APPEARANCE"),
+            ("dark", "UITEST_FORCE_DARK_APPEARANCE")
+        ] {
+            let decision = launch("UITEST_SEED_EMPTY_HOME", appearance)
+            XCTAssertTrue(decision.buttons["home.recommendation.addToday"].waitForExistence(timeout: 5))
+            attachScreenshot(of: decision, named: "home-polish-decision-\(name)")
+            let decisionShelf = element(decision, "home.recommendation.shelf")
+            let terminal = decision.buttons["home.recommendation.regenerate"]
+            for _ in 0..<5 where terminal.frame.maxX > decisionShelf.frame.maxX { decisionShelf.swipeLeft() }
+            XCTAssertLessThanOrEqual(terminal.frame.maxX, decisionShelf.frame.maxX)
+            XCTAssertTrue(terminal.isHittable)
+            attachScreenshot(of: decision, named: "home-polish-terminal-\(name)")
+            decision.terminate()
+
+            let noAttention = launch("UITEST_SEED_EMPTY_HOME", appearance)
+            noAttention.buttons["home.recommendation.addToday"].tap()
+            XCTAssertTrue(noAttention.buttons["home.today.plan.start"].waitForExistence(timeout: 5))
+            XCTAssertTrue(noAttention.staticTexts["home.attention.healthy"].exists)
+            attachScreenshot(of: noAttention, named: "home-polish-execution-no-attention-\(name)")
+            noAttention.terminate()
+
+            let attention = launch("UITEST_SEED_HOME_DASHBOARD", appearance)
+            XCTAssertTrue(attention.staticTexts["home.attention.section"].waitForExistence(timeout: 5))
+            XCTAssertTrue(element(attention, "home.recommendation.section").exists)
+            attachScreenshot(of: attention, named: "home-polish-execution-attention-\(name)")
+            attention.terminate()
+        }
     }
 
     func testInlineRecommendationLoadingErrorAndEmptyStatesStayOnHome() throws {
@@ -673,6 +778,7 @@ final class HomeDashboardUITests: XCTestCase {
             let app = launch("UITEST_SEED_EMPTY_HOME", argument)
             XCTAssertTrue(element(app, identifier).waitForExistence(timeout: 5))
             XCTAssertFalse(app.navigationBars.staticTexts["推荐"].exists)
+            attachScreenshot(of: app, named: "home-review-\(identifier)")
             app.terminate()
         }
     }

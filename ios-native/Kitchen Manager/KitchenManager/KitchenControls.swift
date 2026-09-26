@@ -12,8 +12,10 @@ enum KitchenButtonRole {
 
 struct KitchenButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let role: KitchenButtonRole
     var tint: Color? = nil
+    var homeTactile = false
 
     func makeBody(configuration: Configuration) -> some View {
         let radius = role == .primary ? KitchenTheme.functionalRadius : KitchenTheme.compactRadius
@@ -23,19 +25,47 @@ struct KitchenButtonStyle: ButtonStyle {
             .frame(minHeight: KitchenTheme.controlHeight)
             .background(background, in: .rect(cornerRadius: radius, style: .continuous))
             .overlay {
+                if homeTactile && role == .primary {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        // Keep the brightest blue under white text above 4.5:1.
+                        .fill(LinearGradient(colors: [.white.opacity(0.04), .clear],
+                                             startPoint: .top, endPoint: .bottom))
+                        .overlay(alignment: .top) {
+                            Capsule()
+                                .fill(.white.opacity(0.22))
+                                .frame(height: 1)
+                                .padding(.horizontal, 14)
+                                .padding(.top, 2)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                                .strokeBorder(.black.opacity(0.17), lineWidth: 0.75)
+                        }
+                        .overlay {
+                            if configuration.isPressed {
+                                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                                    .fill(.black.opacity(0.07))
+                            }
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .overlay {
                 if role != .primary && role != .utility {
                     RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 0.75)
                 }
             }
             .shadow(
-                color: role == .primary ? AppTheme.cardShadow(opacity: KitchenTheme.shadowOpacity * 0.7) : .clear,
+                color: role == .primary ? AppTheme.cardShadow(opacity: KitchenTheme.shadowOpacity * (homeTactile ? 0.9 : 0.7)) : .clear,
                 radius: KitchenTheme.shadowRadius * 0.45,
                 y: KitchenTheme.shadowY * 0.35
             )
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .scaleEffect(configuration.isPressed && (!homeTactile || !reduceMotion) ? 0.985 : 1)
             .opacity(isEnabled ? 1 : 0.52)
-            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+            .animation(homeTactile ? (reduceMotion ? nil : KitchenMotion.quick) : .easeOut(duration: 0.14),
+                       value: configuration.isPressed)
     }
 
     private var foreground: Color {
@@ -89,6 +119,27 @@ extension View {
             )
     }
 
+    /// The only new elevated surfaces in this pass. Home opts in explicitly;
+    /// existing users of kitchenFeatureSurface keep their original material.
+    func kitchenHomeTaskSurface() -> some View {
+        modifier(KitchenHomeSurface(task: true))
+    }
+
+    func kitchenHomeDecisionSurface() -> some View {
+        modifier(KitchenHomeSurface(task: false))
+    }
+
+    /// A quiet supporting surface for execution-mode discovery. It keeps the
+    /// recommendation shelf grouped without competing with the task surface.
+    func kitchenHomeSecondarySurface() -> some View {
+        modifier(KitchenHomeSecondarySurface())
+    }
+
+    /// The terminal shelf action is a control, not another recipe object.
+    func kitchenHomeRegenerateSurface() -> some View {
+        modifier(KitchenHomeRegenerateSurface())
+    }
+
     /// The quiet grouping material for needs-attention and lightweight rows:
     /// a hairline underneath, not another card.
     func kitchenGroupedSurface() -> some View {
@@ -97,6 +148,117 @@ extension View {
                 .fill(KitchenTheme.separator)
                 .frame(height: 0.5)
         }
+    }
+}
+
+private struct KitchenHomeSurface: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    let task: Bool
+
+    func body(content: Content) -> some View {
+        let radius = KitchenTheme.featureRadius
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .background(
+                task ? KitchenTheme.surface : AppTheme.adaptive(light: 0xF9FAFC, dark: 0x24272E),
+                in: shape
+            )
+            .overlay {
+                shape
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(colorScheme == .dark ? 0.018 : (task ? 0.045 : 0.34)),
+                                task
+                                    ? .clear
+                                    : KitchenTheme.elevatedSurface.opacity(colorScheme == .dark ? 0.10 : 0.32)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .overlay(alignment: .top) {
+                if !task && colorScheme == .light {
+                    Capsule()
+                        .fill(.white.opacity(0.55))
+                        .frame(height: 1)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 2)
+                        .mask(shape)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .overlay {
+                shape.strokeBorder(
+                    KitchenTheme.separator.opacity(task ? 0.55 : (colorScheme == .dark ? 0.38 : 0.62)),
+                    lineWidth: 0.75
+                )
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+            .shadow(
+                color: AppTheme.cardShadow(opacity: colorScheme == .dark
+                    ? (task ? 0.045 : 0.018)
+                    : (task ? 0.085 : 0.05)),
+                radius: task ? 14 : 9,
+                y: task ? 6 : 3
+            )
+    }
+}
+
+private struct KitchenHomeSecondarySurface: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let radius = KitchenTheme.functionalRadius
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .background(
+                LinearGradient(
+                    colors: [
+                        KitchenTheme.elevatedSurface.opacity(colorScheme == .dark ? 0.74 : 0.78),
+                        KitchenTheme.surface.opacity(colorScheme == .dark ? 0.42 : 0.58)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                in: shape
+            )
+            .overlay {
+                shape.strokeBorder(
+                    KitchenTheme.separator.opacity(colorScheme == .dark ? 0.28 : 0.34),
+                    lineWidth: 0.75
+                )
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+    }
+}
+
+private struct KitchenHomeRegenerateSurface: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let radius = KitchenTheme.functionalRadius
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .background(
+                KitchenTheme.elevatedSurface.opacity(colorScheme == .dark ? 0.72 : 0.7),
+                in: shape
+            )
+            .overlay(alignment: .top) {
+                Capsule()
+                    .fill(KitchenTheme.separator.opacity(colorScheme == .dark ? 0.36 : 0.44))
+                    .frame(height: 1)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 1)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
     }
 }
 
