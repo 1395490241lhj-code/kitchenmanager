@@ -146,9 +146,10 @@ struct HomeView: View {
             // `HomeDashboardSummary` stays free of Special Plan data.
             specialPlans: kitchenStore.specialPlans
         )
-        let homeRecommendation = recommendationStore.recommendedRecipes.first { recommendation in
+        let homeRecommendations = recommendationStore.recommendedRecipes.filter { recommendation in
             !kitchenStore.todayPlans.contains { $0.recipeID == recommendation.recipe.id }
-        } ?? recommendationStore.currentRecommendation
+        }
+        let visibleHomeRecommendations = homeRecommendations
         let needsAttention = primaryTask.needsAttention(from: dashboard.attentionItems)
         return ScrollView {
             // Home V2's three layers, in this order and at three deliberately
@@ -171,7 +172,7 @@ struct HomeView: View {
                 primarySection(
                     task: primaryTask,
                     dashboard: dashboard,
-                    recommendation: homeRecommendation
+                    recommendations: visibleHomeRecommendations
                 )
 
                 HomeNeedsAttentionSection(
@@ -181,19 +182,28 @@ struct HomeView: View {
                     onViewAll: { navigationStore.showInventory(.all) }
                 )
 
-                // Discovery is the page's lowest-priority layer, so it follows
-                // 需要处理 rather than preceding it: a problem the kitchen
-                // already has outranks another dish it might have. One
-                // presentation for both modes — the same Level 4 navigation row
-                // — because the same identifier reaching the same destination
-                // rendered two different ways was the inconsistency, not the
-                // placement.
-                if primaryTask.isDecisionMode || primaryTask.showsRecommendationLink {
-                    HomeSecondaryLinkRow(
-                        title: "更多推荐",
-                        systemImage: "fork.knife",
-                        identifier: "home.recommendation.more",
-                        action: { isShowingRecommendations = true }
+                // Once today's meal is already decided, discovery stays below
+                // 需要处理 so an existing kitchen problem still outranks another
+                // possible dish. Unlike the old 更多推荐 row, the choices are
+                // visible here; Home no longer makes people navigate just to
+                // inspect the next recommendation.
+                if !primaryTask.isDecisionMode && primaryTask.showsRecommendationLink {
+                    HomeRecommendationSection(
+                        recommendations: visibleHomeRecommendations,
+                        isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
+                        isGenerating: recommendationStore.isGeneratingRecommendations,
+                        errorMessage: recommendationStore.recommendationError,
+                        noticeMessage: recommendationStore.recommendationNotice,
+                        isDisplayingSamples: recipeStore.isDisplayingSamples,
+                        showsSectionLabel: true,
+                        inventoryNames: kitchenStore.recipeCreationInventory.map(\.name),
+                        expiringNames: kitchenStore.recipeCreationExpiringItems.map(\.name),
+                        isAddedToToday: { recipe in
+                            kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
+                        },
+                        onAddToToday: addRecommendationToPlan,
+                        onViewRecipe: { selectedRecipe = $0 },
+                        onRegenerate: regenerateHomeRecommendations
                     )
                 }
 
@@ -564,6 +574,15 @@ struct HomeView: View {
         )
     }
 
+    private func regenerateHomeRecommendations() {
+        Task {
+            await recommendationStore.generateNewRecommendations(
+                inventory: kitchenStore.recipeCreationInventory.map(\.name),
+                expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
+            )
+        }
+    }
+
     private func addRecommendationToPlan(_ recipe: Recipe) {
         let alreadyAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
         kitchenStore.addPlan(recipe: recipe)
@@ -614,7 +633,7 @@ struct HomeView: View {
     private func primarySection(
         task: HomePrimaryTask,
         dashboard: HomeDashboardSummary,
-        recommendation: RecipeRecommendation?
+        recommendations: [RecipeRecommendation]
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HomePrimaryHeader(task: task)
@@ -655,19 +674,21 @@ struct HomeView: View {
 
             case .recipeRecommendation:
                 HomeRecommendationSection(
-                    recommendation: recommendation,
+                    recommendations: recommendations,
                     isLoading: recipeStore.isLoading && recommendationStore.recommendedRecipes.isEmpty,
                     isGenerating: recommendationStore.isGeneratingRecommendations,
                     errorMessage: recommendationStore.recommendationError,
                     noticeMessage: recommendationStore.recommendationNotice,
                     isDisplayingSamples: recipeStore.isDisplayingSamples,
-                    isAddedToToday: recommendation.map { candidate in
-                        kitchenStore.todayPlans.contains { $0.recipeID == candidate.recipe.id }
-                    } ?? false,
+                    showsSectionLabel: false,
                     inventoryNames: kitchenStore.recipeCreationInventory.map(\.name),
                     expiringNames: kitchenStore.recipeCreationExpiringItems.map(\.name),
+                    isAddedToToday: { recipe in
+                        kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
+                    },
                     onAddToToday: addRecommendationToPlan,
-                    onViewRecipe: { selectedRecipe = $0 }
+                    onViewRecipe: { selectedRecipe = $0 },
+                    onRegenerate: regenerateHomeRecommendations
                 )
 
             case .quickMeal:
@@ -1206,50 +1227,74 @@ private struct TodayPlanSummaryCard: View {
     }
 }
 
-/// Decision mode's content: the recommendation card with its loading / error /
-/// sample states and one discovery control, 更多推荐. It has no heading of its
-/// own — `HomePrimaryHeader` names it — and it renders only when it *is* the
-/// primary task. Regeneration lives in the recommendation browser (D-042).
+/// Home's recommendation shelf.
+///
+/// In decision mode this is the content of “今天怎么吃”. Once today's meal is
+/// already decided, the same choices move below 需要处理 and receive a quiet
+/// “更多推荐” section label. Normal text sizes use a view-aligned horizontal
+/// shelf that leaves the next card visible; Accessibility sizes stack the same
+/// cards vertically so large text never depends on horizontal paging.
 private struct HomeRecommendationSection: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    let recommendation: RecipeRecommendation?
+    let recommendations: [RecipeRecommendation]
     let isLoading: Bool
-    /// Store-level: the browser may still be regenerating when the user
-    /// returns here. Only the placeholder reads it; Home has no regenerate action.
     let isGenerating: Bool
     let errorMessage: String?
     let noticeMessage: String?
     let isDisplayingSamples: Bool
-    let isAddedToToday: Bool
+    let showsSectionLabel: Bool
     let inventoryNames: [String]
     let expiringNames: [String]
+    let isAddedToToday: (Recipe) -> Bool
     let onAddToToday: (Recipe) -> Void
     let onViewRecipe: (Recipe) -> Void
+    let onRegenerate: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if showsSectionLabel {
+                KitchenSectionLabel(
+                    title: "更多推荐",
+                    count: recommendations.count,
+                    tint: KitchenTheme.textSecondary
+                )
+                .accessibilityIdentifier("home.recommendation.section")
+            }
+
             if isDisplayingSamples {
                 SampleFallbackNotice(isRetrying: isLoading, onRetry: nil)
             }
 
-            if let recommendation {
-                recommendationCard(recommendation)
-            } else if isLoading || isGenerating {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("正在准备今日推荐…")
-                        .foregroundStyle(.secondary)
+            if recommendations.isEmpty {
+                emptyOrLoadingState
+            } else if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(recommendations.prefix(5))) { recommendation in
+                        recommendationCard(recommendation)
+                    }
+                    regenerateButton
                 }
-                .font(.subheadline)
-                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
-                .accessibilityIdentifier("home.recommendation.loading")
             } else {
-                Label("暂时没有合适的推荐", systemImage: "fork.knife")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
-                    .accessibilityIdentifier("home.recommendation.empty")
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 12) {
+                        ForEach(Array(recommendations.prefix(5))) { recommendation in
+                            recommendationCard(recommendation)
+                                .containerRelativeFrame(.horizontal) { length, _ in
+                                    min(length * 0.86, 380)
+                                }
+                        }
+
+                        regenerateCard
+                            .containerRelativeFrame(.horizontal) { length, _ in
+                                min(length * 0.54, 240)
+                            }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
+                .accessibilityIdentifier("home.recommendation.shelf")
             }
 
             if let errorMessage {
@@ -1265,38 +1310,54 @@ private struct HomeRecommendationSection: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("home.recommendation.notice")
             }
-
-            // 更多推荐 is no longer emitted here. Discovery is one control with
-            // one presentation, rendered once by `HomeView` below 需要处理, so
-            // decision mode and execution mode can no longer disagree about what
-            // the same identifier looks like.
         }
     }
 
+    @ViewBuilder
+    private var emptyOrLoadingState: some View {
+        if isLoading || isGenerating {
+            HStack(spacing: 10) {
+                KitchenAIActivityIndicator(
+                    phase: isGenerating ? .composing : .searching,
+                    size: .small
+                )
+                Text(isGenerating ? "正在生成推荐…" : "正在找菜…")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.subheadline)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+            .accessibilityIdentifier("home.recommendation.loading")
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("暂时没有合适的推荐", systemImage: "fork.knife")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("home.recommendation.empty")
+                regenerateButton
+            }
+        }
+    }
+
+    @ViewBuilder
     private func recommendationCard(_ recommendation: RecipeRecommendation) -> some View {
         let recipe = recommendation.recipe
-        // Same hero grammar as an existing plan: the dish leads, its metadata
-        // sits on one quiet line, and a single action follows. A proposal and a
-        // decision should not look like two different products.
-        return VStack(alignment: .leading, spacing: KitchenTheme.heroSpacing) {
+        let added = isAddedToToday(recipe)
+        let isLead = recommendation.id == recommendations.first?.id
+        let content = VStack(alignment: .leading, spacing: KitchenTheme.heroSpacing) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(recipe.title)
-                    .font(.system(
-                        .title2,
-                        design: KitchenTheme.heroFontDesign,
-                        weight: .semibold
-                    ))
+                    .font(.system(.title2, design: KitchenTheme.heroFontDesign, weight: .semibold))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
-                    .accessibilityIdentifier("home.recommendation.title")
+                    .accessibilityIdentifier(isLead ? "home.recommendation.title" : "home.recommendation.\(recommendation.id).title")
 
                 Text(ingredientSummary(recipe))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
-                    .accessibilityIdentifier("home.recommendation.ingredients")
+                    .accessibilityIdentifier(isLead ? "home.recommendation.ingredients" : "home.recommendation.\(recommendation.id).ingredients")
 
                 if let reason = recommendation.reason ?? recommendationReason(recipe) {
                     Text(reason)
@@ -1305,28 +1366,99 @@ private struct HomeRecommendationSection: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
                         .padding(.top, 8)
-                        .accessibilityIdentifier("home.recommendation.reason")
+                        .accessibilityIdentifier(isLead ? "home.recommendation.reason" : "home.recommendation.\(recommendation.id).reason")
                 }
             }
 
-            HomeActionPair(
-                primaryTitle: isAddedToToday ? "已加入今天" : "加入今天",
-                primarySymbol: isAddedToToday ? "checkmark" : "plus",
-                primaryIdentifier: "home.recommendation.addToday",
-                primaryAction: { onAddToToday(recipe) },
-                isPrimaryDisabled: isAddedToToday,
-                secondaryTitle: "查看菜谱",
-                secondaryTint: KitchenTheme.cookingGreen,
-                secondaryIdentifier: "home.recommendation.viewRecipe",
-                secondaryAction: { onViewRecipe(recipe) }
-            )
+            if showsSectionLabel {
+                HStack(spacing: 8) {
+                    Button {
+                        onAddToToday(recipe)
+                    } label: {
+                        Label(added ? "已加入" : "加入今天", systemImage: added ? "checkmark" : "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(KitchenButtonStyle(role: .secondary))
+                    .disabled(added)
+                    .accessibilityIdentifier("home.recommendation.\(recommendation.id).addToday")
+
+                    Button {
+                        onViewRecipe(recipe)
+                    } label: {
+                        Text("查看菜谱")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(KitchenButtonStyle(role: .utility, tint: KitchenTheme.cookingGreen))
+                    .accessibilityIdentifier("home.recommendation.\(recommendation.id).viewRecipe")
+                }
+            } else {
+                HomeActionPair(
+                    primaryTitle: added ? "已加入今天" : "加入今天",
+                    primarySymbol: added ? "checkmark" : "plus",
+                    primaryIdentifier: isLead ? "home.recommendation.addToday" : "home.recommendation.\(recommendation.id).addToday",
+                    primaryAction: { onAddToToday(recipe) },
+                    isPrimaryDisabled: added,
+                    secondaryTitle: "查看菜谱",
+                    secondaryTint: KitchenTheme.cookingGreen,
+                    secondaryIdentifier: isLead ? "home.recommendation.viewRecipe" : "home.recommendation.\(recommendation.id).viewRecipe",
+                    secondaryAction: { onViewRecipe(recipe) }
+                )
+            }
         }
-        // The recommendation is the other interactive object Home offers, so
-        // it carries the same surface as an existing plan. A proposal and a
-        // decision should sit at the same level, not on different materials.
-        .padding(KitchenTheme.heroPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .kitchenFeatureSurface()
+
+        if showsSectionLabel {
+            content
+                .padding(KitchenTheme.modulePadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    KitchenTheme.surface,
+                    in: .rect(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
+                )
+        } else {
+            content
+                .padding(KitchenTheme.heroPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .kitchenFeatureSurface()
+        }
+    }
+
+    private var regenerateCard: some View {
+        Button(action: onRegenerate) {
+            VStack(alignment: .leading, spacing: 10) {
+                if isGenerating {
+                    KitchenAIActivityIndicator(phase: .composing, size: .small)
+                } else {
+                    Image(systemName: KitchenAISymbol.emblem)
+                        .font(.title3)
+                        .accessibilityHidden(true)
+                }
+                Text(isGenerating ? "正在换一批…" : "换一批")
+                    .font(.headline)
+                Text("看看别的搭配")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
+            .padding(KitchenTheme.modulePadding)
+            .background(
+                KitchenTheme.surface,
+                in: .rect(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(KitchenPressFeedbackStyle())
+        .disabled(isGenerating)
+        .accessibilityIdentifier("home.recommendation.regenerate")
+    }
+
+    private var regenerateButton: some View {
+        Button(action: onRegenerate) {
+            Label(isGenerating ? "正在换一批…" : "换一批", systemImage: KitchenAISymbol.emblem)
+                .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
+        }
+        .buttonStyle(KitchenButtonStyle(role: .secondary))
+        .disabled(isGenerating)
+        .accessibilityIdentifier("home.recommendation.regenerate")
     }
 
     private func recommendationReason(_ recipe: Recipe) -> String? {

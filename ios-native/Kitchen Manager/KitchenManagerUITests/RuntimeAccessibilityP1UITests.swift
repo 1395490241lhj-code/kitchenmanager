@@ -211,44 +211,39 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
     }
 
     func testRecommendationCardsAdaptWithoutClipping() throws {
-        let recipeID = "ui-test-accessibility-recommendation-one"
         for (name, size, isAccessibility) in sizes {
             let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: size)
-            let more = app.buttons["home.recommendation.more"]
-            XCTAssertTrue(more.waitForExistence(timeout: 5), "\(name): 首页更多推荐入口缺失")
-            XCTAssertFalse(app.buttons["home.recommendation.refresh"].exists, "\(name): 首页不应再有 AI 换几道")
-            more.tap()
-            XCTAssertTrue(app.navigationBars.staticTexts["推荐"].waitForExistence(timeout: 5), "\(name): 推荐页未打开")
+            let title = app.staticTexts["home.recommendation.title"]
+            let ingredients = app.staticTexts["home.recommendation.ingredients"]
+            let reason = app.staticTexts["home.recommendation.reason"]
+            let addPlan = app.buttons["home.recommendation.addToday"]
+            let viewRecipe = app.buttons["home.recommendation.viewRecipe"]
+            let regenerate = app.buttons["home.recommendation.regenerate"]
 
-            let title = app.staticTexts["recommendation.\(recipeID).title"]
-            let ingredients = app.staticTexts["recommendation.\(recipeID).ingredients"]
-            let reason = app.staticTexts["recommendation.\(recipeID).reason"]
-            let addPlan = app.buttons["recommendation.\(recipeID).addPlan"]
-            let viewRecipe = app.buttons["recommendation.\(recipeID).view"]
-            let regenerate = app.buttons["recommendation.regenerate.button"]
-            XCTAssertTrue(title.waitForExistence(timeout: 5), "\(name): 推荐标题缺失")
+            XCTAssertTrue(title.waitForExistence(timeout: 5), "\(name): 首页推荐标题缺失")
             XCTAssertTrue(ingredients.exists, "\(name): 配料摘要缺失")
             XCTAssertTrue(reason.exists, "\(name): 推荐理由缺失")
-            XCTAssertTrue(addPlan.exists, "\(name): 加入计划按钮缺失")
-            XCTAssertTrue(viewRecipe.exists, "\(name): 查看按钮缺失")
-            XCTAssertTrue(regenerate.exists, "\(name): AI 换几道入口缺失")
+            XCTAssertTrue(addPlan.exists, "\(name): 加入今天按钮缺失")
+            XCTAssertTrue(viewRecipe.exists, "\(name): 查看菜谱按钮缺失")
+            XCTAssertFalse(app.buttons["home.recommendation.more"].exists,
+                           "\(name): 推荐不应再藏在二级入口后")
 
             if isAccessibility {
                 XCTAssertFalse(
-                    app.descendants(matching: .any)["recommendation.pager"].exists,
-                    "XXXL: 不应使用固定高度分页容器"
+                    app.descendants(matching: .any)["home.recommendation.shelf"].exists,
+                    "\(name): Accessibility 字号应纵向堆叠，而不是横向分页"
                 )
                 for (element, label) in [
                     (title, "XXXL 推荐标题"),
                     (ingredients, "XXXL 配料摘要"),
                     (reason, "XXXL 推荐理由")
                 ] {
-                    XCTAssertTrue(scrollUntilFullyVisible(element, in: app), "\(label) 不可完整滚动到")
+                    XCTAssertTrue(scrollRecommendationTextFullyVisible(element, in: app), "\(label) 不可完整滚动到")
                     assertFullyOnScreen(element, in: app, label: label)
                 }
                 for (element, label) in [
-                    (addPlan, "XXXL 加入计划"),
-                    (viewRecipe, "XXXL 查看")
+                    (addPlan, "XXXL 加入今天"),
+                    (viewRecipe, "XXXL 查看菜谱")
                 ] {
                     XCTAssertTrue(scrollUntilFullyHittable(element, in: app), "\(label) 不可点击")
                     assertFullyOnScreen(element, in: app, label: label)
@@ -258,45 +253,28 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
                 XCTAssertEqual(ingredients.label, "超长进口有机高山蔬菜组合 · 新鲜香草番茄家庭料理配料 · 去骨鸡腿肉")
                 XCTAssertFalse(title.frame.intersects(ingredients.frame), "XXXL: 标题与配料摘要重叠")
                 XCTAssertFalse(ingredients.frame.intersects(reason.frame), "XXXL: 配料摘要与理由重叠")
-                XCTAssertTrue(scrollUntilFullyHittable(regenerate, in: app), "XXXL: AI 换几道不可点击")
-                assertFullyOnScreen(regenerate, in: app, label: "XXXL AI 换几道")
+                XCTAssertTrue(scrollUntilFullyHittable(regenerate, in: app), "XXXL: 换一批不可点击")
+                assertFullyOnScreen(regenerate, in: app, label: "XXXL 换一批")
             } else {
-                let pager = app.descendants(matching: .any)["recommendation.pager"]
-                XCTAssertTrue(pager.waitForExistence(timeout: 5), "Normal: 分页容器缺失")
-                XCTAssertTrue(
-                    app.descendants(matching: .any)["recommendation.pageIndicator"].exists,
-                    "Normal: 分页状态缺失"
-                )
-                assertFullyOnScreen(addPlan, in: app, label: "Normal 加入计划")
-                assertFullyOnScreen(viewRecipe, in: app, label: "Normal 查看")
-                XCTAssertTrue(addPlan.isHittable, "Normal: 加入计划不可点击")
-                XCTAssertTrue(viewRecipe.isHittable, "Normal: 查看不可点击")
-                assertFullyOnScreen(regenerate, in: app, label: "Normal AI 换几道")
-                XCTAssertTrue(regenerate.isHittable, "Normal: AI 换几道不可点击")
+                let shelf = app.descendants(matching: .any)["home.recommendation.shelf"]
+                XCTAssertTrue(shelf.waitForExistence(timeout: 5), "\(name): 横向推荐区缺失")
+                assertFullyOnScreen(addPlan, in: app, label: "Normal 加入今天")
+                assertFullyOnScreen(viewRecipe, in: app, label: "Normal 查看菜谱")
+                XCTAssertTrue(addPlan.isHittable, "Normal: 加入今天不可点击")
+                XCTAssertTrue(viewRecipe.isHittable, "Normal: 查看菜谱不可点击")
+                XCTAssertTrue(regenerate.exists, "Normal: 横向推荐区末端应保留换一批")
             }
 
             app.terminate()
         }
     }
 
-    func testRecommendationMenuUsesPersistentActionsAndOmitsFakeFeedback() throws {
-        let recipeID = "ui-test-accessibility-recommendation-one"
+    func testHomeRecommendationShelfOmitsBrowserOnlyFeedbackMenu() throws {
         let app = launch("UITEST_SEED_ACCESSIBILITY_RECOMMENDATION", size: "UICTContentSizeCategoryL")
-        app.buttons["home.recommendation.more"].tap()
-
-        let menu = app.buttons["recommendation.\(recipeID).menu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(menu.frame.width, 43.5)
-        XCTAssertGreaterThanOrEqual(menu.frame.height, 43.5)
-        menu.tap()
-
+        XCTAssertTrue(app.descendants(matching: .any)["home.recommendation.shelf"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["不喜欢这道"].exists)
         XCTAssertFalse(app.buttons["推荐有问题"].exists)
-        XCTAssertTrue(app.buttons["从本次推荐移除"].exists)
-        app.buttons["设为常做"].tap()
-
-        menu.tap()
-        XCTAssertTrue(app.buttons["取消常做"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier CONTAINS %@", ".menu")).firstMatch.exists)
     }
 
     private func launch(_ seed: String, size: String) -> XCUIApplication {
@@ -348,6 +326,28 @@ final class RuntimeAccessibilityP1UITests: XCTestCase {
         return element.exists &&
             element.frame.minX >= screen.minX && element.frame.maxX <= screen.maxX &&
             element.frame.minY >= screen.minY && element.frame.maxY <= screen.maxY
+    }
+
+    /// Long Home recommendation text can be almost half the small-phone viewport
+    /// at AXXXL. A full-height swipe jumps past it before the next AX sample.
+    private func scrollRecommendationTextFullyVisible(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        for _ in 0..<30 {
+            let screen = app.windows.firstMatch.frame
+            guard element.exists else { return false }
+            let frame = element.frame
+            if frame.minX >= screen.minX && frame.maxX <= screen.maxX &&
+                frame.minY >= screen.minY && frame.maxY <= screen.maxY {
+                return true
+            }
+            let container = app.scrollViews.allElementsBoundByIndex
+                .max(by: { $0.frame.height < $1.frame.height })
+            guard let container else { return false }
+            let above = frame.minY < screen.minY
+            let start = container.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: above ? 0.35 : 0.64))
+            let end = container.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: above ? 0.52 : 0.47))
+            start.press(forDuration: 0.05, thenDragTo: end)
+        }
+        return false
     }
 
     private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) -> Bool {

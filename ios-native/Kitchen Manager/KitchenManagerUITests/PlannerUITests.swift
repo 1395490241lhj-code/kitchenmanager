@@ -169,13 +169,12 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
     }
 
-    /// D-042: exactly one `更多推荐` in execution mode and none in eat-out;
-    /// planning lives on its own tab rather than in a Home row. A plan that
-    /// another task displaces is stated as static context, never a second route.
+    /// D-048 keeps D-042's planning ownership while making optional
+    /// recommendation choices directly visible in execution mode.
     func testHomeSecondaryRowsFollowTheCanonicalIA() {
         let execution = launch("UITEST_SEED_SPECIAL_PLAN")
-        XCTAssertTrue(execution.buttons["home.recommendation.more"].waitForExistence(timeout: 10))
-        XCTAssertEqual(execution.buttons.matching(identifier: "home.recommendation.more").count, 1)
+        XCTAssertTrue(execution.descendants(matching: .any)["home.recommendation.shelf"].waitForExistence(timeout: 10))
+        XCTAssertFalse(execution.buttons["home.recommendation.more"].exists)
         XCTAssertFalse(execution.buttons["home.plan.secondaryLink"].exists)
         XCTAssertFalse(execution.buttons["home.today.plan.viewAll"].exists)
         XCTAssertFalse(execution.staticTexts["home.context.otherPlans"].exists, "the plan is the primary task, not context")
@@ -188,7 +187,7 @@ final class PlannerUITests: XCTestCase {
         XCTAssertEqual(context.label, "今天另有 2 道计划")
         XCTAssertFalse(eatOut.buttons["home.context.otherPlans"].exists, "the context line is text, not a button")
         XCTAssertFalse(eatOut.buttons["home.plan.secondaryLink"].exists)
-        XCTAssertFalse(eatOut.buttons["home.recommendation.more"].exists,
+        XCTAssertFalse(eatOut.descendants(matching: .any)["home.recommendation.shelf"].exists,
                        "Home must not propose another dish for an evening already settled")
         XCTAssertEqual(eatOut.buttons.matching(identifier: "home.planner.link").count, 0,
                        "planning is a tab, so neither mode carries a Home row for it")
