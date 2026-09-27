@@ -198,7 +198,7 @@ struct AIRecipeBlockView: View {
             .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
-                    .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 1)
+                    .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 0.75)
             )
 
             NavigationLink(destination: destinationDetailView) {
@@ -286,11 +286,9 @@ struct AIPlannerPreviewBlockView: View {
                         Text(block.changes.count > 1 ? "应用 \(block.changes.count) 项修改" : "应用修改")
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: KitchenTheme.controlHeight)
-                    .background(KitchenTheme.cookingFill, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
                 }
+                .buttonStyle(KitchenButtonStyle(role: .primary))
                 .accessibilityIdentifier("kitchenAI.planner.apply")
             }
         }
@@ -312,7 +310,7 @@ struct AIPlannerPreviewBlockView: View {
         let after = VStack(alignment: .leading, spacing: 2) {
             Text("修改为")
                 .font(.caption2)
-                .foregroundStyle(KitchenTheme.cookingGreen)
+                .foregroundStyle(KitchenTheme.textSecondary)
             Text(change.after)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(KitchenTheme.textPrimary)
@@ -322,7 +320,7 @@ struct AIPlannerPreviewBlockView: View {
                 before
                 Image(systemName: "arrow.down")
                     .font(.caption)
-                    .foregroundStyle(KitchenTheme.cookingGreen)
+                    .foregroundStyle(KitchenTheme.textSecondary)
                     .accessibilityHidden(true)
                 after
             }
@@ -332,7 +330,7 @@ struct AIPlannerPreviewBlockView: View {
                 before.frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "arrow.right")
                     .font(.caption)
-                    .foregroundStyle(KitchenTheme.cookingGreen)
+                    .foregroundStyle(KitchenTheme.textSecondary)
                     .padding(.top, 14)
                     .accessibilityHidden(true)
                 after.frame(maxWidth: .infinity, alignment: .leading)

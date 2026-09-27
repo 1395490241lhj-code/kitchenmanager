@@ -131,6 +131,44 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         add(attachment)
     }
 
+    func testVisualSnapshotProviderAndArchivedLight() { captureProviderAndArchived(dark: false, accessibility: false) }
+    func testVisualSnapshotProviderAndArchivedDark() { captureProviderAndArchived(dark: true, accessibility: false) }
+    func testVisualSnapshotProviderAndArchivedAXXXL() { captureProviderAndArchived(dark: false, accessibility: true) }
+
+    private func captureProviderAndArchived(dark: Bool, accessibility: Bool) {
+        let appearance: UIUserInterfaceStyle = dark ? .dark : .light
+        let size = accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"
+        let prefix = "AI-Setup-\(dark ? "Dark" : "Light")-\(accessibility ? "AXXXL" : "Normal")-"
+
+        var app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_LEGACY_APPLE_RECOMMENDATION"
+        ], appearance: appearance, contentSize: size)
+        XCTAssertTrue(app.buttons["kitchenAI.selectProvider.gemini"].waitForExistence(timeout: 5))
+        let shot1 = XCTAttachment(screenshot: app.screenshot())
+        shot1.name = prefix + "ProviderSetup"
+        shot1.lifetime = .keepAlways
+        add(shot1)
+        app.terminate()
+
+        app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SEED_HISTORY"
+        ], appearance: appearance, contentSize: size)
+        app.buttons["kitchenAI.overflowMenu"].tap()
+        app.buttons["历史记录"].tap()
+        let row = app.buttons["kitchenAI.history.row.33333333-3333-3333-3333-333333333333"]
+        reveal(app, row)
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.buttons["kitchenAI.reactivate"].waitForExistence(timeout: 5))
+        let shot2 = XCTAttachment(screenshot: app.screenshot())
+        shot2.name = prefix + "ArchivedReactivate"
+        shot2.lifetime = .keepAlways
+        add(shot2)
+        app.terminate()
+    }
+
     // MARK: - Structured block appearance matrix
     //
     // Captures the existing scripted structured states — recipe objects, a

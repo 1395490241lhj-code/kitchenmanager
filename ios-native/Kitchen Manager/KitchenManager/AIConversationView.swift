@@ -348,7 +348,7 @@ struct EmptyWorkspaceView: View {
                     .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: KitchenTheme.compactRadius, style: .continuous)
-                            .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 1)
+                            .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 0.75)
                     )
                 }
                 .padding(.horizontal, KitchenTheme.pageGutter)
@@ -403,20 +403,21 @@ struct ComposerContainerView: View {
                         Text(AIConversationProviderPreference.setupDetail)
                             .font(.caption)
                             .foregroundStyle(KitchenTheme.textSecondary)
-                        HStack(spacing: 8) {
+                        let providerLayout = dynamicTypeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                            : AnyLayout(HStackLayout(spacing: 8))
+                        providerLayout {
                             ForEach(AIConversationProviderPreference.eligibleProviders) { provider in
                                 Button(provider.title) {
                                     controller.selectConversationProvider(provider)
                                 }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .frame(minHeight: KitchenTheme.controlHeight)
-                                .background(KitchenTheme.cookingFill, in: Capsule())
-                                .contentShape(Capsule())
+                                .font(.subheadline.weight(.medium))
+                                .buttonStyle(KitchenButtonStyle(role: .secondary))
                                 .accessibilityIdentifier("kitchenAI.selectProvider.\(provider.rawValue)")
                             }
-                            Spacer()
+                            if !dynamicTypeSize.isAccessibilitySize {
+                                Spacer()
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -446,11 +447,7 @@ struct ComposerContainerView: View {
                         if !dynamicTypeSize.isAccessibilitySize { Spacer() }
                         Button("继续此对话", action: onReactivate)
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: KitchenTheme.controlHeight)
-                            .background(KitchenTheme.cookingFill, in: Capsule())
-                            .contentShape(Capsule())
+                            .buttonStyle(KitchenButtonStyle(role: .primary))
                             .accessibilityIdentifier("kitchenAI.reactivate")
                     }
                     .padding(12)
@@ -468,10 +465,10 @@ struct ComposerContainerView: View {
                             .lineLimit(1...5)
                             .frame(minHeight: KitchenTheme.controlHeight)
                             .padding(.horizontal, 12)
-                            .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .background(KitchenTheme.surface, in: RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
+                                    .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 0.75)
                             )
                             .accessibilityIdentifier("kitchenAI.composer")
                             .accessibilitySortPriority(2)
@@ -481,7 +478,8 @@ struct ComposerContainerView: View {
                                 controller.stop()
                             } label: {
                                 Image(systemName: "stop.circle.fill")
-                                    .font(.system(size: 32))
+                                    .font(.title)
+                                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                                     .foregroundStyle(KitchenTheme.statusTerracotta)
                                     .frame(width: KitchenTheme.controlHeight, height: KitchenTheme.controlHeight)
                             }
@@ -493,7 +491,8 @@ struct ComposerContainerView: View {
                                 controller.send()
                             } label: {
                                 Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 32))
+                                    .font(.title)
+                                    .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                                     .foregroundStyle(canSend ? KitchenTheme.cookingGreen : KitchenTheme.separator)
                                     .frame(width: KitchenTheme.controlHeight, height: KitchenTheme.controlHeight)
                             }
