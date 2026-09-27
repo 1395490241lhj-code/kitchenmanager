@@ -74,7 +74,7 @@ enum PlannerRegressionFixture {
     }
     @MainActor static func seed(kitchen: KitchenStore, library: RecipeStore) {
         for recipe in recipes { library.add(recipe) }
-        kitchen.specialPlans = state == "PLANNER_DATA_SPECIAL" || state == "PLANNER_DATA_DETAIL" || state == "PLANNER_DATA_DRAFT" ? [plan] : []
+        kitchen.specialPlans = state == "PLANNER_DATA_SPECIAL" || state == "PLANNER_DATA_DETAIL" || state == "PLANNER_DATA_DRAFT" || state == "PLANNER_DATA_SAME_DAY" ? [plan] : []
         kitchen.plans = []
         guard state != "PLANNER_DATA_EMPTY", state != "PLANNER_DATA_SPECIAL", state != "PLANNER_DATA_DETAIL", state != "PLANNER_DATA_DRAFT" else { return }
         // The weekly-host states keep days 0 and 2 free so the seeded draft's
@@ -82,6 +82,8 @@ enum PlannerRegressionFixture {
         let days: [Int]
         switch state {
         case "PLANNER_DATA_MIXED":
+            days = [0, 2, 5]
+        case "PLANNER_DATA_SAME_DAY":
             days = [0, 2, 5]
         case "PLANNER_DATA_HOST_WEEKLY", "PLANNER_DATA_HOST_WEEKLY_CROSS":
             days = [3, 4]

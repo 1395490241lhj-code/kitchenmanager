@@ -528,7 +528,10 @@ struct PlannerView: View {
                         Section {
                             ForEach(group.entries) { entry in
                                 row(for: entry)
-                                    .plannerRow()
+                                    // Keep a day's destinations close to its date and
+                                    // to one another. The larger gap belongs before the
+                                    // next date, not around every individual row.
+                                    .plannerRow(verticalInset: 4)
                             }
                         } header: {
                             let today = calendar.isDate(group.day, inSameDayAs: currentDate)
@@ -545,8 +548,8 @@ struct PlannerView: View {
                                 // under it instead of floating equidistant
                                 // between two days. This is the whole
                                 // day-boundary treatment — no rules, no cards.
-                                .padding(.top, 16)
-                                .padding(.bottom, 4)
+                                .padding(.top, group.day == groups.first?.day ? 10 : 18)
+                                .padding(.bottom, 2)
                                 .listRowInsets(EdgeInsets(top: 0, leading: KitchenTheme.pageGutter,
                                                          bottom: 0, trailing: KitchenTheme.pageGutter))
                                 .background(KitchenTheme.canvas)

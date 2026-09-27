@@ -19,10 +19,10 @@ extension View {
             .tint(KitchenTheme.cookingGreen)
     }
 
-    func plannerRow() -> some View {
+    func plannerRow(verticalInset: CGFloat = KitchenTheme.rowVerticalInset) -> some View {
         self.listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
-                                     bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+            .listRowInsets(EdgeInsets(top: verticalInset, leading: KitchenTheme.pageGutter,
+                                     bottom: verticalInset, trailing: KitchenTheme.pageGutter))
             .listRowSeparator(.hidden)
             .listSectionSeparator(.hidden)
     }
