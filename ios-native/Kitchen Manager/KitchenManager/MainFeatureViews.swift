@@ -880,6 +880,15 @@ struct ShoppingView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
                                          bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
+               .listRowSeparator(.hidden)
+               .listSectionSeparator(.hidden)
+            } else if !hasSearchQuery && summary.pendingCount == 0 {
+                Section {
+                    ShoppingAllPurchasedRow()
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: KitchenTheme.rowVerticalInset, leading: KitchenTheme.pageGutter,
+                                         bottom: KitchenTheme.rowVerticalInset, trailing: KitchenTheme.pageGutter))
                 .listRowSeparator(.hidden)
                 .listSectionSeparator(.hidden)
             } else {
@@ -1289,22 +1298,23 @@ private struct ShoppingItemRow: View {
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
 
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 4) {
-                    name
-                    quantity
+           if dynamicTypeSize.isAccessibilitySize {
+               VStack(alignment: .leading, spacing: 4) {
+                   name
+                   quantity
+                   source
+               }
+           } else {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        name
+                        quantity
+                    }
                     source
                 }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        name
-                        source
-                    }
-                    Spacer(minLength: 12)
-                    quantity
-                }
             }
+
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
         .contentShape(Rectangle())
@@ -1322,8 +1332,9 @@ private struct ShoppingItemRow: View {
         Text("\(item.quantity.formatted()) \(item.unit)")
             .font(isEmphasized ? .body.weight(.medium) : .subheadline)
             .foregroundStyle(KitchenTheme.textSecondary)
+            .monospacedDigit()
             .layoutPriority(1)
-            .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+            .multilineTextAlignment(.leading)
             .accessibilityHidden(true)
     }
 
@@ -1336,6 +1347,38 @@ private struct ShoppingItemRow: View {
                 .multilineTextAlignment(.leading)
                 .accessibilityHidden(true)
         }
+    }
+}
+
+private struct ShoppingAllPurchasedRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(KitchenTheme.cookingGreen)
+                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("已全部买齐")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(KitchenTheme.textPrimary)
+
+                Text("清单待购食材已全部完成")
+                    .font(.subheadline)
+                    .foregroundStyle(KitchenTheme.textSecondary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("shopping.allPurchased.status")
+        .accessibilityLabel("已全部买齐，清单待购食材已全部完成")
     }
 }
 

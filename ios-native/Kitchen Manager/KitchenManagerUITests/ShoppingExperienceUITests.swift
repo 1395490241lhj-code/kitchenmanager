@@ -83,16 +83,31 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["全部标记为已购买"].waitForExistence(timeout: 5))
         app.buttons["全部标记为已购买"].tap()
 
+       let purchasedToggle = app.buttons["shopping.purchased.toggle"]
+       XCTAssertTrue(purchasedToggle.waitForExistence(timeout: 5))
+       XCTAssertTrue(purchasedToggle.label.contains("3 项"))
+       XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
+   }
+
+    func testNormalModeAllPurchasedShowsCompletionReassuranceAndPreservesCollapsedPurchased() throws {
+        let app = launchShopping()
+        let bulkMenu = app.buttons["shopping.bulk.menu"]
+        XCTAssertTrue(bulkMenu.waitForExistence(timeout: 5))
+        bulkMenu.tap()
+        XCTAssertTrue(app.buttons["全部标记为已购买"].waitForExistence(timeout: 5))
+        app.buttons["全部标记为已购买"].tap()
+
+        XCTAssertTrue(element("shopping.allPurchased.status", in: app).waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["已全部买齐"].exists)
         let purchasedToggle = app.buttons["shopping.purchased.toggle"]
         XCTAssertTrue(purchasedToggle.waitForExistence(timeout: 5))
-        XCTAssertTrue(purchasedToggle.label.contains("3 项"))
-        XCTAssertFalse(app.staticTexts["sync-smoke-status"].exists)
+        XCTAssertFalse(app.staticTexts["牛奶"].exists, "全部买齐时不应自动展开已购买项目")
     }
 
-    func testBulkMenuClearPurchasedSupportsCancelAndConfirm() throws {
-        let app = launchShopping()
+   func testBulkMenuClearPurchasedSupportsCancelAndConfirm() throws {
+       let app = launchShopping()
 
-        openBulkMenu(in: app)
+       openBulkMenu(in: app)
         app.buttons["清除已购买"].tap()
         XCTAssertTrue(app.buttons["取消"].waitForExistence(timeout: 5))
         app.buttons["取消"].tap()
