@@ -913,6 +913,14 @@ struct CookConsumptionConfirmationView: View {
 
 struct RecentConsumptionView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
+    @State private var undoAlert: UndoAlert?
+
+    private enum UndoAlert: String, Identifiable {
+        case conflict
+        case failed
+
+        var id: String { rawValue }
+    }
 
     var body: some View {
         List {
@@ -935,7 +943,14 @@ struct RecentConsumptionView: View {
                                 .foregroundStyle(.secondary)
                         } else {
                             Button("撤销这次扣减", role: .destructive) {
-                                kitchenStore.undoConsumption(record)
+                                switch kitchenStore.undoConsumption(record) {
+                                case .undone, .alreadyUndone:
+                                    break
+                                case .conflict:
+                                    undoAlert = .conflict
+                                case .failed:
+                                    undoAlert = .failed
+                                }
                             }
                         }
                     } header: {
@@ -952,5 +967,21 @@ struct RecentConsumptionView: View {
         }
         .navigationTitle("最近消耗")
         .navigationBarTitleDisplayMode(.inline)
+        .alert(item: $undoAlert) { alert in
+            switch alert {
+            case .conflict:
+                Alert(
+                    title: Text("无法安全撤销"),
+                    message: Text("这笔记录之后，相关食材的库存已经发生变化。为避免覆盖当前数量，请回到食材详情手动核对并调整。"),
+                    dismissButton: .default(Text("知道了"))
+                )
+            case .failed:
+                Alert(
+                    title: Text("撤销失败"),
+                    message: Text(kitchenStore.consumptionNotice ?? "撤销消耗失败，库存未变更。"),
+                    dismissButton: .default(Text("知道了"))
+                )
+            }
+        }
     }
 }

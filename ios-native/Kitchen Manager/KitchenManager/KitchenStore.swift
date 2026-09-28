@@ -2130,22 +2130,81 @@ final class KitchenStore: ObservableObject {
         return record
     }
 
+    enum ConsumptionUndoResult: Equatable {
+        case undone
+        case alreadyUndone
+        case conflict
+        case failed
+    }
+
+    private struct ConsumptionUndoEntry {
+        let id: InventoryItem.ID
+        let unit: String
+        let originalPreviousQuantity: Double
+        var finalResultingQuantity: Double
+    }
+
     /// Restores inventory quantities from a consumption record. Only the inventory
     /// change is undone — the plan(s) stay marked cooked, since re-deriving which
     /// specific plans should flip back to "not cooked" is ambiguous once other state
     /// may have changed since the record was created.
-    func undoConsumption(_ record: InventoryConsumptionRecord) {
+    @discardableResult
+    func undoConsumption(_ record: InventoryConsumptionRecord) -> ConsumptionUndoResult {
         // R1b — same reason as `applyConsumption`.
         guard !refuseBulkInventoryChangeIfLocked() else {
             consumptionNotice = Self.inventoryLockedForSyncNotice
-            return
+            return .failed
         }
-        guard let recordIndex = consumptionRecords.firstIndex(where: { $0.id == record.id }),
-              !consumptionRecords[recordIndex].isUndone else { return }
+        guard let recordIndex = consumptionRecords.firstIndex(where: { $0.id == record.id }) else {
+            return .conflict
+        }
+        let storedRecord = consumptionRecords[recordIndex]
+        guard !storedRecord.isUndone else { return .alreadyUndone }
+
+        // Keep receipt order: one inventory row may have several consecutive
+        // deductions in this single receipt. Never infer a missing link.
+        var undoPlan: [ConsumptionUndoEntry] = []
+        var planIndexByID: [InventoryItem.ID: Int] = [:]
+        for item in storedRecord.items {
+            guard item.previousQuantity.isFinite, item.resultingQuantity.isFinite else {
+                return .conflict
+            }
+            if let planIndex = planIndexByID[item.inventoryItemID] {
+                guard undoPlan[planIndex].unit == item.unit,
+                      abs(item.previousQuantity - undoPlan[planIndex].finalResultingQuantity) <= 0.0001 else {
+                    return .conflict
+                }
+                undoPlan[planIndex].finalResultingQuantity = item.resultingQuantity
+            } else {
+                planIndexByID[item.inventoryItemID] = undoPlan.count
+                undoPlan.append(ConsumptionUndoEntry(
+                    id: item.inventoryItemID,
+                    unit: item.unit,
+                    originalPreviousQuantity: item.previousQuantity,
+                    finalResultingQuantity: item.resultingQuantity
+                ))
+            }
+        }
+
+        // The stored receipt is the authority, not the caller's stale copy.
+        // Quantities were recorded in the row's own unit, so even a convertible
+        // unit change cannot reuse the old numeric quantity.
+        var inventoryIndices: [Int] = []
+        for entry in undoPlan {
+            guard let index = inventory.firstIndex(where: { $0.id == entry.id }) else {
+                return .conflict
+            }
+            let current = inventory[index]
+            guard current.unit == entry.unit,
+                  current.quantity.isFinite,
+                  abs(current.quantity - entry.finalResultingQuantity) <= 0.0001 else {
+                return .conflict
+            }
+            inventoryIndices.append(index)
+        }
         var updatedInventory = inventory
-        for item in record.items {
-            guard let index = updatedInventory.firstIndex(where: { $0.id == item.inventoryItemID }) else { continue }
-            updatedInventory[index].quantity = item.previousQuantity
+        for (entry, index) in zip(undoPlan, inventoryIndices) {
+            updatedInventory[index].quantity = entry.originalPreviousQuantity
             updatedInventory[index].updatedAt = Date()
         }
         var updatedRecords = consumptionRecords
@@ -2163,12 +2222,13 @@ final class KitchenStore: ObservableObject {
             #if DEBUG
             print("[Consumption] undo failed: \(error)")
             #endif
-            return
+            return .failed
         }
         publishDurableInventory(updatedInventory)
         suppressConsumptionPersistence = true
         consumptionRecords = updatedRecords
         suppressConsumptionPersistence = false
+        return .undone
     }
 
     func deleteConsumptionRecord(_ id: UUID) {

@@ -154,12 +154,95 @@ final class ConsumptionPersistenceTests: XCTestCase {
         XCTAssertEqual(store.inventory.first?.quantity, 3)
         store = makeStore(defaults: defaults, bundle: bundle)
         XCTAssertEqual(store.consumptionRecords, [record])
-        store.undoConsumption(record)
+        XCTAssertEqual(store.undoConsumption(record), .undone)
         XCTAssertEqual(store.inventory.first?.quantity, 5)
-        store.undoConsumption(record)
+        XCTAssertEqual(store.undoConsumption(record), .alreadyUndone)
         let restarted = makeStore(defaults: defaults, bundle: bundle)
         XCTAssertTrue(try XCTUnwrap(restarted.consumptionRecords.first).isUndone)
         XCTAssertEqual(restarted.inventory.first?.quantity, 5)
+    }
+
+    func testStoreRestartRejectsUndoAfterDurableQuantityChange() throws {
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        var store = makeStore(defaults: defaults, bundle: bundle)
+        store.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
+        let itemID = try XCTUnwrap(store.inventory.first?.id)
+        let draft = InventoryConsumptionDraft(
+            id: "tomato", ingredientName: "番茄", normalizedName: "番茄", requiredQuantity: 4,
+            requiredUnit: "个", matchedInventoryID: itemID, currentQuantity: 10, consumedQuantity: 4,
+            resultingQuantity: 6, isSelected: true, warning: nil, sourceRecipeNames: ["菜"]
+        )
+        let record = store.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "菜")
+        store.inventory[0].quantity = 5
+        store = makeStore(defaults: defaults, bundle: bundle)
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+
+        XCTAssertEqual(store.inventory.first?.quantity, 5)
+        XCTAssertFalse(store.consumptionRecords.first?.isUndone ?? true)
+        let restarted = makeStore(defaults: defaults, bundle: bundle)
+        XCTAssertEqual(restarted.inventory.first?.quantity, 5)
+        XCTAssertFalse(restarted.consumptionRecords.first?.isUndone ?? true)
+    }
+
+    func testDuplicateIDAndSecondItemConflictMakesNoPersistenceWrites() throws {
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let tomato = makeItem(name: "番茄", previous: 10, consumed: 4, resulting: 6)
+        let tomatoSecond = makeItem(inventoryID: tomato.inventoryItemID, name: "番茄", previous: 6, consumed: 2, resulting: 4)
+        let egg = makeItem(name: "鸡蛋", previous: 8, consumed: 2, resulting: 6)
+        let record = makeRecord(items: [tomato, tomatoSecond, egg])
+        try bundle.inventory.replaceInventory(with: [
+            InventoryItem(id: tomato.inventoryItemID, name: "番茄", quantity: 4, unit: "个", expiryDate: nil),
+            InventoryItem(id: egg.inventoryItemID, name: "鸡蛋", quantity: 5, unit: "个", expiryDate: nil)
+        ])
+        try bundle.consumption.replaceRecords(with: [record])
+        let inventorySpy = CountingInventoryPersistence(wrapped: bundle.inventory)
+        let consumptionSpy = CountingConsumptionPersistence(wrapped: bundle.consumption)
+        let store = KitchenStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            inventoryPersistence: inventorySpy,
+            shoppingListPersistence: bundle.shoppingList,
+            todayPlanPersistence: bundle.todayPlan,
+            consumptionPersistence: consumptionSpy
+        )
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+
+        XCTAssertEqual(inventorySpy.replaceCount, 0)
+        XCTAssertEqual(consumptionSpy.replaceCount, 0)
+        XCTAssertEqual(try bundle.inventory.loadInventory().first(where: { $0.id == tomato.inventoryItemID })?.quantity, 4)
+        XCTAssertEqual(try bundle.inventory.loadInventory().first(where: { $0.id == egg.inventoryItemID })?.quantity, 5)
+        XCTAssertFalse(try XCTUnwrap(bundle.consumption.loadRecords().first).isUndone)
+    }
+
+    func testBrokenDuplicateIDChainConflictsWithoutPersistenceWrites() throws {
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let itemID = UUID()
+        let first = makeItem(inventoryID: itemID, previous: 10, consumed: 4, resulting: 6)
+        let brokenSecond = makeItem(inventoryID: itemID, previous: 5, consumed: 2, resulting: 3)
+        let record = makeRecord(items: [first, brokenSecond])
+        try bundle.inventory.replaceInventory(with: [
+            InventoryItem(id: itemID, name: "番茄", quantity: 3, unit: "个", expiryDate: nil)
+        ])
+        try bundle.consumption.replaceRecords(with: [record])
+        let inventorySpy = CountingInventoryPersistence(wrapped: bundle.inventory)
+        let consumptionSpy = CountingConsumptionPersistence(wrapped: bundle.consumption)
+        let store = KitchenStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            inventoryPersistence: inventorySpy,
+            shoppingListPersistence: bundle.shoppingList,
+            todayPlanPersistence: bundle.todayPlan,
+            consumptionPersistence: consumptionSpy
+        )
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+        XCTAssertEqual(store.inventory.first?.quantity, 3)
+        XCTAssertFalse(store.consumptionRecords.first?.isUndone ?? true)
+        XCTAssertEqual(inventorySpy.replaceCount, 0)
+        XCTAssertEqual(consumptionSpy.replaceCount, 0)
+        XCTAssertEqual(try bundle.inventory.loadInventory().first?.quantity, 3)
+        XCTAssertFalse(try XCTUnwrap(bundle.consumption.loadRecords().first).isUndone)
     }
 
     func testApplyFailureRollsBackInventoryAndDoesNotPublishRecord() throws {
@@ -240,7 +323,7 @@ final class ConsumptionPersistenceTests: XCTestCase {
             todayPlanPersistence: bundle.todayPlan,
             consumptionPersistence: FailingTestConsumptionPersistence()
         )
-        store.undoConsumption(record)
+        XCTAssertEqual(store.undoConsumption(record), .failed)
         XCTAssertEqual(store.inventory.first?.quantity, 3)
         XCTAssertFalse(store.consumptionRecords.first?.isUndone ?? true)
         XCTAssertEqual(try inventory.loadInventory().first?.quantity, 3)
@@ -341,4 +424,37 @@ private final class FailingTestConsumptionPersistence: ConsumptionPersistencePro
     func upsert(_ record: InventoryConsumptionRecord) throws { throw ExpectedFailure() }
     func delete(id: UUID) throws { throw ExpectedFailure() }
     func deleteAll() throws { throw ExpectedFailure() }
+}
+
+@MainActor
+private final class CountingInventoryPersistence: InventoryPersistenceProtocol {
+    let wrapped: InventoryPersistenceProtocol
+    var replaceCount = 0
+    init(wrapped: InventoryPersistenceProtocol) { self.wrapped = wrapped }
+    func loadInventory() throws -> [InventoryItem] { try wrapped.loadInventory() }
+    func replaceInventory(with items: [InventoryItem]) throws {
+        replaceCount += 1
+        try wrapped.replaceInventory(with: items)
+    }
+    func upsert(_ item: InventoryItem) throws { try wrapped.upsert(item) }
+    func delete(id: UUID) throws { try wrapped.delete(id: id) }
+    func deleteAll() throws { try wrapped.deleteAll() }
+    func applyChanges(upserting items: [InventoryItem], deleting ids: [UUID]) throws {
+        try wrapped.applyChanges(upserting: items, deleting: ids)
+    }
+}
+
+@MainActor
+private final class CountingConsumptionPersistence: ConsumptionPersistenceProtocol {
+    let wrapped: ConsumptionPersistenceProtocol
+    var replaceCount = 0
+    init(wrapped: ConsumptionPersistenceProtocol) { self.wrapped = wrapped }
+    func loadRecords() throws -> [InventoryConsumptionRecord] { try wrapped.loadRecords() }
+    func replaceRecords(with records: [InventoryConsumptionRecord]) throws {
+        replaceCount += 1
+        try wrapped.replaceRecords(with: records)
+    }
+    func upsert(_ record: InventoryConsumptionRecord) throws { try wrapped.upsert(record) }
+    func delete(id: UUID) throws { try wrapped.delete(id: id) }
+    func deleteAll() throws { try wrapped.deleteAll() }
 }

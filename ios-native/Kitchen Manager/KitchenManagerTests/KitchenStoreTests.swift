@@ -366,7 +366,7 @@ final class KitchenStoreTests: XCTestCase {
         let record = store.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "菜")
         XCTAssertEqual(store.inventory[0].quantity, 6)
 
-        store.undoConsumption(record)
+        XCTAssertEqual(store.undoConsumption(record), .undone)
         XCTAssertEqual(store.inventory[0].quantity, 10, "quantity must be restored to what it was before consumption")
     }
 
@@ -380,9 +380,125 @@ final class KitchenStoreTests: XCTestCase {
             isSelected: true, warning: nil, sourceRecipeNames: ["菜"]
         )
         let record = store.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "菜")
-        store.undoConsumption(record)
+        XCTAssertEqual(store.undoConsumption(record), .undone)
         store.inventory[0].quantity = 2 // simulate further consumption after undo
-        store.undoConsumption(record) // second undo of the SAME already-undone record must no-op
+        XCTAssertEqual(store.undoConsumption(record), .alreadyUndone) // second undo must no-op
         XCTAssertEqual(store.inventory[0].quantity, 2, "a second undo of an already-undone record must not touch inventory again")
+    }
+
+    private func consumptionDraft(_ name: String, quantity: Double, consumed: Double, unit: String) -> InventoryConsumptionDraft {
+        InventoryConsumptionDraft(
+            id: name, ingredientName: name, normalizedName: name,
+            requiredQuantity: consumed, requiredUnit: unit,
+            matchedInventoryID: store.inventory.first(where: { $0.name == name })?.id,
+            currentQuantity: quantity, consumedQuantity: consumed,
+            resultingQuantity: quantity - consumed, isSelected: true,
+            warning: nil, sourceRecipeNames: ["菜"]
+        )
+    }
+
+    func test_undoConsumption_afterLaterConsumption_preservesNewerFact() {
+        store.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
+        let older = store.applyConsumption([consumptionDraft("番茄", quantity: 10, consumed: 4, unit: "个")], planIDs: [], recipeID: nil, recipeName: "菜 A")
+        let newer = store.applyConsumption([consumptionDraft("番茄", quantity: 6, consumed: 2, unit: "个")], planIDs: [], recipeID: nil, recipeName: "菜 B")
+
+        XCTAssertEqual(store.undoConsumption(older), .conflict)
+
+        XCTAssertEqual(store.inventory[0].quantity, 4)
+        XCTAssertFalse(store.consumptionRecords.first(where: { $0.id == older.id })?.isUndone ?? true)
+        XCTAssertFalse(store.consumptionRecords.first(where: { $0.id == newer.id })?.isUndone ?? true)
+    }
+
+    func test_undoConsumption_afterManualQuantityEdit_preservesCurrentQuantity() {
+        store.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
+        let record = store.applyConsumption([consumptionDraft("番茄", quantity: 10, consumed: 4, unit: "个")], planIDs: [], recipeID: nil, recipeName: "菜")
+        store.inventory[0].quantity = 5
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+
+        XCTAssertEqual(store.inventory[0].quantity, 5)
+        XCTAssertFalse(store.consumptionRecords[0].isUndone)
+    }
+
+    func test_undoConsumption_multiItemConflict_restoresNothing() {
+        store.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
+        store.addInventory(name: "鸡蛋", quantity: 8, unit: "个", expiryDate: nil)
+        let record = store.applyConsumption([
+            consumptionDraft("番茄", quantity: 10, consumed: 4, unit: "个"),
+            consumptionDraft("鸡蛋", quantity: 8, consumed: 2, unit: "个")
+        ], planIDs: [], recipeID: nil, recipeName: "菜")
+        store.inventory[store.inventory.firstIndex(where: { $0.name == "鸡蛋" })!].quantity = 5
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+
+        XCTAssertEqual(store.inventory.first(where: { $0.name == "番茄" })?.quantity, 6)
+        XCTAssertEqual(store.inventory.first(where: { $0.name == "鸡蛋" })?.quantity, 5)
+        XCTAssertFalse(store.consumptionRecords[0].isUndone)
+    }
+
+    func test_undoConsumption_missingItem_restoresNothing() {
+        store.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
+        store.addInventory(name: "鸡蛋", quantity: 8, unit: "个", expiryDate: nil)
+        let record = store.applyConsumption([
+            consumptionDraft("番茄", quantity: 10, consumed: 4, unit: "个"),
+            consumptionDraft("鸡蛋", quantity: 8, consumed: 2, unit: "个")
+        ], planIDs: [], recipeID: nil, recipeName: "菜")
+        let eggID = store.inventory.first(where: { $0.name == "鸡蛋" })!.id
+        store.deleteInventory(eggID)
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+
+        XCTAssertEqual(store.inventory.first(where: { $0.name == "番茄" })?.quantity, 6)
+        XCTAssertFalse(store.consumptionRecords[0].isUndone)
+    }
+
+    func test_undoConsumption_unitChange_preservesCurrentUnitAndQuantity() {
+        store.addInventory(name: "番茄", quantity: 500, unit: "克", expiryDate: nil)
+        let record = store.applyConsumption([consumptionDraft("番茄", quantity: 500, consumed: 100, unit: "克")], planIDs: [], recipeID: nil, recipeName: "菜")
+        store.inventory[0].unit = "袋"
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+
+        XCTAssertEqual(store.inventory[0].unit, "袋")
+        XCTAssertEqual(store.inventory[0].quantity, 400)
+        XCTAssertFalse(store.consumptionRecords[0].isUndone)
+    }
+
+    func test_undoConsumption_duplicateIDSequentialChain_restoresOriginalQuantity() {
+        store.addInventory(name: "番茄", quantity: 4, unit: "个", expiryDate: nil)
+        let itemID = store.inventory[0].id
+        let record = InventoryConsumptionRecord(
+            id: UUID(), date: Date(), recipeID: nil, recipeName: "菜", planIDs: [],
+            items: [
+                InventoryConsumptionRecordItem(inventoryItemID: itemID, ingredientName: "番茄", consumedQuantity: 4, unit: "个", previousQuantity: 10, resultingQuantity: 6),
+                InventoryConsumptionRecordItem(inventoryItemID: itemID, ingredientName: "番茄", consumedQuantity: 2, unit: "个", previousQuantity: 6, resultingQuantity: 4)
+            ]
+        )
+        store.consumptionRecords = [record]
+
+        XCTAssertEqual(store.undoConsumption(record), .undone)
+        XCTAssertEqual(store.inventory[0].quantity, 10)
+        XCTAssertTrue(store.consumptionRecords[0].isUndone)
+    }
+
+    func test_undoConsumption_duplicateIDAndSecondItemConflict_restoresNothing() {
+        store.addInventory(name: "番茄", quantity: 4, unit: "个", expiryDate: nil)
+        store.addInventory(name: "鸡蛋", quantity: 5, unit: "个", expiryDate: nil)
+        let tomatoID = store.inventory.first(where: { $0.name == "番茄" })!.id
+        let eggID = store.inventory.first(where: { $0.name == "鸡蛋" })!.id
+        let record = InventoryConsumptionRecord(
+            id: UUID(), date: Date(), recipeID: nil, recipeName: "菜", planIDs: [],
+            items: [
+                InventoryConsumptionRecordItem(inventoryItemID: tomatoID, ingredientName: "番茄", consumedQuantity: 4, unit: "个", previousQuantity: 10, resultingQuantity: 6),
+                InventoryConsumptionRecordItem(inventoryItemID: tomatoID, ingredientName: "番茄", consumedQuantity: 2, unit: "个", previousQuantity: 6, resultingQuantity: 4),
+                InventoryConsumptionRecordItem(inventoryItemID: eggID, ingredientName: "鸡蛋", consumedQuantity: 2, unit: "个", previousQuantity: 8, resultingQuantity: 6)
+            ]
+        )
+        store.consumptionRecords = [record]
+
+        XCTAssertEqual(store.undoConsumption(record), .conflict)
+        XCTAssertEqual(store.inventory.first(where: { $0.id == tomatoID })?.quantity, 4)
+        XCTAssertEqual(store.inventory.first(where: { $0.id == eggID })?.quantity, 5)
+        XCTAssertFalse(store.consumptionRecords[0].isUndone)
     }
 }
