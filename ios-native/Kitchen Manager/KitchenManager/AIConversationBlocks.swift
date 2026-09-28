@@ -462,7 +462,7 @@ struct AIActionStatusBlockView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: block.isFailure ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                    .foregroundStyle(block.isFailure ? KitchenTheme.statusTerracotta : KitchenTheme.cookingGreen)
+                    .foregroundStyle(block.isFailure ? KitchenTheme.statusTerracotta : AppTheme.successInk)
                     .accessibilityHidden(true)
                 Text(block.message)
                     .font(.subheadline.weight(.medium))

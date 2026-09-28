@@ -309,4 +309,16 @@ semantic hierarchy and Quiet Kitchen R3.1 discipline:
 - **AI surface discipline**: Domain cards, quick-start starter groups, and composer retain distinct semantic roles and are not unified into an all-purpose surface helper. Radii align with Kitchen semantic tokens (`functionalRadius` 16pt for domain cards and composer, `compactRadius` 12pt for starter groups). Hairlines use shared `separator.opacity(borderOpacity)` with 0.75pt line width. Home-specific tactile surfaces and gradients do not extend to AI.
 - **AI chrome**: Send and stop controls use semantic font role (`.title`) with `ChromeMetrics.symbolTypeLimit` to prevent unbounded glyph expansion under Accessibility XXXL, while strictly preserving the 44pt minimum interaction target.
 - **Blue semantic restraint**: Structural comparison guidance (such as Planner before-and-after "修改为" labels and transition arrows) uses semantic secondary text color rather than action blue. Product accent blue is reserved for actionable navigation, retry, enabled send, and selected context states.
-- **Color token boundary**: The global semantic split between `AppTheme.successInk` and `KitchenTheme.cookingGreen` remains unresolved across the app. This phase does not alter token definitions or establish a global completion-color policy; AI outcome success marks preserve their existing color implementation.
+
+### Completion color semantics — accepted Realignment Phase 1 (2026-09-27)
+
+The project adopts the **Contextual Semantic Model** for color roles across tasks and feedback:
+
+- **Blue (`#3866D6`)**: Actionable controls, selected or active options, and reversible checked task states (e.g., Shopping item purchase checkmarks, Special Plan dish completion toggles). These represent interactive items in a workflow that the member can freely toggle or undo, keeping long checklists calm without visual green-wash.
+- **Green (`AppTheme.successInk` / `AppTheme.success`)**: Terminal operational success receipts (e.g., AI action outcome confirmations, recipe saved, inventory consumption recorded), milestone reassurance (Shopping "已全部买齐" header and list status icon), and positive system feedback.
+- **Gray (`Color.secondary` / `textSecondary`)**: Contextual metadata, historical facts, and naturally faded completed agenda states (e.g., Planner weekly meal completion without colored badges).
+- **Orange / Terracotta (`statusOchre` / `statusTerracotta` / `danger`)**: Real risks, urgent expiration, and hard errors.
+
+**Axiom**: Checkmark shape itself does not imply green. Interactive checklist items use blue or neutral checks; green is strictly reserved for positive system confirmations, terminal receipts, and milestones.
+
+**Token naming debt boundary**: `KitchenTheme.cookingGreen` is a historical naming debt from earlier revisions and currently renders product blue (`#3866D6` / `#A5BDFF`). This phase neither renames nor alters the color value of this token to prevent wide regression. Future cleanup must proceed via semantic aliases and deprecation in a dedicated architecture task.

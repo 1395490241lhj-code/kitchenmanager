@@ -1357,7 +1357,7 @@ private struct ShoppingAllPurchasedRow: View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundStyle(KitchenTheme.cookingGreen)
+                .foregroundStyle(AppTheme.successInk)
                 .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
