@@ -40,19 +40,20 @@ final class RootNavigationUITests: XCTestCase {
         let tabBar = app.tabBars.firstMatch
 
         tabBar.buttons["计划"].tap()
+        // Simulator focus can switch during the first tab tap. Retry the same
+        // visible action once if the Planner has not appeared yet.
+        if !app.navigationBars["用餐计划"].waitForExistence(timeout: 3) {
+            tabBar.buttons["计划"].tap()
+        }
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10), "Plan did not open the canonical Planner")
 
         let library = app.buttons["planner.recipes.open"]
-        // One visible tap from the Plan root: a real toolbar action, not a row
-        // inside 更多. 菜谱库 lost its tab; burying it would demote it twice.
+        // 菜谱库 is a Plan-stack content row, outside the create menu.
         XCTAssertTrue(library.waitForExistence(timeout: 5), "菜谱库 must be visible on the Plan root")
         XCTAssertEqual(library.label, "菜谱库")
-        // Visible and directly tappable on the root, rather than a row that only
-        // exists after 更多 is opened. Toolbar items take the system's own 36pt
-        // chrome height here, the same as this bar's existing actions.
         XCTAssertTrue(library.isHittable, "菜谱库 must be tappable without opening a menu")
-        XCTAssertEqual(library.frame.height, app.buttons["planner.tools.menu"].frame.height,
-                       "菜谱库 must match the bar's existing actions")
+        XCTAssertFalse(app.navigationBars["用餐计划"].buttons["planner.recipes.open"].exists,
+                       "菜谱库 belongs in the Planner content, not the toolbar")
         library.tap()
         XCTAssertTrue(app.navigationBars["菜谱"].waitForExistence(timeout: 10), "菜谱库 did not open")
 

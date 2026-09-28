@@ -107,8 +107,10 @@ final class AIConversationAcceptanceUITests: XCTestCase {
     }
 
     private func openKitchenAIFromPlanner(_ app: XCUIApplication) {
-        app.buttons["planner.tools.menu"].tap()
-        app.buttons["planner.kitchenAI.open"].tap()
+        app.buttons["planner.create.menu"].tap()
+        app.buttons["planner.week.menu"].tap()
+        // Nested menu children are only addressable by label.
+        app.buttons["问 Kitchen AI"].tap()
         XCTAssertTrue(app.buttons["kitchenAI.overflowMenu"].waitForExistence(timeout: 5))
     }
 

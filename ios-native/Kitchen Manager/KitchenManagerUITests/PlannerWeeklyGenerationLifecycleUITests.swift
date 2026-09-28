@@ -18,18 +18,20 @@ final class PlannerWeeklyGenerationLifecycleUITests: XCTestCase {
     }
 
     private func openGenerator(_ app: XCUIApplication) {
-        let menu = app.buttons["planner.tools.menu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 10), "no 更多 menu")
-        let entry = app.buttons["planner.weekly.open"]
+        let menu = app.buttons["planner.create.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10), "no create menu")
+        // SwiftUI nested menus do not expose identifiers on their children.
+        let entry = app.buttons["AI 生成一周菜单"]
         // The first tap after a cold launch occasionally lands before the
         // toolbar is interactive, which opens nothing at all.
         var attempts = 0
         while !entry.exists && attempts < 3 {
             menu.tap()
+            app.buttons["planner.week.menu"].tap()
             _ = entry.waitForExistence(timeout: 5)
             attempts += 1
         }
-        XCTAssertTrue(entry.exists, "the menu did not offer the weekly entry")
+        XCTAssertTrue(entry.exists, "the weekly entry did not offer the generator")
         entry.tap()
         XCTAssertTrue(app.navigationBars["生成一周菜单"].waitForExistence(timeout: 5), "the generator did not open")
     }

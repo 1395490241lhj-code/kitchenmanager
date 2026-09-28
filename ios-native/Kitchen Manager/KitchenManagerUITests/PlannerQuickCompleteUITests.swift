@@ -2,7 +2,7 @@ import XCTest
 
 /// Planner quick-complete: the three paths a pending row offers 做好了
 /// through (leading swipe, context menu, custom action), the cooked row that
-/// offers it on none, and the 更多 menu's shopping derivation. Everything runs
+/// offers it on none, and the create menu's shopping derivation. Everything runs
 /// the production CookConsumptionConfirmationView and store contract; the
 /// seeded regression week is the only fixture.
 final class PlannerQuickCompleteUITests: XCTestCase {
@@ -203,8 +203,8 @@ final class PlannerQuickCompleteUITests: XCTestCase {
     }
 
     private func openToolsMenu(_ app: XCUIApplication) {
-        let menu = app.buttons["planner.tools.menu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the 更多 menu is missing")
+        let menu = app.buttons["planner.create.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the create menu is missing")
         menu.tap()
         XCTAssertTrue(app.buttons["planner.shopping.generateToday"].waitForExistence(timeout: 5),
                       "the menu did not offer 生成今日购物清单")

@@ -163,7 +163,7 @@ struct PlannerView: View {
     @State private var weekStart: Date
     @State private var sheet: PlannerSheet?
     /// The day an explicit empty-day tap named, if one did. `nil` falls back to
-    /// the implicit default the toolbar's 新建一餐 has always used.
+    /// the implicit default the toolbar's 添加一餐 uses.
     @State private var creationDay: Date?
     /// A menu the creation sheet composed for a plan that was just added. Held
     /// until the detail for that plan is pushed, which seeds its draft store;
@@ -244,60 +244,44 @@ struct PlannerView: View {
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
+                        // One start button: everything here begins a planning
+                        // task. Managing what already exists stays on the rows
+                        // and details that own it.
                         Menu {
+                            Button("添加一餐") { createMeal() }
+                                .accessibilityIdentifier("planner.meal.create")
+                            // 生成 and 调整 are one intent seen from two states;
+                            // both children are the existing routes, so the
+                            // week keeps its task identity behind them.
+                            Menu {
+                                Button {
+                                    path.wrappedValue.append(.weeklyGenerator)
+                                } label: {
+                                    Label {
+                                        Text(hasWeeklyPlanForDisplayedWeek ? "查看已生成的一周菜单" : "AI 生成一周菜单")
+                                        Text(weeklyGeneratorSubtitle)
+                                    } icon: {
+                                        Image(systemName: KitchenAISymbol.emblem)
+                                    }
+                                }
+                                .accessibilityIdentifier("planner.weekly.open")
+                                Button("问 Kitchen AI", systemImage: KitchenAISymbol.emblem) {
+                                    path.wrappedValue.append(.kitchenAI(weekStart, nil))
+                                }
+                                .accessibilityIdentifier("planner.kitchenAI.open")
+                            } label: {
+                                Text(hasWeeklyPlanForDisplayedWeek ? "调整本周菜单" : "生成本周菜单")
+                            }
+                            .accessibilityIdentifier("planner.week.menu")
+                            Button("创建特殊计划") { sheet = .create }
+                                .accessibilityIdentifier("planner.special.create")
+                            Divider()
+                            // Derived from today's plans; no row owns it, so it
+                            // stays a page-level start action.
                             Button("生成今日购物清单", systemImage: "cart.badge.plus") {
                                 path.wrappedValue.append(.todayShopping)
                             }
                             .accessibilityIdentifier("planner.shopping.generateToday")
-                            Button {
-                                path.wrappedValue.append(.weeklyGenerator)
-                            } label: {
-                                Label {
-                                    Text(kitchenStore.weeklyPlan == nil ? "AI 生成一周菜单" : "查看已生成的一周菜单")
-                                    Text(weeklyGeneratorSubtitle)
-                                } icon: {
-                                    Image(systemName: KitchenAISymbol.emblem)
-                                }
-                            }
-                            .accessibilityIdentifier("planner.weekly.open")
-                            Button("问 Kitchen AI", systemImage: KitchenAISymbol.emblem) {
-                                path.wrappedValue.append(.kitchenAI(weekStart, nil))
-                            }
-                            .accessibilityIdentifier("planner.kitchenAI.open")
-                        } label: {
-                            Label("更多", systemImage: "ellipsis.circle")
-                        }
-                        .accessibilityIdentifier("planner.tools.menu")
-                    }
-                    // 菜谱库 is one visible tap from the Plan root rather than a
-                    // row inside 更多. Browsing dishes is how a plan gets filled,
-                    // so it is a primary planning tool, not a low-frequency one —
-                    // and it lost its tab, so burying it would have demoted it
-                    // twice. Same route every existing deep link already uses.
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            path.wrappedValue.append(.recipeLibrary)
-                        } label: {
-                            Image(systemName: "book.closed")
-                                // Clamp the glyph the way Inventory's toolbar
-                                // actions do, so Accessibility sizes cannot grow
-                                // it out of the bar.
-                                .dynamicTypeSize(...ChromeMetrics.symbolTypeLimit)
-                                .accessibilityLabel("菜谱库")
-                        }
-                        .accessibilityIdentifier("planner.recipes.open")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        // Two things can be created here now, so the one control
-                        // that creates anything names both rather than standing
-                        // for whichever one it used to open. 新建聚餐, not an AI
-                        // label: AI is how that composer works, not what the
-                        // user is making.
-                        Menu {
-                            Button("新建一餐") { createMeal() }
-                                .accessibilityIdentifier("planner.meal.create")
-                            Button("新建聚餐") { sheet = .create }
-                                .accessibilityIdentifier("planner.special.create")
                         } label: {
                             Image(systemName: "plus")
                                 .accessibilityLabel("新建")
@@ -472,6 +456,10 @@ struct PlannerView: View {
                 .plannerRow()
             }
 
+            if !dynamicTypeSize.isAccessibilitySize {
+                recipeLibrarySection
+            }
+
             let groups = PlannerProjection.dayGroups(
                 inWeekStarting: weekStart,
                 entries: PlannerProjection.entries(
@@ -496,8 +484,8 @@ struct PlannerView: View {
                         Text("先安排一餐，这一周就有了着落。")
                     } actions: {
                         // Straight into ordinary creation: scheduling the first
-                        // meal is what an empty week is for, and 聚餐 stays one
-                        // tap away in the toolbar menu.
+                        // meal is what an empty week is for, and 创建特殊计划
+                        // stays one tap away in the toolbar menu.
                         Button("新建一餐") { createMeal() }
                             // The page's only action, in the primary treatment
                             // the rest of the product already uses for one.
@@ -557,8 +545,21 @@ struct PlannerView: View {
                     }
                 }
             }
+            if dynamicTypeSize.isAccessibilitySize {
+                recipeLibrarySection
+            }
         }
         .plannerList()
+    }
+
+    private var recipeLibrarySection: some View {
+        Section {
+            NavigationLink(value: PlannerRoute.recipeLibrary) {
+                Label("菜谱库", systemImage: "book.closed")
+            }
+            .accessibilityIdentifier("planner.recipes.open")
+            .plannerRow()
+        }
     }
 
     /// One compact, quiet row for a day the week has not used yet: the short
@@ -817,8 +818,15 @@ struct PlannerView: View {
     /// otherwise the first day of whatever week is. Uses the Planner's own week
     /// anchor rather than a second definition of where a week begins.
     private var weeklyGeneratorSubtitle: String {
-        guard let draft = kitchenStore.weeklyPlan else { return "按顿数、人数生成一周安排" }
+        guard hasWeeklyPlanForDisplayedWeek, let draft = kitchenStore.weeklyPlan else {
+            return "按顿数、人数生成一周安排"
+        }
         return "已生成 \(draft.dayCount) 天 · \(draft.dishCount) 道菜"
+    }
+
+    private var hasWeeklyPlanForDisplayedWeek: Bool {
+        guard let draft = kitchenStore.weeklyPlan else { return false }
+        return PlannerProjection.startOfWeek(containing: draft.startDate, calendar: calendar) == weekStart
     }
 
     private var creationDefaultDate: Date {

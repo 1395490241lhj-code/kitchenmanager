@@ -1,6 +1,6 @@
 import XCTest
 
-/// Planner-hosted weekly generator: the 更多 entry opens it, a saved draft is
+/// Planner-hosted weekly generator: the create menu's weekly entry opens it, a saved draft is
 /// truthful about being generated (never 已安排), joining the plan returns to
 /// the Planner on the week containing the range start — including a range that
 /// crosses two calendar weeks — and cancelling changes nothing.
@@ -18,11 +18,17 @@ final class PlannerWeeklyHostUITests: XCTestCase {
     }
 
     private func openGenerator(_ app: XCUIApplication) {
-        let menu = app.buttons["planner.tools.menu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the 更多 menu is missing")
+        let menu = app.buttons["planner.create.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the create menu is missing")
         menu.tap()
-        let entry = app.buttons["planner.weekly.open"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 5), "the menu did not offer the weekly entry")
+        let week = app.buttons["planner.week.menu"]
+        XCTAssertTrue(week.waitForExistence(timeout: 5), "the weekly entry is missing")
+        XCTAssertEqual(week.label, "调整本周菜单",
+                       "a seeded draft makes the entry an adjustment")
+        week.tap()
+        // SwiftUI nested menus do not expose identifiers on their children.
+        let entry = app.buttons["查看已生成的一周菜单"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5), "the weekly entry did not offer the generator")
         // The seeded states always carry a draft, so the entry must describe
         // it as generated and never as scheduled.
         XCTAssertTrue(entry.label.contains("已生成"),

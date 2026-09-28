@@ -24,7 +24,7 @@ final class PlannerMealCreateUITests: XCTestCase {
     private func openMealForm(from app: XCUIApplication) {
         app.buttons["planner.create.menu"].tap()
         let meal = app.buttons["planner.meal.create"]
-        XCTAssertTrue(meal.waitForExistence(timeout: 5), "新建一餐 missing from the create menu")
+        XCTAssertTrue(meal.waitForExistence(timeout: 5), "添加一餐 missing from the create menu")
         meal.tap()
         XCTAssertTrue(app.navigationBars["新建一餐"].waitForExistence(timeout: 5), "the meal form did not open")
     }

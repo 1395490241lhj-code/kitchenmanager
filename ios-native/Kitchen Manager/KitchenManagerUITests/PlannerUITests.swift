@@ -11,9 +11,10 @@ final class PlannerUITests: XCTestCase {
         app.buttons["下一周"].tap()
         let week = app.staticTexts["planner.week.range"].label
         XCTAssertTrue(app.buttons["planner.create.menu"].exists)
-        app.buttons["planner.tools.menu"].tap()
-        XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
-        let entry = app.buttons["planner.kitchenAI.open"]
+        app.buttons["planner.create.menu"].tap()
+        app.buttons["planner.week.menu"].tap()
+        XCTAssertTrue(weeklyGeneratorEntry(in: app).exists)
+        let entry = app.buttons["问 Kitchen AI"]
         XCTAssertTrue(entry.waitForExistence(timeout: 5))
         guard entry.exists else { return }
         entry.tap()
@@ -25,8 +26,9 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["planner.week.range"].label, week)
         XCTAssertTrue(app.buttons["planner.create.menu"].exists)
-        app.buttons["planner.tools.menu"].tap()
-        XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
+        app.buttons["planner.create.menu"].tap()
+        app.buttons["planner.week.menu"].tap()
+        XCTAssertTrue(weeklyGeneratorEntry(in: app).exists)
     }
 
     private func launch(_ arguments: String...) -> XCUIApplication {
@@ -38,6 +40,14 @@ final class PlannerUITests: XCTestCase {
 
     private func anyElement(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
+    }
+
+    /// SwiftUI does not surface accessibility identifiers on the children of a
+    /// nested Menu, so the weekly submenu is queried by label. Both weekly
+    /// states have distinct generator labels, separate from the parent entry.
+    private func weeklyGeneratorEntry(in app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@ OR label == %@",
+                                         "AI 生成一周菜单", "查看已生成的一周菜单")).firstMatch
     }
 
     /// The canonical route: the 计划 tab. Planner is a top-level destination, so
@@ -75,7 +85,7 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(menu.waitForExistence(timeout: 5), "the create menu is missing from the planner toolbar")
         menu.tap()
         let special = app.buttons["planner.special.create"]
-        XCTAssertTrue(special.waitForExistence(timeout: 5), "新建聚餐 is missing from the create menu")
+        XCTAssertTrue(special.waitForExistence(timeout: 5), "创建特殊计划 is missing from the create menu")
         special.tap()
     }
 
@@ -162,11 +172,12 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(meal.exists, "today's ordinary meal must be visible on Planner")
 
         // Slice A capabilities stay reachable from here.
-        let menu = app.buttons["planner.tools.menu"]
-        XCTAssertTrue(menu.exists, "the 更多 menu is missing")
+        let menu = app.buttons["planner.create.menu"]
+        XCTAssertTrue(menu.exists, "the create menu is missing")
         menu.tap()
         XCTAssertTrue(app.buttons["planner.shopping.generateToday"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["planner.weekly.open"].exists)
+        app.buttons["planner.week.menu"].tap()
+        XCTAssertTrue(weeklyGeneratorEntry(in: app).exists)
     }
 
     /// D-048 keeps D-042's planning ownership while making optional
@@ -198,7 +209,7 @@ final class PlannerUITests: XCTestCase {
     ///
     /// The CTA now starts ordinary meal creation directly rather than the
     /// Special Plan composer: scheduling the first meal is what an empty week
-    /// is for. 聚餐 stays reachable from the toolbar menu, which
+    /// is for. 创建特殊计划 stays reachable from the toolbar menu, which
     /// `testTheCreateMenuOffersBothKindsOfPlan` holds to account.
     func testAnEmptyWeekOffersOneCreateAffordance() {
         let app = launch("UITEST_SEED_EMPTY_HOME", "UITEST_SPECIAL_PLAN_AI_MENU")
@@ -251,10 +262,10 @@ final class PlannerUITests: XCTestCase {
 
         let meal = app.buttons["planner.meal.create"]
         let special = app.buttons["planner.special.create"]
-        XCTAssertTrue(meal.waitForExistence(timeout: 5), "新建一餐 missing from the create menu")
-        XCTAssertTrue(special.exists, "新建聚餐 missing from the create menu")
-        XCTAssertEqual(meal.label, "新建一餐")
-        XCTAssertEqual(special.label, "新建聚餐")
+        XCTAssertTrue(meal.waitForExistence(timeout: 5), "添加一餐 missing from the create menu")
+        XCTAssertTrue(special.exists, "创建特殊计划 missing from the create menu")
+        XCTAssertEqual(meal.label, "添加一餐")
+        XCTAssertEqual(special.label, "创建特殊计划")
         XCTAssertFalse(
             special.label.contains("AI"),
             "AI is how the composer works, not what the user is creating"
@@ -263,8 +274,94 @@ final class PlannerUITests: XCTestCase {
         special.tap()
         XCTAssertTrue(
             app.staticTexts["这次想怎么做饭？"].waitForExistence(timeout: 10),
-            "新建聚餐 must still open the existing Special Plan composer"
+            "创建特殊计划 must still open the existing Special Plan composer"
         )
+    }
+
+    /// The toolbar collapsed to one start control: the standalone 更多 is gone,
+    /// the create menu carries the planning intents, and the weekly entry
+    /// states whether the displayed week still needs a generated plan.
+    func testTheCreateMenuIsTheOnlyStartControlAndNamesTheWeeklyState() {
+        func launchFixture(_ state: String) -> XCUIApplication {
+            XCUIDevice.shared.appearance = .light
+            let app = XCUIApplication()
+            app.launchArguments = ["UITEST_SEED_PLANNER_REGRESSION", state,
+                                   "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryLarge"]
+            app.launch()
+            XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10), "planner did not open")
+            return app
+        }
+
+        // No generated plan yet: the weekly entry offers to make one.
+        let bare = launchFixture("PLANNER_DATA_WEEK")
+        XCTAssertFalse(bare.buttons["planner.tools.menu"].exists,
+                       "the standalone 更多 button must be gone")
+        XCTAssertFalse(bare.navigationBars["用餐计划"].buttons["planner.recipes.open"].exists,
+                       "菜谱库 belongs in the list, outside the navigation bar")
+        let create = bare.buttons["planner.create.menu"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5), "the create menu is missing")
+        XCTAssertTrue(create.isHittable, "create menu must be hittable, frame: \(create.frame)")
+        create.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let meal = bare.buttons["planner.meal.create"]
+        if !meal.waitForExistence(timeout: 3) {
+            create.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(meal.waitForExistence(timeout: 5), "添加一餐 missing from the create menu")
+        XCTAssertEqual(meal.label, "添加一餐")
+        let special = bare.buttons["planner.special.create"]
+        XCTAssertTrue(special.exists, "创建特殊计划 missing from the create menu")
+        XCTAssertEqual(special.label, "创建特殊计划")
+        XCTAssertTrue(bare.buttons["planner.shopping.generateToday"].exists,
+                      "生成今日购物清单 missing from the create menu")
+        let generate = bare.buttons["planner.week.menu"]
+        XCTAssertTrue(generate.waitForExistence(timeout: 5), "the weekly entry is missing")
+        XCTAssertEqual(generate.label, "生成本周菜单",
+                       "a week with no generated plan offers to make one")
+        generate.tap()
+        XCTAssertTrue(weeklyGeneratorEntry(in: bare).waitForExistence(timeout: 5),
+                      "the weekly entry must expose the existing generator route")
+        XCTAssertTrue(bare.buttons["问 Kitchen AI"].exists,
+                      "the weekly entry must expose the existing Kitchen AI route")
+        bare.terminate()
+
+        // An existing draft: the same entry reads as an adjustment.
+        let planned = launchFixture("PLANNER_DATA_HOST_WEEKLY")
+        planned.buttons["planner.create.menu"].tap()
+        let adjust = planned.buttons["planner.week.menu"]
+        XCTAssertTrue(adjust.waitForExistence(timeout: 5), "the weekly entry is missing")
+        XCTAssertEqual(adjust.label, "调整本周菜单",
+                       "an existing draft reads as something to adjust")
+        planned.terminate()
+
+        // A saved draft from another week does not turn the displayed week
+        // into an adjustment task.
+        let nextWeek = launchFixture("PLANNER_DATA_HOST_WEEKLY")
+        nextWeek.buttons["切换周"].tap()
+        nextWeek.buttons["下一周"].tap()
+        nextWeek.buttons["planner.create.menu"].tap()
+        XCTAssertEqual(nextWeek.buttons["planner.week.menu"].label, "生成本周菜单")
+    }
+
+    func testDarkAccessibilityToolbarKeepsTheCreateMenuReachable() {
+        XCUIDevice.shared.appearance = .dark
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_SEED_PLANNER_REGRESSION", "PLANNER_DATA_MIXED",
+                               "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+                               "UITEST_FORCE_DARK_APPEARANCE"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 10))
+        let create = app.buttons["planner.create.menu"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        XCTAssertTrue(create.isHittable)
+        XCTAssertFalse(app.navigationBars["用餐计划"].buttons["planner.recipes.open"].exists)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "Planner-Dark-AXXXL-Create"
+        shot.lifetime = .keepAlways
+        add(shot)
+        create.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["planner.meal.create"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["planner.week.menu"].exists)
+        XCTAssertTrue(app.buttons["planner.special.create"].exists)
     }
 
     func testSeededSpecialPlanAppearsAndShowsDishes() {
