@@ -630,22 +630,25 @@ struct RecipeDetailView: View {
             HStack(spacing: 12) {
                 Image(systemName: cookingSession.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(cookingSession.checkedIngredientIndexes.contains(index) ? AppTheme.success : .secondary)
-                Group {
-                    RecipeIngredientText(text: RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
+                // 缺货 sits under the name, never after the quantity: the
+                // quantity column stays on the trailing content rail.
+                VStack(alignment: .leading, spacing: 2) {
+                    Group {
+                        RecipeIngredientText(text: RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
 
+                    }
+                    .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
+                    .foregroundStyle(.primary)
+
+                    // Words, not a colour alone: the tint only reinforces 缺货.
+                    if isMissing {
+                        Text("缺货")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(KitchenTheme.ochre)
+                            .accessibilityHidden(true)
+                    }
                 }
-                .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
-                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-                // Words, not a colour alone: the tint only reinforces 缺货.
-                if isMissing {
-                    Text("缺货")
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(KitchenTheme.ochre)
-                        .fixedSize()
-                        .accessibilityHidden(true)
-                }
             }
         }
         .buttonStyle(.plain)

@@ -336,9 +336,13 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.staticTexts["编辑买菜项目"].waitForExistence(timeout: 5))
         let quantity = app.textFields["数量"]
         XCTAssertTrue(quantity.waitForExistence(timeout: 5))
-        quantity.tap()
+        // LabeledContent exposes label + value as one field; tap the trailing
+        // value area so the cursor lands after the existing digits (the same
+        // approach ShoppingRegressionUITests uses), then replace them.
+        quantity.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.8)).tap()
         let old = quantity.value as? String ?? ""
         quantity.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count) + "5")
+        XCTAssertEqual(app.textFields["数量"].value as? String, "5")
         app.navigationBars.buttons["保存"].tap()
 
         XCTAssertTrue(app.buttons["番茄，5 个，未购买"].waitForExistence(timeout: 5))
