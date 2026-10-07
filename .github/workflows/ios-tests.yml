@@ -1,0 +1,144 @@
+name: iOS tests (simulator)
+
+# Builds the app and test targets and runs tests on an iOS Simulator.
+# Never signs for a device, never uploads, needs no Apple secret.
+#
+# Runs automatically on pushes to agent branches (claude/**) that touch the
+# iOS project, so code written without a local Xcode gets real evidence.
+# Can also be started by hand once this file is on the default branch.
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "ios-native/**"
+      - ".github/workflows/ios-tests.yml"
+  workflow_dispatch:
+    inputs:
+      ui_tests:
+        description: "UI test classes to run (space-separated KitchenManagerUITests/<Class>); 'none' skips, 'all' runs every UI test"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Focused default: the UI suites around the surfaces most often changed.
+  # The full UI suite is long and carries a documented baseline red
+  # (ReceiptCompactListUITests), so it is opt-in via the 'all' input.
+  DEFAULT_UI_TESTS: >-
+    KitchenManagerUITests/ShoppingExperienceUITests
+    KitchenManagerUITests/ShoppingRegressionUITests
+    KitchenManagerUITests/RecipeCookingModeUITests
+    KitchenManagerUITests/RecipePresentationUITests
+    KitchenManagerUITests/RecipeFlowsUITests
+    KitchenManagerUITests/HomeDashboardUITests
+    KitchenManagerUITests/HomeVisualGateUITests
+    KitchenManagerUITests/InventoryNavigationUITests
+    KitchenManagerUITests/InventoryControlStripUITests
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes available
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in data if "iOS" in r), reverse=True)
+          for runtime in ios:
+              phones = [d for d in data[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              pro = [d for d in phones if "Pro" in d["name"] and "Max" not in d["name"]]
+              pick = (pro or phones or [None])[0]
+              if pick:
+                  print(pick["udid"]); sys.stderr.write(runtime + ": " + pick["name"] + "\n"); break
+          ')
+          test -n "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            2>&1 | tee "$RUNNER_TEMP/build.log" | grep -E "error:|warning: .*deprecated|BUILD|\*\*" || true
+          grep -q "TEST BUILD SUCCEEDED" "$RUNNER_TEMP/build.log"
+
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            -only-testing:KitchenManagerTests \
+            -resultBundlePath "$RUNNER_TEMP/unit.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/unit.log" | grep -E "Test Case .* (failed|passed)|error:|Executed|\*\*"
+
+      - name: UI tests
+        if: success() || failure()
+        env:
+          REQUESTED: ${{ github.event.inputs.ui_tests }}
+        run: |
+          set -o pipefail
+          selection="${REQUESTED:-$DEFAULT_UI_TESTS}"
+          if [ "$selection" = "none" ]; then echo "UI tests skipped"; exit 0; fi
+          args=()
+          if [ "$selection" = "all" ]; then
+            args+=("-only-testing:KitchenManagerUITests")
+          else
+            for t in $selection; do args+=("-only-testing:$t"); done
+          fi
+          xcodebuild test-without-building \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            "${args[@]}" \
+            -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep -E "Test Case .* (failed|passed)|error:|Executed|\*\*"
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          for f in build unit ui; do
+            log="$RUNNER_TEMP/$f.log"
+            [ -f "$log" ] || continue
+            echo "===== $f: errors and failures ====="
+            grep -E "error:|: error|failed \(|XCTAssert|Test Case .* failed" "$log" | head -200 || true
+          done
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: |
+            ${{ runner.temp }}/*.xcresult
+            ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+          retention-days: 7
