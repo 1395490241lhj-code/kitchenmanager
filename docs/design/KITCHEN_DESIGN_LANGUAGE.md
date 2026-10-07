@@ -195,6 +195,11 @@ status rails, ingredient cards or repeated utility icons.
 - Cooking Mode groups the current step in a Module Surface. The timer is utility;
   next/finish is the dominant primary action. Large text may place controls below the
   fold, where they must remain reachable.
+- Since the 2026-10 UX plan (A4, owner-approved): a quiet 下一步 preview follows the
+  current step; a horizontal swipe on the step surface pages steps (navigation only,
+  never finishing; disabled animation under Reduce Motion); a step that states its own
+  duration offers a one-tap secondary 计时 N 分钟 beside the utility 其他时长 menu.
+  Step completion stays an explicit action (test-enforced; see the UX plan).
 - The editor retains its native utility Form. Populated fields keep persistent labels;
   the cooking-time input itself communicates its meaning, minutes and current value.
   Form group edges use the 20pt page gutter; native cell content keeps its own inset.
