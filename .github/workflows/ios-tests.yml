@@ -31,6 +31,7 @@ env:
   # The full UI suite is long and carries a documented baseline red
   # (ReceiptCompactListUITests), so it is opt-in via the 'all' input.
   DEFAULT_UI_TESTS: >-
+    KitchenManagerUITests/ScreenshotTourUITests
     KitchenManagerUITests/ShoppingExperienceUITests
     KitchenManagerUITests/ShoppingRegressionUITests
     KitchenManagerUITests/RecipeCookingModeUITests
@@ -131,6 +132,62 @@ jobs:
             -maximum-test-execution-time-allowance 600 \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
             2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|Executed|\*\*"
+
+      # Every keepAlways screenshot from the UI run, as plain PNGs anyone can
+      # open (no Xcode needed). Tour images go in tour/, all others in other/.
+      - name: Export screenshots
+        if: always()
+        run: |
+          bundle="$RUNNER_TEMP/ui.xcresult"
+          [ -d "$bundle" ] || { echo "No UI result bundle"; exit 0; }
+          raw="$RUNNER_TEMP/attachments"
+          out="$RUNNER_TEMP/screenshots"
+          xcrun xcresulttool export attachments --path "$bundle" --output-path "$raw"
+          python3 - "$raw" "$out" <<'PY'
+          import json, os, re, shutil, sys
+          raw, out = sys.argv[1], sys.argv[2]
+          manifest = json.load(open(os.path.join(raw, "manifest.json")))
+          count = 0
+          for test in manifest:
+              test_id = test.get("testIdentifier", "unknown")
+              cls = test_id.split("/")[0]
+              for att in test.get("attachments", []):
+                  src = os.path.join(raw, att["exportedFileName"])
+                  if not src.lower().endswith((".png", ".jpg", ".jpeg", ".heic")) or not os.path.exists(src):
+                      continue
+                  name = att.get("suggestedHumanReadableName") or att["exportedFileName"]
+                  name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}", "", name)
+                  name = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", name)
+                  sub = "tour" if cls == "ScreenshotTourUITests" else os.path.join("other", cls)
+                  if att.get("isAssociatedWithFailure"):
+                      sub = os.path.join("failures", cls)
+                  dest_dir = os.path.join(out, sub)
+                  os.makedirs(dest_dir, exist_ok=True)
+                  dest = os.path.join(dest_dir, name)
+                  stem, ext = os.path.splitext(dest)
+                  n = 2
+                  while os.path.exists(dest):
+                      dest = f"{stem}-{n}{ext}"; n += 1
+                  shutil.copy(src, dest)
+                  count += 1
+          print(f"exported {count} screenshots")
+          PY
+          {
+            echo "### Screenshots"
+            echo "Download the **ios-screenshots** artifact from this run's Summary page."
+            echo "- tour/: $(ls "$out/tour" 2>/dev/null | wc -l | tr -d ' ') images (main screens, Light / Dark / Accessibility XXXL)"
+            echo "- failures/: $(find "$out/failures" -type f 2>/dev/null | wc -l | tr -d ' ') images captured at failing assertions"
+            echo "- other/: $(find "$out/other" -type f 2>/dev/null | wc -l | tr -d ' ') images from feature UI tests"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: ${{ runner.temp }}/screenshots
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Failure summary
         if: failure()
