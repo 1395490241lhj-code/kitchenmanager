@@ -41,6 +41,8 @@ struct HomeView: View {
     @State private var isShowingKitchenAI = false
     @State private var isShowingRecommendations = false
     @State private var isShowingPreparedComponents = false
+    /// Opens shopping generation for today's menu from the hero's 还缺 line.
+    @State private var isShowingMissingShopping = false
     @State private var selectedPlan: MealPlanItem?
     @State private var selectedRecipe: Recipe?
     /// Non-nil while Home is running a cooking flow. The flow itself is shared
@@ -291,6 +293,11 @@ struct HomeView: View {
         // inside the board.
         .navigationDestination(isPresented: $isShowingPreparedComponents) {
             PreparedComponentsView()
+        }
+        // The existing generation flow, over the same plans the hero measures.
+        // It already separates covered from missing and preselects the latter.
+        .navigationDestination(isPresented: $isShowingMissingShopping) {
+            ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
         }
         // An explicit selection + `navigationDestination(item:)`, never
         // `NavigationLink(value:)` — see the ExpirySheet note above for why
@@ -673,7 +680,13 @@ struct HomeView: View {
                     dashboard: dashboard,
                     hero: heroModel(for: dashboard),
                     onSelectPlan: { selectedPlan = $0 },
-                    onStartCooking: startCooking
+                    onStartCooking: startCooking,
+                    missingIngredients: dashboard.allPlans.allSatisfy(\.isCooked) ? [] : HomeMealReadinessProjection.missingIngredients(
+                        plans: dashboard.allPlans,
+                        recipes: { recipeStore.recipe(id: $0) },
+                        inventory: kitchenStore.inventory
+                    ),
+                    onAddMissingToShopping: { isShowingMissingShopping = true }
                 )
 
             case .recipeRecommendation:
@@ -1116,6 +1129,10 @@ private struct TodayPlanSummaryCard: View {
     /// Opens cooking mode for the lead dish. Home's prominent control describes
     /// its own result; routing it to a recipe page would not.
     let onStartCooking: (MealPlanItem) -> Void
+    /// Ingredients the hero's readiness counts as not in stock. Empty hides
+    /// the 还缺 line, as does a fully cooked menu.
+    var missingIngredients: [String] = []
+    var onAddMissingToShopping: () -> Void = {}
 
     var body: some View {
         if let leadPlan = dashboard.allPlans.first {
@@ -1151,6 +1168,12 @@ private struct TodayPlanSummaryCard: View {
                 // The one prominent action stays directly under the hero, ahead
                 // of any disclosure, so a long menu never buries it.
                 actions(leadPlan)
+
+                // Names what the readiness fraction leaves out, and the one
+                // thing to do about it. A utility row, never a second CTA.
+                if !missingIngredients.isEmpty {
+                    missingIngredientsRow
+                }
 
                 // Two dishes need no module: the hero's 配 line already named
                 // the other one. Three or more get a disclosure that lists the
@@ -1217,6 +1240,40 @@ private struct TodayPlanSummaryCard: View {
             ? "已完成"
             : (plan.plannedServings.map { "\($0) 人份，未完成" } ?? "未完成")
         return "\(plan.recipeName)，\(state)"
+    }
+
+    private var missingIngredientsRow: some View {
+        Button(action: onAddMissingToShopping) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "cart.badge.plus")
+                    .accessibilityHidden(true)
+                Text(missingSummary)
+                    .foregroundStyle(KitchenTheme.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("加入买菜清单")
+                    .fontWeight(.semibold)
+                    .fixedSize()
+            }
+            .font(.footnote)
+            .dynamicTypeSize(...ChromeMetrics.summaryTypeLimit)
+            .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(KitchenTheme.cookingGreen)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("库存还缺\(missingIngredients.joined(separator: "、"))")
+        .accessibilityHint("生成买菜清单")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("home.today.missing.addToShopping")
+    }
+
+    /// At most three names, then a count, so a long shortfall stays one line.
+    private var missingSummary: String {
+        let names = missingIngredients.prefix(3).joined(separator: "、")
+        let rest = missingIngredients.count - 3
+        return rest > 0 ? "还缺 \(names) 等 \(missingIngredients.count) 样" : "还缺 \(names)"
     }
 
     private var heroView: some View {

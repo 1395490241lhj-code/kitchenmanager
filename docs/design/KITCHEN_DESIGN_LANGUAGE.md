@@ -16,7 +16,7 @@ Owner-approved at implementation `d9da474`; visual/IA design is frozen. [Enginee
 
 The owner accepted the rendered Light/Dark Home result after implementation review. This is a Home-only visual revision layered on D-048, not a new app-wide material system. In decision mode, `今天怎么吃` owns a horizontally browsable set of recommendation content objects: a restrained neutral tonal surface, weak vertical lighting, a local top highlight and fine hairline distinguish a choice from the canvas without a heavy shadow. At Accessibility text sizes the same choices stack vertically. The terminal `换一批` remains a narrower, lighter action rather than another recipe object.
 
-In execution mode, the current meal is the dominant task surface and `开始做饭` is the prominent action; a completed meal's `查看菜谱` is secondary. A real `需要处理` list keeps its formal heading, count and actionable rows, then yields to a quieter `更多推荐` browse label and lighter recommendation surfaces and controls. With no attention items, the reassurance is one inline status close to the task, followed by a shorter transition into optional browsing. Supporting rows and status do not acquire task-card elevation.
+In execution mode, the current meal is the dominant task surface and `开始做饭` is the prominent action; a completed meal's `查看菜谱` is secondary. Since the 2026-10 UX plan (A2, owner-approved), when readiness has a shortfall and the menu is not fully cooked, the task surface ends with one utility row naming up to three missing ingredients (`还缺 … 等 N 样`) and `加入买菜清单`, which opens the existing shopping generation flow for today's plans. It is never a second prominent CTA, and readiness remains presence-only. A real `需要处理` list keeps its formal heading, count and actionable rows, then yields to a quieter `更多推荐` browse label and lighter recommendation surfaces and controls. With no attention items, the reassurance is one inline status close to the task, followed by a shorter transition into optional browsing. Supporting rows and status do not acquire task-card elevation.
 
 The older Home guidance below that prescribed a fully open Home or no Home task container is historical at this boundary; it must not be applied against this accepted local task/content/support hierarchy. ChunUI informed limited implementation details only; its design system and dependencies were not adopted. Home's business precedence, D-048 inline discovery and exclusions, Dynamic Type behavior, native navigation and existing data/provider semantics remain in force. Other screens have not been migrated to these Home-specific surfaces.
 
@@ -184,6 +184,12 @@ status rails, ingredient cards or repeated utility icons.
   the original amounts. Adjusting the cooking session never changes the stored recipe.
 - Ingredients and seasonings use open checklist rows. Quantities align to the trailing
   content rail, with names and long quantities wrapping naturally without collision.
+- Since the 2026-10 UX plan (A2, owner-approved): core ingredient rows with nothing in
+  stock carry a trailing worded 缺货 mark (ochre reinforces, never replaces, the word);
+  seasonings are not marked. When any are missing, one quiet line above the list states
+  库存缺 N 样 with a utility 加入买菜清单 that opens the existing shopping generation
+  flow. Library 缺 N 样, these marks and Home readiness share `RecipeStockMatch`, so the
+  three surfaces cannot disagree.
 - Static steps use plain numbers and readable, Dynamic Type Chinese body text. Long text
   remains scrollable; the last step must clear the pinned Start Cooking action.
 - Cooking Mode groups the current step in a Module Surface. The timer is utility;

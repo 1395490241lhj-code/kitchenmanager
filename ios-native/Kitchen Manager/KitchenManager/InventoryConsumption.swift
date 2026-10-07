@@ -144,7 +144,7 @@ struct InventoryConsumptionPlanner {
 
     private static func matchingInventory(for draft: InventoryConsumptionDraft, in inventory: [InventoryItem]) -> [InventoryItem] {
         inventory
-            .filter { $0.isAvailable && IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(draft.ingredientName) }
+            .filter { RecipeStockMatch.item($0, matches: draft.ingredientName) }
             .sorted { ($0.remainingDays ?? 9999) < ($1.remainingDays ?? 9999) }
     }
 
