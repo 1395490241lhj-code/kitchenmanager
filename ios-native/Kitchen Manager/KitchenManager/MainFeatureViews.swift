@@ -31,6 +31,10 @@ struct InventoryView: View {
     @State private var isShowingPreparedComponents = false
     @State private var stapleFilter: PantryStapleFilter = .all
     @State private var itemPendingDeletion: InventoryItem?
+    /// The last swipe-to-用完, held only while its 撤销 toast is up.
+    @State private var activeUsedUp: InventoryUsedUp?
+    @State private var usedUpToast: String?
+    @State private var usedUpToastToken: UUID?
     @State private var searchText = ""
 
 
@@ -247,6 +251,14 @@ struct InventoryView: View {
                                     itemPendingDeletion = item
                                 }
                             }
+                            // The commonest change to a food row. Only offered
+                            // while there is something left to use up.
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if item.isAvailable {
+                                    Button("用完", systemImage: "checkmark.circle") { markUsedUp(item) }
+                                        .tint(KitchenTheme.managementBlue)
+                                }
+                            }
                             // The same two destinations the row already has,
                             // surfaced without a swipe. No new behaviour: open
                             // is the row's own tap, delete is the swipe action
@@ -254,6 +266,9 @@ struct InventoryView: View {
                             .contextMenu {
                                 Button("查看详情", systemImage: "info.circle") {
                                     onSelectItem(item.id)
+                                }
+                                if item.isAvailable {
+                                    Button("用完", systemImage: "checkmark.circle") { markUsedUp(item) }
                                 }
                                 Button("删除", systemImage: "trash", role: .destructive) {
                                     itemPendingDeletion = item
@@ -484,13 +499,48 @@ struct InventoryView: View {
             Text("此操作会移除库存记录，且无法撤销。")
         }
         .overlay(alignment: .bottom) {
+            // A store notice (a save failure, a sync-locked refusal) outranks
+            // the undo toast: it is the truer statement about the data.
             if let notice = store.inventoryNotice {
                 InventoryNoticeOverlay(notice: notice) {
                     store.clearInventoryNotice()
                 }
+            } else if let usedUpToast {
+                FeedbackToast(message: usedUpToast, style: .success,
+                              action: (label: "撤销", handler: undoUsedUp))
+                    .accessibilityAction(named: "知道了") { dismissUsedUpToast() }
             }
         }
         .animation(reduceMotion ? nil : .snappy, value: store.inventoryNotice)
+    }
+
+    private func markUsedUp(_ item: InventoryItem) {
+        guard let usedUp = store.markInventoryUsedUp(item.id) else { return }
+        activeUsedUp = usedUp
+        let token = UUID()
+        usedUpToastToken = token
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(reduceMotion ? nil : .snappy) { usedUpToast = "已用完「\(item.name)」" }
+        // Same lifetime rule as the Planner's and Shopping's undo toasts.
+        let delay: Duration = UIAccessibility.isVoiceOverRunning ? .seconds(20) : .seconds(4)
+        Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard token == usedUpToastToken else { return }
+            dismissUsedUpToast()
+        }
+    }
+
+    private func undoUsedUp() {
+        if let activeUsedUp, !store.undoInventoryUsedUp(activeUsedUp), store.inventoryNotice == nil {
+            store.inventoryNotice = "撤销失败，这项食材已被修改。"
+        }
+        dismissUsedUpToast()
+    }
+
+    private func dismissUsedUpToast() {
+        activeUsedUp = nil
+        usedUpToastToken = nil
+        withAnimation(reduceMotion ? nil : .snappy) { usedUpToast = nil }
     }
 
     private func addSuggestion(_ suggestion: RestockSuggestion) {

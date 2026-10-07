@@ -844,6 +844,12 @@ nonisolated struct KitchenShoppingItem: Identifiable, Codable, Hashable {
     var remark: String?
 }
 
+/// What undoing a swipe-to-用完 needs: which row, and what it held before.
+nonisolated struct InventoryUsedUp: Equatable {
+    let itemID: UUID
+    let previousQuantity: Double
+}
+
 /// What a single shopping-item removal needs for undo.
 nonisolated struct ShoppingRemoval: Equatable {
     let item: KitchenShoppingItem
@@ -2447,6 +2453,37 @@ final class KitchenStore: ObservableObject {
     func deleteInventory(_ id: UUID) {
         PantryRestockNotificationScheduler.remove(for: id)
         inventory.removeAll { $0.id == id }
+    }
+
+    /// Sets one row to zero — the swiped batch, never another batch of the same
+    /// food. One assignment through `inventory`'s didSet, so the sync edit gate,
+    /// persistence and outbound staging behave exactly as for a detail-page
+    /// quantity edit. Nil when the row is gone, already empty, or the edit was
+    /// refused (the gate reverts it and posts its own notice).
+    func markInventoryUsedUp(_ id: UUID) -> InventoryUsedUp? {
+        guard let index = inventory.firstIndex(where: { $0.id == id }),
+              inventory[index].quantity > 0 else { return nil }
+        let previousQuantity = inventory[index].quantity
+        var item = inventory[index]
+        item.quantity = 0
+        item.updatedAt = Date()
+        inventory[index] = item
+        guard inventory.first(where: { $0.id == id })?.quantity == 0 else { return nil }
+        return InventoryUsedUp(itemID: id, previousQuantity: previousQuantity)
+    }
+
+    /// Undo for `markInventoryUsedUp(_:)`. Restores the earlier quantity only
+    /// while the row still exists at zero; any other value means something
+    /// changed it since, and undo must not overwrite that.
+    @discardableResult
+    func undoInventoryUsedUp(_ usedUp: InventoryUsedUp) -> Bool {
+        guard let index = inventory.firstIndex(where: { $0.id == usedUp.itemID }),
+              inventory[index].quantity == 0 else { return false }
+        var item = inventory[index]
+        item.quantity = usedUp.previousQuantity
+        item.updatedAt = Date()
+        inventory[index] = item
+        return inventory.first(where: { $0.id == usedUp.itemID })?.quantity == usedUp.previousQuantity
     }
 
     /// The current backup scope as one value. The single definition of "what a
