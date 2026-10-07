@@ -45,7 +45,7 @@ env:
 jobs:
   test:
     runs-on: macos-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
     defaults:
       run:
         working-directory: "ios-native/Kitchen Manager"
@@ -108,7 +108,8 @@ jobs:
 
       - name: UI tests
         if: success() || failure()
-        timeout-minutes: 60
+        # The focused set plus the screenshot tour takes ~55 minutes.
+        timeout-minutes: 90
         env:
           REQUESTED: ${{ github.event.inputs.ui_tests }}
         run: |
