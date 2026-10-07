@@ -1,6 +1,6 @@
 # iOS UI/UX 改进方案（基于 2026-10-07 审计）
 
-状态：阶段 A 已由 owner 批准并实现（见文末「阶段 A 实施记录」），**未经 Xcode 编译或运行验证**；阶段 B、C 仍为提案。 本文不改变任何已接受的 Decision、设计语言或硬边界；凡涉及这些的条目都明确标为「需新 Decision」。
+状态：阶段 A 已由 owner 批准并实现，已在 GitHub Actions 的 iOS 模拟器上编译并跑测试（见文末「验证记录」）；视觉走查尚未做。阶段 B、C 仍为提案。 本文不改变任何已接受的 Decision、设计语言或硬边界；凡涉及这些的条目都明确标为「需新 Decision」。
 
 ## 0. 依据与限制
 
@@ -167,7 +167,7 @@ C4 与 C6 风险低、可最早决策；C1–C3 互相关联，建议一起出�
 
 ## 阶段 A 实施记录（2026-10-07）
 
-所有代码在没有 Xcode / Swift 工具链的环境中编写，**未编译、未运行任何测试**。合并前必须用 `km-ios-validation` 补齐构建与测试证据。
+代码在没有本地 Xcode 的环境中编写，随后通过 `.github/workflows/ios-tests.yml` 在 GitHub Actions 的 macOS 机器上验证（见下方「验证记录」）。
 
 | 项 | 已实现 | 与方案的偏差 |
 |---|---|---|
@@ -175,3 +175,17 @@ C4 与 C6 风险低、可最早决策；C1–C3 互相关联，建议一起出�
 | A2 | 新增 `RecipeStockMatch` 作为唯一在库判定；消耗 planner、菜谱库「缺 N 样」、详情页逐行「缺货」共用；详情页「加入买菜清单」；首页 hero 增加「还缺 … · 加入买菜清单」工具行 | 首页没有把就绪文字本身做成可点按钮（单菜时整个 hero 已是按钮，嵌套点击不可靠），改为 hero 末尾独立工具行 |
 | A3 | 食材行前滑 / 长按「用完」，只清零该批次，撤销仅在该行仍为 0 时恢复 | 用完不经 `applyConsumption`（它按名称跨批次扣减，可能扣到另一批），因此不生成「最近消耗」记录；**删除仍保留确认框**——重新插入已删除的库存行可能与同步墓碑契约冲突（硬边界） |
 | A4 | 下一步预览、步骤卡左右滑动切步、步骤时长一键计时、修复时长解析（`\b` 对中文无效） | **「下一步自动标记完成」未实现**：`RecipeCookingModeUITests` 断言「仅导航到下一步不应增加已完成步骤」，属测试约束的产品契约，需 owner 决定；**「保留进度」退出保留计时**未实现：计时器归属需提升到 session，另做 |
+
+### 验证记录（2026-10-07，GitHub Actions macOS，Xcode 26.6 / iOS 26.5 模拟器，用的是 `xcodebuild` 这条备用路径，不是 Xcode MCP）
+
+- `ios-release-check.yml` run 37653312470：Debug / Release 模拟器构建、无签名 Release archive 全部成功。
+- `ios-tests.yml` run 37668877165（分支 `f8d0f16`）：
+  - 单元测试 2447 个，2 失败、5 跳过；阶段 A 新增的 `ShoppingItemEditingTests`、`RecipeStockMatchTests`、`InventoryUsedUpTests` 全部通过。
+  - 聚焦 UI 测试 113 个，2 失败；新增的滑动删除撤销、编辑数量两个 UI 测试通过。
+- 剩余 4 个失败在 `main`（`c772a36`）上同样失败（同一 run 的 baseline job），属于阶段 A 之前就存在的问题，不是本次回归：
+  - `AIConversationTransportTests.testRuntimeRequestCarriesNoProviderField`（请求体多了 `turnID`）
+  - `ShoppingExperienceTests.testSearchKeepsFixedCategoryOrderAndNameSort`（中文排序随系统语言变化，CI 是英文环境）
+  - `RecipeCookingModeUITests.testRecipeListFinalRowClearsFloatingTabBar`（`791.0000000000001 > 791`，浮点误差）
+  - `ShoppingExperienceUITests.testStockInConfirmationProcessesPurchasedItemsIntoInventory`（「食材」同时匹配返回按钮和 tab）
+- CI 抓到并已修复的阶段 A 回归：详情页「缺货」把数量挤离右侧对齐线 38pt（`RecipePresentationUITests`），改为放在食材名下方；在 `main` 上该测试通过，修复后分支上也通过。
+- 未覆盖：Light/Dark、AX XXXL、小屏的人工视觉走查；全量 UI 测试（这次只跑了聚焦集合）。
