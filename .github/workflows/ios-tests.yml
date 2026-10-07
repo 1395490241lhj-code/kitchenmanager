@@ -152,3 +152,57 @@ jobs:
             ${{ runner.temp }}/*.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # Opt-in comparison: a commit message containing [baseline] also runs the
+  # named tests against the default branch, to tell a regression from a
+  # failure that already existed before the branch's changes.
+  baseline:
+    if: contains(github.event.head_commit.message, '[baseline]')
+    runs-on: macos-latest
+    timeout-minutes: 60
+    env:
+      BASELINE_TESTS: >-
+        KitchenManagerTests/ShoppingExperienceTests/testSearchKeepsFixedCategoryOrderAndNameSort
+        KitchenManagerTests/AIConversationTransportTests/testRuntimeRequestCarriesNoProviderField
+        KitchenManagerUITests/ShoppingExperienceUITests/testStockInConfirmationProcessesPurchasedItemsIntoInventory
+        KitchenManagerUITests/RecipeCookingModeUITests/testRecipeListFinalRowClearsFloatingTabBar
+        KitchenManagerUITests/RecipePresentationUITests/testUnknownBaseAndDenseContentRemainIntact
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in data if "iOS" in r), reverse=True)
+          for runtime in ios:
+              phones = [d for d in data[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              pro = [d for d in phones if "Pro" in d["name"] and "Max" not in d["name"]]
+              pick = (pro or phones or [None])[0]
+              if pick:
+                  print(pick["udid"]); break
+          ')
+          test -n "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+      - name: Run named tests on the default branch
+        run: |
+          set -o pipefail
+          args=()
+          for t in $BASELINE_TESTS; do args+=("-only-testing:$t"); done
+          git log --oneline -1
+          xcodebuild test \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            "${args[@]}" \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 300 \
+            2>&1 | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|Executed|\*\*"
