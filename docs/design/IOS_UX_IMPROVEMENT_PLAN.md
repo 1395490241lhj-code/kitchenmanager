@@ -33,7 +33,7 @@
 - 勾选无触感反馈。
 
 **目标行为**
-1. 待买行与已买行都支持尾部滑动「删除」（非破坏性提示：删除后底部出现「已删除 · 撤销」，复用 `AppFeedback`），以及 `contextMenu`「编辑」「删除」。
+1. 待买行与已买行都支持尾部滑动「删除」（删除后底部出现「已删除 · 撤销」提示条。现有 `AppFeedbackView` 只有文字和样式，需要扩展出撤销按钮，并抽成食材、买菜两页共用的组件），以及 `contextMenu`「编辑」「删除」。
 2. 「编辑」复用添加表单（改为 `AddOrEditShoppingItemView(mode:)`），只改名称 / 数量 / 单位 / 备注。
 3. 添加表单：移除「来源」Picker（手动添加固定为 `手动添加`）；新增「添加并继续」——保存后清空并保持名称聚焦，不关闭 sheet。
 4. 勾选加 `.sensoryFeedback(.selection, trigger:)`；状态切换用 `KitchenMotion.quick`，Reduce Motion 下为 nil。
