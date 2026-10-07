@@ -293,7 +293,11 @@ struct RecipeCookingModeView: View {
 
     private func moveStep(by delta: Int) {
         withAnimation(reduceMotion ? nil : KitchenMotion.standard) {
-            delta > 0 ? session.next(stepCount: steps.count) : session.previous(stepCount: steps.count)
+            if delta > 0 {
+                session.next(stepCount: steps.count)
+            } else {
+                session.previous(stepCount: steps.count)
+            }
         }
     }
 
