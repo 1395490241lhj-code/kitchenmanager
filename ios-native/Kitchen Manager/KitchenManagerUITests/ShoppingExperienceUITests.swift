@@ -304,6 +304,47 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5))
     }
 
+    func testSwipeDeleteOffersUndoThatRestoresTheItem() {
+        let app = launchShopping()
+        let tomatoRow = app.buttons["番茄，2 个，未购买"]
+        XCTAssertTrue(tomatoRow.waitForExistence(timeout: 5))
+
+        tomatoRow.swipeLeft()
+        let delete = app.buttons["删除"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+
+        XCTAssertTrue(tomatoRow.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.alerts.firstMatch.exists == false, "Single-item delete must not ask for confirmation")
+        let undo = app.buttons["feedback.toast.action"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5))
+        undo.tap()
+
+        XCTAssertTrue(app.buttons["番茄，2 个，未购买"].waitForExistence(timeout: 5))
+    }
+
+    func testEditChangesQuantityInPlace() {
+        let app = launchShopping()
+        let tomatoRow = app.buttons["番茄，2 个，未购买"]
+        XCTAssertTrue(tomatoRow.waitForExistence(timeout: 5))
+
+        tomatoRow.swipeLeft()
+        let edit = app.buttons["编辑"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        XCTAssertTrue(app.navigationBars.staticTexts["编辑买菜项目"].waitForExistence(timeout: 5))
+        let quantity = app.textFields["数量"]
+        XCTAssertTrue(quantity.waitForExistence(timeout: 5))
+        quantity.tap()
+        let old = quantity.value as? String ?? ""
+        quantity.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count) + "5")
+        app.navigationBars.buttons["保存"].tap()
+
+        XCTAssertTrue(app.buttons["番茄，5 个，未购买"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["番茄，2 个，未购买"].exists)
+    }
+
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
         app.descendants(matching: .any)[identifier]
     }

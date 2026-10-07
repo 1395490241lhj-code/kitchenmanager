@@ -243,9 +243,13 @@ complete it with a whole-row action. It generally does not require a Hero.
   role. Indigo is reserved for actual AI utility; destructive actions retain their native
   destructive role. Inventory expiry colors do not belong here.
 - Search, menus and destructive confirmations stay native. The add sheet retains its
-  native Form and existing fields; populated name, quantity and unit keep understandable
-  field identity. Native Form containment is appropriate, with its group edges inset
-  20pt from the sheet's content area.
+  native Form; populated name, quantity and unit keep understandable field identity.
+  Native Form containment is appropriate, with its group edges inset 20pt from the
+  sheet's content area. Since the 2026-10 UX plan (A1, owner-approved): the internal
+  source is no longer a member-facing Picker (manual entries are 手动添加, edits keep
+  their source); the same sheet edits an existing item; 添加并继续 keeps the sheet
+  open for the next entry. Single items delete by trailing swipe or context menu with
+  an undo toast rather than a confirmation; bulk destructive actions keep their alerts.
 
 Shopping introduces no new canonical role and does not redefine generation, stock-in,
 duplicate merging, classification or persistence semantics.

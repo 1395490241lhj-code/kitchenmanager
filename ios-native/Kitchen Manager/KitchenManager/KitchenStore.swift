@@ -844,6 +844,12 @@ nonisolated struct KitchenShoppingItem: Identifiable, Codable, Hashable {
     var remark: String?
 }
 
+/// What a single shopping-item removal needs for undo.
+nonisolated struct ShoppingRemoval: Equatable {
+    let item: KitchenShoppingItem
+    let index: Int
+}
+
 struct InventoryImportItem: Hashable {
     var name: String
     var quantity: Double
@@ -2702,6 +2708,50 @@ final class KitchenStore: ObservableObject {
 
     func deleteShopping(_ id: UUID) {
         shoppingItems.removeAll { $0.id == id }
+    }
+
+    /// Removes one item and returns what `restoreShopping(_:)` needs to put it
+    /// back exactly where it was. Nil when the item is already gone.
+    @discardableResult
+    func removeShopping(id: UUID) -> ShoppingRemoval? {
+        guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return nil }
+        let item = shoppingItems[index]
+        shoppingItems.remove(at: index)
+        return ShoppingRemoval(item: item, index: index)
+    }
+
+    /// Undo for `removeShopping(id:)`. Reinserts the identical item (same id,
+    /// purchase state and source) at its old position, clamped to the current
+    /// list. A no-op when an item with that id is already present.
+    func restoreShopping(_ removal: ShoppingRemoval) {
+        guard !shoppingItems.contains(where: { $0.id == removal.item.id }) else { return }
+        shoppingItems.insert(removal.item, at: min(max(removal.index, 0), shoppingItems.count))
+    }
+
+    /// Edits the member-entered fields of one item in place. Unlike
+    /// `addShopping`, an edit never merges into another item with the same
+    /// name: the member is correcting this row, not adding a second one.
+    /// Source and purchase state are preserved.
+    @discardableResult
+    func updateShopping(
+        id: UUID,
+        name: String,
+        quantity: Double,
+        unit: String,
+        remark: String?
+    ) -> Bool {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty, quantity.isFinite, quantity > 0,
+              let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return false }
+        let cleanUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanRemark = remark?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var item = shoppingItems[index]
+        item.name = cleanName
+        item.quantity = quantity
+        item.unit = cleanUnit.isEmpty ? item.unit : cleanUnit
+        item.remark = (cleanRemark?.isEmpty ?? true) ? nil : cleanRemark
+        shoppingItems[index] = item
+        return true
     }
 
     func clearCompletedShopping() {
