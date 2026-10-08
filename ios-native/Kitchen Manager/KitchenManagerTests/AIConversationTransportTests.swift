@@ -18,7 +18,8 @@ final class AIConversationTransportTests: XCTestCase {
         let fieldNames = mirror.children.compactMap({ $0.label })
         XCTAssertFalse(fieldNames.contains("provider"))
         XCTAssertFalse(fieldNames.contains("wire"))
-        XCTAssertEqual(fieldNames.sorted(), ["enabledTools", "messages", "requestID"])
+        // turnID is the per-turn rate-limit key (b1333b6), not a provider field.
+        XCTAssertEqual(fieldNames.sorted(), ["enabledTools", "messages", "requestID", "turnID"])
     }
 
     func testTranscriptFromSkippingSystemRole() throws {

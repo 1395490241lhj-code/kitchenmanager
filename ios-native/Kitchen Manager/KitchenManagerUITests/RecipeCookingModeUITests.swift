@@ -369,9 +369,11 @@ final class RecipeCookingModeUITests: XCTestCase {
 
         XCTAssertFalse(firstRow.isHittable, "长列表应发生真实滚动，首行仍可见")
         XCTAssertTrue(finalRow.isHittable, "\(swipes) 次滑动后仍未到达固定末行")
+        // XCUI reports fractional coordinates (791.0000000000001 for 791);
+        // absorb representation error, not a real overlap.
         XCTAssertLessThanOrEqual(
             finalRow.frame.maxY,
-            tabBar.frame.minY,
+            tabBar.frame.minY + 1e-9,
             "Recipes final row 被 floating tab bar 遮挡"
         )
     }

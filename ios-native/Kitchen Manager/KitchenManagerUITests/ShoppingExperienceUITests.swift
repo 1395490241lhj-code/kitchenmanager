@@ -142,7 +142,9 @@ final class ShoppingExperienceUITests: XCTestCase {
         alert.buttons["入库"].tap()
 
         XCTAssertFalse(app.buttons["shopping.purchased.toggle"].waitForExistence(timeout: 2))
-        let inventoryTab = app.buttons["食材"]
+        // Scoped to the tab bar: Shopping is pushed from the 食材 tab, so its
+        // back button can carry the same title.
+        let inventoryTab = app.tabBars.buttons["食材"]
         XCTAssertTrue(inventoryTab.waitForExistence(timeout: 5))
         inventoryTab.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
