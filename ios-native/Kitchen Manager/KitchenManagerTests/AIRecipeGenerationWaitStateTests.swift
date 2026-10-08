@@ -10,14 +10,22 @@ import XCTest
 final class AIRecipeGenerationWaitStateTests: XCTestCase {
     /// Holds every generator call open until the test answers it, and counts
     /// how many were ever started.
+    ///
+    /// Main-actor isolated, and a call counts as started only once its
+    /// continuation is parked: otherwise `next()` ran on the generic executor,
+    /// `startGenerating` could see the count rise before `waiters.append`, and
+    /// `complete` then found no request waiting (an intermittent CI failure).
+    @MainActor
     private final class Gate {
         private var waiters: [CheckedContinuation<EditableRecipeDraft, Error>] = []
         private(set) var startedCount = 0
         var pendingCount: Int { waiters.count }
 
         func next() async throws -> EditableRecipeDraft {
-            startedCount += 1
-            return try await withCheckedThrowingContinuation { waiters.append($0) }
+            try await withCheckedThrowingContinuation {
+                waiters.append($0)
+                startedCount += 1
+            }
         }
 
         func complete(title: String) {
