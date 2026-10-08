@@ -189,3 +189,9 @@ C4 与 C6 风险低、可最早决策；C1–C3 互相关联，建议一起出�
   - `ShoppingExperienceUITests.testStockInConfirmationProcessesPurchasedItemsIntoInventory`（「食材」同时匹配返回按钮和 tab）
 - CI 抓到并已修复的阶段 A 回归：详情页「缺货」把数量挤离右侧对齐线 38pt（`RecipePresentationUITests`），改为放在食材名下方；在 `main` 上该测试通过，修复后分支上也通过。
 - 未覆盖：Light/Dark、AX XXXL、小屏的人工视觉走查；全量 UI 测试（这次只跑了聚焦集合）。
+
+### 验证记录更新（2026-10-08）
+
+- `ios-tests.yml` run 37791715942（分支 `3fd1607`）：编译、全部单元测试、聚焦 UI 测试（含三种外观的截图巡览）**全部通过**。
+- 上面列出的 4 个 main 上原有失败已在本分支修复：买菜清单排序改为固定按中文拼音（不再随系统语言变化），另外 3 个是过时的测试断言。
+- 截图包：该 run 的 `ios-screenshots` artifact（`tour/` 目录）。人工视觉确认仍待 owner 完成。
