@@ -337,3 +337,14 @@ The project adopts the **Contextual Semantic Model** for color roles across task
 **Axiom**: Checkmark shape itself does not imply green. Interactive checklist items use blue or neutral checks; green is strictly reserved for positive system confirmations, terminal receipts, and milestones.
 
 **Token naming debt boundary**: `KitchenTheme.cookingGreen` is a historical naming debt from earlier revisions and currently renders product blue (`#3866D6` / `#A5BDFF`). This phase neither renames nor alters the color value of this token to prevent wide regression. Future cleanup must proceed via semantic aliases and deprecation in a dedicated architecture task.
+
+### UX plan Phase A — owner screenshot review follow-ups (2026-10-08)
+
+Accepted after the owner reviewed CI screenshots:
+
+- Home: when the 还缺 row is shown, the hero status line drops the N/M readiness fraction (the row already names the shortfall); 所需食材已在库 still appears when nothing is missing.
+- Missing-ingredient wording is 还缺 everywhere: library 还缺 N 样 (replacing 缺 N 样 / 缺少较多), detail 还缺 N 样, Home 还缺 …. Detail's 加入买菜清单 uses the accent tint so it reads as an action.
+- Shopping swipe actions carry explicit tints: 删除 danger red, 编辑 neutral gray; the screen-wide management tint must not recolour a destructive action.
+- Cooking Mode's next-step preview is labelled 接下来, so it is not confused with the 下一步 button. 下一步 still does not mark a step complete (owner decision: unchanged).
+- An empty ordinary inventory row reads 已用完 in secondary text, with no remaining-days metadata; it still counts under the 缺货 filter.
+- The staple empty state sits on the canvas like every other row.

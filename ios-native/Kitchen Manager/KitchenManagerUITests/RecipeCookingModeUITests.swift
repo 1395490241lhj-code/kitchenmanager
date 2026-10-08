@@ -143,7 +143,7 @@ final class RecipeCookingModeUITests: XCTestCase {
         XCTAssertTrue(recipeRow.waitForExistence(timeout: 8), "目标菜谱行缺失")
         let title = recipeRow.staticTexts["周末慢炖番茄香草鸡腿蔬菜锅"]
         let metadata = recipeRow.staticTexts["75 分钟 · 中等"]
-        let availability = recipeRow.staticTexts["缺少较多"]
+        let availability = recipeRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "还缺")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 8), "菜谱标题缺失")
         XCTAssertTrue(metadata.exists, "时间/难度信息缺失")
         XCTAssertTrue(availability.exists, "库存适配信息缺失")

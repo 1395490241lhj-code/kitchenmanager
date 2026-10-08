@@ -1283,7 +1283,9 @@ private struct TodayPlanSummaryCard: View {
             timing: hero.timing,
             duration: hero.duration,
             dishCount: hero.dishCount,
-            readiness: hero.readiness
+            // The 还缺 row names the shortfall, so the N/M fraction would say
+            // the same thing twice. 所需食材已在库 still shows when nothing is missing.
+            readiness: missingIngredients.isEmpty ? hero.readiness : nil
         )
     }
 }

@@ -343,6 +343,10 @@ struct InventoryView: View {
                             .frame(minHeight: 44)
                             .accessibilityIdentifier("inventory.staple.empty.add.button")
                     }
+                    // The page is the surface here too; the system row fill
+                    // made this the only white block on the canvas.
+                    .listRowBackground(AppTheme.canvas)
+                    .listRowSeparator(.hidden)
                 }
 
                 if !hasSearchQuery && !restockSuggestions.isEmpty {
@@ -703,19 +707,22 @@ private struct InventoryFoodCard: View {
     /// recomputing one.
     var tonight: String? = nil
 
+    /// An empty ordinary row was used up, not lost: a calm 已用完 with no
+    /// days left on food that is no longer there. It still counts under the
+    /// 缺货 filter; only the row's own wording and colour change.
     private var statusText: String {
-        item.isAvailable ? item.expiryStatusText : "缺货 · \(item.expiryStatusText)"
+        item.isAvailable ? item.expiryStatusText : "已用完"
     }
 
     private var statusColor: Color {
-        item.isAvailable ? item.expiryStatus.color : .red
+        item.expiryStatus.color
     }
 
     /// Only genuinely urgent food is coloured. Everything healthy reads as
     /// ordinary secondary text, so the eye lands on what actually needs a
     /// decision instead of on a wall of status.
     private var showsUrgency: Bool {
-        !item.isAvailable || item.isExpiringSoon
+        item.isAvailable && item.isExpiringSoon
     }
 
     var body: some View {
@@ -788,7 +795,7 @@ private struct InventoryFoodCard: View {
     private var statusLabel: some View {
         // Reuse the domain's attention boundary; no presentation-only day cutoff.
         // Full expiry wording remains in the row's accessibility label and detail.
-        if showsUrgency || item.expiryStatus == .unknown {
+        if showsUrgency || !item.isAvailable || item.expiryStatus == .unknown {
             Text(statusText)
                 .font(.footnote)
                 .foregroundStyle(showsUrgency ? statusColor : Color.secondary)
@@ -1362,9 +1369,13 @@ private struct ShoppingItemActions: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // Explicit tints: Shopping's screen-wide blue tint otherwise
+            // overrides the destructive red, making 删除 look like 编辑.
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+                    .tint(AppTheme.danger)
                 Button("编辑", systemImage: "pencil", action: onEdit)
+                    .tint(Color(uiColor: .systemGray))
             }
             .contextMenu {
                 Button("编辑", systemImage: "pencil", action: onEdit)

@@ -90,8 +90,16 @@ final class ScreenshotTourUITests: XCTestCase {
             }
         }
         app.buttons["shopping.add.button"].tap()
-        if app.navigationBars.staticTexts["添加买菜项目"].waitForExistence(timeout: 3) {
+        // Capture only once the form has settled: the title appears before the
+        // rows finish the sheet's presentation animation.
+        let nameField = app.textFields["名称"]
+        if nameField.waitForExistence(timeout: 5) {
+            _ = waitUntilHittable(nameField)
+            Thread.sleep(forTimeInterval: 0.8)
             capture(app, variant, "23-Shopping-AddSheet")
+            // Typed state proves the fields render, not just that they exist.
+            nameField.typeText("葱")
+            capture(app, variant, "24-Shopping-AddSheet-Typed")
         }
         app.terminate()
     }
@@ -124,6 +132,14 @@ final class ScreenshotTourUITests: XCTestCase {
         ]
         app.launch()
         return app
+    }
+
+    private func waitUntilHittable(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"),
+            object: element
+        )
+        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
     }
 
     private func scrollUntilVisible(_ element: XCUIElement, in app: XCUIApplication) {

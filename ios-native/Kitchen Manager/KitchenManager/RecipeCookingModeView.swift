@@ -267,7 +267,8 @@ struct RecipeCookingModeView: View {
     /// What comes after this step, so the cook can get it ready now.
     private func nextStepPreview(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("下一步")
+            // Not 下一步: that is the primary button's title, and this is not tappable.
+            Text("接下来")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(KitchenTheme.textSecondary)
             Text(text)

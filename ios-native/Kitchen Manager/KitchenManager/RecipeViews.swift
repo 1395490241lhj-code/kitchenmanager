@@ -286,7 +286,8 @@ struct RecipeListView: View {
 
     private func availabilityText(_ recipe: Recipe) -> String {
         let count = missingCoreIngredientCount(recipe)
-        return count == 0 ? "可直接做" : count <= 2 ? "缺 \(count) 样" : "缺少较多"
+        // One phrasing everywhere: library, detail and Home all say 还缺.
+        return count == 0 ? "可直接做" : "还缺 \(count) 样"
     }
 
     private var emptyStateTitle: String {
@@ -612,7 +613,7 @@ struct RecipeDetailView: View {
     }
 
     private func missingCountText(_ count: Int) -> some View {
-        Text("库存缺 \(count) 样")
+        Text("还缺 \(count) 样")
             .font(.subheadline.weight(.medium))
             .foregroundStyle(KitchenTheme.textSecondary)
             .accessibilityIdentifier("recipe.detail.missing.count")
@@ -621,7 +622,8 @@ struct RecipeDetailView: View {
     private var addMissingButton: some View {
         Button("加入买菜清单", systemImage: "cart.badge.plus") { isShowingShoppingGeneration = true }
             .font(.subheadline.weight(.semibold))
-            .buttonStyle(KitchenButtonStyle(role: .utility))
+            // Accent, like Home's 加入买菜清单: an action has to read as one.
+            .buttonStyle(KitchenButtonStyle(role: .utility, tint: KitchenTheme.cookingGreen))
             .accessibilityIdentifier("recipe.detail.missing.addToShopping")
     }
 
