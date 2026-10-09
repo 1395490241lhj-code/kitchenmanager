@@ -316,10 +316,13 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.tap()
 
-        XCTAssertTrue(tomatoRow.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.alerts.firstMatch.exists == false, "Single-item delete must not ask for confirmation")
+        // The undo toast lives for 4s by design, so reach for 撤销 first and
+        // check the rest afterwards; a slow runner can otherwise spend the
+        // whole window on the other checks.
         let undo = app.buttons["feedback.toast.action"]
-        XCTAssertTrue(undo.waitForExistence(timeout: 5))
+        XCTAssertTrue(undo.waitForExistence(timeout: 3))
+        XCTAssertTrue(tomatoRow.waitForNonExistence(timeout: 1), "the row is removed immediately")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "Single-item delete must not ask for confirmation")
         undo.tap()
 
         XCTAssertTrue(app.buttons["番茄，2 个，未购买"].waitForExistence(timeout: 5))
