@@ -214,29 +214,25 @@ jobs:
   # Opt-in comparison: a commit message containing [baseline] also runs the
   # named tests against the default branch, to tell a regression from a
   # failure that already existed before the branch's changes.
+  # [ui-retry] runs the same named tests on this branch's own commit instead,
+  # alone on one machine, to separate load-related flakes from regressions.
   baseline:
-    if: contains(github.event.head_commit.message, '[baseline]')
+    if: contains(github.event.head_commit.message, '[baseline]') || contains(github.event.head_commit.message, '[ui-retry]')
     runs-on: macos-latest
     timeout-minutes: 60
     env:
       BASELINE_TESTS: >-
-        KitchenManagerUITests/GuestMergePreviewUI5B2BAUITests/testPreviewLoadingIsInsideSheetWithoutConfirmAction
-        KitchenManagerUITests/GuestMergePreviewUI5B2BAUITests/testTabBarStaysHiddenAcrossLoadingErrorPreviewAndConflictStates
-        KitchenManagerUITests/PlannerMealCreateUITests/testUnplannedDaysWeighLessThanPlannedContent
-        KitchenManagerUITests/WeeklyMenuMaterializationUITests/testTheAddActionStaysReachableAtAccessibilitySizes
-        KitchenManagerUITests/PlannerMealEditUITests/testACompletedMealLocksServingsAndExplainsWhy
         KitchenManagerUITests/PlannerMealEditUITests/testContextMenuAlsoOffersEdit
-        KitchenManagerUITests/SpecialPlanMenuUITests/testEmptyPlanGeneratesADraftMenu
-        KitchenManagerUITests/SpecialPlanMenuUITests/testReplacingAnOffScreenDishIsObservedByItsOwnRow
         KitchenManagerUITests/RuntimeAccessibilityP1UITests/testManualStockInFieldsAdaptWithoutOverflow
+        KitchenManagerUITests/WeeklyMenuMaterializationUITests/testTheAddActionStaysReachableAtAccessibilitySizes
     defaults:
       run:
         working-directory: "ios-native/Kitchen Manager"
     steps:
-      - name: Checkout default branch
+      - name: Checkout default branch (or this commit for [ui-retry])
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ contains(github.event.head_commit.message, '[ui-retry]') && github.sha || github.event.repository.default_branch }}
       - name: Pick an iPhone simulator
         id: sim
         run: |
