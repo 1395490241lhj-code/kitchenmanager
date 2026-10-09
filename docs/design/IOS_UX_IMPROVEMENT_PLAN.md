@@ -214,3 +214,10 @@ C4 与 C6 风险低、可最早决策；C1–C3 互相关联，建议一起出�
   - `PlannerMealEditUITests.testContextMenuAlsoOffersEdit`
   - `RuntimeAccessibilityP1UITests.testManualStockInFieldsAdaptWithoutOverflow`：单次就要约 220 秒，接近 300 秒上限
   - `WeeklyMenuMaterializationUITests.testTheAddActionStaysReachableAtAccessibilitySizes`
+
+### 收尾验证（2026-10-09）
+
+- `ios-tests.yml` run 37989577827（分支 `d3ab8fd`）：编译、全部 2447 个单元测试、聚焦 UI 测试（含截图巡览）**全部通过**。
+- 买菜添加表单在 Accessibility XXXL 下的回归测试：在 `main` 上重复 6 次失败 5 次，在本分支上 6 次全部通过（run 37980101138，`[ab]`）。原因是只有半屏（`.medium`）时，「单位」被键盘挡住、又无法滚出来；本分支的半屏 + 全屏（`[.medium, .large]`）顺带修好了这个原有问题，必须保留。
+- 撤销提示的显示时长统一由 `UndoToastTiming` 决定：平时 4 秒，开启 VoiceOver 时 20 秒。UI 测试可以传 `UITEST_LONG_UNDO_TOAST`（仅 DEBUG 生效）。
+- CI：UI 测试的单个用例时间上限调到 600 秒（最多 900 秒），日志会显示超时的用例。新增几个可写在提交说明里的标记：`[ui-all]` 跑完整 UI 测试，`[baseline]` 在 main 上跑指定测试，`[ui-retry]` 在本分支单独重跑指定测试，`[ab]` 两边对照，`BASELINE_ITERATIONS` 控制重复次数。
