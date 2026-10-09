@@ -264,3 +264,107 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 300 \
             2>&1 | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|Executed|\*\*"
+
+  # Opt-in full UI suite: a commit message containing [ui-all] (or a manual
+  # run with ui_tests=all) runs every UI test class, split over four parallel
+  # simulator jobs. Shards 1-3 are fixed lists balanced by test count; shard 4
+  # takes every remaining class, so a new UI test file is never left out.
+  ui-full:
+    if: contains(github.event.head_commit.message, '[ui-all]') || github.event.inputs.ui_tests == 'all'
+    runs-on: macos-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      SHARD_1: AIConversationWorkspaceUITests GuestMergePreviewUI5B2BAUITests PlannerMealCreateUITests ComponentMealUITests
+      SHARD_2: HomeDashboardUITests GuestMergeSummaryUI5B2BB2AUITests GuestMergeChoiceEditingUI5B2BB2BUITests WeeklyMenuMaterializationUITests PlannerUITests
+      SHARD_3: ShoppingExperienceUITests InventoryNavigationUITests RecipeCookingModeUITests PlannerMealEditUITests AccountLifecycleExperienceUITests GuestMergeConflictUI5B2BB1UITests SettingsExperienceUITests ShoppingRegressionUITests SpecialPlanMenuUITests
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in data if "iOS" in r), reverse=True)
+          for runtime in ios:
+              phones = [d for d in data[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              pro = [d for d in phones if "Pro" in d["name"] and "Max" not in d["name"]]
+              pick = (pro or phones or [None])[0]
+              if pick:
+                  print(pick["udid"]); break
+          ')
+          test -n "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+
+      - name: Select this shard's classes
+        id: classes
+        run: |
+          case "${{ matrix.shard }}" in
+            1) list="$SHARD_1" ;;
+            2) list="$SHARD_2" ;;
+            3) list="$SHARD_3" ;;
+            *) taken=" $SHARD_1 $SHARD_2 $SHARD_3 "
+               list=""
+               for f in KitchenManagerUITests/*UITests.swift; do
+                 c=$(basename "$f" .swift)
+                 case "$taken" in *" $c "*) ;; *) list="$list $c" ;; esac
+               done ;;
+          esac
+          echo "classes=$list" >> "$GITHUB_OUTPUT"
+          echo "Shard ${{ matrix.shard }}: $list"
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered -E "error:|BUILD|\*\*" || true
+          grep -q "TEST BUILD SUCCEEDED" "$RUNNER_TEMP/build.log"
+
+      - name: UI tests (shard ${{ matrix.shard }})
+        timeout-minutes: 150
+        run: |
+          set -o pipefail
+          args=()
+          for c in ${{ steps.classes.outputs.classes }}; do args+=("-only-testing:KitchenManagerUITests/$c"); done
+          xcodebuild test-without-building \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            "${args[@]}" \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
+            -resultBundlePath "$RUNNER_TEMP/ui-shard.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|Executed|\*\*"
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          grep -E "error: -\[|Test Case .* failed" "$RUNNER_TEMP/ui.log" | head -200 || true
+
+      - name: Upload shard results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ui-full-shard-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/ui-shard.xcresult
+            ${{ runner.temp }}/ui.log
+          if-no-files-found: ignore
+          retention-days: 7
