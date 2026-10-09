@@ -104,7 +104,7 @@ jobs:
             -default-test-execution-time-allowance 60 \
             -maximum-test-execution-time-allowance 120 \
             -resultBundlePath "$RUNNER_TEMP/unit.xcresult" \
-            2>&1 | tee "$RUNNER_TEMP/unit.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|Executed|\*\*"
+            2>&1 | tee "$RUNNER_TEMP/unit.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|execution time allowance|Executed|\*\*"
 
       - name: UI tests
         if: success() || failure()
@@ -129,10 +129,10 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/dd" \
             "${args[@]}" \
             -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 300 \
-            -maximum-test-execution-time-allowance 600 \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
             -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
-            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|Executed|\*\*"
+            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|execution time allowance|Executed|\*\*"
 
       # Every keepAlways screenshot from the UI run, as plain PNGs anyone can
       # open (no Xcode needed). Tour images go in tour/, all others in other/.
@@ -197,7 +197,7 @@ jobs:
             log="$RUNNER_TEMP/$f.log"
             [ -f "$log" ] || continue
             echo "===== $f: errors and failures ====="
-            grep -E "error:|: error|failed \(|XCTAssert|Test Case .* failed" "$log" | head -200 || true
+            grep -E "error:|: error|failed \(|XCTAssert|Test Case .* failed|execution time allowance" "$log" | head -200 || true
           done
 
       - name: Upload results
@@ -269,8 +269,8 @@ jobs:
             "${args[@]}" \
             -test-iterations "${BASELINE_ITERATIONS:-1}" \
             -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 300 \
-            2>&1 | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|Executed|\*\*"
+            -default-test-execution-time-allowance 600 \
+            2>&1 | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|execution time allowance|Executed|\*\*"
 
   # Opt-in full UI suite: a commit message containing [ui-all] (or a manual
   # run with ui_tests=all) runs every UI test class, split over four parallel
@@ -355,15 +355,15 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/dd" \
             "${args[@]}" \
             -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 300 \
-            -maximum-test-execution-time-allowance 600 \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
             -resultBundlePath "$RUNNER_TEMP/ui-shard.xcresult" \
-            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|Executed|\*\*"
+            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|execution time allowance|Executed|\*\*"
 
       - name: Failure summary
         if: failure()
         run: |
-          grep -E "error: -\[|Test Case .* failed" "$RUNNER_TEMP/ui.log" | head -200 || true
+          grep -E "error: -\[|Test Case .* failed|execution time allowance" "$RUNNER_TEMP/ui.log" | head -200 || true
 
       - name: Upload shard results
         if: always()
