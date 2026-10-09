@@ -220,11 +220,15 @@ jobs:
     timeout-minutes: 60
     env:
       BASELINE_TESTS: >-
-        KitchenManagerTests/ShoppingExperienceTests/testSearchKeepsFixedCategoryOrderAndNameSort
-        KitchenManagerTests/AIConversationTransportTests/testRuntimeRequestCarriesNoProviderField
-        KitchenManagerUITests/ShoppingExperienceUITests/testStockInConfirmationProcessesPurchasedItemsIntoInventory
-        KitchenManagerUITests/RecipeCookingModeUITests/testRecipeListFinalRowClearsFloatingTabBar
-        KitchenManagerUITests/RecipePresentationUITests/testUnknownBaseAndDenseContentRemainIntact
+        KitchenManagerUITests/GuestMergePreviewUI5B2BAUITests/testPreviewLoadingIsInsideSheetWithoutConfirmAction
+        KitchenManagerUITests/GuestMergePreviewUI5B2BAUITests/testTabBarStaysHiddenAcrossLoadingErrorPreviewAndConflictStates
+        KitchenManagerUITests/PlannerMealCreateUITests/testUnplannedDaysWeighLessThanPlannedContent
+        KitchenManagerUITests/WeeklyMenuMaterializationUITests/testTheAddActionStaysReachableAtAccessibilitySizes
+        KitchenManagerUITests/PlannerMealEditUITests/testACompletedMealLocksServingsAndExplainsWhy
+        KitchenManagerUITests/PlannerMealEditUITests/testContextMenuAlsoOffersEdit
+        KitchenManagerUITests/SpecialPlanMenuUITests/testEmptyPlanGeneratesADraftMenu
+        KitchenManagerUITests/SpecialPlanMenuUITests/testReplacingAnOffScreenDishIsObservedByItsOwnRow
+        KitchenManagerUITests/RuntimeAccessibilityP1UITests/testManualStockInFieldsAdaptWithoutOverflow
     defaults:
       run:
         working-directory: "ios-native/Kitchen Manager"
@@ -251,6 +255,7 @@ jobs:
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
           xcrun simctl boot "$udid" || true
       - name: Run named tests on the default branch
+        timeout-minutes: 50
         run: |
           set -o pipefail
           args=()
