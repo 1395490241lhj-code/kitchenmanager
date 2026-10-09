@@ -1245,12 +1245,12 @@ struct ShoppingView: View {
         }
         .sheet(isPresented: $isShowingAddItem) {
             AddShoppingItemView()
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $editingItem) { item in
             AddShoppingItemView(editing: item)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
         .overlay(alignment: .bottom) {
