@@ -113,6 +113,21 @@ struct AppFeedbackView: View {
     }
 }
 
+// MARK: - Undo toast lifetime
+
+/// How long an undo toast stays up: 4s normally, 20s under VoiceOver so that
+/// 撤销 stays reachable. UI tests can ask for the long window, so a slow
+/// simulator cannot outrun the toast; release builds ignore the argument.
+enum UndoToastTiming {
+    static var lifetime: Duration {
+        if UIAccessibility.isVoiceOverRunning { return .seconds(20) }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_LONG_UNDO_TOAST") { return .seconds(20) }
+        #endif
+        return .seconds(4)
+    }
+}
+
 // MARK: - Shared transient feedback toast
 
 /// Dark high-contrast toast wrapping AppFeedbackView. Always white-on-dark

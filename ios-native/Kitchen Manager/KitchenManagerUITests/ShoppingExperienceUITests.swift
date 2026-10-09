@@ -307,7 +307,9 @@ final class ShoppingExperienceUITests: XCTestCase {
     }
 
     func testSwipeDeleteOffersUndoThatRestoresTheItem() {
-        let app = launchShopping()
+        // The product toast lives 4s; the long window keeps this test about
+        // the wiring, not about how fast the simulator happens to be.
+        let app = launchShopping(additionalArguments: ["UITEST_LONG_UNDO_TOAST"])
         let tomatoRow = app.buttons["番茄，2 个，未购买"]
         XCTAssertTrue(tomatoRow.waitForExistence(timeout: 5))
 

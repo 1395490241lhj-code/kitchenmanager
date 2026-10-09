@@ -526,9 +526,8 @@ struct InventoryView: View {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation(reduceMotion ? nil : .snappy) { usedUpToast = "已用完「\(item.name)」" }
         // Same lifetime rule as the Planner's and Shopping's undo toasts.
-        let delay: Duration = UIAccessibility.isVoiceOverRunning ? .seconds(20) : .seconds(4)
         Task { @MainActor in
-            try? await Task.sleep(for: delay)
+            try? await Task.sleep(for: UndoToastTiming.lifetime)
             guard token == usedUpToastToken else { return }
             dismissUsedUpToast()
         }
@@ -1246,12 +1245,12 @@ struct ShoppingView: View {
         }
         .sheet(isPresented: $isShowingAddItem) {
             AddShoppingItemView()
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         .sheet(item: $editingItem) { item in
             AddShoppingItemView(editing: item)
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
         .overlay(alignment: .bottom) {
@@ -1331,9 +1330,8 @@ struct ShoppingView: View {
     /// Same lifetime rule as the Planner's undo toast: short normally, much
     /// longer under VoiceOver so 撤销 stays reachable, and keyed by token.
     private func scheduleRemovalToastExpiry(token: UUID) {
-        let delay: Duration = UIAccessibility.isVoiceOverRunning ? .seconds(20) : .seconds(4)
         Task { @MainActor in
-            try? await Task.sleep(for: delay)
+            try? await Task.sleep(for: UndoToastTiming.lifetime)
             guard token == removalToastToken else { return }
             dismissRemovalToast()
         }

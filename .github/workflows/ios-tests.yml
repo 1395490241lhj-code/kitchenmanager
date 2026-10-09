@@ -222,9 +222,9 @@ jobs:
     timeout-minutes: 60
     env:
       BASELINE_TESTS: >-
-        KitchenManagerUITests/PlannerMealEditUITests/testContextMenuAlsoOffersEdit
-        KitchenManagerUITests/RuntimeAccessibilityP1UITests/testManualStockInFieldsAdaptWithoutOverflow
-        KitchenManagerUITests/WeeklyMenuMaterializationUITests/testTheAddActionStaysReachableAtAccessibilitySizes
+        KitchenManagerUITests/ShoppingExperienceUITests/testSwipeDeleteOffersUndoThatRestoresTheItem
+        KitchenManagerUITests/RecipeCookingModeUITests/testCookingTimerCanStartAndCancelWithoutDebugUI
+        KitchenManagerUITests/ShoppingRegressionUITests/testProductionDarkAccessibilityMatrix
     defaults:
       run:
         working-directory: "ios-native/Kitchen Manager"

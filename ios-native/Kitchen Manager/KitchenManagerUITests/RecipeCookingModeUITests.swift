@@ -58,7 +58,10 @@ final class RecipeCookingModeUITests: XCTestCase {
         let app = launchRecipes()
         app.buttons["recipe.detail.startCooking"].tap()
         app.buttons["recipe.cooking.timer.start"].tap()
-        app.buttons["1 分钟"].tap()
+        // The menu animates open; wait for its item rather than racing it.
+        let oneMinute = app.buttons["1 分钟"]
+        XCTAssertTrue(oneMinute.waitForExistence(timeout: 3))
+        oneMinute.tap()
         XCTAssertTrue(app.buttons["recipe.cooking.timer.cancel"].waitForExistence(timeout: 3))
         attachScreenshot(of: app, named: "final-cooking-mode-timer")
         app.buttons["recipe.cooking.timer.cancel"].tap()
