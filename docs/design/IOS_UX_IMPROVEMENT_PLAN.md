@@ -200,3 +200,17 @@ C4 与 C6 风险低、可最早决策；C1–C3 互相关联，建议一起出�
 
 - `ios-tests.yml` run 37836281652（分支 `b1812cc`）：编译、全部 2447 个单元测试、聚焦 UI 测试（含三种外观的截图巡览）**全部通过**。
 - 包含 owner 截图评审后的修改（首页去重、「还缺」统一、删除改红色、「接下来」、「已用完」、常备空状态底色），以及两个本来就不稳定的测试的修复：`AIRecipeGenerationWaitStateTests` 的线程竞争，和 `HomeDashboardUITests` 里懒加载的卡片。
+
+### 完整 UI 测试（2026-10-09）
+
+- 447 个 UI 测试分 4 组并行，run 37948002156（分支 `2cddf16`）：437 通过、1 跳过（`HostedSyncSmokeUITests` 需要真实服务器）、9 失败。
+- 本分支导致的 1 个：新加的 `testSwipeDeleteOffersUndoThatRestoresTheItem`。撤销提示 4 秒后消失，测试在这之前把时间花在了别的检查上。已修复（`c18c00d`）：先点撤销，再检查其余。
+- 在 `main`（`c772a36`）上同样失败，属于本分支之前就存在的问题，未在本 PR 处理（run 37961408656 的 baseline job）：
+  - `GuestMergePreviewUI5B2BAUITests` 的 `testPreviewLoadingIsInsideSheetWithoutConfirmAction` 和 `testTabBarStaysHiddenAcrossLoadingErrorPreviewAndConflictStates`
+  - `PlannerMealCreateUITests.testUnplannedDaysWeighLessThanPlannedContent`
+  - `PlannerMealEditUITests.testACompletedMealLocksServingsAndExplainsWhy`
+  - `SpecialPlanMenuUITests` 的 `testEmptyPlanGeneratesADraftMenu` 和 `testReplacingAnOffScreenDishIsObservedByItsOwnRow`
+- 在 main 上通过、在分支的并行全量里失败的 3 个，用分支提交 `c55313b` 单独重跑后全部通过（run 37963972695）。判断为高负载下的时序问题，不是本分支的回归：
+  - `PlannerMealEditUITests.testContextMenuAlsoOffersEdit`
+  - `RuntimeAccessibilityP1UITests.testManualStockInFieldsAdaptWithoutOverflow`：单次就要约 220 秒，接近 300 秒上限
+  - `WeeklyMenuMaterializationUITests.testTheAddActionStaysReachableAtAccessibilitySizes`
