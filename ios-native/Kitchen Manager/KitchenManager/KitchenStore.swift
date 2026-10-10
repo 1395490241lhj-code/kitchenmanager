@@ -844,6 +844,18 @@ nonisolated struct KitchenShoppingItem: Identifiable, Codable, Hashable {
     var remark: String?
 }
 
+/// What undoing a swipe-to-用完 needs: which row, and what it held before.
+nonisolated struct InventoryUsedUp: Equatable {
+    let itemID: UUID
+    let previousQuantity: Double
+}
+
+/// What a single shopping-item removal needs for undo.
+nonisolated struct ShoppingRemoval: Equatable {
+    let item: KitchenShoppingItem
+    let index: Int
+}
+
 struct InventoryImportItem: Hashable {
     var name: String
     var quantity: Double
@@ -2443,6 +2455,37 @@ final class KitchenStore: ObservableObject {
         inventory.removeAll { $0.id == id }
     }
 
+    /// Sets one row to zero — the swiped batch, never another batch of the same
+    /// food. One assignment through `inventory`'s didSet, so the sync edit gate,
+    /// persistence and outbound staging behave exactly as for a detail-page
+    /// quantity edit. Nil when the row is gone, already empty, or the edit was
+    /// refused (the gate reverts it and posts its own notice).
+    func markInventoryUsedUp(_ id: UUID) -> InventoryUsedUp? {
+        guard let index = inventory.firstIndex(where: { $0.id == id }),
+              inventory[index].quantity > 0 else { return nil }
+        let previousQuantity = inventory[index].quantity
+        var item = inventory[index]
+        item.quantity = 0
+        item.updatedAt = Date()
+        inventory[index] = item
+        guard inventory.first(where: { $0.id == id })?.quantity == 0 else { return nil }
+        return InventoryUsedUp(itemID: id, previousQuantity: previousQuantity)
+    }
+
+    /// Undo for `markInventoryUsedUp(_:)`. Restores the earlier quantity only
+    /// while the row still exists at zero; any other value means something
+    /// changed it since, and undo must not overwrite that.
+    @discardableResult
+    func undoInventoryUsedUp(_ usedUp: InventoryUsedUp) -> Bool {
+        guard let index = inventory.firstIndex(where: { $0.id == usedUp.itemID }),
+              inventory[index].quantity == 0 else { return false }
+        var item = inventory[index]
+        item.quantity = usedUp.previousQuantity
+        item.updatedAt = Date()
+        inventory[index] = item
+        return inventory.first(where: { $0.id == usedUp.itemID })?.quantity == usedUp.previousQuantity
+    }
+
     /// The current backup scope as one value. The single definition of "what a
     /// backup covers", shared by export, the pre-restore recovery copy and the
     /// recovery comparison, so those three can never drift apart.
@@ -2702,6 +2745,50 @@ final class KitchenStore: ObservableObject {
 
     func deleteShopping(_ id: UUID) {
         shoppingItems.removeAll { $0.id == id }
+    }
+
+    /// Removes one item and returns what `restoreShopping(_:)` needs to put it
+    /// back exactly where it was. Nil when the item is already gone.
+    @discardableResult
+    func removeShopping(id: UUID) -> ShoppingRemoval? {
+        guard let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return nil }
+        let item = shoppingItems[index]
+        shoppingItems.remove(at: index)
+        return ShoppingRemoval(item: item, index: index)
+    }
+
+    /// Undo for `removeShopping(id:)`. Reinserts the identical item (same id,
+    /// purchase state and source) at its old position, clamped to the current
+    /// list. A no-op when an item with that id is already present.
+    func restoreShopping(_ removal: ShoppingRemoval) {
+        guard !shoppingItems.contains(where: { $0.id == removal.item.id }) else { return }
+        shoppingItems.insert(removal.item, at: min(max(removal.index, 0), shoppingItems.count))
+    }
+
+    /// Edits the member-entered fields of one item in place. Unlike
+    /// `addShopping`, an edit never merges into another item with the same
+    /// name: the member is correcting this row, not adding a second one.
+    /// Source and purchase state are preserved.
+    @discardableResult
+    func updateShopping(
+        id: UUID,
+        name: String,
+        quantity: Double,
+        unit: String,
+        remark: String?
+    ) -> Bool {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty, quantity.isFinite, quantity > 0,
+              let index = shoppingItems.firstIndex(where: { $0.id == id }) else { return false }
+        let cleanUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanRemark = remark?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var item = shoppingItems[index]
+        item.name = cleanName
+        item.quantity = quantity
+        item.unit = cleanUnit.isEmpty ? item.unit : cleanUnit
+        item.remark = (cleanRemark?.isEmpty ?? true) ? nil : cleanRemark
+        shoppingItems[index] = item
+        return true
     }
 
     func clearCompletedShopping() {

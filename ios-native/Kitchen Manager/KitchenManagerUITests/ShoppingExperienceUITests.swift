@@ -142,7 +142,9 @@ final class ShoppingExperienceUITests: XCTestCase {
         alert.buttons["入库"].tap()
 
         XCTAssertFalse(app.buttons["shopping.purchased.toggle"].waitForExistence(timeout: 2))
-        let inventoryTab = app.buttons["食材"]
+        // Scoped to the tab bar: Shopping is pushed from the 食材 tab, so its
+        // back button can carry the same title.
+        let inventoryTab = app.tabBars.buttons["食材"]
         XCTAssertTrue(inventoryTab.waitForExistence(timeout: 5))
         inventoryTab.tap()
         XCTAssertTrue(app.navigationBars.staticTexts["食材"].waitForExistence(timeout: 5))
@@ -302,6 +304,56 @@ final class ShoppingExperienceUITests: XCTestCase {
         XCTAssertTrue(exit.isHittable)
         XCTAssertEqual(exit.frame.height, normalAddHeight, accuracy: 0.5, "退出控件应与其他工具栏控件一致")
         XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testSwipeDeleteOffersUndoThatRestoresTheItem() {
+        // The product toast lives 4s; the long window keeps this test about
+        // the wiring, not about how fast the simulator happens to be.
+        let app = launchShopping(additionalArguments: ["UITEST_LONG_UNDO_TOAST"])
+        let tomatoRow = app.buttons["番茄，2 个，未购买"]
+        XCTAssertTrue(tomatoRow.waitForExistence(timeout: 5))
+
+        tomatoRow.swipeLeft()
+        let delete = app.buttons["删除"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+
+        // The undo toast lives for 4s by design, so reach for 撤销 first and
+        // check the rest afterwards; a slow runner can otherwise spend the
+        // whole window on the other checks.
+        let undo = app.buttons["feedback.toast.action"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 3))
+        XCTAssertTrue(tomatoRow.waitForNonExistence(timeout: 1), "the row is removed immediately")
+        XCTAssertFalse(app.alerts.firstMatch.exists, "Single-item delete must not ask for confirmation")
+        undo.tap()
+
+        XCTAssertTrue(app.buttons["番茄，2 个，未购买"].waitForExistence(timeout: 5))
+    }
+
+    func testEditChangesQuantityInPlace() {
+        let app = launchShopping()
+        let tomatoRow = app.buttons["番茄，2 个，未购买"]
+        XCTAssertTrue(tomatoRow.waitForExistence(timeout: 5))
+
+        tomatoRow.swipeLeft()
+        let edit = app.buttons["编辑"]
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        XCTAssertTrue(app.navigationBars.staticTexts["编辑买菜项目"].waitForExistence(timeout: 5))
+        let quantity = app.textFields["数量"]
+        XCTAssertTrue(quantity.waitForExistence(timeout: 5))
+        // LabeledContent exposes label + value as one field; tap the trailing
+        // value area so the cursor lands after the existing digits (the same
+        // approach ShoppingRegressionUITests uses), then replace them.
+        quantity.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.8)).tap()
+        let old = quantity.value as? String ?? ""
+        quantity.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count) + "5")
+        XCTAssertEqual(app.textFields["数量"].value as? String, "5")
+        app.navigationBars.buttons["保存"].tap()
+
+        XCTAssertTrue(app.buttons["番茄，5 个，未购买"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["番茄，2 个，未购买"].exists)
     }
 
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {

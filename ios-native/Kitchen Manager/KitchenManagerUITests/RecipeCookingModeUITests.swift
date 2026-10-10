@@ -58,7 +58,10 @@ final class RecipeCookingModeUITests: XCTestCase {
         let app = launchRecipes()
         app.buttons["recipe.detail.startCooking"].tap()
         app.buttons["recipe.cooking.timer.start"].tap()
-        app.buttons["1 分钟"].tap()
+        // The menu animates open; wait for its item rather than racing it.
+        let oneMinute = app.buttons["1 分钟"]
+        XCTAssertTrue(oneMinute.waitForExistence(timeout: 3))
+        oneMinute.tap()
         XCTAssertTrue(app.buttons["recipe.cooking.timer.cancel"].waitForExistence(timeout: 3))
         attachScreenshot(of: app, named: "final-cooking-mode-timer")
         app.buttons["recipe.cooking.timer.cancel"].tap()
@@ -143,7 +146,7 @@ final class RecipeCookingModeUITests: XCTestCase {
         XCTAssertTrue(recipeRow.waitForExistence(timeout: 8), "目标菜谱行缺失")
         let title = recipeRow.staticTexts["周末慢炖番茄香草鸡腿蔬菜锅"]
         let metadata = recipeRow.staticTexts["75 分钟 · 中等"]
-        let availability = recipeRow.staticTexts["缺少较多"]
+        let availability = recipeRow.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "还缺")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 8), "菜谱标题缺失")
         XCTAssertTrue(metadata.exists, "时间/难度信息缺失")
         XCTAssertTrue(availability.exists, "库存适配信息缺失")
@@ -369,9 +372,11 @@ final class RecipeCookingModeUITests: XCTestCase {
 
         XCTAssertFalse(firstRow.isHittable, "长列表应发生真实滚动，首行仍可见")
         XCTAssertTrue(finalRow.isHittable, "\(swipes) 次滑动后仍未到达固定末行")
+        // XCUI reports fractional coordinates (791.0000000000001 for 791);
+        // absorb representation error, not a real overlap.
         XCTAssertLessThanOrEqual(
             finalRow.frame.maxY,
-            tabBar.frame.minY,
+            tabBar.frame.minY + 1e-9,
             "Recipes final row 被 floating tab bar 遮挡"
         )
     }

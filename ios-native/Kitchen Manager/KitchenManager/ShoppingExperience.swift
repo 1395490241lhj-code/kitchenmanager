@@ -72,11 +72,20 @@ enum ShoppingListPresentation {
         return query.isEmpty || item.name.localizedCaseInsensitiveContains(query)
     }
 
+    /// Pinyin order for Chinese item names whatever the device language is.
+    /// `localizedCompare` follows the system locale, so an English-language
+    /// iPhone listed 土豆 before 苹果.
+    private static let nameCollation = Locale(identifier: "zh-Hans")
+
+    private static func nameOrder(_ lhs: KitchenShoppingItem, _ rhs: KitchenShoppingItem) -> Bool {
+        lhs.name.compare(rhs.name, locale: nameCollation) == .orderedAscending
+    }
+
     static func sections(items: [KitchenShoppingItem], query: String) -> [(ShoppingCategory, [KitchenShoppingItem])] {
         let pending = items.filter { !$0.isDone && matches($0, query: query) }
         return ShoppingCategory.allCases.compactMap { category in
             let values = pending.filter { ShoppingCategory.category(for: $0.name) == category }
-                .sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
+                .sorted(by: nameOrder)
             return values.isEmpty ? nil : (category, values)
         }
     }
@@ -84,7 +93,7 @@ enum ShoppingListPresentation {
     static func purchasedItems(items: [KitchenShoppingItem], query: String) -> [KitchenShoppingItem] {
         items
             .filter { $0.isDone && matches($0, query: query) }
-            .sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
+            .sorted(by: nameOrder)
     }
 
     static func shouldShowPurchased(

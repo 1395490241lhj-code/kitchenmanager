@@ -31,6 +31,10 @@ struct InventoryView: View {
     @State private var isShowingPreparedComponents = false
     @State private var stapleFilter: PantryStapleFilter = .all
     @State private var itemPendingDeletion: InventoryItem?
+    /// The last swipe-to-用完, held only while its 撤销 toast is up.
+    @State private var activeUsedUp: InventoryUsedUp?
+    @State private var usedUpToast: String?
+    @State private var usedUpToastToken: UUID?
     @State private var searchText = ""
 
 
@@ -247,6 +251,14 @@ struct InventoryView: View {
                                     itemPendingDeletion = item
                                 }
                             }
+                            // The commonest change to a food row. Only offered
+                            // while there is something left to use up.
+                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                if item.isAvailable {
+                                    Button("用完", systemImage: "checkmark.circle") { markUsedUp(item) }
+                                        .tint(KitchenTheme.managementBlue)
+                                }
+                            }
                             // The same two destinations the row already has,
                             // surfaced without a swipe. No new behaviour: open
                             // is the row's own tap, delete is the swipe action
@@ -254,6 +266,9 @@ struct InventoryView: View {
                             .contextMenu {
                                 Button("查看详情", systemImage: "info.circle") {
                                     onSelectItem(item.id)
+                                }
+                                if item.isAvailable {
+                                    Button("用完", systemImage: "checkmark.circle") { markUsedUp(item) }
                                 }
                                 Button("删除", systemImage: "trash", role: .destructive) {
                                     itemPendingDeletion = item
@@ -328,6 +343,10 @@ struct InventoryView: View {
                             .frame(minHeight: 44)
                             .accessibilityIdentifier("inventory.staple.empty.add.button")
                     }
+                    // The page is the surface here too; the system row fill
+                    // made this the only white block on the canvas.
+                    .listRowBackground(AppTheme.canvas)
+                    .listRowSeparator(.hidden)
                 }
 
                 if !hasSearchQuery && !restockSuggestions.isEmpty {
@@ -484,13 +503,47 @@ struct InventoryView: View {
             Text("此操作会移除库存记录，且无法撤销。")
         }
         .overlay(alignment: .bottom) {
+            // A store notice (a save failure, a sync-locked refusal) outranks
+            // the undo toast: it is the truer statement about the data.
             if let notice = store.inventoryNotice {
                 InventoryNoticeOverlay(notice: notice) {
                     store.clearInventoryNotice()
                 }
+            } else if let usedUpToast {
+                FeedbackToast(message: usedUpToast, style: .success,
+                              action: (label: "撤销", handler: undoUsedUp))
+                    .accessibilityAction(named: "知道了") { dismissUsedUpToast() }
             }
         }
         .animation(reduceMotion ? nil : .snappy, value: store.inventoryNotice)
+    }
+
+    private func markUsedUp(_ item: InventoryItem) {
+        guard let usedUp = store.markInventoryUsedUp(item.id) else { return }
+        activeUsedUp = usedUp
+        let token = UUID()
+        usedUpToastToken = token
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(reduceMotion ? nil : .snappy) { usedUpToast = "已用完「\(item.name)」" }
+        // Same lifetime rule as the Planner's and Shopping's undo toasts.
+        Task { @MainActor in
+            try? await Task.sleep(for: UndoToastTiming.lifetime)
+            guard token == usedUpToastToken else { return }
+            dismissUsedUpToast()
+        }
+    }
+
+    private func undoUsedUp() {
+        if let activeUsedUp, !store.undoInventoryUsedUp(activeUsedUp), store.inventoryNotice == nil {
+            store.inventoryNotice = "撤销失败，这项食材已被修改。"
+        }
+        dismissUsedUpToast()
+    }
+
+    private func dismissUsedUpToast() {
+        activeUsedUp = nil
+        usedUpToastToken = nil
+        withAnimation(reduceMotion ? nil : .snappy) { usedUpToast = nil }
     }
 
     private func addSuggestion(_ suggestion: RestockSuggestion) {
@@ -653,19 +706,22 @@ private struct InventoryFoodCard: View {
     /// recomputing one.
     var tonight: String? = nil
 
+    /// An empty ordinary row was used up, not lost: a calm 已用完 with no
+    /// days left on food that is no longer there. It still counts under the
+    /// 缺货 filter; only the row's own wording and colour change.
     private var statusText: String {
-        item.isAvailable ? item.expiryStatusText : "缺货 · \(item.expiryStatusText)"
+        item.isAvailable ? item.expiryStatusText : "已用完"
     }
 
     private var statusColor: Color {
-        item.isAvailable ? item.expiryStatus.color : .red
+        item.expiryStatus.color
     }
 
     /// Only genuinely urgent food is coloured. Everything healthy reads as
     /// ordinary secondary text, so the eye lands on what actually needs a
     /// decision instead of on a wall of status.
     private var showsUrgency: Bool {
-        !item.isAvailable || item.isExpiringSoon
+        item.isAvailable && item.isExpiringSoon
     }
 
     var body: some View {
@@ -738,7 +794,7 @@ private struct InventoryFoodCard: View {
     private var statusLabel: some View {
         // Reuse the domain's attention boundary; no presentation-only day cutoff.
         // Full expiry wording remains in the row's accessibility label and detail.
-        if showsUrgency || item.expiryStatus == .unknown {
+        if showsUrgency || !item.isAvailable || item.expiryStatus == .unknown {
             Text(statusText)
                 .font(.footnote)
                 .foregroundStyle(showsUrgency ? statusColor : Color.secondary)
@@ -782,6 +838,12 @@ struct ShoppingView: View {
     @State private var isPurchasedExpanded = false
     @State private var isShoppingMode = false
     @State private var isShoppingModePurchasedExpanded = false
+    @State private var editingItem: KitchenShoppingItem?
+    /// The last single-item removal, held only while its 撤销 toast is up.
+    @State private var activeRemoval: ShoppingRemoval?
+    @State private var removalToast: String?
+    /// Identity of the current toast, so an older expiry never clears a newer one.
+    @State private var removalToastToken: UUID?
 
     init(previewSearchText: String = "", previewPurchasedExpanded: Bool = false, previewShoppingMode: Bool = false) {
         _searchText = State(initialValue: previewSearchText)
@@ -895,10 +957,11 @@ struct ShoppingView: View {
                 ForEach(pendingSections, id: \.0) { category, items in
                     Section {
                         ForEach(items) { item in
-                            Button { store.toggleShopping(item) } label: {
+                            Button { toggle(item) } label: {
                                 ShoppingItemRow(item: item, isPurchased: false)
                             }
                             .buttonStyle(.plain)
+                            .modifier(itemActions(item))
                             .accessibilityIdentifier("shopping.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: false))
                             .accessibilityHint("双击标记为已购买")
@@ -944,10 +1007,11 @@ struct ShoppingView: View {
 
                     if shouldShowPurchasedItems {
                         ForEach(purchasedItems) { item in
-                            Button { store.toggleShopping(item) } label: {
+                            Button { toggle(item) } label: {
                                 ShoppingItemRow(item: item, isPurchased: true)
                             }
                             .buttonStyle(.plain)
+                            .modifier(itemActions(item))
                             .accessibilityIdentifier("shopping.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
                             .accessibilityHint("双击取消已购买状态")
@@ -1002,10 +1066,11 @@ struct ShoppingView: View {
                 ForEach(pendingSections, id: \.0) { category, items in
                     Section {
                         ForEach(items) { item in
-                            Button { store.toggleShopping(item) } label: {
+                            Button { toggle(item) } label: {
                                 ShoppingItemRow(item: item, isPurchased: false, isEmphasized: true)
                             }
                             .buttonStyle(.plain)
+                            .modifier(itemActions(item))
                             .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: false))
                             .accessibilityHint("双击标记为已购买")
@@ -1049,10 +1114,11 @@ struct ShoppingView: View {
 
                     if isShoppingModePurchasedExpanded {
                         ForEach(completed) { item in
-                            Button { store.toggleShopping(item) } label: {
+                            Button { toggle(item) } label: {
                                 ShoppingItemRow(item: item, isPurchased: true)
                             }
                             .buttonStyle(.plain)
+                            .modifier(itemActions(item))
                             .accessibilityIdentifier("shopping.mode.item.\(item.id.uuidString)")
                             .accessibilityLabel(itemAccessibilityLabel(item, isPurchased: true))
                             .accessibilityHint("双击取消购买状态")
@@ -1179,8 +1245,20 @@ struct ShoppingView: View {
         }
         .sheet(isPresented: $isShowingAddItem) {
             AddShoppingItemView()
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $editingItem) { item in
+            AddShoppingItemView(editing: item)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .overlay(alignment: .bottom) {
+            if let removalToast {
+                FeedbackToast(message: removalToast, style: .success,
+                              action: (label: "撤销", handler: undoRemoval))
+                    .accessibilityAction(named: "知道了") { dismissRemovalToast() }
+            }
         }
         .alert("全部入库？", isPresented: $isShowingStockInConfirm) {
             Button("入库") { store.stockInCompletedShopping() }
@@ -1214,6 +1292,51 @@ struct ShoppingView: View {
         .tint(KitchenTheme.managementBlue)
     }
 
+    private func toggle(_ item: KitchenShoppingItem) {
+        store.toggleShopping(item)
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    private func itemActions(_ item: KitchenShoppingItem) -> ShoppingItemActions {
+        ShoppingItemActions(
+            onEdit: { editingItem = item },
+            onDelete: { remove(item) }
+        )
+    }
+
+    /// Deletes immediately and offers 撤销, instead of a confirmation alert:
+    /// one item is cheap to restore exactly, and a dialog per item would make
+    /// tidying the list in the aisle slower than leaving it untidy.
+    private func remove(_ item: KitchenShoppingItem) {
+        guard let removal = store.removeShopping(id: item.id) else { return }
+        activeRemoval = removal
+        let token = UUID()
+        removalToastToken = token
+        withAnimation { removalToast = "已删除「\(item.name)」" }
+        scheduleRemovalToastExpiry(token: token)
+    }
+
+    private func undoRemoval() {
+        if let activeRemoval { store.restoreShopping(activeRemoval) }
+        dismissRemovalToast()
+    }
+
+    private func dismissRemovalToast() {
+        activeRemoval = nil
+        removalToastToken = nil
+        withAnimation { removalToast = nil }
+    }
+
+    /// Same lifetime rule as the Planner's undo toast: short normally, much
+    /// longer under VoiceOver so 撤销 stays reachable, and keyed by token.
+    private func scheduleRemovalToastExpiry(token: UUID) {
+        Task { @MainActor in
+            try? await Task.sleep(for: UndoToastTiming.lifetime)
+            guard token == removalToastToken else { return }
+            dismissRemovalToast()
+        }
+    }
+
     private func presentRequestedStockInIfNeeded() {
         guard navigationStore.isShoppingStockInRequested else { return }
         navigationStore.consumeShoppingStockInRequest()
@@ -1232,6 +1355,32 @@ struct ShoppingView: View {
             .foregroundStyle(KitchenTheme.textSecondary)
             .listRowInsets(EdgeInsets(top: 14, leading: KitchenTheme.pageGutter, bottom: 4, trailing: KitchenTheme.pageGutter))
             .listSectionSeparator(.hidden)
+    }
+}
+
+/// Per-item edit and delete, by trailing swipe and by context menu. Delete is
+/// not a full swipe: the row's own tap already toggles purchase state, and an
+/// accidental full swipe should not be the fastest gesture on the list.
+private struct ShoppingItemActions: ViewModifier {
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            // Explicit tints: Shopping's screen-wide blue tint otherwise
+            // overrides the destructive red, making 删除 look like 编辑.
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+                    .tint(AppTheme.danger)
+                Button("编辑", systemImage: "pencil", action: onEdit)
+                    .tint(Color(uiColor: .systemGray))
+            }
+            .contextMenu {
+                Button("编辑", systemImage: "pencil", action: onEdit)
+                Button("删除", systemImage: "trash", role: .destructive, action: onDelete)
+            }
+            .accessibilityAction(named: "编辑", onEdit)
+            .accessibilityAction(named: "删除", onDelete)
     }
 }
 
@@ -1497,10 +1646,17 @@ private struct ShoppingViewPreview: View {
     ShoppingViewPreview(items: [], shoppingMode: true)
 }
 
+/// Adds a new item, or edits an existing one when `editing` is set.
+///
+/// The source is not a member choice: a manually entered item is always
+/// 手动添加, and an edit keeps whatever source the item already had. The old
+/// 来源 Picker exposed that internal field as a form question.
 private struct AddShoppingItemView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var store: KitchenStore
-    @State private var name = ""
+    /// The item being edited; nil when adding.
+    private let editing: KitchenShoppingItem?
+    @State private var name: String
     /// Held as text rather than as a `Double` behind `TextField(value:format:)`.
     /// That form only commits its parse when the field gives up focus, so a
     /// member who typed a quantity and went straight for 添加 was validated
@@ -1508,20 +1664,36 @@ private struct AddShoppingItemView: View {
     /// the form stayed open on a screen that already showed a valid number. A
     /// text binding commits on every keystroke, so `save()` reads what is on
     /// screen.
-    @State private var quantityText = "1"
-    @State private var unit = "份"
-    @State private var source = "手动添加"
-    @State private var remark = ""
+    @State private var quantityText: String
+    @State private var unit: String
+    @State private var remark: String
     @State private var errorMessage: String?
+    /// Confirms the previous entry after 添加并继续, since the form stays open.
+    @State private var lastAddedName: String?
     @FocusState private var isNameFocused: Bool
+
+    init(editing: KitchenShoppingItem? = nil) {
+        self.editing = editing
+        _name = State(initialValue: editing?.name ?? "")
+        _quantityText = State(initialValue: editing.map { $0.quantity.formatted(.number.grouping(.never)) } ?? "1")
+        _unit = State(initialValue: editing?.unit ?? "份")
+        _remark = State(initialValue: editing?.remark ?? "")
+    }
+
+    private var isEditing: Bool { editing != nil }
+
+    private var canSubmit: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("买什么") {
+                Section {
                     LabeledContent("名称") {
                         TextField("名称", text: $name).focused($isNameFocused)
                             .multilineTextAlignment(.trailing)
+                            .submitLabel(isEditing ? .done : .next)
                     }
                     LabeledContent("数量") {
                         TextField("数量", text: $quantityText)
@@ -1531,42 +1703,67 @@ private struct AddShoppingItemView: View {
                     LabeledContent("单位") {
                         TextField("单位", text: $unit).multilineTextAlignment(.trailing)
                     }
+                } header: {
+                    Text("买什么")
+                } footer: {
+                    if let lastAddedName {
+                        Text("已添加「\(lastAddedName)」，可以继续添加下一项。")
+                            .accessibilityIdentifier("shopping.add.continue.confirmation")
+                    }
                 }
                 Section("补充信息") {
-                    Picker("来源", selection: $source) {
-                        Text("手动添加").tag("手动添加")
-                        Text("日常补给").tag("日常补给")
-                        Text("常备货架").tag("来自常备货架")
-                    }
                     TextField("备注（可选）", text: $remark)
                 }
+                if !isEditing {
+                    Section {
+                        Button("添加并继续", systemImage: "plus") { save(keepOpen: true) }
+                            .frame(minHeight: AppTheme.minimumHitTarget)
+                            .disabled(!canSubmit)
+                            .accessibilityIdentifier("shopping.add.continue")
+                    }
+                }
             }
-            .navigationTitle("添加买菜项目")
+            .navigationTitle(isEditing ? "编辑买菜项目" : "添加买菜项目")
             .contentMargins(.horizontal, KitchenTheme.pageGutter, for: .scrollContent)
             .scrollContentBackground(.hidden)
             .background(KitchenTheme.canvas)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("添加", action: save).disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isEditing ? "保存" : "添加") { save(keepOpen: false) }
+                        .disabled(!canSubmit)
+                }
             }
             .task { isNameFocused = true }
-            .alert("无法添加", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+            .alert(isEditing ? "无法保存" : "无法添加", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
                 Button("好", role: .cancel) {}
             } message: { Text(errorMessage ?? "请检查输入。") }
         }
         .tint(KitchenTheme.managementBlue)
     }
 
-    private func save() {
+    private func save(keepOpen: Bool) {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let quantity = Double(quantityText.trimmingCharacters(in: .whitespacesAndNewlines)) ?? .nan
         guard !cleanName.isEmpty, quantity.isFinite, quantity > 0 else {
             errorMessage = "请填写名称和有效数量。"; return
         }
-        store.addShopping(name: cleanName, quantity: quantity, unit: unit, source: source, remark: remark)
+        if let editing {
+            guard store.updateShopping(id: editing.id, name: cleanName, quantity: quantity, unit: unit, remark: remark) else {
+                errorMessage = "这一项已不在清单中。"; return
+            }
+        } else {
+            store.addShopping(name: cleanName, quantity: quantity, unit: unit, source: "手动添加", remark: remark)
+        }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        dismiss()
+        guard keepOpen else { dismiss(); return }
+        lastAddedName = cleanName
+        name = ""
+        quantityText = "1"
+        unit = "份"
+        remark = ""
+        isNameFocused = true
     }
 }
 

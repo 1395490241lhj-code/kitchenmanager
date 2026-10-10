@@ -720,7 +720,11 @@ final class HomeDashboardUITests: XCTestCase {
         let shelf = element(app, "home.recommendation.shelf")
         XCTAssertTrue(shelf.waitForExistence(timeout: 5))
         let regenerate = app.buttons["home.recommendation.regenerate"]
-        for _ in 0..<5 where regenerate.frame.maxX > shelf.frame.maxX { shelf.swipeLeft() }
+        // The shelf is lazy: the terminal card may not exist until scrolled
+        // to, and reading .frame on a missing element fails the test outright.
+        for _ in 0..<6 where !(regenerate.exists && regenerate.frame.maxX <= shelf.frame.maxX) {
+            shelf.swipeLeft()
+        }
         XCTAssertTrue(regenerate.exists)
         XCTAssertLessThanOrEqual(regenerate.frame.maxX, shelf.frame.maxX)
         XCTAssertEqual(regenerate.label, "换一批, 看看别的搭配")

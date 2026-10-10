@@ -1,0 +1,377 @@
+name: iOS tests (simulator)
+
+# Builds the app and test targets and runs tests on an iOS Simulator.
+# Never signs for a device, never uploads, needs no Apple secret.
+#
+# Runs automatically on pushes to agent branches (claude/**) that touch the
+# iOS project, so code written without a local Xcode gets real evidence.
+# Can also be started by hand once this file is on the default branch.
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "ios-native/**"
+      - ".github/workflows/ios-tests.yml"
+  workflow_dispatch:
+    inputs:
+      ui_tests:
+        description: "UI test classes to run (space-separated KitchenManagerUITests/<Class>); 'none' skips, 'all' runs every UI test"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Focused default: the UI suites around the surfaces most often changed.
+  # The full UI suite is long and carries a documented baseline red
+  # (ReceiptCompactListUITests), so it is opt-in via the 'all' input.
+  DEFAULT_UI_TESTS: >-
+    KitchenManagerUITests/ScreenshotTourUITests
+    KitchenManagerUITests/ShoppingExperienceUITests
+    KitchenManagerUITests/ShoppingRegressionUITests
+    KitchenManagerUITests/RecipeCookingModeUITests
+    KitchenManagerUITests/RecipePresentationUITests
+    KitchenManagerUITests/RecipeFlowsUITests
+    KitchenManagerUITests/HomeDashboardUITests
+    KitchenManagerUITests/HomeVisualGateUITests
+    KitchenManagerUITests/InventoryNavigationUITests
+    KitchenManagerUITests/InventoryControlStripUITests
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 150
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes available
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in data if "iOS" in r), reverse=True)
+          for runtime in ios:
+              phones = [d for d in data[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              pro = [d for d in phones if "Pro" in d["name"] and "Max" not in d["name"]]
+              pick = (pro or phones or [None])[0]
+              if pick:
+                  print(pick["udid"]); sys.stderr.write(runtime + ": " + pick["name"] + "\n"); break
+          ')
+          test -n "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered -E "error:|warning: .*deprecated|BUILD|\*\*" || true
+          grep -q "TEST BUILD SUCCEEDED" "$RUNNER_TEMP/build.log"
+
+      - name: Unit tests
+        # A hung test fails on its own via the allowances below; this is the
+        # backstop so one stuck process cannot eat the whole job.
+        timeout-minutes: 40
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            -only-testing:KitchenManagerTests \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 60 \
+            -maximum-test-execution-time-allowance 120 \
+            -resultBundlePath "$RUNNER_TEMP/unit.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/unit.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|execution time allowance|Executed|\*\*"
+
+      - name: UI tests
+        if: success() || failure()
+        # The focused set plus the screenshot tour takes ~55 minutes.
+        timeout-minutes: 90
+        env:
+          REQUESTED: ${{ github.event.inputs.ui_tests }}
+        run: |
+          set -o pipefail
+          selection="${REQUESTED:-$DEFAULT_UI_TESTS}"
+          if [ "$selection" = "none" ]; then echo "UI tests skipped"; exit 0; fi
+          args=()
+          if [ "$selection" = "all" ]; then
+            args+=("-only-testing:KitchenManagerUITests")
+          else
+            for t in $selection; do args+=("-only-testing:$t"); done
+          fi
+          xcodebuild test-without-building \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            "${args[@]}" \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
+            -resultBundlePath "$RUNNER_TEMP/ui.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error:|execution time allowance|Executed|\*\*"
+
+      # Every keepAlways screenshot from the UI run, as plain PNGs anyone can
+      # open (no Xcode needed). Tour images go in tour/, all others in other/.
+      - name: Export screenshots
+        if: always()
+        run: |
+          bundle="$RUNNER_TEMP/ui.xcresult"
+          [ -d "$bundle" ] || { echo "No UI result bundle"; exit 0; }
+          raw="$RUNNER_TEMP/attachments"
+          out="$RUNNER_TEMP/screenshots"
+          xcrun xcresulttool export attachments --path "$bundle" --output-path "$raw"
+          python3 - "$raw" "$out" <<'PY'
+          import json, os, re, shutil, sys
+          raw, out = sys.argv[1], sys.argv[2]
+          manifest = json.load(open(os.path.join(raw, "manifest.json")))
+          count = 0
+          for test in manifest:
+              test_id = test.get("testIdentifier", "unknown")
+              cls = test_id.split("/")[0]
+              for att in test.get("attachments", []):
+                  src = os.path.join(raw, att["exportedFileName"])
+                  if not src.lower().endswith((".png", ".jpg", ".jpeg", ".heic")) or not os.path.exists(src):
+                      continue
+                  name = att.get("suggestedHumanReadableName") or att["exportedFileName"]
+                  name = re.sub(r"_\d+_[0-9A-Fa-f-]{36}", "", name)
+                  name = re.sub(r"[^\w.\-\u4e00-\u9fff]+", "_", name)
+                  sub = "tour" if cls == "ScreenshotTourUITests" else os.path.join("other", cls)
+                  if att.get("isAssociatedWithFailure"):
+                      sub = os.path.join("failures", cls)
+                  dest_dir = os.path.join(out, sub)
+                  os.makedirs(dest_dir, exist_ok=True)
+                  dest = os.path.join(dest_dir, name)
+                  stem, ext = os.path.splitext(dest)
+                  n = 2
+                  while os.path.exists(dest):
+                      dest = f"{stem}-{n}{ext}"; n += 1
+                  shutil.copy(src, dest)
+                  count += 1
+          print(f"exported {count} screenshots")
+          PY
+          {
+            echo "### Screenshots"
+            echo "Download the **ios-screenshots** artifact from this run's Summary page."
+            echo "- tour/: $(ls "$out/tour" 2>/dev/null | wc -l | tr -d ' ') images (main screens, Light / Dark / Accessibility XXXL)"
+            echo "- failures/: $(find "$out/failures" -type f 2>/dev/null | wc -l | tr -d ' ') images captured at failing assertions"
+            echo "- other/: $(find "$out/other" -type f 2>/dev/null | wc -l | tr -d ' ') images from feature UI tests"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-screenshots
+          path: ${{ runner.temp }}/screenshots
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          for f in build unit ui; do
+            log="$RUNNER_TEMP/$f.log"
+            [ -f "$log" ] || continue
+            echo "===== $f: errors and failures ====="
+            grep -E "error:|: error|failed \(|XCTAssert|Test Case .* failed|execution time allowance" "$log" | head -200 || true
+          done
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: |
+            ${{ runner.temp }}/*.xcresult
+            ${{ runner.temp }}/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Opt-in comparison: a commit message containing [baseline] also runs the
+  # named tests against the default branch, to tell a regression from a
+  # failure that already existed before the branch's changes.
+  # [ui-retry] runs the same named tests on this branch's own commit instead,
+  # alone on one machine, to separate load-related flakes from regressions.
+  # [ab] runs both side by side. BASELINE_ITERATIONS repeats each test.
+  baseline:
+    if: contains(github.event.head_commit.message, '[baseline]') || contains(github.event.head_commit.message, '[ui-retry]') || contains(github.event.head_commit.message, '[ab]')
+    runs-on: macos-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(contains(github.event.head_commit.message, '[ab]') && '["main","branch"]' || (contains(github.event.head_commit.message, '[ui-retry]') && '["branch"]' || '["main"]')) }}
+    env:
+      BASELINE_ITERATIONS: "3"
+      BASELINE_TESTS: >-
+        KitchenManagerUITests/ShoppingRegressionUITests/testProductionDarkAccessibilityMatrix
+        KitchenManagerUITests/ShoppingRegressionUITests/testProductionLightAccessibilityMatrix
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout default branch (or this commit for [ui-retry])
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.target == 'branch' && github.sha || github.event.repository.default_branch }}
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in data if "iOS" in r), reverse=True)
+          for runtime in ios:
+              phones = [d for d in data[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              pro = [d for d in phones if "Pro" in d["name"] and "Max" not in d["name"]]
+              pick = (pro or phones or [None])[0]
+              if pick:
+                  print(pick["udid"]); break
+          ')
+          test -n "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+      - name: Run named tests (${{ matrix.target }})
+        timeout-minutes: 80
+        run: |
+          set -o pipefail
+          args=()
+          for t in $BASELINE_TESTS; do args+=("-only-testing:$t"); done
+          git log --oneline -1
+          xcodebuild test \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            "${args[@]}" \
+            -test-iterations "${BASELINE_ITERATIONS:-1}" \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 600 \
+            2>&1 | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|execution time allowance|Executed|\*\*"
+
+  # Opt-in full UI suite: a commit message containing [ui-all] (or a manual
+  # run with ui_tests=all) runs every UI test class, split over four parallel
+  # simulator jobs. Shards 1-3 are fixed lists balanced by test count; shard 4
+  # takes every remaining class, so a new UI test file is never left out.
+  ui-full:
+    if: contains(github.event.head_commit.message, '[ui-all]') || github.event.inputs.ui_tests == 'all'
+    runs-on: macos-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      SHARD_1: AIConversationWorkspaceUITests GuestMergePreviewUI5B2BAUITests PlannerMealCreateUITests ComponentMealUITests
+      SHARD_2: HomeDashboardUITests GuestMergeSummaryUI5B2BB2AUITests GuestMergeChoiceEditingUI5B2BB2BUITests WeeklyMenuMaterializationUITests PlannerUITests
+      SHARD_3: ShoppingExperienceUITests InventoryNavigationUITests RecipeCookingModeUITests PlannerMealEditUITests AccountLifecycleExperienceUITests GuestMergeConflictUI5B2BB1UITests SettingsExperienceUITests ShoppingRegressionUITests SpecialPlanMenuUITests
+    defaults:
+      run:
+        working-directory: "ios-native/Kitchen Manager"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pick an iPhone simulator
+        id: sim
+        run: |
+          udid=$(xcrun simctl list devices available --json | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          ios = sorted((r for r in data if "iOS" in r), reverse=True)
+          for runtime in ios:
+              phones = [d for d in data[runtime] if d["name"].startswith("iPhone") and d.get("isAvailable", True)]
+              pro = [d for d in phones if "Pro" in d["name"] and "Max" not in d["name"]]
+              pick = (pro or phones or [None])[0]
+              if pick:
+                  print(pick["udid"]); break
+          ')
+          test -n "$udid"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid" || true
+
+      - name: Select this shard's classes
+        id: classes
+        run: |
+          case "${{ matrix.shard }}" in
+            1) list="$SHARD_1" ;;
+            2) list="$SHARD_2" ;;
+            3) list="$SHARD_3" ;;
+            *) taken=" $SHARD_1 $SHARD_2 $SHARD_3 "
+               list=""
+               for f in KitchenManagerUITests/*UITests.swift; do
+                 c=$(basename "$f" .swift)
+                 case "$taken" in *" $c "*) ;; *) list="$list $c" ;; esac
+               done ;;
+          esac
+          echo "classes=$list" >> "$GITHUB_OUTPUT"
+          echo "Shard ${{ matrix.shard }}: $list"
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            2>&1 | tee "$RUNNER_TEMP/build.log" | grep --line-buffered -E "error:|BUILD|\*\*" || true
+          grep -q "TEST BUILD SUCCEEDED" "$RUNNER_TEMP/build.log"
+
+      - name: UI tests (shard ${{ matrix.shard }})
+        timeout-minutes: 150
+        run: |
+          set -o pipefail
+          args=()
+          for c in ${{ steps.classes.outputs.classes }}; do args+=("-only-testing:KitchenManagerUITests/$c"); done
+          xcodebuild test-without-building \
+            -project "Kitchen Manager.xcodeproj" \
+            -scheme "KitchenManager" \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            "${args[@]}" \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
+            -resultBundlePath "$RUNNER_TEMP/ui-shard.xcresult" \
+            2>&1 | tee "$RUNNER_TEMP/ui.log" | grep --line-buffered -E "Test Case .* (failed|passed)|error: -\[|execution time allowance|Executed|\*\*"
+
+      - name: Failure summary
+        if: failure()
+        run: |
+          grep -E "error: -\[|Test Case .* failed|execution time allowance" "$RUNNER_TEMP/ui.log" | head -200 || true
+
+      - name: Upload shard results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ui-full-shard-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/ui-shard.xcresult
+            ${{ runner.temp }}/ui.log
+          if-no-files-found: ignore
+          retention-days: 7

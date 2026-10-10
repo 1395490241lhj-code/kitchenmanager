@@ -16,13 +16,13 @@ Owner-approved at implementation `d9da474`; visual/IA design is frozen. [Enginee
 
 The owner accepted the rendered Light/Dark Home result after implementation review. This is a Home-only visual revision layered on D-048, not a new app-wide material system. In decision mode, `今天怎么吃` owns a horizontally browsable set of recommendation content objects: a restrained neutral tonal surface, weak vertical lighting, a local top highlight and fine hairline distinguish a choice from the canvas without a heavy shadow. At Accessibility text sizes the same choices stack vertically. The terminal `换一批` remains a narrower, lighter action rather than another recipe object.
 
-In execution mode, the current meal is the dominant task surface and `开始做饭` is the prominent action; a completed meal's `查看菜谱` is secondary. A real `需要处理` list keeps its formal heading, count and actionable rows, then yields to a quieter `更多推荐` browse label and lighter recommendation surfaces and controls. With no attention items, the reassurance is one inline status close to the task, followed by a shorter transition into optional browsing. Supporting rows and status do not acquire task-card elevation.
+In execution mode, the current meal is the dominant task surface and `开始做饭` is the prominent action; a completed meal's `查看菜谱` is secondary. Since the 2026-10 UX plan (A2, owner-approved), when readiness has a shortfall and the menu is not fully cooked, the task surface ends with one utility row naming up to three missing ingredients (`还缺 … 等 N 样`) and `加入买菜清单`, which opens the existing shopping generation flow for today's plans. It is never a second prominent CTA, and readiness remains presence-only. A real `需要处理` list keeps its formal heading, count and actionable rows, then yields to a quieter `更多推荐` browse label and lighter recommendation surfaces and controls. With no attention items, the reassurance is one inline status close to the task, followed by a shorter transition into optional browsing. Supporting rows and status do not acquire task-card elevation.
 
 The older Home guidance below that prescribed a fully open Home or no Home task container is historical at this boundary; it must not be applied against this accepted local task/content/support hierarchy. ChunUI informed limited implementation details only; its design system and dependencies were not adopted. Home's business precedence, D-048 inline discovery and exclusions, Dynamic Type behavior, native navigation and existing data/provider semantics remain in force. Other screens have not been migrated to these Home-specific surfaces.
 
 ### Inventory visual hierarchy — accepted Phase 1 (2026-09-26)
 
-The Inventory shopping-list entry is a quiet, full-width utility row with a 44pt minimum target, secondary text and no card treatment. A food row's `今晚` context is secondary to its name and relevant state. The `常备食材` heading remains a clear group boundary after ordinary food rows, including at Accessibility XXXL; its trailing native filter Menu stays fully visible and reachable, with the first Pantry row spaced as content within that group. These are local Inventory presentation rules. Search, filter, Pantry quantity behavior and other screens retain their existing contracts.
+The Inventory shopping-list entry is a quiet, full-width utility row with a 44pt minimum target, secondary text and no card treatment. A food row's `今晚` context is secondary to its name and relevant state. The `常备食材` heading remains a clear group boundary after ordinary food rows, including at Accessibility XXXL; its trailing native filter Menu stays fully visible and reachable, with the first Pantry row spaced as content within that group. These are local Inventory presentation rules. Search, filter, Pantry quantity behavior and other screens retain their existing contracts. Since the 2026-10 UX plan (A3, owner-approved), an available food row offers 用完 by leading swipe and context menu: it zeroes that row only (never another batch of the same food), through the same gated edit path as a detail quantity edit, with an undo toast that restores the earlier quantity only if the row is still at zero. Delete keeps its confirmation, because re-inserting a deleted row could conflict with inventory sync tombstones.
 
 Home semantic precedence is mealPrep → dinner eatOut → Special Plan today → Today Plan → quick → recommendation; the Special Plan step was added by 002 (D-042). Ordinary Planner CRUD shipped with D-040 and AI weekly materialization with D-041, so neither is deferred any longer. Quantity-aware sufficiency is still deferred. No AI-provenance label or field was added.
 
@@ -184,11 +184,22 @@ status rails, ingredient cards or repeated utility icons.
   the original amounts. Adjusting the cooking session never changes the stored recipe.
 - Ingredients and seasonings use open checklist rows. Quantities align to the trailing
   content rail, with names and long quantities wrapping naturally without collision.
+- Since the 2026-10 UX plan (A2, owner-approved): core ingredient rows with nothing in
+  stock carry a trailing worded 缺货 mark (ochre reinforces, never replaces, the word);
+  seasonings are not marked. When any are missing, one quiet line above the list states
+  库存缺 N 样 with a utility 加入买菜清单 that opens the existing shopping generation
+  flow. Library 缺 N 样, these marks and Home readiness share `RecipeStockMatch`, so the
+  three surfaces cannot disagree.
 - Static steps use plain numbers and readable, Dynamic Type Chinese body text. Long text
   remains scrollable; the last step must clear the pinned Start Cooking action.
 - Cooking Mode groups the current step in a Module Surface. The timer is utility;
   next/finish is the dominant primary action. Large text may place controls below the
   fold, where they must remain reachable.
+- Since the 2026-10 UX plan (A4, owner-approved): a quiet 下一步 preview follows the
+  current step; a horizontal swipe on the step surface pages steps (navigation only,
+  never finishing; disabled animation under Reduce Motion); a step that states its own
+  duration offers a one-tap secondary 计时 N 分钟 beside the utility 其他时长 menu.
+  Step completion stays an explicit action (test-enforced; see the UX plan).
 - The editor retains its native utility Form. Populated fields keep persistent labels;
   the cooking-time input itself communicates its meaning, minutes and current value.
   Form group edges use the 20pt page gutter; native cell content keeps its own inset.
@@ -243,9 +254,13 @@ complete it with a whole-row action. It generally does not require a Hero.
   role. Indigo is reserved for actual AI utility; destructive actions retain their native
   destructive role. Inventory expiry colors do not belong here.
 - Search, menus and destructive confirmations stay native. The add sheet retains its
-  native Form and existing fields; populated name, quantity and unit keep understandable
-  field identity. Native Form containment is appropriate, with its group edges inset
-  20pt from the sheet's content area.
+  native Form; populated name, quantity and unit keep understandable field identity.
+  Native Form containment is appropriate, with its group edges inset 20pt from the
+  sheet's content area. Since the 2026-10 UX plan (A1, owner-approved): the internal
+  source is no longer a member-facing Picker (manual entries are 手动添加, edits keep
+  their source); the same sheet edits an existing item; 添加并继续 keeps the sheet
+  open for the next entry. Single items delete by trailing swipe or context menu with
+  an undo toast rather than a confirmation; bulk destructive actions keep their alerts.
 
 Shopping introduces no new canonical role and does not redefine generation, stock-in,
 duplicate merging, classification or persistence semantics.
@@ -322,3 +337,14 @@ The project adopts the **Contextual Semantic Model** for color roles across task
 **Axiom**: Checkmark shape itself does not imply green. Interactive checklist items use blue or neutral checks; green is strictly reserved for positive system confirmations, terminal receipts, and milestones.
 
 **Token naming debt boundary**: `KitchenTheme.cookingGreen` is a historical naming debt from earlier revisions and currently renders product blue (`#3866D6` / `#A5BDFF`). This phase neither renames nor alters the color value of this token to prevent wide regression. Future cleanup must proceed via semantic aliases and deprecation in a dedicated architecture task.
+
+### UX plan Phase A — owner screenshot review follow-ups (2026-10-08)
+
+Accepted after the owner reviewed CI screenshots:
+
+- Home: when the 还缺 row is shown, the hero status line drops the N/M readiness fraction (the row already names the shortfall); 所需食材已在库 still appears when nothing is missing.
+- Missing-ingredient wording is 还缺 everywhere: library 还缺 N 样 (replacing 缺 N 样 / 缺少较多), detail 还缺 N 样, Home 还缺 …. Detail's 加入买菜清单 uses the accent tint so it reads as an action.
+- Shopping swipe actions carry explicit tints: 删除 danger red, 编辑 neutral gray; the screen-wide management tint must not recolour a destructive action.
+- Cooking Mode's next-step preview is labelled 接下来, so it is not confused with the 下一步 button. 下一步 still does not mark a step complete (owner decision: unchanged).
+- An empty ordinary inventory row reads 已用完 in secondary text, with no remaining-days metadata; it still counts under the 缺货 filter.
+- The staple empty state sits on the canvas like every other row.

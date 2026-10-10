@@ -281,15 +281,13 @@ struct RecipeListView: View {
     }
 
     private func missingCoreIngredientCount(_ recipe: Recipe) -> Int {
-        recipe.ingredients.filter { line in
-            let key = IngredientNormalizer.matchKey(IngredientParser.parse(line).displayName)
-            return !kitchenStore.availableInventory.contains { IngredientNormalizer.matchKey($0.name) == key }
-        }.count
+        RecipeStockMatch.missingIngredients(in: recipe, inventory: kitchenStore.inventory).count
     }
 
     private func availabilityText(_ recipe: Recipe) -> String {
         let count = missingCoreIngredientCount(recipe)
-        return count == 0 ? "可直接做" : count <= 2 ? "缺 \(count) 样" : "缺少较多"
+        // One phrasing everywhere: library, detail and Home all say 还缺.
+        return count == 0 ? "可直接做" : "还缺 \(count) 样"
     }
 
     private var emptyStateTitle: String {
@@ -414,6 +412,11 @@ struct RecipeDetailView: View {
     }
 
     private var cookingSteps: [String] { recipe.steps.filter { !$0.hasPrefix("小贴士：") } }
+    /// Core ingredients with nothing in stock — the same answer the library's
+    /// 缺 N 样 gives for this recipe. Seasonings are not marked.
+    private var missingIngredients: [String] {
+        RecipeStockMatch.missingIngredients(in: recipe, inventory: kitchenStore.inventory)
+    }
     private var tips: [String] { recipe.steps.compactMap { $0.hasPrefix("小贴士：") ? String($0.dropFirst("小贴士：".count)) : nil } }
 
     var body: some View {
@@ -449,8 +452,16 @@ struct RecipeDetailView: View {
                         Text("暂未记录食材")
                             .foregroundStyle(.secondary)
                     } else {
+                        let missingCount = missingIngredients.count
+                        if missingCount > 0 {
+                            missingIngredientsAction(count: missingCount)
+                        }
                         ForEach(Array(recipe.ingredients.enumerated()), id: \.offset) { index, value in
-                            ingredientRow(value, index: index)
+                            ingredientRow(
+                                value,
+                                index: index,
+                                isMissing: RecipeStockMatch.isInStock(line: value, inventory: kitchenStore.inventory) == false
+                            )
                         }
                     }
                 }
@@ -582,25 +593,71 @@ struct RecipeDetailView: View {
             .accessibilityIdentifier("recipe.detail.startCooking")
     }
 
-    @ViewBuilder private func ingredientRow(_ value: String, index: Int) -> some View {
+    /// One quiet line above the ingredients: how many are missing, and the
+    /// existing shopping generation flow, which preselects exactly the items
+    /// inventory does not cover.
+    private func missingIngredientsAction(count: Int) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                missingCountText(count)
+                Spacer(minLength: 8)
+                addMissingButton
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                missingCountText(count)
+                addMissingButton
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recipe.detail.missing")
+    }
+
+    private func missingCountText(_ count: Int) -> some View {
+        Text("还缺 \(count) 样")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(KitchenTheme.textSecondary)
+            .accessibilityIdentifier("recipe.detail.missing.count")
+    }
+
+    private var addMissingButton: some View {
+        Button("加入买菜清单", systemImage: "cart.badge.plus") { isShowingShoppingGeneration = true }
+            .font(.subheadline.weight(.semibold))
+            // Accent, like Home's 加入买菜清单: an action has to read as one.
+            .buttonStyle(KitchenButtonStyle(role: .utility, tint: KitchenTheme.cookingGreen))
+            .accessibilityIdentifier("recipe.detail.missing.addToShopping")
+    }
+
+    @ViewBuilder private func ingredientRow(_ value: String, index: Int, isMissing: Bool = false) -> some View {
         Button { cookingSession.toggleIngredient(at: index) } label: {
             HStack(spacing: 12) {
                 Image(systemName: cookingSession.checkedIngredientIndexes.contains(index) ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(cookingSession.checkedIngredientIndexes.contains(index) ? AppTheme.success : .secondary)
-                Group {
-                    RecipeIngredientText(text: RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
+                // 缺货 sits under the name, never after the quantity: the
+                // quantity column stays on the trailing content rail.
+                VStack(alignment: .leading, spacing: 2) {
+                    Group {
+                        RecipeIngredientText(text: RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))
 
+                    }
+                    .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
+                    .foregroundStyle(.primary)
+
+                    // Words, not a colour alone: the tint only reinforces 缺货.
+                    if isMissing {
+                        Text("缺货")
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(KitchenTheme.ochre)
+                            .accessibilityHidden(true)
+                    }
                 }
-                .strikethrough(cookingSession.checkedIngredientIndexes.contains(index), color: .secondary)
-                .foregroundStyle(.primary)
-
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .buttonStyle(.plain)
         .frame(minHeight: AppTheme.minimumHitTarget)
         .contentShape(Rectangle())
         .accessibilityIdentifier("recipe.detail.ingredient.\(index)")
-        .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")")
+        .accessibilityLabel("\(RecipeServingScaler.scaledText(value, multiplier: cookingSession.displayMultiplier))，\(cookingSession.checkedIngredientIndexes.contains(index) ? "已准备" : "未准备")\(isMissing ? "，库存缺货" : "")")
     }
 }
 

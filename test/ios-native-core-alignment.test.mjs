@@ -28,7 +28,8 @@ test("recipe add menu uses explicit push routes for all four actions", () => {
 
 test("shopping add button opens a focused medium form", () => {
   assert.match(features, /Button\("添加", systemImage: "plus"\) \{ isShowingAddItem = true \}/);
-  assert.match(features, /AddShoppingItemView\(\)[\s\S]*\.presentationDetents\(\[\.medium\]\)/);
+  // Opens at .medium; .large lets accessibility text sizes reach every field.
+  assert.match(features, /AddShoppingItemView\(\)\s*\.presentationDetents\(\[\.medium, \.large\]\)/);
   assert.match(features, /TextField\("名称", text: \$name\)\.focused\(\$isNameFocused\)/);
   assert.match(features, /store\.addShopping\(name: cleanName/);
 });

@@ -8,6 +8,7 @@ struct RecipeCookingModeView: View {
     let onExit: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var timer = CookingTimerController()
     @State private var screenAwake = ScreenAwakeController()
     @State private var isShowingExitOptions = false
@@ -17,6 +18,11 @@ struct RecipeCookingModeView: View {
     private var currentStep: String { steps.indices.contains(session.currentStepIndex) ? steps[session.currentStepIndex] : "这份菜谱还没有制作步骤。" }
     private var completedStepCount: Int { session.completedStepIndexes.filter { steps.indices.contains($0) }.count }
     private var isLastStep: Bool { steps.isEmpty || session.currentStepIndex >= steps.count - 1 }
+    private var nextStep: String? {
+        let index = session.currentStepIndex + 1
+        return steps.indices.contains(index) ? steps[index] : nil
+    }
+    private var suggestedTimerSeconds: Int? { RecipeStepTimerSuggestion.seconds(in: currentStep) }
 
     var body: some View {
         NavigationStack {
@@ -51,6 +57,17 @@ struct RecipeCookingModeView: View {
                             }
                             .padding(KitchenTheme.modulePadding)
                                 .background(KitchenTheme.surface, in: .rect(cornerRadius: KitchenTheme.functionalRadius))
+                                .contentShape(Rectangle())
+                                // Step paging by horizontal swipe, for hands that
+                                // should not have to find a button. Navigation only,
+                                // like 上一步 / 下一步; it never finishes the meal.
+                                // Simultaneous so vertical scrolling keeps working;
+                                // VoiceOver keeps the explicit step buttons.
+                                .simultaneousGesture(stepSwipe)
+
+                            if let nextStep {
+                                nextStepPreview(nextStep)
+                            }
 
                             timerPanel
                             if dynamicTypeSize.isAccessibilitySize {
@@ -211,13 +228,12 @@ struct RecipeCookingModeView: View {
                     .accessibilityIdentifier("recipe.cooking.timer.finished")
             }
             if timer.state.status == .idle || timer.state.status == .finished {
-                Menu("开始计时", systemImage: "play.fill") {
-                    if let seconds = RecipeStepTimerSuggestion.seconds(in: currentStep) { Button("按步骤时长（\(seconds / 60) 分钟）") { timer.start(seconds: seconds) } }
-                    ForEach([1, 3, 5, 10, 15, 20, 30], id: \.self) { minutes in Button("\(minutes) 分钟") { timer.start(seconds: minutes * 60) } }
+                // The step's own duration is one tap, not an item inside a
+                // menu; the menu stays for every other length.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { timerStartControls }
+                    VStack(alignment: .leading, spacing: 8) { timerStartControls }
                 }
-                .buttonStyle(KitchenButtonStyle(role: .utility))
-                .tint(AppTheme.textSecondary)
-                .accessibilityIdentifier("recipe.cooking.timer.start")
             } else {
                 HStack {
                     Button(timer.state.status == .running ? "暂停" : "继续") { timer.state.status == .running ? timer.pause() : timer.resume() }
@@ -231,6 +247,58 @@ struct RecipeCookingModeView: View {
 
         .sensoryFeedback(.success, trigger: timer.state.status) { oldStatus, newStatus in
             oldStatus != .finished && newStatus == .finished
+        }
+    }
+
+    @ViewBuilder private var timerStartControls: some View {
+        if let seconds = suggestedTimerSeconds {
+            Button("计时 \(seconds / 60) 分钟", systemImage: "timer") { timer.start(seconds: seconds) }
+                .buttonStyle(KitchenButtonStyle(role: .secondary))
+                .accessibilityIdentifier("recipe.cooking.timer.suggested")
+        }
+        Menu(suggestedTimerSeconds == nil ? "开始计时" : "其他时长", systemImage: "play.fill") {
+            ForEach([1, 3, 5, 10, 15, 20, 30], id: \.self) { minutes in Button("\(minutes) 分钟") { timer.start(seconds: minutes * 60) } }
+        }
+        .buttonStyle(KitchenButtonStyle(role: .utility))
+        .tint(AppTheme.textSecondary)
+        .accessibilityIdentifier("recipe.cooking.timer.start")
+    }
+
+    /// What comes after this step, so the cook can get it ready now.
+    private func nextStepPreview(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // Not 下一步: that is the primary button's title, and this is not tappable.
+            Text("接下来")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(KitchenTheme.textSecondary)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(KitchenTheme.textSecondary)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, KitchenTheme.modulePadding)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("recipe.cooking.nextStepPreview")
+    }
+
+    private var stepSwipe: some Gesture {
+        DragGesture(minimumDistance: 30)
+            .onEnded { value in
+                let dx = value.translation.width
+                guard abs(dx) > 60, abs(dx) > abs(value.translation.height) * 1.5 else { return }
+                moveStep(by: dx < 0 ? 1 : -1)
+            }
+    }
+
+    private func moveStep(by delta: Int) {
+        withAnimation(reduceMotion ? nil : KitchenMotion.standard) {
+            if delta > 0 {
+                session.next(stepCount: steps.count)
+            } else {
+                session.previous(stepCount: steps.count)
+            }
         }
     }
 

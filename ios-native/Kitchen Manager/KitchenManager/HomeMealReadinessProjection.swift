@@ -33,4 +33,22 @@ enum HomeMealReadinessProjection {
         let ready = drafts.count { $0.matchedInventoryID != nil }
         return HomeMealReadiness(ready: ready, total: drafts.count)
     }
+
+    /// The names behind `readiness`'s shortfall: the same planner drafts, the
+    /// ones it could not match to available inventory. Empty when everything
+    /// resolved or nothing is resolvable.
+    static func missingIngredients(
+        plans: [MealPlanItem],
+        recipes: (String) -> Recipe?,
+        inventory: [InventoryItem]
+    ) -> [String] {
+        let inputs = plans.compactMap { plan -> InventoryConsumptionPlanner.RecipeConsumptionInput? in
+            guard let recipe = recipes(plan.recipeID) else { return nil }
+            return .init(recipe: recipe, servings: plan.plannedServings ?? 1)
+        }
+        guard !inputs.isEmpty else { return [] }
+        return InventoryConsumptionPlanner().plan(for: inputs, inventory: inventory)
+            .filter { $0.matchedInventoryID == nil }
+            .map(\.ingredientName)
+    }
 }

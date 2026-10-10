@@ -28,4 +28,12 @@ Missing external Skills do not block ordinary Kitchen Manager UI work. Continue 
 
 For material visual changes, pair this router with `km-ios-validation` and the visual acceptance rows in `docs/development/AI_CODING_ACCEPTANCE_MATRIX.md`.
 
+## Screenshots for owner review (required for visual changes)
+
+Whenever a change needs the owner to confirm how a screen looks, deliver exported screenshots, not just test results:
+
+- Make sure every changed screen and state is captured as a `keepAlways` `XCTAttachment` screenshot. Prefer adding the state to `KitchenManagerUITests/ScreenshotTourUITests.swift` (Light, Dark, Accessibility XXXL); a feature test's own `keepAlways` capture also counts.
+- Run `.github/workflows/ios-tests.yml` (it runs automatically on pushes to `claude/**` that touch `ios-native/**`). Its **ios-screenshots** artifact holds plain PNGs: `tour/`, `failures/`, `other/<TestClass>/`.
+- In the report to the owner, link the workflow run, name which images to look at, and say what to check in each. Never describe a screen as visually verified from test results alone.
+
 Preserve existing Kitchen tokens/components before introducing new visual primitives. Prefer Apple public APIs; third-party visual helpers are capability references, not a new design system.

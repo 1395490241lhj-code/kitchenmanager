@@ -260,7 +260,9 @@ final class CookingTimerController: ObservableObject {
 
 enum RecipeStepTimerSuggestion {
     static func seconds(in step: String) -> Int? {
-        guard let range = step.range(of: #"\b(\d{1,3})\s*分钟"#, options: .regularExpression),
+        // Not `\b`: ICU treats CJK ideographs as word characters, so `\b`
+        // never matched between 炖 and 20 in 「小火炖20分钟」.
+        guard let range = step.range(of: #"(?<!\d)(\d{1,3})\s*分钟"#, options: .regularExpression),
               let minutes = Int(step[range].replacingOccurrences(of: "分钟", with: "").trimmingCharacters(in: .whitespaces)),
               (1...180).contains(minutes) else { return nil }
         return minutes * 60

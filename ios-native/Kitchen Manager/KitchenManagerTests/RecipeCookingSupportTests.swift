@@ -88,6 +88,9 @@ final class RecipeCookingSupportTests: XCTestCase {
         XCTAssertEqual(RecipeStepTimerSuggestion.seconds(in: "小火焖 10 分钟"), 600)
         XCTAssertNil(RecipeStepTimerSuggestion.seconds(in: "适量煮熟"))
         XCTAssertNil(RecipeStepTimerSuggestion.seconds(in: "焖 999 分钟"))
+        XCTAssertEqual(RecipeStepTimerSuggestion.seconds(in: "小火炖20分钟至软烂"), 1200)
+        XCTAssertEqual(RecipeStepTimerSuggestion.seconds(in: "大火煮开后转小火焖5分钟"), 300)
+        XCTAssertNil(RecipeStepTimerSuggestion.seconds(in: "焖1000分钟"))
     }
 
     func testScreenAwakeRestoresPriorState() {
