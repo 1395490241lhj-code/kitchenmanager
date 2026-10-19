@@ -507,6 +507,11 @@ final class PlannerUITests: XCTestCase {
         let delete = app.buttons["planner.special.delete"]
         XCTAssertTrue(delete.waitForExistence(timeout: 5), "delete action missing")
         delete.tap()
+        // Deleting asks first; nothing is removed until the member confirms.
+        let confirm = app.alerts["删除这个特殊计划？"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "delete must ask for confirmation")
+        XCTAssertTrue(app.buttons["planner.special.edit"].exists, "the plan must still be open while the alert asks")
+        confirm.buttons["删除"].tap()
         XCTAssertTrue(
             app.navigationBars["用餐计划"].waitForExistence(timeout: 5),
             "deleting should return to the planner week list automatically"

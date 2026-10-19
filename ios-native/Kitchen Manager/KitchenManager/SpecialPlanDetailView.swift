@@ -6,6 +6,7 @@ struct SpecialPlanDetailView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
     let planID: UUID
     /// Deleting is owned by the Planner, which also holds the navigation path
     /// and pops this screen in the same update.
@@ -13,6 +14,8 @@ struct SpecialPlanDetailView: View {
     @State private var sheet: SpecialPlanDetailSheet?
     @State private var toast: (message: String, style: AppFeedbackStyle)?
     @State private var toastToken: UUID?
+    @State private var isConfirmingDelete = false
+    @State private var isConfirmingDiscardOnBack = false
     /// Transient AI menu state. Owned by the screen, never persisted: leaving
     /// the detail discards any unsaved draft.
     @StateObject private var menuDraft: SpecialPlanMenuDraftStore
@@ -102,11 +105,25 @@ struct SpecialPlanDetailView: View {
         // Leaving the detail already discards the transient draft; it must also
         // stop whatever request is still running for it.
         .onDisappear { menuDraft.cancelGeneration() }
+        // The draft lives only on this screen, so leaving with one asks first.
+        // Hiding the system back button also turns off the edge swipe, which
+        // would otherwise drop the draft without a word.
+        .navigationBarBackButtonHidden(menuDraft.hasDraft)
         .toolbar {
+            if menuDraft.hasDraft {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isConfirmingDiscardOnBack = true
+                    } label: {
+                        Label("返回", systemImage: "chevron.backward")
+                    }
+                    .accessibilityIdentifier("planner.special.back")
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
                     Button(role: .destructive) {
-                        onDelete()
+                        isConfirmingDelete = true
                     } label: {
                         Label("删除计划", systemImage: "trash")
                     }
@@ -130,6 +147,21 @@ struct SpecialPlanDetailView: View {
                 }
                 .accessibilityIdentifier("planner.special.add.dish")
             }
+        }
+        .alert("删除这个特殊计划？", isPresented: $isConfirmingDelete) {
+            Button("删除", role: .destructive) { onDelete() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("「\(plan.title)」和其中的菜品安排会被删除，无法撤销。菜谱库里的菜谱不受影响。")
+        }
+        .alert("放弃这份 AI 菜单草稿？", isPresented: $isConfirmingDiscardOnBack) {
+            Button("放弃并返回", role: .destructive) {
+                menuDraft.discard()
+                dismiss()
+            }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("草稿还没有保存，返回后这些菜不会保留。")
         }
         .sheet(item: $sheet) { sheet in
             switch sheet {

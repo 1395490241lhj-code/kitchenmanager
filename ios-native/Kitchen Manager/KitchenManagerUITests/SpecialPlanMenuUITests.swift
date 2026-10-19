@@ -104,6 +104,30 @@ final class SpecialPlanMenuUITests: XCTestCase {
         XCTAssertTrue(scrollUntilExists(app.buttons["planner.menu.save"], in: app), "save action missing on a draft")
     }
 
+    /// The draft lives only on the detail screen. Back used to drop it without
+    /// a word; it now asks, and 继续编辑 keeps every dish.
+    func testLeavingWithAnUnsavedDraftAsksFirst() {
+        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")
+        openSeededPlanDetail(from: app)
+        app.buttons["planner.menu.generate"].tap()
+        XCTAssertTrue(app.staticTexts["红烧牛腩"].waitForExistence(timeout: 10), "draft menu never appeared")
+
+        let back = app.buttons["planner.special.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "an unsaved draft must replace the plain back button")
+        back.tap()
+        let alert = app.alerts["放弃这份 AI 菜单草稿？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "leaving with a draft must ask first")
+
+        alert.buttons["继续编辑"].tap()
+        XCTAssertTrue(app.navigationBars["朋友聚餐"].exists, "继续编辑 stays on the plan")
+        XCTAssertTrue(app.staticTexts["红烧牛腩"].exists, "继续编辑 keeps the draft")
+
+        back.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["放弃并返回"].tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "放弃并返回 returns to the planner")
+    }
+
     /// Spec 23: replacing one dish changes only that dish.
     func testReplacingOneDraftDishLeavesTheOthers() {
         let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")

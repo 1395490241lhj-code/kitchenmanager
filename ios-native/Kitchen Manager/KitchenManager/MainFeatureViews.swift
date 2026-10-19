@@ -2081,7 +2081,14 @@ struct SettingsView: View {
                 .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.cleardata.button")
             } footer: {
-                Text("此操作无法撤销，且不会影响远端菜谱库。")
+                VStack(alignment: .leading, spacing: 4) {
+                    // Backups leave user recipes out, so this is the one place
+                    // they can be lost for good. Said here, before the tap.
+                    Label("厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(AppTheme.warningInk)
+                        .accessibilityIdentifier("settings.cleardata.recipeWarning")
+                    Text("此操作无法撤销，且不会影响远端菜谱库。")
+                }
             }
 
             #if DEBUG
@@ -2123,7 +2130,7 @@ struct SettingsView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这会删除本机的库存、常备设置、备餐、用餐与聚餐计划、每周菜单、买菜清单、消耗记录、用户菜谱、收藏和常做记录，无法撤销。远端菜谱库不会被删除。")
+            Text("这会删除本机的库存、常备设置、备餐、用餐与聚餐计划、每周菜单、买菜清单、消耗记录、用户菜谱、收藏和常做记录，无法撤销。注意：厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。远端菜谱库不会被删除。")
         }
         #if DEBUG
         .alert("Run Sync Smoke?", isPresented: $isShowingSyncSmokeConfirmation) {
@@ -2245,7 +2252,11 @@ struct BackupRestoreView: View {
             }
 
             Section {
-                Text("备份包含库存与常备规则、用餐与聚餐计划、每周菜单、备餐、购物清单和消耗记录，不包含用户菜谱、收藏和常做记录。导入会替换备份范围内的本机数据。")
+                Label("备份不包含用户菜谱、收藏和常做记录。「清除全部本地数据」会一并删除它们，且无法从备份恢复。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.warningInk)
+                    .accessibilityIdentifier("backup.userRecipes.warning")
+                Text("备份包含库存与常备规则、用餐与聚餐计划、每周菜单、备餐、购物清单和消耗记录。导入会替换备份范围内的本机数据。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
