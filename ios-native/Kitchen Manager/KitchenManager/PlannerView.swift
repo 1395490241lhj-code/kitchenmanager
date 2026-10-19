@@ -317,10 +317,14 @@ struct PlannerView: View {
                             weekStart: weekStart, specialPlanID: specialPlanID
                         ))
                     case .weeklyGenerator:
-                        WeeklyMenuPlannerView(onWorkflowActive: { activeWeeklyWorkflow = $0 }) { summary in
-                            weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
-                            path.wrappedValue.removeAll()
-                        }
+                        WeeklyMenuPlannerView(
+                            onWorkflowActive: { activeWeeklyWorkflow = $0 },
+                            onMaterialized: { summary in
+                                weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
+                                path.wrappedValue.removeAll()
+                            },
+                            preferredStartDate: creationDefaultDate
+                        )
                     case .recipeLibrary:
                         RecipeListView()
                     }

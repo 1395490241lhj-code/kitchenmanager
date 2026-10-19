@@ -1073,21 +1073,67 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     /// that to decide whether to move to the result screen: a cancelled or
     /// failed run leaves whatever draft was already there, and navigating on
     /// "a plan exists" would carry the member off the form they cancelled from.
+    /// The first day a new 生成菜单 from the form covers.
+    ///
+    /// A draft nobody has added yet keeps its days while they are still ahead,
+    /// so generating again replaces it in place. Once that draft has been added
+    /// to the Planner, or its first day has passed, reusing its start would
+    /// write the new menu onto days that are already planned or already gone,
+    /// so the menu starts from today — or from the week on screen, when that
+    /// week is still ahead.
+    nonisolated static func generationStartDate(
+        previous: WeeklyMealPlan?,
+        preferredStart: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        let today = calendar.startOfDay(for: now)
+        if let previous, previous.materialization == nil {
+            let previousStart = calendar.startOfDay(for: previous.startDate)
+            if previousStart >= today { return previousStart }
+        }
+        let preferred = preferredStart.map { calendar.startOfDay(for: $0) } ?? today
+        return max(preferred, today)
+    }
+
+    /// What the form says the next generation will cover.
+    func nextGenerationDateRange(
+        preferredStart: Date?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> (start: Date, end: Date) {
+        let start = Self.generationStartDate(previous: generatedPlan, preferredStart: preferredStart, now: now, calendar: calendar)
+        let end = calendar.date(byAdding: .day, value: max(input.numberOfDays, 1) - 1, to: start) ?? start
+        return (start, end)
+    }
+
     @discardableResult
-    func generatePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async -> Bool {
+    func generatePlan(
+        recipeStore: RecipeStore,
+        kitchenStore: KitchenStore,
+        preferredStartDate: Date? = nil
+    ) async -> Bool {
         guard !isGenerating else { return false }
         guard input.allowNewAIRecipes || !recipeStore.recipes.isEmpty else {
             errorMessage = WeeklyMenuPlannerError.noRecipesAvailable.localizedDescription
             return false
         }
-        return await run(excludedRecipeNames: [], recipeStore: recipeStore, kitchenStore: kitchenStore)
+        return await run(
+            excludedRecipeNames: [],
+            startDate: Self.generationStartDate(previous: generatedPlan, preferredStart: preferredStartDate),
+            recipeStore: recipeStore,
+            kitchenStore: kitchenStore
+        )
     }
 
+    /// 重新生成 on the result page replaces the menu on screen, so it keeps
+    /// that menu's days.
     @discardableResult
     func regeneratePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async -> Bool {
         guard !isGenerating else { return false }
         return await run(
             excludedRecipeNames: Self.allRecipeNames(in: generatedPlan),
+            startDate: generatedPlan?.startDate ?? Self.generationStartDate(previous: nil, preferredStart: nil),
             recipeStore: recipeStore,
             kitchenStore: kitchenStore
         )
@@ -1095,6 +1141,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
 
     private func run(
         excludedRecipeNames: [String],
+        startDate: Date,
         recipeStore: RecipeStore,
         kitchenStore: KitchenStore
     ) async -> Bool {
@@ -1103,7 +1150,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         activeRequestID = requestID
         isGenerating = true
         errorMessage = nil
-        let existingStartDate = generatedPlan?.startDate
 
         let request = makeRequest(
             recipeStore: recipeStore,
@@ -1121,7 +1167,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
                 from: response,
                 recipeStore: recipeStore,
                 servings: input.servings,
-                existingStartDate: existingStartDate
+                startDate: startDate
             )
             installed = true
         } catch is CancellationError {
@@ -1700,7 +1746,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         from response: AIWeeklyMenuResponse,
         recipeStore: RecipeStore,
         servings: Int,
-        existingStartDate: Date?
+        startDate: Date
     ) -> WeeklyMealPlan {
         let days = response.days
             .sorted { $0.dayIndex < $1.dayIndex }
@@ -1731,7 +1777,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         }
 
         return WeeklyMealPlan(
-            startDate: existingStartDate ?? Calendar.current.startOfDay(for: Date()),
+            startDate: startDate,
             days: days,
             shoppingItems: shoppingItems,
             servings: servings,
@@ -1812,6 +1858,9 @@ struct WeeklyMenuPlannerView: View {
     /// Passed straight through to the result screen. Defaults to nothing, so a
     /// host that does not care about navigation is unaffected.
     var onMaterialized: ((WeeklyMaterializationSummary) -> Void)?
+    /// The day the host would start new planning on — the Planner passes the
+    /// week on screen. Never earlier than today; see `generationStartDate`.
+    var preferredStartDate: Date? = nil
 
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
@@ -1828,6 +1877,8 @@ struct WeeklyMenuPlannerView: View {
     var body: some View {
         Form {
             Section("规划天数与顿数") {
+                LabeledContent("日期", value: generationRangeText)
+                    .accessibilityIdentifier("weekly.generate.dateRange")
                 Stepper("计划 \(store.input.numberOfDays) 天", value: $store.input.numberOfDays, in: 1...7)
                 Stepper("每天 \(store.input.mealsPerDay) 顿", value: $store.input.mealsPerDay, in: 1...3)
                 Stepper("每顿 \(store.input.dishesPerMeal) 道", value: $store.input.dishesPerMeal, in: 1...4)
@@ -1909,7 +1960,11 @@ struct WeeklyMenuPlannerView: View {
                         Task {
                             // Only a menu this tap produced may move the member
                             // on. A cancelled run leaves them on the form.
-                            guard await store.generatePlan(recipeStore: recipeStore, kitchenStore: kitchenStore) else { return }
+                            guard await store.generatePlan(
+                                recipeStore: recipeStore,
+                                kitchenStore: kitchenStore,
+                                preferredStartDate: preferredStartDate
+                            ) else { return }
                             // Only take over the screen if this is still the screen.
                             if isOnScreen {
                                 isShowingResult = true
@@ -1976,6 +2031,14 @@ struct WeeklyMenuPlannerView: View {
 
     private func summaryText(_ selection: Set<String>, placeholder: String) -> String {
         selection.isEmpty ? placeholder : selection.sorted().joined(separator: "、")
+    }
+
+    /// "10月19日 – 10月25日", or one day when only one is planned.
+    private var generationRangeText: String {
+        let range = store.nextGenerationDateRange(preferredStart: preferredStartDate)
+        let style = Date.FormatStyle().month(.defaultDigits).day()
+        let start = range.start.formatted(style)
+        return range.start == range.end ? start : "\(start) – \(range.end.formatted(style))"
     }
 }
 
