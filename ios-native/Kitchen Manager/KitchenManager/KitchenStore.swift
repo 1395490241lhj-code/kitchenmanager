@@ -1299,6 +1299,12 @@ final class KitchenStore: ObservableObject {
                 && Self.expiryDatesCanMerge($0.expiryDate, effectiveExpiryDate)
         }) {
             inventory[index].quantity += safeQuantity
+            // A status-tracked staple reads its shelf state, not its quantity,
+            // so a stock-in has to say it is back — otherwise 盐 bought today
+            // still shows 缺货. Quantity-mode staples derive status already.
+            if inventory[index].isStaple, inventory[index].stapleTrackingMode == .status {
+                inventory[index].stapleAvailabilityStatus = .available
+            }
             // A more specific incoming kind promotes an ordinary row (the old
             // `isStaple || isStaple` rule, generalised); an already-classified
             // row is never silently reclassified by a later import.

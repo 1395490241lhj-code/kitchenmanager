@@ -266,6 +266,47 @@ final class KitchenStoreTests: XCTestCase {
         XCTAssertTrue(store.inventory[0].isStaple, "isStaple is OR'ed across merges, never downgraded")
     }
 
+    /// 盐 tracked by status, marked 缺货, bought from the shopping list: the
+    /// shelf used to keep saying 缺货 because the merge only added quantity.
+    func test_stockIn_resetsAStatusModeStapleToAvailable() throws {
+        try store.saveStaple(
+            id: nil, name: "盐", quantity: 0, unit: "袋",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .status, availabilityStatus: .missing
+        )
+        XCTAssertEqual(store.inventory[0].stapleStatus, .outOfStock)
+
+        store.addShopping(name: "盐", quantity: 1, unit: "袋")
+        store.toggleShopping(store.shoppingItems[0])
+        store.stockInCompletedShopping()
+
+        XCTAssertEqual(store.inventory.count, 1, "merged into the staple, not a second row")
+        XCTAssertTrue(store.inventory[0].isStaple)
+        XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .available)
+        XCTAssertEqual(store.inventory[0].stapleStatus, .sufficient)
+    }
+
+    func test_manualAdd_resetsALowStatusModeStapleToAvailable() throws {
+        try store.saveStaple(
+            id: nil, name: "生抽", quantity: 1, unit: "瓶",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .status, availabilityStatus: .low
+        )
+        store.addInventory(name: "生抽", quantity: 1, unit: "瓶", expiryDate: nil)
+        XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .available)
+    }
+
+    func test_stockIn_leavesAQuantityModeStapleStatusFieldAlone() throws {
+        try store.saveStaple(
+            id: nil, name: "鸡蛋", quantity: 1, unit: "个",
+            minimumQuantity: 6, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .quantity, availabilityStatus: .low
+        )
+        store.addInventory(name: "鸡蛋", quantity: 2, unit: "个", expiryDate: nil)
+        XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .low, "quantity mode derives its status from quantity")
+        XCTAssertEqual(store.inventory[0].stapleStatus, .low, "3 of 6 is still low")
+    }
+
     func test_sortedFreshInventory_excludesStaples() {
         store.addInventory(name: "鸡蛋", quantity: 1, unit: "个", expiryDate: nil, isStaple: true)
         store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil, isStaple: false)
