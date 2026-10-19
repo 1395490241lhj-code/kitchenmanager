@@ -597,6 +597,19 @@ struct HomeView: View {
         }
     }
 
+    /// True when the pending 买菜清单 already holds everything today's meals
+    /// still need. Read through the same generator the 还缺 row opens, so the
+    /// row and the screen behind it cannot disagree.
+    private var isTodayShortfallAlreadyListed: Bool {
+        let draft = ShoppingListGenerator().generate(
+            source: .todayPlans(kitchenStore.todayPlans),
+            inventory: kitchenStore.inventory,
+            existingShoppingItems: kitchenStore.shoppingItems,
+            recipeStore: recipeStore
+        )
+        return draft.missingItems.isEmpty && !draft.alreadyListedItems.isEmpty
+    }
+
     private func addRecommendationToPlan(_ recipe: Recipe) {
         let outcome = HomeRecommendationPlanning.addToToday(
             recipe,
@@ -685,16 +698,18 @@ struct HomeView: View {
                 .accessibilityIdentifier("home.specialPlan.open")
 
             case .planExecution:
+                let missing = dashboard.allPlans.allSatisfy(\.isCooked) ? [] : HomeMealReadinessProjection.missingIngredients(
+                    plans: dashboard.allPlans,
+                    recipes: { recipeStore.recipe(id: $0) },
+                    inventory: kitchenStore.inventory
+                )
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
                     hero: heroModel(for: dashboard),
                     onSelectPlan: { selectedPlan = $0 },
                     onStartCooking: startCooking,
-                    missingIngredients: dashboard.allPlans.allSatisfy(\.isCooked) ? [] : HomeMealReadinessProjection.missingIngredients(
-                        plans: dashboard.allPlans,
-                        recipes: { recipeStore.recipe(id: $0) },
-                        inventory: kitchenStore.inventory
-                    ),
+                    missingIngredients: missing,
+                    isMissingAlreadyListed: !missing.isEmpty && isTodayShortfallAlreadyListed,
                     onAddMissingToShopping: { isShowingMissingShopping = true }
                 )
 
@@ -1144,6 +1159,8 @@ private struct TodayPlanSummaryCard: View {
     /// Ingredients the hero's readiness counts as not in stock. Empty hides
     /// the 还缺 line, as does a fully cooked menu.
     var missingIngredients: [String] = []
+    /// The pending 买菜清单 already covers `missingIngredients`.
+    var isMissingAlreadyListed = false
     var onAddMissingToShopping: () -> Void = {}
 
     var body: some View {
@@ -1263,7 +1280,7 @@ private struct TodayPlanSummaryCard: View {
                     .foregroundStyle(KitchenTheme.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("加入买菜清单")
+                Text(isMissingAlreadyListed ? "已在清单" : "加入买菜清单")
                     .fontWeight(.semibold)
                     .fixedSize()
             }
@@ -1275,8 +1292,10 @@ private struct TodayPlanSummaryCard: View {
         .buttonStyle(.plain)
         .foregroundStyle(KitchenTheme.cookingGreen)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("库存还缺\(missingIngredients.joined(separator: "、"))")
-        .accessibilityHint("生成买菜清单")
+        .accessibilityLabel(
+            "库存还缺\(missingIngredients.joined(separator: "、"))" + (isMissingAlreadyListed ? "，已在买菜清单" : "")
+        )
+        .accessibilityHint(isMissingAlreadyListed ? "查看买菜清单的核对结果" : "生成买菜清单")
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("home.today.missing.addToShopping")
     }

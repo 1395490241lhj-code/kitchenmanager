@@ -368,7 +368,10 @@ struct InventoryView: View {
                             }
                             .frame(minHeight: 44)
                         }
+                        // Rows already on the pending list stay out of the batch,
+                        // or 加入 N 项常备补货 would add them a second time.
                         let stapleSuggestions = restockSuggestions.filter { $0.source == .pantryStaple }
+                            .filter { !$0.isAlreadyOnShoppingList }
                         if !stapleSuggestions.isEmpty {
                             Button {
                                 stapleSuggestions.forEach(addSuggestion)
@@ -608,16 +611,26 @@ struct InventoryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func restockSuggestionButton(_ suggestion: RestockSuggestion) -> some View {
-        Button {
-            addSuggestion(suggestion)
-        } label: {
-            Text("加入清单")
+        if suggestion.isAlreadyOnShoppingList {
+            // Tapping again used to merge the same amount in a second time.
+            Text("已在清单")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .frame(minHeight: AppTheme.minimumHitTarget)
-                .contentShape(Rectangle())
+                .accessibilityIdentifier("inventory.restock.alreadyListed")
+        } else {
+            Button {
+                addSuggestion(suggestion)
+            } label: {
+                Text("加入清单")
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("inventory.restock.add.button")
         }
-        .buttonStyle(.bordered)
-        .accessibilityIdentifier("inventory.restock.add.button")
     }
 }
 

@@ -340,6 +340,10 @@ struct ShoppingGenerationDraft {
     var coveredItems: [IngredientRequirement]
     var recipeCount: Int
     var warnings: [String]
+    /// Still missing from the kitchen, but the pending 买菜清单 already holds
+    /// enough of it. Kept out of `missingItems` so adding the draft again
+    /// cannot buy the same thing twice.
+    var alreadyListedItems: [IngredientRequirement] = []
 }
 
 enum ShoppingGenerationSource {
@@ -505,22 +509,61 @@ struct ShoppingListGenerator {
             }
         }
 
-        for index in missing.indices {
-            let item = missing[index]
-            if let existing = existingShoppingItems.first(where: {
+        // What the pending list already holds is not bought again. Adding a
+        // meal's ingredients twice used to merge the full amount in twice.
+        // Only quantities in the same or a convertible unit are subtracted —
+        // 1 份 says nothing about how many 个 are already on the list.
+        var stillMissing: [IngredientRequirement] = []
+        var alreadyListed: [IngredientRequirement] = []
+        for var item in missing {
+            let pendingItems = existingShoppingItems.filter {
                 !$0.isDone && IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(item.displayName)
-            }) {
-                let note = "买菜清单中已有「\(existing.name) \(existing.quantity.formatted()) \(existing.unit)」，确认后会合并数量"
-                missing[index].warning = missing[index].warning.map { "\($0)；\(note)" } ?? note
             }
+            guard let first = pendingItems.first else {
+                stillMissing.append(item)
+                continue
+            }
+            let pending = item.unit.flatMap { Self.pendingQuantity(pendingItems, in: $0) }
+            let note: String
+            if let need = item.missingQuantity, let pending, pending > 0, let unit = item.unit {
+                let listed = "\(item.displayName) \(pending.formatted()) \(unit)"
+                let remaining = need - pending
+                if remaining <= 0 {
+                    item.missingQuantity = 0
+                    item.isSelected = false
+                    item.warning = "已在清单：\(listed)"
+                    alreadyListed.append(item)
+                    continue
+                }
+                item.missingQuantity = Self.isCountableUnit(unit) ? remaining.rounded(.up) : remaining
+                note = "买菜清单中已有「\(listed)」，这里只列还差的数量"
+            } else {
+                note = "买菜清单中已有「\(first.name) \(first.quantity.formatted()) \(first.unit)」，请确认是否还需要"
+            }
+            item.warning = item.warning.map { "\($0)；\(note)" } ?? note
+            stillMissing.append(item)
         }
 
         return ShoppingGenerationDraft(
-            missingItems: missing.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending },
+            missingItems: stillMissing.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending },
             coveredItems: covered.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending },
             recipeCount: usages.count,
-            warnings: sourceWarnings
+            warnings: sourceWarnings,
+            alreadyListedItems: alreadyListed.sorted { $0.displayName.localizedCompare($1.displayName) == .orderedAscending }
         )
+    }
+
+    /// Pending list quantity in `unit`, or `nil` when none of it converts.
+    private static func pendingQuantity(_ items: [KitchenShoppingItem], in unit: String) -> Double? {
+        var total = 0.0
+        var matchedAny = false
+        for item in items {
+            if let converted = UnitConverter.convert(item.quantity, from: item.unit, to: unit) {
+                total += converted
+                matchedAny = true
+            }
+        }
+        return matchedAny ? total : nil
     }
 
     /// Units bought as whole things. Mass and volume are deliberately absent:
@@ -653,6 +696,7 @@ final class ShoppingListGenerationStore: ObservableObject {
     @Published private(set) var source: ShoppingGenerationSource?
     @Published var missingItems: [IngredientRequirement] = []
     @Published var coveredItems: [IngredientRequirement] = []
+    @Published private(set) var alreadyListedItems: [IngredientRequirement] = []
     @Published private(set) var recipeCount = 0
     @Published private(set) var isGenerating = false
     @Published var errorMessage: String?
@@ -687,10 +731,11 @@ final class ShoppingListGenerationStore: ObservableObject {
 
         missingItems = draft.missingItems
         coveredItems = draft.coveredItems
+        alreadyListedItems = draft.alreadyListedItems
         recipeCount = draft.recipeCount
         isGenerating = false
 
-        if draft.missingItems.isEmpty && draft.coveredItems.isEmpty {
+        if draft.missingItems.isEmpty && draft.coveredItems.isEmpty && draft.alreadyListedItems.isEmpty {
             errorMessage = draft.warnings.first ?? "没有找到可用的食材信息。"
         }
     }
@@ -758,7 +803,7 @@ struct ShoppingListGenerationView: View {
         List {
             Section("概览") {
                 LabeledContent("菜谱", value: "\(store.recipeCount) 道")
-                LabeledContent("所需食材", value: "\(store.missingItems.count + store.coveredItems.count) 项")
+                LabeledContent("所需食材", value: "\(store.missingItems.count + store.coveredItems.count + store.alreadyListedItems.count) 项")
                 if reconcilesAgainstInventory {
                     LabeledContent("已有库存", value: "\(store.coveredItems.count) 项")
                 } else {
@@ -766,6 +811,10 @@ struct ShoppingListGenerationView: View {
                         .accessibilityIdentifier("shopping.generation.noInventory")
                 }
                 LabeledContent("需要购买", value: "\(store.missingItems.count) 项")
+                if !store.alreadyListedItems.isEmpty {
+                    LabeledContent("已在清单", value: "\(store.alreadyListedItems.count) 项")
+                        .accessibilityIdentifier("shopping.generation.alreadyListed.count")
+                }
                 Toggle("包含调料", isOn: $includeSeasonings)
             }
 
@@ -791,6 +840,22 @@ struct ShoppingListGenerationView: View {
                 }
             }
 
+            if !store.alreadyListedItems.isEmpty {
+                Section("已在清单") {
+                    ForEach(store.alreadyListedItems) { item in
+                        HStack {
+                            Text(item.displayName)
+                            Spacer()
+                            Text(item.warning?.replacingOccurrences(of: "已在清单：", with: "") ?? "已在清单")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .accessibilityIdentifier("shopping.generation.alreadyListed")
+            }
+
             if !store.coveredItems.isEmpty {
                 DisclosureGroup("库存已覆盖（\(store.coveredItems.count)）") {
                     ForEach(store.coveredItems) { item in
@@ -803,7 +868,7 @@ struct ShoppingListGenerationView: View {
                 }
             }
 
-            if store.missingItems.isEmpty && store.coveredItems.isEmpty {
+            if store.missingItems.isEmpty && store.coveredItems.isEmpty && store.alreadyListedItems.isEmpty {
                 ContentUnavailableView(
                     "没有可生成的购物清单",
                     systemImage: "cart",

@@ -353,4 +353,33 @@ final class RestockSuggestionEngineTests: XCTestCase {
         let later = engine.generate(kitchenStore: kitchenStore, recipeStore: recipeStore, excludingPlanIDs: [tonight.id])
         XCTAssertTrue(later.contains { $0.source == .plannedMeals && $0.name.contains("番茄") })
     }
+
+    // MARK: - Already on the shopping list
+
+    func test_stapleSuggestion_isMarkedAlreadyListedOncePending() {
+        addQuantityStaple(name: "鸡蛋", quantity: 1, threshold: 5)
+        XCTAssertEqual(engine.generate(kitchenStore: kitchenStore, recipeStore: recipeStore).first { $0.name == "鸡蛋" }?.isAlreadyOnShoppingList, false)
+
+        kitchenStore.addShopping(name: "鸡蛋", quantity: 4, unit: "个")
+
+        let egg = engine.generate(kitchenStore: kitchenStore, recipeStore: recipeStore).first { $0.name == "鸡蛋" }
+        XCTAssertEqual(egg?.isAlreadyOnShoppingList, true, "a second 加入清单 would add 4 more")
+    }
+
+    func test_plannedNeedCoveredByThePendingList_isMarkedAlreadyListed() {
+        schedule(savedRecipe(title: "番茄炒蛋", ingredients: ["番茄 2 个"]), inDays: 1)
+        kitchenStore.addShopping(name: "番茄", quantity: 2, unit: "个")
+
+        let tomato = plannedSuggestions().first { $0.name.contains("番茄") }
+        XCTAssertEqual(tomato?.isAlreadyOnShoppingList, true)
+    }
+
+    func test_plannedNeedPartlyOnTheList_suggestsOnlyTheDifference() {
+        schedule(savedRecipe(title: "番茄炒蛋", ingredients: ["番茄 3 个"]), inDays: 1)
+        kitchenStore.addShopping(name: "番茄", quantity: 1, unit: "个")
+
+        let tomato = plannedSuggestions().first { $0.name.contains("番茄") }
+        XCTAssertEqual(tomato?.isAlreadyOnShoppingList, false)
+        XCTAssertEqual(tomato?.suggestedQuantity ?? 0, 2, accuracy: 0.001)
+    }
 }

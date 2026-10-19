@@ -217,9 +217,24 @@ struct RestockSuggestion: Identifiable {
     let unit: String?
     let reason: String
     let source: RestockSuggestionSource
+    /// The pending 买菜清单 already holds this, so 加入清单 would only add it twice.
+    var isAlreadyOnShoppingList = false
 }
 
 struct RestockSuggestionEngine {
+    /// A pending list row for the same ingredient in the same or a convertible
+    /// unit. A row in an unrelated unit does not count: adding would not merge
+    /// into it, and it says nothing about how much is already coming.
+    static func isOnShoppingList(name: String, unit: String?, in shoppingItems: [KitchenShoppingItem]) -> Bool {
+        let key = IngredientNormalizer.matchKey(name)
+        return shoppingItems.contains { item in
+            guard !item.isDone, IngredientNormalizer.matchKey(item.name) == key else { return false }
+            guard let unit else { return true }
+            return IngredientNormalizer.normalizedUnit(item.unit) == IngredientNormalizer.normalizedUnit(unit)
+                || UnitConverter.areConvertible(item.unit, unit)
+        }
+    }
+
     func generate(
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore,
@@ -239,7 +254,8 @@ struct RestockSuggestionEngine {
                 suggestedQuantity: target.flatMap { $0 > 0 ? $0 : nil },
                 unit: item.unit,
                 reason: item.stapleStatus == .outOfStock ? "常备食材已缺货" : "库存低于常备阈值",
-                source: .pantryStaple
+                source: .pantryStaple,
+                isAlreadyOnShoppingList: Self.isOnShoppingList(name: item.name, unit: item.unit, in: kitchenStore.shoppingItems)
             )
         }
 
@@ -248,7 +264,10 @@ struct RestockSuggestionEngine {
             guard suggestions[key] == nil else { continue }
             suggestions[key] = RestockSuggestion(
                 id: "consumed-\(key)", name: recordItem.ingredientName, suggestedQuantity: nil, unit: recordItem.unit,
-                reason: "做饭后已用完", source: .consumed
+                reason: "做饭后已用完", source: .consumed,
+                isAlreadyOnShoppingList: Self.isOnShoppingList(
+                    name: recordItem.ingredientName, unit: recordItem.unit, in: kitchenStore.shoppingItems
+                )
             )
         }
 
@@ -275,6 +294,16 @@ struct RestockSuggestionEngine {
                 suggestions[key] = RestockSuggestion(
                     id: "planned-\(key)", name: item.displayName, suggestedQuantity: item.missingQuantity, unit: item.unit,
                     reason: "未来 7 天计划需要", source: .plannedMeals
+                )
+            }
+            // The generator already subtracted the pending list; these are
+            // covered by it in full.
+            for item in draft.alreadyListedItems {
+                let key = IngredientNormalizer.matchKey(item.displayName)
+                guard suggestions[key] == nil else { continue }
+                suggestions[key] = RestockSuggestion(
+                    id: "planned-\(key)", name: item.displayName, suggestedQuantity: nil, unit: item.unit,
+                    reason: "未来 7 天计划需要", source: .plannedMeals, isAlreadyOnShoppingList: true
                 )
             }
         }
@@ -934,15 +963,26 @@ struct CookConsumptionConfirmationView: View {
                             Text(suggestion.reason).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("加入清单") {
-                            kitchenStore.addShopping(
-                                name: suggestion.name,
-                                quantity: suggestion.suggestedQuantity ?? 1,
-                                unit: suggestion.unit ?? "适量",
-                                source: "补货建议"
-                            )
+                        // Read live: the suggestions are a snapshot taken at
+                        // confirmation, and a second tap must not add it twice.
+                        if suggestion.isAlreadyOnShoppingList
+                            || RestockSuggestionEngine.isOnShoppingList(
+                                name: suggestion.name, unit: suggestion.unit, in: kitchenStore.shoppingItems
+                            ) {
+                            Text("已在清单")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("加入清单") {
+                                kitchenStore.addShopping(
+                                    name: suggestion.name,
+                                    quantity: suggestion.suggestedQuantity ?? 1,
+                                    unit: suggestion.unit ?? "适量",
+                                    source: "补货建议"
+                                )
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
             }
