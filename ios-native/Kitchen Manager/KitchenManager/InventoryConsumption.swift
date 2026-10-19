@@ -45,6 +45,10 @@ struct InventoryConsumptionDraft: Identifiable, Hashable {
     var isSelected: Bool
     var warning: String?
     var sourceRecipeNames: [String]
+    /// Stock that matched by name but whose unit cannot be converted to the
+    /// recipe's, in the stock's own unit (for example "1 份"). Non-nil means
+    /// this row deducts nothing.
+    var unconvertibleStockText: String? = nil
 }
 
 // MARK: - Planner
@@ -105,6 +109,9 @@ struct InventoryConsumptionPlanner {
             if !matched.isEmpty {
                 draft.matchedInventoryID = matched.first?.id
                 draft.currentQuantity = Self.availableQuantity(for: draft, items: matched)
+                if draft.currentQuantity == nil, draft.requiredUnit != nil {
+                    draft.unconvertibleStockText = Self.stockText(matched)
+                }
             }
 
             if draft.requiredQuantity == nil {
@@ -117,6 +124,15 @@ struct InventoryConsumptionPlanner {
                 let notFound = "库存中没有找到「\(draft.ingredientName)」"
                 draft.warning = draft.warning.map { "\($0)；\(notFound)" } ?? notFound
                 draft.consumedQuantity = nil
+            } else if let stock = draft.unconvertibleStockText {
+                // A count of 个 says nothing about how much of 1 份 it is. The
+                // row used to show 库存 - / 使用量 0 / 剩 0 and deduct nothing
+                // without saying so; it now says so and stays out of the deduction.
+                let mismatch = "库存是 \(stock)，和菜谱的单位不同，无法换算，未扣减；需要时请在库存中手动调整"
+                draft.warning = draft.warning.map { "\($0)；\(mismatch)" } ?? mismatch
+                draft.consumedQuantity = nil
+                draft.resultingQuantity = nil
+                draft.isSelected = false
             } else {
                 let target = draft.requiredQuantity ?? 0
                 let available = draft.currentQuantity ?? 0
@@ -146,6 +162,21 @@ struct InventoryConsumptionPlanner {
         inventory
             .filter { RecipeStockMatch.item($0, matches: draft.ingredientName) }
             .sorted { ($0.remainingDays ?? 9999) < ($1.remainingDays ?? 9999) }
+    }
+
+    /// "1 份" or "1 份、200 克": each unit the matched stock is held in, summed.
+    private static func stockText(_ items: [InventoryItem]) -> String {
+        var units: [String] = []
+        var totals: [String: Double] = [:]
+        for item in items {
+            if totals[item.unit] == nil { units.append(item.unit) }
+            totals[item.unit, default: 0] += item.quantity
+        }
+        return units.map { unit in
+            let amount = (totals[unit] ?? 0).formatted(.number.precision(.fractionLength(0...2)))
+            return unit.isEmpty ? amount : "\(amount) \(unit)"
+        }
+        .joined(separator: "、")
     }
 
     private static func availableQuantity(for draft: InventoryConsumptionDraft, items: [InventoryItem]) -> Double? {
@@ -815,8 +846,23 @@ struct CookConsumptionConfirmationView: View {
                     }
                 }
             }
+            // Nothing to deduct in a unit the stock is not held in.
+            .disabled(draft.wrappedValue.unconvertibleStockText != nil)
 
-            if draft.wrappedValue.matchedInventoryID != nil {
+            if let stock = draft.wrappedValue.unconvertibleStockText {
+                HStack {
+                    Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
+                    Spacer()
+                    Text("库存 \(stock)")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Label("单位不同，未扣减", systemImage: "minus.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("consumption.\(draft.wrappedValue.id).notDeducted")
+            } else if draft.wrappedValue.matchedInventoryID != nil {
                 HStack {
                     Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
                     Spacer()
