@@ -307,7 +307,7 @@ struct HomeView: View {
             if let recipe = recipeStore.recipe(id: plan.recipeID) {
                 RecipeDetailView(recipe: recipe, plan: plan)
             } else {
-                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
+                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text(MealPlanItem.missingRecipeExplanation))
             }
         }
         .navigationDestination(item: $selectedRecipe) { recipe in
@@ -595,10 +595,16 @@ struct HomeView: View {
     }
 
     private func addRecommendationToPlan(_ recipe: Recipe) {
-        let alreadyAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
-        kitchenStore.addPlan(recipe: recipe)
-        UINotificationFeedbackGenerator().notificationOccurred(alreadyAdded ? .warning : .success)
-        showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
+        let outcome = HomeRecommendationPlanning.addToToday(
+            recipe,
+            recipeStore: recipeStore,
+            kitchenStore: kitchenStore
+        )
+        if let planned = outcome.plannedRecipe, planned.id != recipe.id {
+            recommendationStore.replaceRecommendationRecipe(id: recipe.id, with: planned)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(outcome.toastStyle == .success ? .success : .warning)
+        showToast(outcome.toastMessage, style: outcome.toastStyle)
     }
 
     /// Tonight's hero copy. Every number is counted from the plans on screen or
@@ -2551,12 +2557,18 @@ struct RecipeRecommendationBrowserView: View {
     }
 
     private func addRecommendationToPlan(_ recipe: Recipe) {
-        let alreadyAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
-        kitchenStore.addPlan(recipe: recipe)
-        UINotificationFeedbackGenerator().notificationOccurred(
-            alreadyAdded ? .warning : .success
+        let outcome = HomeRecommendationPlanning.addToToday(
+            recipe,
+            recipeStore: recipeStore,
+            kitchenStore: kitchenStore
         )
-        showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
+        if let planned = outcome.plannedRecipe, planned.id != recipe.id {
+            recommendationStore.replaceRecommendationRecipe(id: recipe.id, with: planned)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(
+            outcome.toastStyle == .success ? .success : .warning
+        )
+        showToast(outcome.toastMessage, style: outcome.toastStyle)
     }
 
     private func showToast(_ message: String, style: AppFeedbackStyle = .success) {

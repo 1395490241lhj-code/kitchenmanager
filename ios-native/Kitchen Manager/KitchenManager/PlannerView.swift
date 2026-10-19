@@ -806,7 +806,7 @@ struct PlannerView: View {
                 ContentUnavailableView(
                     "菜谱暂不可用",
                     systemImage: "book.closed",
-                    description: Text("这份计划保留不变，可以稍后重试。")
+                    description: Text(MealPlanItem.missingRecipeExplanation)
                 )
             }
         } else {

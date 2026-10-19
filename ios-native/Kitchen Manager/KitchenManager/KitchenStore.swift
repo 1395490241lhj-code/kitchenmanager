@@ -600,6 +600,13 @@ nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
 }
 
 extension MealPlanItem {
+    /// Shown where a plan names a recipe the library cannot resolve. Retrying
+    /// never brings such a recipe back, so the copy says what the member can do
+    /// instead.
+    static let missingRecipeExplanation = "这道菜没有保存在菜谱库里，无法查看做法或开始烹饪。计划仍然保留，可以移出后重新添加。"
+}
+
+extension MealPlanItem {
     /// Normalizes an explicitly chosen Planner day to local noon.
     ///
     /// The Planner asks for a civil day; `date` stores an absolute instant.
