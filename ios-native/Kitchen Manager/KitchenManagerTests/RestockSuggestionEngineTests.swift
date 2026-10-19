@@ -306,4 +306,51 @@ final class RestockSuggestionEngineTests: XCTestCase {
         kitchenStore.addInventory(name: "番茄", quantity: 10, unit: "个", expiryDate: nil)
         XCTAssertTrue(plannedSuggestions().isEmpty, "the shortage maths is unchanged; there is simply no shortage")
     }
+
+    // MARK: - The meal being cooked is not a future need
+
+    func test_excludedPlan_producesNoScheduledSuggestion_otherPlansStillDo() {
+        let dish = savedRecipe(title: "番茄炒蛋", ingredients: ["番茄 2 个"])
+        let tonight = schedule(dish, inDays: 0)
+        schedule(savedRecipe(title: "番茄汤", ingredients: ["番茄 3 个"]), inDays: 1)
+
+        let suggestions = engine.generate(
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore,
+            excludingPlanIDs: [tonight.id]
+        ).filter { $0.source == .plannedMeals }
+
+        let tomato = suggestions.first { $0.name.contains("番茄") }
+        XCTAssertEqual(tomato?.suggestedQuantity ?? 0, 3, accuracy: 0.001, "only tomorrow's soup still needs buying")
+    }
+
+    /// Reproduces the post-cook sheet: the plan is consumed by the
+    /// confirmation and marked cooked only afterwards, so the suggestions are
+    /// computed while it still reads as pending.
+    func test_cookConfirmation_doesNotSuggestBuyingForTheMealJustCooked() throws {
+        let dish = savedRecipe(title: "番茄炒蛋", ingredients: ["番茄 2 个"])
+        let tonight = schedule(dish, inDays: 0)
+        kitchenStore.addInventory(name: "番茄", quantity: 3, unit: "个", expiryDate: nil)
+        let store = CookConsumptionStore()
+        store.buildDrafts(planIDs: [tonight.id], kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertTrue(store.confirm(
+            planIDs: [tonight.id],
+            recipeID: dish.id,
+            recipeName: dish.title,
+            kitchenStore: kitchenStore,
+            recipeStore: recipeStore
+        ))
+
+        XCTAssertEqual(try XCTUnwrap(kitchenStore.inventory.first).quantity, 1, accuracy: 0.001)
+        XCTAssertFalse(
+            store.restockSuggestions.contains { $0.source == .plannedMeals && $0.name.contains("番茄") },
+            "the dish just cooked must not ask for its own ingredients again"
+        )
+
+        // A later plan for the same dish is a real need and still shows.
+        schedule(dish, inDays: 1)
+        let later = engine.generate(kitchenStore: kitchenStore, recipeStore: recipeStore, excludingPlanIDs: [tonight.id])
+        XCTAssertTrue(later.contains { $0.source == .plannedMeals && $0.name.contains("番茄") })
+    }
 }

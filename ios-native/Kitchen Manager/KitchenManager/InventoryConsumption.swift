@@ -192,7 +192,8 @@ struct RestockSuggestionEngine {
     func generate(
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore,
-        justConsumed: [InventoryConsumptionRecordItem] = []
+        justConsumed: [InventoryConsumptionRecordItem] = [],
+        excludingPlanIDs: Set<UUID> = []
     ) -> [RestockSuggestion] {
         var suggestions: [String: RestockSuggestion] = [:]
 
@@ -224,7 +225,12 @@ struct RestockSuggestionEngine {
         // result screen has not been added to anything, so it must not change
         // what the kitchen says it needs to buy; that screen's own
         // 生成购物清单 is where a draft turns into shopping, explicitly.
+        //
+        // `excludingPlanIDs` are the meals this cook just consumed. They are
+        // marked cooked only after the confirmation returns, so without this
+        // the meal on the stove would ask to be bought again.
         let upcoming = PlannedMealHorizon.upcoming(plans: kitchenStore.plans)
+            .filter { !excludingPlanIDs.contains($0.id) }
         if !upcoming.isEmpty {
             let draft = ShoppingListGenerator().generate(
                 source: .plannedMeals(upcoming),
@@ -614,7 +620,8 @@ final class CookConsumptionStore: ObservableObject {
         restockSuggestions = restockEngine.generate(
             kitchenStore: kitchenStore,
             recipeStore: recipeStore,
-            justConsumed: record.items
+            justConsumed: record.items,
+            excludingPlanIDs: Set(planIDs)
         )
         didConfirm = true
         return true
