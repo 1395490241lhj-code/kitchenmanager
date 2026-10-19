@@ -358,6 +358,12 @@ final class HomeRecommendationStore: ObservableObject {
     private var lastCompletedSearchQuery = ""
     private var recommendationSessionDay: Date?
     private var hasLoadedRecommendationsForSession = false
+    /// True while the defaults on screen were computed from the built-in
+    /// samples because the library had not loaded yet. Those may be replaced
+    /// once, when the real library arrives, and only while the member has not
+    /// searched, asked for 换一批, removed a card or browsed them.
+    private var mayReplaceSampleDefaults = false
+    private static let sampleRecipeIDs = Set(Recipe.samples.map(\.id))
     private let currentDate: () -> Date
 
     init(currentDate: @escaping () -> Date = { Date() }) {
@@ -397,10 +403,15 @@ final class HomeRecommendationStore: ObservableObject {
         expiringIngredients: [String]
     ) {
         refreshRecommendationSessionIfNeeded()
+        let isSampleSource = Self.isSampleLibrary(recipes)
+        let replacesSampleDefaults = hasLoadedRecommendationsForSession
+            && mayReplaceSampleDefaults
+            && !isSampleSource
+            && currentRecommendationIndex == 0
         guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !isSearchingRecommendations,
               !isGeneratingRecommendations,
-              !hasLoadedRecommendationsForSession else {
+              !hasLoadedRecommendationsForSession || replacesSampleDefaults else {
             return
         }
         apply(
@@ -414,6 +425,13 @@ final class HomeRecommendationStore: ObservableObject {
         recommendationError = nil
         recommendationNotice = nil
         hasLoadedRecommendationsForSession = true
+        mayReplaceSampleDefaults = isSampleSource
+    }
+
+    /// The member opened a recommended recipe or the 更多推荐 page. What they
+    /// looked at stays put rather than being swapped when the library arrives.
+    func noteRecommendationsBrowsed() {
+        mayReplaceSampleDefaults = false
     }
 
     func searchRecommendations(
@@ -438,6 +456,7 @@ final class HomeRecommendationStore: ObservableObject {
         }
         guard query != lastCompletedSearchQuery || recommendedRecipes.isEmpty else { return }
 
+        mayReplaceSampleDefaults = false
         cancelCurrentRequest()
         let requestID = UUID()
         activeRequestID = requestID
@@ -497,6 +516,7 @@ final class HomeRecommendationStore: ObservableObject {
     ) async {
         refreshRecommendationSessionIfNeeded()
         guard !isGeneratingRecommendations else { return }
+        mayReplaceSampleDefaults = false
         cancelCurrentRequest()
         let requestID = UUID()
         activeRequestID = requestID
@@ -563,6 +583,7 @@ final class HomeRecommendationStore: ObservableObject {
     ) {
         refreshRecommendationSessionIfNeeded()
         cancelCurrentRequest()
+        mayReplaceSampleDefaults = false
         searchQuery = ""
         lastCompletedSearchQuery = ""
         recommendationError = nil
@@ -579,6 +600,7 @@ final class HomeRecommendationStore: ObservableObject {
     }
 
     func removeRecommendation(id: String) {
+        mayReplaceSampleDefaults = false
         recommendedRecipes.removeAll { $0.id == id }
         repairIndex()
     }
@@ -844,6 +866,10 @@ final class HomeRecommendationStore: ObservableObject {
         isGeneratingRecommendations = false
         requestTask = nil
         activeRequestID = nil
+    }
+
+    private static func isSampleLibrary(_ recipes: [Recipe]) -> Bool {
+        !recipes.isEmpty && recipes.allSatisfy { sampleRecipeIDs.contains($0.id) }
     }
 
     private static func normalizedQuery(_ query: String) -> String {

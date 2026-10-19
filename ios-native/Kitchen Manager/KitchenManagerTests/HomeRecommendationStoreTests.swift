@@ -339,4 +339,69 @@ final class HomeRecommendationStoreTests: XCTestCase {
         )
         XCTAssertFalse(store.isGeneratingRecommendations, "the request must release its busy state")
     }
+
+    // MARK: Samples → real library
+
+    /// Home computes defaults as soon as it appears. On a fresh install that is
+    /// before the online library arrives, so the first set comes from the two
+    /// built-in samples; the session flag then used to keep them all day.
+    func testSampleDefaultsAreReplacedOnceWhenTheRealLibraryArrives() {
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), Recipe.samples.map(\.id))
+
+        let library = [recipe("lib-a", title: "宫保鸡丁"), recipe("lib-b", title: "清炒时蔬")]
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["lib-a", "lib-b"])
+
+        // Once only: a later library change is the ordinary session rule again.
+        store.loadDefaultRecommendations(recipes: [recipe("lib-c", title: "红烧肉")] + library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["lib-a", "lib-b"])
+    }
+
+    func testSampleDefaultsStayAfterMemberAskedForANewBatch() async {
+        let generated = [RecipeRecommendation(recipe: recipe("ai-one", title: "AI 菜一"), reason: nil, source: .ai)]
+        let store = HomeRecommendationStore(aiService: StubAIRecommendationService(recommendations: generated))
+        store.loadDefaultRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        await store.generateNewRecommendations(inventory: [], expiringIngredients: [])
+
+        store.loadDefaultRecommendations(recipes: [recipe("lib-a", title: "宫保鸡丁")], inventory: [], expiringIngredients: [])
+
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["ai-one"])
+    }
+
+    func testSampleDefaultsStayAfterMemberBrowsedThem() {
+        let library = [recipe("lib-a", title: "宫保鸡丁")]
+
+        let opened = HomeRecommendationStore()
+        opened.loadDefaultRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        opened.noteRecommendationsBrowsed()
+        opened.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(opened.recommendedRecipes.map(\.id), Recipe.samples.map(\.id))
+
+        let swiped = HomeRecommendationStore()
+        swiped.loadDefaultRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        swiped.currentRecommendationIndex = 1
+        swiped.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(swiped.recommendedRecipes.map(\.id), Recipe.samples.map(\.id))
+        XCTAssertEqual(swiped.currentRecommendationIndex, 1)
+
+        let removed = HomeRecommendationStore()
+        removed.loadDefaultRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        removed.removeRecommendation(id: Recipe.samples[0].id)
+        removed.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(removed.recommendedRecipes.map(\.id), [Recipe.samples[1].id])
+    }
+
+    func testSampleDefaultsStayAfterMemberSearched() async {
+        let store = HomeRecommendationStore(aiService: StubAIRecommendationService(recommendations: []))
+        store.loadDefaultRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        store.searchQuery = "麻婆豆腐"
+        await store.searchRecommendations(recipes: Recipe.samples, inventory: [], expiringIngredients: [])
+        let searched = store.recommendedRecipes.map(\.id)
+
+        store.loadDefaultRecommendations(recipes: [recipe("lib-a", title: "宫保鸡丁")], inventory: [], expiringIngredients: [])
+
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), searched)
+    }
 }

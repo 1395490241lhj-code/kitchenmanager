@@ -207,7 +207,10 @@ struct HomeView: View {
                                 kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
                             },
                             onAddToToday: addRecommendationToPlan,
-                            onViewRecipe: { selectedRecipe = $0 },
+                            onViewRecipe: {
+                                recommendationStore.noteRecommendationsBrowsed()
+                                selectedRecipe = $0
+                            },
                             onRegenerate: regenerateHomeRecommendations
                         )
                     }
@@ -709,7 +712,10 @@ struct HomeView: View {
                         kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
                     },
                     onAddToToday: addRecommendationToPlan,
-                    onViewRecipe: { selectedRecipe = $0 },
+                    onViewRecipe: {
+                        recommendationStore.noteRecommendationsBrowsed()
+                        selectedRecipe = $0
+                    },
                     onRegenerate: regenerateHomeRecommendations
                 )
 
@@ -2274,6 +2280,9 @@ struct RecipeRecommendationBrowserView: View {
         .background(KitchenTheme.canvas)
         .navigationTitle("推荐")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            recommendationStore.noteRecommendationsBrowsed()
+        }
         .task(id: recipeStore.recipes.count) {
             loadDefaultRecommendationsIfNeeded()
         }
