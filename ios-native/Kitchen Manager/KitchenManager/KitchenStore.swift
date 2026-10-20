@@ -397,6 +397,19 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         isStaple && stapleStatus == .low
     }
 
+    /// A status-tracked staple has no real count, but every reader of stock
+    /// (`isAvailable`: recipe matching, shopping, AI) still goes by `quantity`.
+    /// Keeps the two in step the way `cycleStapleStatus` does: 缺货 is 0,
+    /// 有货 / 快没了 is at least 1.
+    mutating func syncQuantityWithStapleStatus() {
+        guard isStaple, stapleTrackingMode == .status else { return }
+        if stapleAvailabilityStatus == .missing {
+            quantity = 0
+        } else if quantity <= 0 {
+            quantity = 1
+        }
+    }
+
     var stapleStatus: StapleStockStatus {
         if stapleTrackingMode == .status {
             switch stapleAvailabilityStatus {
@@ -2392,9 +2405,10 @@ final class KitchenStore: ObservableObject {
             inventory[index].stapleCategory = category?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
             inventory[index].stapleTrackingMode = trackingMode
             inventory[index].stapleAvailabilityStatus = availabilityStatus
+            inventory[index].syncQuantityWithStapleStatus()
             inventory[index].updatedAt = Date()
         } else {
-            inventory.append(InventoryItem(
+            var staple = InventoryItem(
                 name: cleanName,
                 quantity: max(0, quantity),
                 unit: cleanUnit,
@@ -2409,7 +2423,9 @@ final class KitchenStore: ObservableObject {
                 stapleCategory: category,
                 stapleTrackingMode: trackingMode,
                 stapleAvailabilityStatus: availabilityStatus
-            ))
+            )
+            staple.syncQuantityWithStapleStatus()
+            inventory.append(staple)
         }
     }
 

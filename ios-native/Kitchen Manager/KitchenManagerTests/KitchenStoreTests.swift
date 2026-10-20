@@ -296,6 +296,59 @@ final class KitchenStoreTests: XCTestCase {
         XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .available)
     }
 
+    /// The 葱姜蒜盐油 presets switch the add sheet to status mode with the
+    /// quantity field hidden at 0: the shelf said 有货 while recipe matching,
+    /// shopping and AI (all `isAvailable`) said there was none.
+    func test_saveStaple_statusModeInStock_isAvailableEverywhere() throws {
+        for status in [StapleAvailabilityStatus.available, .low] {
+            store = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+            try store.saveStaple(
+                id: nil, name: "葱", quantity: 0, unit: "份",
+                minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+                note: nil, category: nil, trackingMode: .status, availabilityStatus: status
+            )
+            XCTAssertEqual(store.inventory[0].quantity, 1, "\(status)")
+            XCTAssertTrue(store.inventory[0].isAvailable, "\(status)")
+            XCTAssertTrue(RecipeStockMatch.isInStock("葱", inventory: store.inventory), "\(status)")
+        }
+    }
+
+    func test_saveStaple_statusModeMissing_isNotAvailable() throws {
+        store.addInventory(name: "盐", quantity: 2, unit: "袋", expiryDate: nil)
+        try store.saveStaple(
+            id: store.inventory[0].id, name: "盐", quantity: 2, unit: "袋",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .status, availabilityStatus: .missing
+        )
+        XCTAssertEqual(store.inventory[0].quantity, 0)
+        XCTAssertFalse(store.inventory[0].isAvailable)
+    }
+
+    func test_saveStaple_quantityModeKeepsTheTypedZero() throws {
+        try store.saveStaple(
+            id: nil, name: "鸡蛋", quantity: 0, unit: "个",
+            minimumQuantity: 6, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .quantity, availabilityStatus: .available
+        )
+        XCTAssertEqual(store.inventory[0].quantity, 0)
+    }
+
+    /// What the detail screen's 跟踪方式 / 当前状态 pickers apply on each change.
+    func test_detailSwitchToStatusMode_keepsQuantityInStep() throws {
+        try store.saveStaple(
+            id: nil, name: "姜", quantity: 0, unit: "块",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .quantity, availabilityStatus: .available
+        )
+        var item = store.inventory[0]
+        item.stapleTrackingMode = .status
+        item.syncQuantityWithStapleStatus()
+        XCTAssertEqual(item.quantity, 1)
+        item.stapleAvailabilityStatus = .missing
+        item.syncQuantityWithStapleStatus()
+        XCTAssertEqual(item.quantity, 0)
+    }
+
     func test_stockIn_leavesAQuantityModeStapleStatusFieldAlone() throws {
         try store.saveStaple(
             id: nil, name: "鸡蛋", quantity: 1, unit: "个",

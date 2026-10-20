@@ -443,14 +443,14 @@ struct InventoryItemDetailView: View {
                 }
                 if store.inventory[index].isStaple {
                     Section("常备货架") {
-                        Picker("跟踪方式", selection: binding(\.stapleTrackingMode, default: .quantity)) {
+                        Picker("跟踪方式", selection: stapleStatusBinding(\.stapleTrackingMode, default: .quantity)) {
                             ForEach(StapleTrackingMode.allCases) { Text($0.title).tag($0) }
                         }
                         if store.inventory[index].stapleTrackingMode == .quantity {
                             TextField("最低库存", value: binding(\.lowStockThreshold, default: nil), format: .number)
                                 .keyboardType(.decimalPad)
                         } else {
-                            Picker("当前状态", selection: binding(\.stapleAvailabilityStatus, default: .available)) {
+                            Picker("当前状态", selection: stapleStatusBinding(\.stapleAvailabilityStatus, default: .available)) {
                                 ForEach(StapleAvailabilityStatus.allCases) { Text($0.title).tag($0) }
                             }
                         }
@@ -480,6 +480,21 @@ struct InventoryItemDetailView: View {
         } message: {
             Text("删除库存与取消常备不同，此操作会移除该库存记录。")
         }
+    }
+
+    /// The tracking-mode and status pickers also keep `quantity` in step, in one
+    /// write, so 有货 on the shelf is never 0 to recipe matching and shopping.
+    private func stapleStatusBinding<Value>(_ keyPath: WritableKeyPath<InventoryItem, Value>, default defaultValue: Value) -> Binding<Value> {
+        Binding(
+            get: { store.inventory.first(where: { $0.id == itemID })?[keyPath: keyPath] ?? defaultValue },
+            set: { newValue in
+                guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
+                var item = store.inventory[idx]
+                item[keyPath: keyPath] = newValue
+                item.syncQuantityWithStapleStatus()
+                store.inventory[idx] = item
+            }
+        )
     }
 
     private func optionalText(_ value: Binding<String?>) -> Binding<String> {
