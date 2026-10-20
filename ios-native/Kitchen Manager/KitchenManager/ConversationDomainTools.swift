@@ -200,7 +200,7 @@ protocol AIConversationDomainTooling {
     /// Stronger than ordinary Undo: no action-created recipe may remain.
     func isCompletelyReversed(_ receipt: AIDomainMutationReceipt) -> Bool
 
-    func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt
+    func addRecipeToTonight(_ block: AIRecipeBlock, plannedServings: Int?, now: Date) throws -> AIDomainMutationReceipt
     func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt
     func replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange]) throws -> AIDomainMutationReceipt
     func addShoppingItems(_ items: [AIShoppingItemProposal]) throws -> AIDomainMutationReceipt
@@ -208,6 +208,11 @@ protocol AIConversationDomainTooling {
 }
 
 extension AIConversationDomainTooling {
+    /// No stated target: the recipe as written.
+    func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt {
+        try addRecipeToTonight(block, plannedServings: nil, now: now)
+    }
+
     func tonightPlanContext(now: Date) -> AITonightPlanContext {
         tonightPlanContext(now: now, calendar: calendar)
     }
@@ -409,14 +414,14 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
     ///
     /// The receipt names only ids this call created. A reused recipe is never in
     /// it — an Undo that deleted one would destroy a recipe the user already had.
-    func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt {
+    func addRecipeToTonight(_ block: AIRecipeBlock, plannedServings: Int?, now: Date) throws -> AIDomainMutationReceipt {
         let batch = try materialize([block])
         guard let recipe = batch.recipes.first else { throw AIDomainToolError.emptyRequest }
 
-        // Deliberately no `plannedServings`: nobody stated a target, and the
-        // recipe's own base yield is a different number. Guessing one here would
-        // feed a fabricated denominator into every quantity derived from it.
-        switch kitchenStore.addPlan(recipe: recipe, on: now, plannedServings: nil, calendar: calendar) {
+        // Only a target the member stated ("4 个人吃"); never the recipe's own
+        // base yield, which is a different number. Guessing one would feed a
+        // fabricated denominator into every quantity derived from it.
+        switch kitchenStore.addPlan(recipe: recipe, on: now, plannedServings: plannedServings, calendar: calendar) {
         case .saved(let plan):
             return .tonightPlan(plan: plan, createdRecipeIDs: batch.createdRecipeIDs)
         case .persistenceFailed, .notFound:

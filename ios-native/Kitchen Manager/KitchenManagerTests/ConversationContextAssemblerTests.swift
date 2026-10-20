@@ -39,7 +39,7 @@ final class ConversationContextAssemblerTests: XCTestCase {
                 peopleCount: 4, constraintNotes: lots ? Array(repeating: String(repeating: "\"\n长", count: 500), count: 50) : ["无辣"], notes: lots ? String(repeating: "长", count: 10000) : "家人", usesHomeInventory: true, dishes: [])
         }
         func resolveRecipe(query: String, recipeID: String?) -> Recipe? { XCTFail("No recipe preload"); return nil }
-        func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
+        func addRecipeToTonight(_ block: AIRecipeBlock, plannedServings: Int?, now: Date) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func addShoppingItems(_ items: [AIShoppingItemProposal]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
