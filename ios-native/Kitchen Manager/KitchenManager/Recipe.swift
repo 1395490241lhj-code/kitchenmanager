@@ -289,6 +289,16 @@ final class RecipeStore: ObservableObject {
         recipes.first { $0.id == id } ?? Recipe.samples.first { $0.id == id }
     }
 
+    /// The library's current version of a recipe a screen captured earlier:
+    /// the user's copy, else the shared one, else the captured value itself.
+    /// Same precedence as `recipes`, without building the merged list on
+    /// every read of a view body.
+    func currentVersion(of recipe: Recipe) -> Recipe {
+        userRecipes.first { $0.id == recipe.id }
+            ?? remoteRecipes.first { $0.id == recipe.id }
+            ?? recipe
+    }
+
     init(
         userDefaults: UserDefaults = .standard,
         userRecipePersistence: UserRecipePersistenceProtocol? = nil,

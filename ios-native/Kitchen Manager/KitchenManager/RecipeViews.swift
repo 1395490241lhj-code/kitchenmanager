@@ -380,7 +380,11 @@ private struct RecipeListRow: View {
 }
 
 struct RecipeDetailView: View {
-    let recipe: Recipe
+    /// The recipe as it was when this page was opened. Callers pass a value
+    /// they captured, so the page reads the library's current version through
+    /// `recipe` instead: an edit saved here must show here, and a second edit
+    /// must start from the first one rather than overwrite it.
+    let openedRecipe: Recipe
     /// The scheduled meal this detail was opened for, when it was opened from
     /// one. Was `todayPlan`, which only ever described where the callers
     /// happened to be: nothing here is today-specific, and the Planner opens
@@ -405,7 +409,7 @@ struct RecipeDetailView: View {
     @StateObject private var cookingSession: RecipeCookingSession
 
     init(recipe: Recipe, plan: MealPlanItem? = nil, specialPlanDish: SpecialPlanDishCookingContext? = nil) {
-        self.recipe = recipe
+        self.openedRecipe = recipe
         self.plan = plan
         self.specialPlanDish = specialPlanDish
         // Falls back to the recipe's own yield, not to 1: with no stated target
@@ -416,6 +420,10 @@ struct RecipeDetailView: View {
             baseServings: recipe.baseServings
         ))
     }
+
+    /// The library's current version of this recipe; the opened value only
+    /// while the library does not hold it.
+    private var recipe: Recipe { recipeStore.currentVersion(of: openedRecipe) }
 
     private var cookingSteps: [String] { recipe.steps.filter { !$0.hasPrefix("小贴士：") } }
     /// Core ingredients with nothing in stock — the same answer the library's
@@ -558,6 +566,11 @@ struct RecipeDetailView: View {
         // The session stays this screen's own: its serving stepper and
         // ingredient checklist are bound to the same object the cook runs on.
         .cookingFlow(request: $cookingRequest, session: cookingSession)
+        // An edit can change the base yield and the ingredient lines the
+        // checklist indexes, so the session follows the saved recipe.
+        .onChange(of: recipe) { _, updated in
+            cookingSession.configure(servings: cookingSession.servings, baseServings: updated.baseServings)
+        }
         .confirmationDialog(
             "这是今天计划里的那道吗？",
             isPresented: Binding(get: { todayPlanCandidate != nil }, set: { if !$0 { todayPlanCandidate = nil } }),
