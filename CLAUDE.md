@@ -9,3 +9,5 @@ Before editing:
 3. Inspect affected code, tests and current worktree state.
 
 Do not duplicate project facts or phase status here. Follow the authorization boundaries and final-report format in `AGENTS.md`.
+
+@AGENTS.md
