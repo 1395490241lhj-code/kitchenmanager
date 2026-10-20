@@ -162,13 +162,13 @@ final class PlannerMealEditUITests: XCTestCase {
         )
         XCTAssertEqual(app.staticTexts["planner.mealForm.cookedFooter"].label, "这道菜已完成，份量不再可改")
         XCTAssertFalse(app.switches["planner.mealForm.servingsToggle"].isEnabled)
-        let increment = app.buttons["planner.mealForm.servings-Increment"]
-        XCTAssertFalse(increment.isEnabled, "the + control must read as disabled: \(increment.debugDescription)")
-        // Behaviour as well as the trait: on iOS 26.5 CI the + button has read
-        // as enabled, and this tells a live control (product) from a trait
-        // that is only reported wrong (accessibility). The seed stores 2.
-        increment.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        XCTAssertTrue(app.staticTexts["2 人份"].exists, "tapping + on a completed meal must not change its count")
+        // The fixed count is plain text, not a disabled Stepper: on iOS 26.5 a
+        // disabled Stepper's + still read as enabled. The seed stores 2.
+        XCTAssertTrue(app.staticTexts["2 人份"].exists, "a completed meal shows its fixed count")
+        XCTAssertFalse(app.buttons["planner.mealForm.servings-Increment"].exists,
+                       "a completed meal offers no + control")
+        XCTAssertFalse(app.buttons["planner.mealForm.servings-Decrement"].exists,
+                       "a completed meal offers no − control")
         XCTAssertTrue(app.descendants(matching: .any)["planner.mealForm.date"].isEnabled,
                       "the date stays editable on a completed meal")
     }

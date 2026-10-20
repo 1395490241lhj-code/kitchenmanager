@@ -103,11 +103,19 @@ struct PlannerMealFormView: View {
                         .disabled(isServingsLocked)
                         .accessibilityIdentifier("planner.mealForm.servingsToggle")
                     if isServingsStated {
-                        Stepper(value: $servings, in: 1...12) {
+                        if isServingsLocked {
+                            // A completed meal's count is fixed, so it is plain
+                            // text rather than a disabled Stepper: on iOS 26 the
+                            // disabled Stepper's + still reads as enabled to
+                            // VoiceOver, inviting a tap it would refuse.
                             Text("\(servings) 人份")
+                                .accessibilityIdentifier("planner.mealForm.servings")
+                        } else {
+                            Stepper(value: $servings, in: 1...12) {
+                                Text("\(servings) 人份")
+                            }
+                            .accessibilityIdentifier("planner.mealForm.servings")
                         }
-                        .disabled(isServingsLocked)
-                        .accessibilityIdentifier("planner.mealForm.servings")
                     }
                 } footer: {
                     // An unstated target is a real state, not a missing one: it
