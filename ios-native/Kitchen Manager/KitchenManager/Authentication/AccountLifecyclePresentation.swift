@@ -784,7 +784,10 @@ struct AccountLifecycleFixtureTransport: SyncTransport {
     func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("UITEST_MERGE_LOADING") {
-            try await Task.sleep(for: .seconds(2))
+            // Hold the read open for the life of the test. A 2s window was
+            // shorter than a CI runner's tap-to-first-query latency (~2.4s), so
+            // the tests met the offline error this fixture falls through to.
+            try await Task.sleep(for: .seconds(600))
         }
         if arguments.contains("UITEST_MERGE_UNAUTHORIZED") {
             throw SyncError.unauthorized
