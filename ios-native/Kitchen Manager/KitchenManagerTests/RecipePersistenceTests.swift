@@ -93,14 +93,26 @@ final class RecipePersistenceTests: XCTestCase {
         XCTAssertEqual(Set(migrated.userRecipes.map(\.id)), ["same", "legacy"])
     }
 
-    func testCompletedMarkerWithEmptyTablesSelfHealsFromLegacy() throws {
+    /// PERSISTENCE_LIFECYCLE-4: one-shot. After a verified migration, deleting
+    /// the last own recipe or un-favouriting everything stays that way.
+    func testCompletedMarkerWithEmptyTablesDoesNotReseedFromLegacy() throws {
         let defaults = defaults(); let bundle = KitchenPersistenceFactory.isolatedInMemory()
         defaults.set(try JSONEncoder().encode([recipe("one")]), forKey: RecipeStoreMigration.legacyRecipesKey)
         defaults.set(["one"], forKey: RecipeStoreMigration.legacyFavoritesKey)
         defaults.set(true, forKey: RecipeStoreMigration.completionKey)
         let migrated = store(defaults, bundle)
-        XCTAssertEqual(migrated.userRecipes.map(\.id), ["one"])
-        XCTAssertEqual(migrated.favoriteRecipeIDs, ["one"])
+        XCTAssertTrue(migrated.userRecipes.isEmpty)
+        XCTAssertTrue(migrated.favoriteRecipeIDs.isEmpty)
+    }
+
+    func testDeletingTheLastMigratedRecipeSurvivesARelaunch() throws {
+        let defaults = defaults(); let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        defaults.set(try JSONEncoder().encode([recipe("one")]), forKey: RecipeStoreMigration.legacyRecipesKey)
+        let upgraded = store(defaults, bundle)
+        XCTAssertEqual(upgraded.userRecipes.map(\.id), ["one"], "the first launch still migrates")
+        try upgraded.deleteUserRecipe(id: "one")
+
+        XCTAssertTrue(store(defaults, bundle).userRecipes.isEmpty)
     }
 
     func testClearDeletesSwiftDataAndLegacySoDataDoesNotResurrect() throws {
