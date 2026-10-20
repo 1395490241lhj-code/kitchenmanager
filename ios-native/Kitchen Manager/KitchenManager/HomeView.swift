@@ -598,14 +598,16 @@ struct HomeView: View {
     }
 
     /// True when the pending 买菜清单 already holds everything today's meals
-    /// still need. Read through the same generator the 还缺 row opens, so the
-    /// row and the screen behind it cannot disagree.
+    /// still need. Read through the same generator the 还缺 row opens; this is
+    /// all of today's meals at once, so it may subtract the pending list, while
+    /// the screen behind the row only marks each listed item.
     private var isTodayShortfallAlreadyListed: Bool {
         let draft = ShoppingListGenerator().generate(
             source: .todayPlans(kitchenStore.todayPlans),
             inventory: kitchenStore.inventory,
             existingShoppingItems: kitchenStore.shoppingItems,
-            recipeStore: recipeStore
+            recipeStore: recipeStore,
+            pendingList: .subtract
         )
         return draft.missingItems.isEmpty && !draft.alreadyListedItems.isEmpty
     }

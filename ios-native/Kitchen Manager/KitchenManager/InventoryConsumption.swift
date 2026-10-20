@@ -295,7 +295,8 @@ struct RestockSuggestionEngine {
                 source: .plannedMeals(upcoming),
                 inventory: kitchenStore.inventory,
                 existingShoppingItems: kitchenStore.shoppingItems,
-                recipeStore: recipeStore
+                recipeStore: recipeStore,
+                pendingList: .subtract
             )
             for item in draft.missingItems {
                 let key = IngredientNormalizer.matchKey(item.displayName)

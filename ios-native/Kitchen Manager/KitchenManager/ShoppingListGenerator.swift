@@ -341,8 +341,7 @@ struct ShoppingGenerationDraft {
     var recipeCount: Int
     var warnings: [String]
     /// Still missing from the kitchen, but the pending 买菜清单 already holds
-    /// enough of it. Kept out of `missingItems` so adding the draft again
-    /// cannot buy the same thing twice.
+    /// enough of it. Only filled by `PendingListHandling.subtract`.
     var alreadyListedItems: [IngredientRequirement] = []
 }
 
@@ -397,12 +396,22 @@ struct PlannedRecipeUsage {
 // its own merge logic.
 
 struct ShoppingListGenerator {
+    /// How the pending 买菜清单 is read. A list row does not record which dish
+    /// or plan added it, so only a caller weighing every scheduled meal at once
+    /// may treat it as covering the need. Generating for one dish only points
+    /// it out: dish A's eggs on the list say nothing about dish B's.
+    enum PendingListHandling {
+        case inform
+        case subtract
+    }
+
     func generate(
         source: ShoppingGenerationSource,
         inventory: [InventoryItem],
         existingShoppingItems: [KitchenShoppingItem],
         recipeStore: RecipeStore,
-        includeSeasonings: Bool = false
+        includeSeasonings: Bool = false,
+        pendingList: PendingListHandling = .inform
     ) -> ShoppingGenerationDraft {
         let (usages, sourceWarnings) = resolveRecipes(for: source, recipeStore: recipeStore)
         guard !usages.isEmpty else {
@@ -509,10 +518,11 @@ struct ShoppingListGenerator {
             }
         }
 
-        // What the pending list already holds is not bought again. Adding a
-        // meal's ingredients twice used to merge the full amount in twice.
-        // Only quantities in the same or a convertible unit are subtracted —
-        // 1 份 says nothing about how many 个 are already on the list.
+        // What the pending list already holds. With `.subtract` it is not
+        // bought again; with `.inform` the row keeps its full amount and stays
+        // selected, and only says what is listed. Only quantities in the same
+        // or a convertible unit count — 1 份 says nothing about how many 个
+        // are already on the list.
         var stillMissing: [IngredientRequirement] = []
         var alreadyListed: [IngredientRequirement] = []
         for var item in missing {
@@ -525,7 +535,9 @@ struct ShoppingListGenerator {
             }
             let pending = item.unit.flatMap { Self.pendingQuantity(pendingItems, in: $0) }
             let note: String
-            if let need = item.missingQuantity, let pending, pending > 0, let unit = item.unit {
+            if pendingList == .inform, let pending, pending > 0, let unit = item.unit {
+                note = "买菜清单中已有「\(item.displayName) \(pending.formatted()) \(unit)」；如果已为这道菜加过，可取消勾选"
+            } else if pendingList == .subtract, let need = item.missingQuantity, let pending, pending > 0, let unit = item.unit {
                 let listed = "\(item.displayName) \(pending.formatted()) \(unit)"
                 let remaining = need - pending
                 if remaining <= 0 {
