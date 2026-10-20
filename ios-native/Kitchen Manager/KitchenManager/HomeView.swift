@@ -127,7 +127,10 @@ struct HomeView: View {
 #endif
         return HomeDashboardModuleIssue.issues(
             inventoryNotice: kitchenStore.inventoryNotice,
-            shoppingNotice: kitchenStore.shoppingNotice
+            shoppingNotice: kitchenStore.shoppingNotice,
+            planNotice: kitchenStore.planNotice,
+            weeklyPlanNotice: kitchenStore.weeklyPlanNotice,
+            specialPlanNotice: kitchenStore.specialPlanNotice
         )
     }
 
@@ -250,6 +253,7 @@ struct HomeView: View {
                                 switch issue {
                                 case .inventory: navigationStore.showInventory(.all)
                                 case .shopping: navigationStore.showShopping()
+                                case .plans, .weeklyPlan, .specialPlans: navigationStore.showPlanner()
                                 }
                             }
                         )
@@ -1963,7 +1967,7 @@ private struct HomeModuleIssues: View {
         Text(issue.title)
             .font(.footnote)
             .foregroundStyle(.primary)
-            .accessibilityIdentifier(issue == .inventory ? "home.issue.inventory" : "home.issue.shopping")
+            .accessibilityIdentifier(issue.accessibilityIdentifier)
     }
 
     private func issueAction(_ issue: HomeDashboardModuleIssue) -> some View {

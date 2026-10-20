@@ -318,11 +318,27 @@ struct HomeDashboardHeaderModel: Equatable {
 enum HomeDashboardModuleIssue: Equatable {
     case inventory
     case shopping
+    case plans
+    case weeklyPlan
+    case specialPlans
 
-    static func issues(inventoryNotice: String?, shoppingNotice: String?) -> [Self] {
+    /// Inventory and shopping notices also carry non-failure copy, so they
+    /// count only when they say 失败. The plan, weekly-menu and special-plan
+    /// notices are set only when a read or a save went wrong — they used to be
+    /// set and never shown, so a failed save looked like a saved one.
+    static func issues(
+        inventoryNotice: String?,
+        shoppingNotice: String?,
+        planNotice: String? = nil,
+        weeklyPlanNotice: String? = nil,
+        specialPlanNotice: String? = nil
+    ) -> [Self] {
         var issues: [Self] = []
         if inventoryNotice?.contains("失败") == true { issues.append(.inventory) }
         if shoppingNotice?.contains("失败") == true { issues.append(.shopping) }
+        if planNotice != nil { issues.append(.plans) }
+        if weeklyPlanNotice != nil { issues.append(.weeklyPlan) }
+        if specialPlanNotice != nil { issues.append(.specialPlans) }
         return issues
     }
 
@@ -330,6 +346,9 @@ enum HomeDashboardModuleIssue: Equatable {
         switch self {
         case .inventory: "库存暂未完全保存"
         case .shopping: "购物清单暂未完全保存"
+        case .plans: "用餐计划暂未完全保存"
+        case .weeklyPlan: "每周菜单暂未完全保存"
+        case .specialPlans: "特殊计划暂时无法读取或保存"
         }
     }
 
@@ -337,6 +356,17 @@ enum HomeDashboardModuleIssue: Equatable {
         switch self {
         case .inventory: "查看食材"
         case .shopping: "查看清单"
+        case .plans, .weeklyPlan, .specialPlans: "查看计划"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .inventory: "home.issue.inventory"
+        case .shopping: "home.issue.shopping"
+        case .plans: "home.issue.plans"
+        case .weeklyPlan: "home.issue.weeklyPlan"
+        case .specialPlans: "home.issue.specialPlans"
         }
     }
 }

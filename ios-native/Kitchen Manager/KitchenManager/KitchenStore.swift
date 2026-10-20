@@ -971,7 +971,13 @@ final class KitchenStore: ObservableObject {
     @Published var preparedComponents: [PreparedComponent] = [] { didSet { persistPreparedComponentsIfNeeded() } }
     /// Event-level special plans (multi-dish events). A separate planning source
     /// from `plans`; `PlannerProjection` merges the two for the Planner surface.
-    @Published var specialPlans: [SpecialPlan] = [] { didSet { persistSpecialPlansIfNeeded() } }
+    @Published var specialPlans: [SpecialPlan] = [] { didSet { persistSpecialPlansIfNeeded(previous: oldValue) } }
+    /// The stored special plans could not be read at launch, so `specialPlans`
+    /// is an empty stand-in. The table is only ever written whole: writing it
+    /// back would delete every record nobody could read. Ordinary edits are
+    /// refused until a clear-all or a restore leaves the table in a known state.
+    private var specialPlanLoadFailed = false
+    static let specialPlansUnreadableWriteRefusedNotice = "特殊计划暂时无法读取，为保护原有记录，这次修改没有保存。"
     @Published var inventoryNotice: String?
     @Published var shoppingNotice: String?
     @Published var planNotice: String?
@@ -1176,6 +1182,7 @@ final class KitchenStore: ObservableObject {
             specialPlans = try self.specialPlanPersistence.loadPlans()
         } catch {
             specialPlans = []
+            specialPlanLoadFailed = true
             specialPlanNotice = "特殊计划暂时无法读取，原始数据仍保留在设备上。"
             #if DEBUG
             print("[SpecialPlanPersistence] load failed: \(error)")
@@ -1456,6 +1463,9 @@ final class KitchenStore: ObservableObject {
         planNotice = nil
         consumptionNotice = nil
         weeklyPlanNotice = nil
+        // The special-plan table was just emptied on purpose, so it is known again.
+        specialPlanLoadFailed = false
+        specialPlanNotice = nil
     }
 
     // MARK: - Special plans
@@ -1537,15 +1547,23 @@ final class KitchenStore: ObservableObject {
         return true
     }
 
-    private func persistSpecialPlansIfNeeded() {
+    private func persistSpecialPlansIfNeeded(previous: [SpecialPlan]) {
         guard !isLoading, !suppressSpecialPlanPersistence else { return }
+        guard !specialPlanLoadFailed else {
+            // Refused edits do not survive in memory either: the screen must
+            // not show a plan that the next launch will not have.
+            specialPlanNotice = Self.specialPlansUnreadableWriteRefusedNotice
+            suppressSpecialPlanPersistence = true
+            specialPlans = previous
+            suppressSpecialPlanPersistence = false
+            return
+        }
         do {
             try specialPlanPersistence.replacePlans(with: specialPlans)
         } catch {
-            // No view reads `specialPlanNotice` today. If one ever does, the
-            // Special Plan menu acceptance path would show this *and* its own
-            // `.planSaveFailed` message for one failure; that surface should
-            // defer to the caller's more specific copy.
+            // Home's module issues show `specialPlanNotice` as a passive row;
+            // the Special Plan menu acceptance path still shows its own, more
+            // specific `.planSaveFailed` message where the failure happened.
             specialPlanNotice = "特殊计划保存失败，请稍后重试。"
             #if DEBUG
             print("[SpecialPlanPersistence] save failed: \(error)")
@@ -1878,6 +1896,10 @@ final class KitchenStore: ObservableObject {
     /// `didSet`, where a failure can only become `specialPlanNotice` copy while
     /// the in-memory array keeps a change the disk never took.
     private func commitSpecialPlans(_ updated: [SpecialPlan]) -> Bool {
+        guard !specialPlanLoadFailed else {
+            specialPlanNotice = Self.specialPlansUnreadableWriteRefusedNotice
+            return false
+        }
         do {
             try specialPlanPersistence.replacePlans(with: updated)
         } catch {
@@ -2801,6 +2823,8 @@ final class KitchenStore: ObservableObject {
         suppressSpecialPlanPersistence = true
         specialPlans = payload.specialPlans
         suppressSpecialPlanPersistence = false
+        // What was just published is what is stored, so the table is readable.
+        specialPlanLoadFailed = false
     }
 
     func toggleShopping(_ item: KitchenShoppingItem) {
