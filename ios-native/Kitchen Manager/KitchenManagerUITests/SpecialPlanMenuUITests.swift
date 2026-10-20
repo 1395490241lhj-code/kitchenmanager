@@ -264,12 +264,22 @@ final class SpecialPlanMenuUITests: XCTestCase {
         func viewport() -> CGRect {
             let frame = app.collectionViews.firstMatch.frame.intersection(app.windows.firstMatch.frame)
             let top = max(frame.minY, app.navigationBars["朋友聚餐"].frame.maxY)
-            return CGRect(x: frame.minX, y: top, width: frame.width, height: frame.maxY - top)
+            // The floating tab bar overlays the list's last 83pt. A drag that
+            // started on it (y=794) left CI on the Planner root with this detail
+            // gone, so that band is not somewhere a row can be revealed or a
+            // drag can begin.
+            let tabBar = app.tabBars.firstMatch
+            let bottom = tabBar.exists ? min(frame.maxY, tabBar.frame.minY) : frame.maxY
+            return CGRect(x: frame.minX, y: top, width: frame.width, height: bottom - top)
         }
         func record(_ stage: String) {
+            // Diagnostic only: an absent row is reported by the loop's own
+            // guards, not by a snapshot failure from reading its frame.
             let row = app.collectionViews.firstMatch.cells.containing(.button, identifier: key).firstMatch
             let button = app.buttons[key]
-            trace.append("\(stage) id=\(key) cell=\(row.frame) button=\(button.frame) hittable=\(button.isHittable) viewport=\(viewport())")
+            let cell = row.exists ? "\(row.frame)" : "absent"
+            let control = button.exists ? "\(button.frame) hittable=\(button.isHittable)" : "absent"
+            trace.append("\(stage) id=\(key) cell=\(cell) button=\(control) viewport=\(viewport())")
         }
         record("initial")
         let initialFrame = app.buttons[key].frame
