@@ -857,6 +857,8 @@ struct ShoppingView: View {
     @State private var editingItem: KitchenShoppingItem?
     /// The last single-item removal, held only while its 撤销 toast is up.
     @State private var activeRemoval: ShoppingRemoval?
+    /// The rows the last 全部标记为已购买 ticked, held only while its 撤销 toast is up.
+    @State private var activeMarkAllIDs: [UUID]?
     @State private var removalToast: String?
     /// Identity of the current toast, so an older expiry never clears a newer one.
     @State private var removalToastToken: UUID?
@@ -1204,7 +1206,7 @@ struct ShoppingView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("全部标记为已购买", systemImage: "checkmark.circle") {
-                        store.markAllPendingShoppingPurchased()
+                        markAllPurchased()
                     }
                     .disabled(!bulkActions.canMarkAllPurchased)
 
@@ -1286,13 +1288,21 @@ struct ShoppingView: View {
             "清除 \(summary.purchasedCount) 项已购买项目？",
             isPresented: $isShowingClearPurchasedConfirm,
         ) {
+            // Ticked items have not been stocked in yet, so clearing them
+            // also drops them from what the kitchen knows it has. Say so, and
+            // offer the stock-in first.
+            Button("先全部入库") {
+                store.stockInCompletedShopping()
+                isPurchasedExpanded = false
+            }
+            .disabled(!bulkActions.canStockInPurchased)
             Button("清除已购买", role: .destructive) {
                 store.clearCompletedShopping()
                 isPurchasedExpanded = false
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("此操作只会删除已购买项目，待购买项目会保留。")
+            Text("这些已买的东西还没有入库，清除后不会记进库存。要记进库存，请先选「先全部入库」。待购买项目会保留。")
         }
         .alert(
             "买菜清单",
@@ -1325,6 +1335,7 @@ struct ShoppingView: View {
     /// tidying the list in the aisle slower than leaving it untidy.
     private func remove(_ item: KitchenShoppingItem) {
         guard let removal = store.removeShopping(id: item.id) else { return }
+        activeMarkAllIDs = nil
         activeRemoval = removal
         let token = UUID()
         removalToastToken = token
@@ -1332,13 +1343,28 @@ struct ShoppingView: View {
         scheduleRemovalToastExpiry(token: token)
     }
 
+    /// 全部标记为已购买 ticks the whole list in one tap, so it gets the same
+    /// 撤销 toast as a single removal instead of a confirmation.
+    private func markAllPurchased() {
+        let ticked = store.markAllPendingShoppingPurchased()
+        guard !ticked.isEmpty else { return }
+        activeRemoval = nil
+        activeMarkAllIDs = ticked
+        let token = UUID()
+        removalToastToken = token
+        withAnimation { removalToast = "已将 \(ticked.count) 项标记为已购买" }
+        scheduleRemovalToastExpiry(token: token)
+    }
+
     private func undoRemoval() {
         if let activeRemoval { store.restoreShopping(activeRemoval) }
+        if let activeMarkAllIDs { store.unmarkShoppingPurchased(activeMarkAllIDs) }
         dismissRemovalToast()
     }
 
     private func dismissRemovalToast() {
         activeRemoval = nil
+        activeMarkAllIDs = nil
         removalToastToken = nil
         withAnimation { removalToast = nil }
     }

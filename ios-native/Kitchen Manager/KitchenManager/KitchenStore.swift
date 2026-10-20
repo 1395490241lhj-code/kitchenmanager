@@ -2884,11 +2884,29 @@ final class KitchenStore: ObservableObject {
         shoppingItems.removeAll { $0.isDone }
     }
 
-    func markAllPendingShoppingPurchased() {
-        guard shoppingItems.contains(where: { !$0.isDone }) else { return }
+    /// Ticks every pending item and returns the ids it ticked, which is what
+    /// `unmarkShoppingPurchased(_:)` needs to undo exactly this tap.
+    @discardableResult
+    func markAllPendingShoppingPurchased() -> [UUID] {
+        let pendingIDs = shoppingItems.filter { !$0.isDone }.map(\.id)
+        guard !pendingIDs.isEmpty else { return [] }
         var updated = shoppingItems
         for index in updated.indices where !updated[index].isDone {
             updated[index].isDone = true
+        }
+        shoppingItems = updated
+        return pendingIDs
+    }
+
+    /// Undo for `markAllPendingShoppingPurchased()`: the rows it ticked that
+    /// are still ticked go back to pending. Rows already stocked in or deleted
+    /// since are gone and stay gone; rows ticked before the tap are untouched.
+    func unmarkShoppingPurchased(_ ids: [UUID]) {
+        let targets = Set(ids)
+        guard shoppingItems.contains(where: { targets.contains($0.id) && $0.isDone }) else { return }
+        var updated = shoppingItems
+        for index in updated.indices where targets.contains(updated[index].id) {
+            updated[index].isDone = false
         }
         shoppingItems = updated
     }
