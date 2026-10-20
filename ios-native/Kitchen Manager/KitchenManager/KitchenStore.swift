@@ -2093,8 +2093,17 @@ final class KitchenStore: ObservableObject {
             for index in matchingIndices {
                 guard remaining > 0 else { break }
                 let item = updatedInventory[index]
-                let convertedAvailable = draft.requiredUnit
-                    .flatMap { UnitConverter.convert(item.quantity, from: item.unit, to: $0) } ?? item.quantity
+                // Same rule the confirmation sheet sums stock by: a batch whose
+                // unit cannot be converted to the recipe's (1 盒 vs 个, 份 vs 克)
+                // was never counted for this line, so it is left untouched rather
+                // than deducted as if the numbers shared a unit.
+                let convertedAvailable: Double
+                if let requiredUnit = draft.requiredUnit {
+                    guard let converted = UnitConverter.convert(item.quantity, from: item.unit, to: requiredUnit) else { continue }
+                    convertedAvailable = converted
+                } else {
+                    convertedAvailable = item.quantity
+                }
                 guard convertedAvailable > 0 else { continue }
 
                 let consumeFromThisBatch = min(remaining, convertedAvailable)

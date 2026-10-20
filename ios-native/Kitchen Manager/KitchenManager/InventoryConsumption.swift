@@ -113,6 +113,9 @@ struct InventoryConsumptionPlanner {
                     draft.unconvertibleStockText = Self.stockText(matched)
                 }
             }
+            let untouchedBatches = draft.currentQuantity == nil ? [] : draft.requiredUnit.map { unit in
+                matched.filter { UnitConverter.convert($0.quantity, from: $0.unit, to: unit) == nil }
+            } ?? []
 
             if draft.requiredQuantity == nil {
                 draft.warning = "用量不明确，请确认使用量"
@@ -139,6 +142,12 @@ struct InventoryConsumptionPlanner {
                 let consumed = max(0, min(target, available))
                 draft.consumedQuantity = draft.requiredQuantity == nil ? nil : consumed
                 draft.resultingQuantity = max(0, available - consumed)
+                if !untouchedBatches.isEmpty {
+                    // The deduction skips these batches too; say so instead of
+                    // letting 库存 silently exclude a box the user can see.
+                    let note = "另有 \(Self.stockText(untouchedBatches)) 单位不同，无法换算，不会扣减"
+                    draft.warning = draft.warning.map { "\($0)；\(note)" } ?? note
+                }
             }
 
             merged[key] = draft

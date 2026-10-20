@@ -170,6 +170,49 @@ final class InventoryConsumptionPlannerTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(kitchenStore.consumptionRecords.first).items.map(\.ingredientName), ["鸡蛋"])
     }
 
+    /// One convertible batch and one that is not: the box expires first, so
+    /// FEFO used to reach it first and zero it as if "1 盒" were "1 个".
+    func test_mixedBatches_onlyTheConvertibleBatchIsDeducted() throws {
+        let kitchenStore = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dish = recipe(title: "番茄炒蛋", ingredients: ["鸡蛋 2个"])
+        let soon = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let later = Calendar.current.date(byAdding: .day, value: 10, to: Date())!
+        kitchenStore.addInventory(name: "鸡蛋", quantity: 1, unit: "盒", expiryDate: soon)
+        kitchenStore.addInventory(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: later)
+        let store = CookConsumptionStore()
+        store.buildDrafts(planIDs: [], recipe: dish, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        let draft = try XCTUnwrap(store.drafts.first)
+        XCTAssertEqual(draft.currentQuantity, 6, "the box was never counted as 个")
+        XCTAssertTrue(draft.warning?.contains("另有 1 盒") ?? false, "the sheet must say the box is left alone")
+
+        XCTAssertTrue(store.confirm(planIDs: [], recipeID: dish.id, recipeName: dish.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "盒" }?.quantity, 1, "一整盒鸡蛋不能被当成 1 个扣掉")
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "个" }?.quantity, 4)
+        let record = try XCTUnwrap(kitchenStore.consumptionRecords.first)
+        XCTAssertEqual(record.items.map(\.unit), ["个"])
+    }
+
+    func test_mixedBatches_weightLineNeverDeductsAPortionBatch() {
+        let kitchenStore = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        // The 份 batch expires first, so FEFO reaches it before the 克 batch.
+        kitchenStore.addInventory(name: "猪肉", quantity: 1, unit: "份", expiryDate: Date().addingTimeInterval(86_400))
+        kitchenStore.addInventory(name: "猪肉", quantity: 500, unit: "克", expiryDate: Date().addingTimeInterval(86_400 * 5))
+        let draft = InventoryConsumptionDraft(
+            id: "猪肉|克", ingredientName: "猪肉", normalizedName: "猪肉",
+            requiredQuantity: 200, requiredUnit: "克", matchedInventoryID: nil,
+            currentQuantity: 500, consumedQuantity: 200, resultingQuantity: 300,
+            isSelected: true, warning: nil, sourceRecipeNames: ["菜"]
+        )
+
+        kitchenStore.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "菜")
+
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "份" }?.quantity, 1)
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "克" }?.quantity, 300)
+    }
+
     func test_mixedStockUnits_areListedPerUnit() {
         let drafts = planner.plan(
             for: [input(recipe(title: "菜", ingredients: ["番茄 2个"]))],
