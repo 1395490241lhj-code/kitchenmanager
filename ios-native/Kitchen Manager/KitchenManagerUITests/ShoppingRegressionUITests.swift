@@ -200,10 +200,17 @@ final class ShoppingRegressionUITests: XCTestCase {
             }
             let limit = viewport.height * 0.5
             let delta = max(-limit, min(limit, point.y - viewport.midY))
-            let startY = delta >= 0 ? viewport.maxY : viewport.minY
+            // Start on the Form itself, away from every field and the keyboard.
+            // At XXXL the drag used to begin at the viewport's lower edge in the
+            // middle column: inside 单位's own field, 8pt above the input view.
+            // On iOS 26.5 CI that drag left 单位 exactly where it was. Left of
+            // the field column and centred on the viewport, the press can only
+            // land on the scroll view.
+            let x = (viewport.minX + frame.minX) / 2
+            let startY = viewport.midY + delta / 2
             let origin = app.coordinate(withNormalizedOffset: .zero)
-            origin.withOffset(CGVector(dx: viewport.midX, dy: startY))
-                .press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: viewport.midX, dy: startY - delta)),
+            origin.withOffset(CGVector(dx: x, dy: startY))
+                .press(forDuration: 0.1, thenDragTo: origin.withOffset(CGVector(dx: x, dy: startY - delta)),
                        withVelocity: .slow, thenHoldForDuration: 0.1)
         }
     }
