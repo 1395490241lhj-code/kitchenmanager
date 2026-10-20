@@ -1607,6 +1607,15 @@ final class KitchenStore: ObservableObject {
         if updated != plans { plans = updated }
     }
 
+    /// Meals and Special Plan dishes still to cook that name this recipe, so
+    /// deleting it can say what would be left unable to open it.
+    func uncookedPlanReferenceCount(recipeID: String) -> Int {
+        plans.count { !$0.isCooked && $0.recipeID == recipeID }
+            + specialPlans.reduce(0) { total, plan in
+                total + plan.dishes.count { !$0.isCooked && $0.recipeID == recipeID }
+            }
+    }
+
     func markPlanCooked(_ plan: MealPlanItem) {
         setPlanCooked(plan.id, isCooked: true)
     }

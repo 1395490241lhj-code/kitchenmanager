@@ -394,6 +394,7 @@ struct RecipeDetailView: View {
     /// to that dish rather than being a second, unplanned one.
     var specialPlanDish: SpecialPlanDishCookingContext? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var isShowingShoppingGeneration = false
@@ -590,11 +591,35 @@ struct RecipeDetailView: View {
         } message: { _ in
             Text("今天的用餐计划里有「\(recipe.title)」还没做。选“是”会把这次做饭记在那一餐上并标为已完成，库存只扣一次。")
         }
-        .alert(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
-            Button(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置" : "删除", role: .destructive) { do { try recipeStore.deleteUserRecipe(id: recipe.id) } catch { errorMessage = error.localizedDescription } }
+        .alert(isLibraryOverride ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
+            Button(isLibraryOverride ? "重置" : "删除", role: .destructive) { deleteOrReset() }
             Button("取消", role: .cancel) {}
+        } message: {
+            // Deleting leaves every meal that names this recipe unable to open
+            // it, start cooking or feed the shopping list. Say how many first.
+            let planned = kitchenStore.uncookedPlanReferenceCount(recipeID: recipe.id)
+            if !isLibraryOverride, planned > 0 {
+                Text("这道菜还在 \(planned) 顿没做的计划里。删除后，这些计划将无法查看做法、开始烹饪，也不会计入买菜清单。")
+            }
         }
         .alert("操作失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("好", role: .cancel) {} } message: { Text(errorMessage ?? "请稍后重试。") }
+    }
+
+    /// A user copy of a shared library recipe: removing it resets to the
+    /// shared version rather than deleting the recipe.
+    private var isLibraryOverride: Bool {
+        recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id })
+    }
+
+    private func deleteOrReset() {
+        let resets = isLibraryOverride
+        do {
+            try recipeStore.deleteUserRecipe(id: recipe.id)
+            // A deleted recipe has nothing left to show or add to a plan.
+            if !resets { dismiss() }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private var recipeHero: some View {
