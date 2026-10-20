@@ -3004,13 +3004,20 @@ final class KitchenStore: ObservableObject {
     }
 
     @discardableResult
-    func duplicateWeeklyPlanForNextWeek() -> WeeklyMealPlan? {
-        guard let weeklyPlan,
-              let nextStart = Calendar.current.date(byAdding: .day, value: 7, to: weeklyPlan.startDate) else {
+    /// Copies `source` (the menu on screen; the stored one when nil) to start
+    /// seven days later, but never before today: a copy of an old menu would
+    /// otherwise land on days that are already gone.
+    func duplicateWeeklyPlanForNextWeek(
+        from source: WeeklyMealPlan? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> WeeklyMealPlan? {
+        guard let original = source ?? weeklyPlan,
+              let shifted = calendar.date(byAdding: .day, value: 7, to: original.startDate) else {
             return nil
         }
-        var copy = weeklyPlan
-        copy.startDate = nextStart
+        var copy = original
+        copy.startDate = max(calendar.startOfDay(for: shifted), calendar.startOfDay(for: now))
         copy.createdAt = Date()
         // A copy is a new menu, so it has never been added to the meal plan. It
         // must not inherit the original's materialization receipt: those ids

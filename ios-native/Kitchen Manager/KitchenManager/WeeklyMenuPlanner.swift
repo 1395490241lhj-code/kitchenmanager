@@ -1127,13 +1127,17 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     }
 
     /// 重新生成 on the result page replaces the menu on screen, so it keeps
-    /// that menu's days.
+    /// that menu's days — never earlier than today. A menu already added to
+    /// the Planner, or one whose first day has passed, would otherwise be
+    /// regenerated onto days that are gone (the same rule as 生成菜单).
     @discardableResult
     func regeneratePlan(recipeStore: RecipeStore, kitchenStore: KitchenStore) async -> Bool {
         guard !isGenerating else { return false }
+        let start = Self.generationStartDate(previous: generatedPlan, preferredStart: generatedPlan?.startDate)
         return await run(
             excludedRecipeNames: Self.allRecipeNames(in: generatedPlan),
-            startDate: generatedPlan?.startDate ?? Self.generationStartDate(previous: nil, preferredStart: nil),
+            // The menu's own start value whenever its day is kept.
+            startDate: generatedPlan.map { Calendar.current.isDate($0.startDate, inSameDayAs: start) ? $0.startDate : start } ?? start,
             recipeStore: recipeStore,
             kitchenStore: kitchenStore
         )
@@ -2184,9 +2188,9 @@ struct WeeklyMenuResultView: View {
                     .disabled(store.generatedPlan == nil)
                     if kitchenStore.weeklyPlan != nil {
                         Button("复制到 7 天后", systemImage: "doc.on.doc") {
-                            if let copy = kitchenStore.duplicateWeeklyPlanForNextWeek() {
+                            if let copy = kitchenStore.duplicateWeeklyPlanForNextWeek(from: store.generatedPlan) {
                                 store.generatedPlan = copy
-                                showToast("已复制到 7 天后")
+                                showToast("已复制，从\(copy.startDate.formatted(.dateTime.month().day()))开始")
                             }
                         }
                         Button("删除这份菜单", systemImage: "trash", role: .destructive) {

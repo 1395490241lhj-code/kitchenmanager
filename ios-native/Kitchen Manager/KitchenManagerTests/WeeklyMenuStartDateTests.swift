@@ -112,6 +112,63 @@ final class WeeklyMenuStartDateTests: XCTestCase {
         XCTAssertEqual(kitchen.weeklyPlan, pending)
     }
 
+    // MARK: - PLANNING-5: 重新生成 / 复制到 7 天后 follow the same rule
+
+    func testRegeneratingAMenuAlreadyAddedOnPastDaysStartsToday() async throws {
+        let store = WeeklyMenuPlannerStore(generate: { _ in try Self.response() })
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipes = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        store.input.allowNewAIRecipes = true
+        store.generatedPlan = plan(startingIn: -12, materialized: true)
+
+        let regenerated = await store.regeneratePlan(recipeStore: recipes, kitchenStore: kitchen)
+        XCTAssertTrue(regenerated)
+        XCTAssertEqual(store.generatedPlan?.startDate, today)
+    }
+
+    func testRegeneratingAStaleDraftStartsToday() async throws {
+        let store = WeeklyMenuPlannerStore(generate: { _ in try Self.response() })
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipes = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        store.input.allowNewAIRecipes = true
+        store.generatedPlan = plan(startingIn: -3)
+
+        _ = await store.regeneratePlan(recipeStore: recipes, kitchenStore: kitchen)
+        XCTAssertEqual(store.generatedPlan?.startDate, today)
+    }
+
+    func testRegeneratingAFutureMenuKeepsItsDays() async throws {
+        let store = WeeklyMenuPlannerStore(generate: { _ in try Self.response() })
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipes = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        store.input.allowNewAIRecipes = true
+        store.generatedPlan = plan(startingIn: 4)
+
+        _ = await store.regeneratePlan(recipeStore: recipes, kitchenStore: kitchen)
+        XCTAssertEqual(store.generatedPlan?.startDate, day(4))
+    }
+
+    func testCopyingAnOldMenuNeverLandsInThePast() throws {
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let copy = try XCTUnwrap(kitchen.duplicateWeeklyPlanForNextWeek(from: plan(startingIn: -14, materialized: true), calendar: calendar))
+        XCTAssertEqual(copy.startDate, today)
+        XCTAssertNil(copy.materialization)
+    }
+
+    func testCopyingThisWeeksMenuStartsSevenDaysLater() throws {
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let copy = try XCTUnwrap(kitchen.duplicateWeeklyPlanForNextWeek(from: plan(startingIn: -1), calendar: calendar))
+        XCTAssertEqual(copy.startDate, day(6))
+    }
+
+    /// The copy is of the menu on screen, not whatever older menu is stored.
+    func testCopyingUsesTheMenuOnScreen() throws {
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        kitchen.saveWeeklyPlan(plan(startingIn: -20))
+        let copy = try XCTUnwrap(kitchen.duplicateWeeklyPlanForNextWeek(from: plan(startingIn: 2), calendar: calendar))
+        XCTAssertEqual(copy.startDate, day(9))
+    }
+
     private static func response() throws -> AIWeeklyMenuResponse {
         let days: [[String: Any]] = [
             ["dayIndex": 0,
