@@ -73,6 +73,45 @@ final class WeeklyMenuStartDateTests: XCTestCase {
         XCTAssertEqual(store.generatedPlan?.startDate, today, "重新生成 keeps the menu's own days")
     }
 
+    /// The generated menu is on disk as soon as it is on screen, so leaving
+    /// before 加入用餐计划 no longer loses it.
+    func testAGeneratedMenuIsKeptBeforeItIsAddedToThePlanner() async throws {
+        let store = WeeklyMenuPlannerStore(generate: { _ in try Self.response() })
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let kitchen = KitchenStore(userDefaults: defaults)
+        let recipes = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        store.input.allowNewAIRecipes = true
+
+        let generated = await store.generatePlan(recipeStore: recipes, kitchenStore: kitchen)
+        XCTAssertTrue(generated)
+        XCTAssertEqual(kitchen.weeklyPlan, store.generatedPlan)
+        XCTAssertNil(kitchen.weeklyPlan?.materialization, "kept as a draft, nothing added to the Planner")
+        XCTAssertTrue(kitchen.plans.isEmpty)
+
+        let reopened = WeeklyMenuPlannerStore(generate: { _ in try Self.response() })
+        reopened.loadSavedPlanIfNeeded(from: kitchen)
+        XCTAssertEqual(reopened.generatedPlan?.days.first?.meals.first?.recipes.first?.title, "番茄炒蛋")
+    }
+
+    /// A half-finished 加入用餐计划 keeps its receipt: a new menu must not be
+    /// written over the only record of which meals are still missing.
+    func testANewMenuNeverOverwritesAPendingMaterialization() async throws {
+        let store = WeeklyMenuPlannerStore(generate: { _ in try Self.response() })
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipes = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        var pending = plan(startingIn: 1)
+        pending.materialization = WeeklyMaterializationReceipt(
+            state: .pending, planIDs: [UUID()], recipeIDs: ["r"], planDates: [day(1)],
+            startedAt: Date(), completedAt: nil
+        )
+        XCTAssertTrue(kitchen.commitWeeklyPlan(pending))
+        store.input.allowNewAIRecipes = true
+
+        let generated = await store.generatePlan(recipeStore: recipes, kitchenStore: kitchen)
+        XCTAssertTrue(generated)
+        XCTAssertEqual(kitchen.weeklyPlan, pending)
+    }
+
     private static func response() throws -> AIWeeklyMenuResponse {
         let days: [[String: Any]] = [
             ["dayIndex": 0,

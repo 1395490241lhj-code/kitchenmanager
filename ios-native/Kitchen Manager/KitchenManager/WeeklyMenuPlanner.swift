@@ -1169,6 +1169,7 @@ final class WeeklyMenuPlannerStore: ObservableObject {
                 servings: input.servings,
                 startDate: startDate
             )
+            persistGeneratedDraft(kitchenStore: kitchenStore)
             installed = true
         } catch is CancellationError {
         } catch {
@@ -1185,6 +1186,17 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             generationTask = nil
         }
         return installed
+    }
+
+    /// A new menu used to live only here until 加入用餐计划, so leaving the
+    /// screen or the app lost it. It is kept through the same commit path a
+    /// materialization uses — except over a stored menu whose 加入用餐计划 is
+    /// still pending: that receipt is the only way to recover an interrupted
+    /// write, so it stays until that menu is finished or deleted.
+    private func persistGeneratedDraft(kitchenStore: KitchenStore) {
+        guard let generatedPlan,
+              kitchenStore.weeklyPlan?.materialization?.state != .pending else { return }
+        kitchenStore.commitWeeklyPlan(generatedPlan)
     }
 
     func cancelGeneration() {
