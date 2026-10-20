@@ -72,6 +72,32 @@ struct SampleFallbackNotice: View {
     }
 }
 
+/// 难度 and 烹饪时间 for the library. The built-in recipes state neither, so a
+/// strict match removed every one of them and the library looked as if it had
+/// no easy or quick dishes. A recipe that does not state the field is kept —
+/// the filter cannot judge it — and listed after the ones that match.
+enum RecipeLibraryFilter {
+    static func matches(difficulty: String?, selected: String?) -> Bool {
+        guard let selected, let difficulty else { return true }
+        return difficulty == selected
+    }
+
+    static func matches(cookingTime: Int?, maximum: Int?) -> Bool {
+        guard let maximum, let cookingTime else { return true }
+        return cookingTime <= maximum
+    }
+
+    /// Recipes that state the filtered fields first, the unlabelled after,
+    /// each group in its existing order.
+    static func labelledFirst(_ recipes: [Recipe], difficulty: String?, maximumTime: Int?) -> [Recipe] {
+        guard difficulty != nil || maximumTime != nil else { return recipes }
+        func isLabelled(_ recipe: Recipe) -> Bool {
+            (difficulty == nil || recipe.difficulty != nil) && (maximumTime == nil || recipe.cookingTime != nil)
+        }
+        return recipes.filter(isLabelled) + recipes.filter { !isLabelled($0) }
+    }
+}
+
 private enum RecipeAvailabilityFilter: String, CaseIterable, Identifiable {
     case all = "全部"
     case favorites = "收藏"
@@ -108,11 +134,14 @@ struct RecipeListView: View {
         if selectedTag != "全部标签" { values.append(selectedTag) }
         if selectedDifficulty != "全部难度" { values.append(selectedDifficulty) }
         if let maximumTime { values.append("\(maximumTime) 分钟内") }
+        // Say that recipes without the field are still listed, so the filter
+        // is not read as "every one of these is 简单 / quick".
+        if selectedDifficulty != "全部难度" || maximumTime != nil { values.append("含未标注") }
         return values.joined(separator: " · ")
     }
 
     private var recipes: [Recipe] {
-        sourceRecipes.filter { recipe in
+        let filtered = sourceRecipes.filter { recipe in
             let matchesSearch = searchText.isEmpty
                 || recipe.title.localizedCaseInsensitiveContains(searchText)
                 || recipe.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
@@ -128,10 +157,13 @@ struct RecipeListView: View {
             }
             return matchesSearch && matchesFilter
                 && (selectedTag == "全部标签" || recipe.tags.contains(selectedTag))
-                && (selectedDifficulty == "全部难度" || recipe.difficulty == selectedDifficulty)
-                && (maximumTime == nil || (recipe.cookingTime ?? .max) <= maximumTime!)
+                && RecipeLibraryFilter.matches(difficulty: recipe.difficulty, selected: difficultyFilter)
+                && RecipeLibraryFilter.matches(cookingTime: recipe.cookingTime, maximum: maximumTime)
         }
+        return RecipeLibraryFilter.labelledFirst(filtered, difficulty: difficultyFilter, maximumTime: maximumTime)
     }
+
+    private var difficultyFilter: String? { selectedDifficulty == "全部难度" ? nil : selectedDifficulty }
 
     var body: some View {
         List {
