@@ -42,6 +42,22 @@ struct CookingFlowRequest: Identifiable, Equatable {
     var initialServings: Int {
         plan?.plannedServings ?? recipe.baseServings ?? 1
     }
+
+    /// Today's uncooked meal of this exact recipe, for a cook started from a
+    /// page that was not opened for any plan. Cooking it as a direct recipe and
+    /// then ticking the meal deducted the same dish twice. This only finds the
+    /// candidate; the member is asked whether it is that meal. Matched by
+    /// recipe id, never by name.
+    static func todayPlanCandidate(
+        recipeID: String,
+        plans: [MealPlanItem],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> MealPlanItem? {
+        plans
+            .filter { !$0.isCooked && $0.recipeID == recipeID && calendar.isDate($0.date, inSameDayAs: now) }
+            .min { $0.date < $1.date }
+    }
 }
 
 private struct CookingFlowModifier: ViewModifier {

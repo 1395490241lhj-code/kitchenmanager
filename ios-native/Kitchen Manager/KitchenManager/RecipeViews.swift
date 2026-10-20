@@ -399,6 +399,8 @@ struct RecipeDetailView: View {
     /// cooking mode, the consumption confirmation and `markPlanCooked` — lives
     /// in `cookingFlow(request:session:)`, shared with Home.
     @State private var cookingRequest: CookingFlowRequest?
+    /// Today's uncooked meal of this recipe, while asking whether this cook is it.
+    @State private var todayPlanCandidate: MealPlanItem?
     @State private var errorMessage: String?
     @StateObject private var cookingSession: RecipeCookingSession
 
@@ -556,6 +558,25 @@ struct RecipeDetailView: View {
         // The session stays this screen's own: its serving stepper and
         // ingredient checklist are bound to the same object the cook runs on.
         .cookingFlow(request: $cookingRequest, session: cookingSession)
+        .confirmationDialog(
+            "这是今天计划里的那道吗？",
+            isPresented: Binding(get: { todayPlanCandidate != nil }, set: { if !$0 { todayPlanCandidate = nil } }),
+            titleVisibility: .visible,
+            presenting: todayPlanCandidate
+        ) { candidate in
+            Button("是，按今天的计划做") {
+                let request = CookingFlowRequest(recipe: recipe, plan: candidate)
+                // The same starting yield as opening the meal from the plan.
+                cookingSession.servings = request.initialServings
+                cookingRequest = request
+            }
+            Button("不是，单独做一次") {
+                cookingRequest = CookingFlowRequest(recipe: recipe, plan: nil)
+            }
+            Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text("今天的用餐计划里有「\(recipe.title)」还没做。选“是”会把这次做饭记在那一餐上并标为已完成，库存只扣一次。")
+        }
         .alert(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
             Button(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置" : "删除", role: .destructive) { do { try recipeStore.deleteUserRecipe(id: recipe.id) } catch { errorMessage = error.localizedDescription } }
             Button("取消", role: .cancel) {}
@@ -585,7 +606,12 @@ struct RecipeDetailView: View {
 
     private var startCookingAction: some View {
         Button {
-            cookingRequest = CookingFlowRequest(recipe: recipe, plan: plan, specialPlanDish: specialPlanDish)
+            if plan == nil, specialPlanDish == nil,
+               let candidate = CookingFlowRequest.todayPlanCandidate(recipeID: recipe.id, plans: kitchenStore.plans) {
+                todayPlanCandidate = candidate
+            } else {
+                cookingRequest = CookingFlowRequest(recipe: recipe, plan: plan, specialPlanDish: specialPlanDish)
+            }
         } label: {
             Label("开始烹饪", systemImage: "flame.fill")
                 .frame(maxWidth: .infinity)
