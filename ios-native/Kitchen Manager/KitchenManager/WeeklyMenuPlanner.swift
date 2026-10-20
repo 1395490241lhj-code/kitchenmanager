@@ -1666,25 +1666,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         markSaved(recipeID: recipe.id)
     }
 
-    func addShoppingItems(_ items: [WeeklyMealPlanShoppingItem], kitchenStore: KitchenStore) {
-        let additions = items.compactMap { item -> KitchenShoppingItem? in
-            let normalized = Self.normalizedName(item.name)
-            guard !normalized.isEmpty else { return nil }
-            guard !kitchenStore.availableInventory.contains(where: { Self.normalizedName($0.name) == normalized }) else {
-                return nil
-            }
-            let quantity = Double(item.quantityText ?? "") ?? 1
-            let unit = item.unit?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "适量"
-            return KitchenShoppingItem(
-                name: item.name,
-                quantity: quantity,
-                unit: unit,
-                source: "生成的菜单"
-            )
-        }
-        kitchenStore.addShoppingItems(additions)
-    }
-
     private func markSaved(recipeID: String) {
         guard var plan = generatedPlan else { return }
         for dayIndex in plan.days.indices {
@@ -1847,10 +1828,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             seasonings: recipe.seasonings ?? [],
             steps: recipe.steps.isEmpty ? ["暂未提供详细步骤。"] : recipe.steps
         )
-    }
-
-    private static func normalizedName(_ value: String) -> String {
-        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }
 
@@ -2624,11 +2601,14 @@ struct WeeklyMenuResultView: View {
                 store.removeShoppingItems(at: offsets)
             }
 
-            Button("加入买菜清单（\(plan.shoppingItems.count)）") {
-                store.addShoppingItems(plan.shoppingItems, kitchenStore: kitchenStore)
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                showToast("已加入买菜清单")
+            // The same review-then-add sheet as ⋯ → 生成购物清单, built from the
+            // menu's recipes by the deterministic generator. Adding the AI's
+            // own list here used to drop any food with some stock, read
+            // "1,500" as 1, and stack on every repeated tap.
+            Button("核对后加入买菜清单") {
+                isShowingShoppingGeneration = true
             }
+            .accessibilityIdentifier("weekly.result.shopping.review")
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.managementActionFill)
             .foregroundStyle(AppTheme.onManagementAction)
