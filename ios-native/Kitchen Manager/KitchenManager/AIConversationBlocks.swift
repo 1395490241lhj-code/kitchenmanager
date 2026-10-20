@@ -144,9 +144,10 @@ struct AIRecipeGroupView: View {
 /// model: the model's reason explains a choice, these rows say what the
 /// kitchen actually holds. Wording follows the rest of the app's 还缺.
 ///
-/// Presence only. The rule never compares quantities, so no row may imply
-/// there is enough: one egg on hand for a six-egg recipe still reads as in
-/// stock, and the all-present row says plainly that amounts were not checked.
+/// Presence only, over a recipe's main ingredients. The rule never compares
+/// quantities and never looks at seasonings, so no row may imply there is
+/// enough: one egg on hand for a six-egg recipe still reads as in stock, and
+/// the all-present row says plainly that amounts and seasonings were not checked.
 enum AIRecipeStockPresentation {
     enum Kind: Hashable {
         case inStock, missing, allPresent, expiring
@@ -161,8 +162,10 @@ enum AIRecipeStockPresentation {
         }
     }
 
-    static let allPresentText = "所需食材已在库 · 用量未核对"
-    static let allPresentSpoken = "所需食材已在库，用量未核对"
+    /// A no-break space glues the dot to 在库, so a wrap at accessibility
+    /// sizes never opens a line with a stray 「·」.
+    static let allPresentText = "主要食材在库\u{00A0}· 用量与调料未核对"
+    static let allPresentSpoken = "主要食材在库，用量与调料未核对"
 
     struct Line: Equatable {
         let kind: Kind

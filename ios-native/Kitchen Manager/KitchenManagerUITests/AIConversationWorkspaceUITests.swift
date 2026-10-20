@@ -1675,7 +1675,7 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         let ready = recipeCard(app, titled: "番茄炒蛋")
         XCTAssertTrue(ready.waitForExistence(timeout: 8))
         XCTAssertTrue(ready.label.contains("家里有番茄、鸡蛋"), ready.label)
-        XCTAssertTrue(ready.label.contains("所需食材已在库，用量未核对"), ready.label)
+        XCTAssertTrue(ready.label.contains("主要食材在库，用量与调料未核对"), ready.label)
         XCTAssertFalse(ready.label.contains("可直接做"), ready.label)
         XCTAssertTrue(ready.label.contains("可用掉临期鸡蛋"), ready.label)
         XCTAssertFalse(ready.label.contains("15 分钟出锅"), "the model's reason is not part of the facts: \(ready.label)")
@@ -1692,7 +1692,7 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "新鲜")).firstMatch.exists)
         XCTAssertTrue(short.label.contains("还缺花生米、大葱、生姜、大蒜"),
                       "VoiceOver hears every missing name: \(short.label)")
-        XCTAssertFalse(short.label.contains("所需食材已在库"), short.label)
+        XCTAssertFalse(short.label.contains("主要食材在库"), short.label)
 
         let draft = recipeCard(app, titled: "家常豆腐")
         XCTAssertTrue(draft.label.contains("AI 推荐草稿"), draft.label)

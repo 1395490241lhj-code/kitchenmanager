@@ -45,25 +45,53 @@ struct ConversationContextAssembler {
     nonisolated static let inventoryKeywords = ["库存", "食材", "过期", "临期", "冰箱", "inventory", "expir", "ingredient", "fridge"]
     /// Questions about what to eat. At Home these read the kitchen up front —
     /// inventory and the library shortlist — because answering them without
-    /// either is guessing. A question qualifies only when it names food *and*
-    /// asks for a choice: 「今晚」 or 「做什么」 alone says nothing about the
-    /// kitchen (「今晚会下雨吗」, 「做什么运动好」), and reading the kitchen for
-    /// it would send inventory to the model for nothing.
-    nonisolated static let mealFoodCues = ["吃", "菜", "饭", "餐", "食材"]
-    nonisolated static let mealChoiceCues = ["什么", "啥", "推荐", "建议", "想吃", "补", "换", "能做", "可以做", "用"]
+    /// either is guessing. Anything that is not clearly such a question reads
+    /// neither: an unsure guess must not send inventory to the model.
+    ///
+    /// Chinese has no word breaks, and its food words live inside words about
+    /// something else (饭 in 饭店 and 饭卡, 吃 in 吃药, 菜 in 菜馆 and 菜单, 晚餐 in
+    /// 晚餐会议), so Chinese intent is read from whole cooking phrases whose parts
+    /// are joined, never from words that merely occur somewhere in the question:
+    /// - (a) asking what to eat, as the question itself: 吃什么 / 吃点啥, but not
+    ///   吃什么药, where 什么 picks the medicine rather than the meal;
+    /// - (b) wanting to eat something named as food: 想吃 followed by a choice
+    ///   word, a taste or a dish (想吃清淡一点 / 想吃辣的 / 想吃点什么);
+    /// - (c) choosing, adding or swapping a dish, where 菜 ends the phrase:
+    ///   做什么菜 / 补一道菜 / 换一批菜 — not 菜馆, 菜单 or 菜市场;
+    /// - (d) a meal of the day joined to a cooking verb or choice:
+    ///   晚饭做什么 / 晚餐有什么推荐 — not 早餐店 or 午餐会议;
+    /// - (e) a cooking noun asked about with a choice word: 用食材做饭 / 菜谱推荐.
+    /// 「今晚」, 「做什么」, 「做饭」 or a meal of the day alone names no choice of
+    /// dish. A question none of these reads is left alone: the model can still
+    /// ask for the kitchen through its read tools when it needs to.
+    nonisolated static let chineseMealPatterns = [
+        #"吃[点些]?(什么|啥)(好|呢|吧|啊|呀|比较|合适|菜|饭|[？?！!，,。.~～\s]|$)"#,
+        #"想吃(点|些|个|一点|一些)?(什么|啥|清淡|麻辣|辣|甜|酸|咸|鲜|素|荤|家常|快手|简单|热乎|重口|下饭|[^，,。.？?！!\s]{0,4}(菜|饭|面|汤|粥|肉|鱼|虾|鸡|蛋))"#,
+        #"(做|煮|炒|烧|炖|蒸|来|补|换|加|推荐)[^，,。.？?！!\s]{1,6}菜(?=$|[的吧呢好吗了啊呀，,。.？?！!~～\s])"#,
+        #"[早午晚](饭|餐)(要|该|想)?(做|煮|吃|弄|准备|来)?(点|些|个)?(什么|啥|哪|推荐|有什么推荐|有啥推荐|有什么好吃|有啥好吃|怎么安排)"#
+    ]
+    nonisolated static let chineseCookingNouns = ["菜谱", "食谱", "食材", "做饭", "做菜", "下厨"]
+    nonisolated static let chineseChoiceCues = ["什么", "啥", "哪", "推荐", "建议", "补", "换", "用", "安排"]
     /// English cues match whole words only: as substrings, "eat" sits inside
     /// "weather" and "theater", which would read the kitchen for a forecast.
     nonisolated static let englishMealFoodWords: Set<String> = ["eat", "eating", "cook", "cooking", "dinner",
                                                                 "meal", "meals", "recipe", "recipes"]
     nonisolated static let englishMealChoiceWords: Set<String> = ["what", "suggest", "recommend", "idea", "ideas"]
 
-    /// `question` is already lowercased. Chinese cues are substrings, as
-    /// Chinese has no word breaks to match on; English cues are whole words.
+    /// `question` is already lowercased.
     nonisolated static func isMealQuestion(_ question: String) -> Bool {
+        let asksChineseChoice = chineseChoiceCues.contains { question.contains($0) }
         let words = Set(question.split { !($0.isASCII && $0.isLetter) }.map(String.init))
-        let namesFood = mealFoodCues.contains { question.contains($0) } || !words.isDisjoint(with: englishMealFoodWords)
-        let asksChoice = mealChoiceCues.contains { question.contains($0) } || !words.isDisjoint(with: englishMealChoiceWords)
-        return namesFood && asksChoice
+        // An English food word with an English or Chinese choice word: "what to
+        // cook", or a mixed 「今晚cook什么」.
+        if !words.isDisjoint(with: englishMealFoodWords),
+           !words.isDisjoint(with: englishMealChoiceWords) || asksChineseChoice {
+            return true
+        }
+        if chineseMealPatterns.contains(where: { question.range(of: $0, options: .regularExpression) != nil }) {
+            return true
+        }
+        return asksChineseChoice && chineseCookingNouns.contains { question.contains($0) }
     }
 
     func prepare(entry: AIConversationEntryContext, summary: String,

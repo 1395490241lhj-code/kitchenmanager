@@ -98,9 +98,12 @@ final class ConversationContextAssemblerTests: XCTestCase {
     /// Every Home starter and every follow-up chip is a meal question, so none
     /// of them loses the kitchen read when it is sent.
     func testHomeMealIntentPreloadsInventoryAndShortlistWithoutInventoryWords() throws {
-        let questions = ["今晚吃什么", "晚饭做什么好", "推荐个快手菜", "用快过期的食材做饭", "今晚想吃清淡一点",
-                         "帮我补一道菜", "What should I cook for dinner?", "What should I cook tonight?",
-                         "What to eat for dinner?", "Any dinner ideas?"] + AIConversationController.homeAdjustmentSuggestions
+        let questions = ["今晚吃什么", "晚饭做什么好", "推荐个快手菜", "推荐几道快手菜", "给我推荐一道菜",
+                         "用快过期的食材做饭", "今晚想吃清淡一点", "想吃辣的", "帮我补一道菜", "今晚吃点啥", "晚上吃啥",
+                         "吃什么比较好", "晚餐有什么推荐", "晚饭吃点什么好", "做哪道菜好", "用这些食材做什么",
+                         "What should I cook for dinner?", "What should I cook tonight?",
+                         "What to eat for dinner?", "Any dinner ideas?", "今晚cook什么"]
+            + AIConversationController.homeAdjustmentSuggestions
         for question in questions {
             let d = Domain(); let r = try prepare(d, current: message(question))
             XCTAssertEqual(d.reads, [.inventory, .tonightPlan, .recipe], question)
@@ -109,15 +112,35 @@ final class ConversationContextAssemblerTests: XCTestCase {
             XCTAssertEqual(shortlist.relatedEntityIDs, ["rec-0", "rec-1"], question)
         }
     }
-    /// 「今晚」, 「做什么」 or a meal word alone is not a question about what to
+    /// 「今晚」, 「做什么」, a meal word alone, or a food character inside a word
+    /// about something else (饭店, 饭卡, 吃药) is not a question about what to
     /// cook: none of these may read inventory or the shortlist.
     func testGenericOrNonKitchenHomeQuestionsDoNotReadTheKitchen() throws {
         for question in ["今晚会下雨吗", "今晚有什么安排", "做什么运动好", "晚饭后去散步吗", "今天谁做饭",
+                         "附近有什么饭店推荐", "饭卡怎么用", "吃药前要注意什么", "感冒了吃什么药",
+                         "这家饭店好吃吗", "附近有什么好吃的菜馆推荐", "今天谁做菜",
+                         "早餐店推荐", "午餐会议安排在哪", "晚饭后吃什么药", "推荐一家川菜馆", "加个菜单功能",
+                         "推荐个菜市场", "推荐个菜馆", "我不想吃药",
                          "Will it rain tonight?", "What's on TV tonight?", "What's the weather tonight?",
                          "What time does the theater open?"] {
             let d = Domain(); let r = try prepare(d, current: message(question))
             XCTAssertEqual(d.reads, [.tonightPlan], question)
             XCTAssertEqual(r.contexts.map(\.kind), [.tonightPlan], question)
+        }
+    }
+    /// A food word is never enough on its own, and its parts must be joined:
+    /// 饭 in 饭店 or 饭卡, 吃 in 吃药, 菜 in 菜馆 / 菜单 / 菜市场 and a meal of the day
+    /// in 早餐店 or 午餐会议 name no meal; 吃什么 that picks a medicine, or 想吃 with
+    /// no food after it, is not asking what to eat.
+    func testChineseMealIntentNeedsAJoinedCookingPhrase() {
+        for question in ["附近有什么饭店推荐", "饭卡怎么用", "吃药前要注意什么", "感冒了吃什么药", "今天谁做菜",
+                         "早餐店推荐", "午餐会议安排在哪", "晚饭后吃什么药", "推荐一家川菜馆", "加个菜单功能",
+                         "推荐个菜市场", "推荐个菜馆", "我不想吃药"] {
+            XCTAssertFalse(ConversationContextAssembler.isMealQuestion(question), question)
+        }
+        for question in ["今晚吃什么", "吃什么呢？", "想吃辣的", "想吃点什么", "补一道菜", "换一批菜", "推荐一道菜吧",
+                         "晚饭吃点什么好", "晚饭做什么好", "晚餐有什么推荐", "用这些食材做什么"] {
+            XCTAssertTrue(ConversationContextAssembler.isMealQuestion(question), question)
         }
     }
     /// English cues are words, never substrings: "eat" inside "weather",

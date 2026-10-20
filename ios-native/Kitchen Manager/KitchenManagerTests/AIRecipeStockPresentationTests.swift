@@ -12,8 +12,8 @@ final class AIRecipeStockPresentationTests: XCTestCase {
     func testAllPresentRecipeNamesWhatToUseUpWithoutClaimingEnough() {
         let lines = AIRecipeStockPresentation.lines(for: summary(inStock: ["番茄", "鸡蛋"], expiring: ["鸡蛋"]))
         XCTAssertEqual(lines.map(\.kind), [.inStock, .allPresent, .expiring])
-        XCTAssertEqual(lines.map(\.text), ["家里有 番茄、鸡蛋", "所需食材已在库 · 用量未核对", "可用掉临期 鸡蛋"])
-        XCTAssertEqual(lines[1].spoken, "所需食材已在库，用量未核对")
+        XCTAssertEqual(lines.map(\.text), ["家里有 番茄、鸡蛋", "主要食材在库\u{00A0}· 用量与调料未核对", "可用掉临期 鸡蛋"])
+        XCTAssertEqual(lines[1].spoken, "主要食材在库，用量与调料未核对")
     }
 
     /// RecipeStockMatch is presence only. One egg on hand for a six-egg recipe
@@ -27,7 +27,7 @@ final class AIRecipeStockPresentationTests: XCTestCase {
         XCTAssertEqual(stock.missing, [])
 
         let lines = AIRecipeStockPresentation.lines(for: stock)
-        XCTAssertEqual(lines.map(\.text), ["家里有 鸡蛋", "所需食材已在库 · 用量未核对"])
+        XCTAssertEqual(lines.map(\.text), ["家里有 鸡蛋", "主要食材在库\u{00A0}· 用量与调料未核对"])
         for line in lines {
             XCTAssertFalse(line.text.contains("可直接做") || line.spoken.contains("可直接做"), line.text)
             XCTAssertFalse(line.text.contains("够") || line.spoken.contains("够"), line.text)
