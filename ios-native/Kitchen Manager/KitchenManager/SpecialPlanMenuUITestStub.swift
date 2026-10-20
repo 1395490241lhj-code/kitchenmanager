@@ -17,22 +17,27 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
     static let successArgument = "UITEST_SPECIAL_PLAN_AI_MENU"
     /// Launch argument that always fails, for the error-state test.
     static let failureArgument = "UITEST_SPECIAL_PLAN_AI_FAILURE"
+    /// Opt-in: keeps the loading state up long enough for a test that asserts
+    /// it. A CI runner first queries ~2.2s after the tap, past the default.
+    static let slowArgument = "UITEST_SPECIAL_PLAN_AI_SLOW"
 
     struct StubFailure: LocalizedError {
         var errorDescription: String? { "暂时无法生成菜单。请稍后重试，或调整人数与备注。" }
     }
 
     let shouldFail: Bool
+    var delayNanoseconds: UInt64 = 1_500_000_000
 
     /// Returns a stub only when the UI test harness asked for one.
     static func make(
         arguments: [String] = ProcessInfo.processInfo.arguments
     ) -> SpecialPlanMenuUITestStub? {
+        let delay: UInt64 = arguments.contains(slowArgument) ? 6_000_000_000 : 1_500_000_000
         if arguments.contains(failureArgument) {
-            return SpecialPlanMenuUITestStub(shouldFail: true)
+            return SpecialPlanMenuUITestStub(shouldFail: true, delayNanoseconds: delay)
         }
         if arguments.contains(successArgument) {
-            return SpecialPlanMenuUITestStub(shouldFail: false)
+            return SpecialPlanMenuUITestStub(shouldFail: false, delayNanoseconds: delay)
         }
         return nil
     }
@@ -40,7 +45,7 @@ struct SpecialPlanMenuUITestStub: SpecialPlanMenuRequesting {
     func generatePlan(request: AIWeeklyMenuRequest) async throws -> AIWeeklyMenuResponse {
         // A visible, deterministic delay so the loading state is observable by
         // XCUITest, which needs longer than a render frame to query the tree.
-        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        try? await Task.sleep(nanoseconds: delayNanoseconds)
         if shouldFail { throw StubFailure() }
         return try Self.response(dishCount: request.dishesPerMeal, event: request.eventRequest)
     }

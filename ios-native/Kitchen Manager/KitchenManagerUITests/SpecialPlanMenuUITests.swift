@@ -79,7 +79,9 @@ final class SpecialPlanMenuUITests: XCTestCase {
     /// Spec 20 + 21 + 22: an empty plan offers generation, shows a loading
     /// state, and lands on a draft.
     func testEmptyPlanGeneratesADraftMenu() {
-        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")
+        // The slow stub keeps the request in flight for 6s: the default 1.5s
+        // ended before a CI runner's first query after the tap (~2.2s).
+        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU", "UITEST_SPECIAL_PLAN_AI_SLOW")
         openSeededPlanDetail(from: app)
 
         let generate = app.buttons["planner.menu.generate"]
