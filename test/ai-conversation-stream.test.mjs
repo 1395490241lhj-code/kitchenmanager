@@ -783,3 +783,28 @@ test('ai-conversation 服务只承认计划中的十二个工具名', async () =
   assert.equal(selected[0].function.name, 'read_inventory');
   assert.throws(() => selectConversationTools(['read_inventory', 'rm_rf']), (err) => err.publicStatus === 400 && err.publicCode === 'unsupported_tool');
 });
+
+// iOS ConversationResponseInterpreter 把带 plannedServings 的加入今晚 / 替换计划餐
+// 判为无效参数并让整回合失败。schema 若还提供这个字段，模型照着填就会让回合坏掉。
+test('加入今晚与替换计划餐的 schema 不提供 plannedServings，批量计划改动保留逐行份量', async () => {
+  loadServerWithStreams();
+  const { selectConversationTools } = require(resolve(root, 'src/server/services/ai-conversation.js'));
+  const byName = Object.fromEntries(selectConversationTools([
+    'propose_add_recipe_to_tonight',
+    'propose_replace_planned_meal',
+    'propose_apply_planner_changes'
+  ]).map((tool) => [tool.function.name, tool.function]));
+
+  const tonight = byName.propose_add_recipe_to_tonight;
+  assert.deepEqual(Object.keys(tonight.parameters.properties), ['recipe']);
+  assert.equal(tonight.parameters.additionalProperties, false);
+  // 加入今晚是低风险、校验后直接执行的动作；描述不能再让模型以为会有确认步骤。
+  assert.doesNotMatch(tonight.description, /确认/);
+
+  const replace = byName.propose_replace_planned_meal;
+  assert.deepEqual(Object.keys(replace.parameters.properties), ['planID', 'replacement']);
+  assert.equal(replace.parameters.additionalProperties, false);
+
+  const batchRow = byName.propose_apply_planner_changes.parameters.properties.changes.items;
+  assert.ok(batchRow.properties.plannedServings, '批量改动的逐行份量是客户端支持的字段');
+});

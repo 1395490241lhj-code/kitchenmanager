@@ -91,19 +91,20 @@ const TOOL_DEFINITIONS = Object.freeze({
       }
     }, ['title', 'rows'])
   },
+  // 这两个提案在 iOS 侧不携带份量（AIActionProposal 没有该字段），解释器会把带
+  // plannedServings 的调用整体判为无效、整回合失败；所以 schema 里也不提供它。
+  // propose_apply_planner_changes 的逐行 plannedServings 是客户端真实支持的，保留。
   propose_add_recipe_to_tonight: {
-    description: '提议把一道菜加入今晚计划。执行前由客户端校验并确认。',
+    description: '把一道菜加入今晚计划。低风险操作：客户端校验后直接执行，成员可撤销。',
     parameters: objectSchema({
-      recipe: RECIPE_PAYLOAD_SCHEMA,
-      plannedServings: { type: 'integer' }
+      recipe: RECIPE_PAYLOAD_SCHEMA
     }, ['recipe'])
   },
   propose_replace_planned_meal: {
     description: '提议替换一条已排的普通用餐。',
     parameters: objectSchema({
       planID: { type: 'string' },
-      replacement: RECIPE_PAYLOAD_SCHEMA,
-      plannedServings: { type: 'integer' }
+      replacement: RECIPE_PAYLOAD_SCHEMA
     }, ['planID', 'replacement'])
   },
   propose_apply_planner_changes: {

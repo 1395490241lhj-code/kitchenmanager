@@ -38,6 +38,14 @@ final class ConversationContextAssemblerTests: XCTestCase {
             return .init(readAt: stamp, planID: id, title: unicodeText ?? "聚餐", scheduledAt: eventDate,
                 peopleCount: 4, constraintNotes: lots ? Array(repeating: String(repeating: "\"\n长", count: 500), count: 50) : ["无辣"], notes: lots ? String(repeating: "长", count: 10000) : "家人", usesHomeInventory: true, dishes: [])
         }
+        var candidateCount = 2
+        func recipeCandidatesContext(now: Date, calendar: Calendar) -> AIRecipeCandidatesContext {
+            reads.append(.recipe)
+            let title = lots ? String(repeating: "长", count: 500) : "番茄炒蛋"
+            return .init(readAt: stamp, candidates: (0..<candidateCount).map {
+                AIRecipeCandidateContext(recipeID: "rec-\($0)", title: title, missingCount: $0, usesExpiring: $0 == 0)
+            })
+        }
         func resolveRecipe(query: String, recipeID: String?) -> Recipe? { XCTFail("No recipe preload"); return nil }
         func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
@@ -74,13 +82,81 @@ final class ConversationContextAssemblerTests: XCTestCase {
          encodedCount(r.recentMessages), encodedCount([r.messages.last!])]
     }
 
-    func testHomeExpiryPreloadsInventoryAndTonightOnly() throws {
+    /// 「快过期的食材做什么」 is both an inventory and a meal question, so Home
+    /// reads the library shortlist too — and still nothing from the Planner.
+    func testHomeExpiryMealQuestionPreloadsInventoryTonightAndShortlistOnly() throws {
         let d = Domain(); let r = try prepare(d)
-        XCTAssertEqual(d.reads, [.inventory, .tonightPlan]); XCTAssertEqual(r.contexts.map(\.kind), [.inventory, .tonightPlan])
+        XCTAssertEqual(d.reads, [.inventory, .tonightPlan, .recipe]); XCTAssertEqual(r.contexts.map(\.kind), [.inventory, .tonightPlan, .recipe])
         XCTAssertFalse(r.liveContext.contains("weekStart")); XCTAssertFalse(r.liveContext.contains("specialPlans"))
     }
     func testHomeUnrelatedQuestionDoesNotReadInventory() throws {
         let d = Domain(); _ = try prepare(d, current: message("你好")); XCTAssertEqual(d.reads, [.tonightPlan])
+    }
+    func testHomeInventoryOnlyQuestionDoesNotReadShortlist() throws {
+        let d = Domain(); _ = try prepare(d, current: message("冰箱里还有什么")); XCTAssertEqual(d.reads, [.inventory, .tonightPlan])
+    }
+    /// Every Home starter and every follow-up chip is a meal question, so none
+    /// of them loses the kitchen read when it is sent.
+    func testHomeMealIntentPreloadsInventoryAndShortlistWithoutInventoryWords() throws {
+        let questions = ["今晚吃什么", "晚饭做什么好", "推荐个快手菜", "用快过期的食材做饭", "今晚想吃清淡一点",
+                         "帮我补一道菜", "What should I cook for dinner?", "What should I cook tonight?",
+                         "What to eat for dinner?", "Any dinner ideas?"] + AIConversationController.homeAdjustmentSuggestions
+        for question in questions {
+            let d = Domain(); let r = try prepare(d, current: message(question))
+            XCTAssertEqual(d.reads, [.inventory, .tonightPlan, .recipe], question)
+            let shortlist = try XCTUnwrap(r.contexts.first { $0.kind == .recipe }, question)
+            XCTAssertTrue(shortlist.value.contains("\"recipeID\":\"rec-0\""), question)
+            XCTAssertEqual(shortlist.relatedEntityIDs, ["rec-0", "rec-1"], question)
+        }
+    }
+    /// 「今晚」, 「做什么」 or a meal word alone is not a question about what to
+    /// cook: none of these may read inventory or the shortlist.
+    func testGenericOrNonKitchenHomeQuestionsDoNotReadTheKitchen() throws {
+        for question in ["今晚会下雨吗", "今晚有什么安排", "做什么运动好", "晚饭后去散步吗", "今天谁做饭",
+                         "Will it rain tonight?", "What's on TV tonight?", "What's the weather tonight?",
+                         "What time does the theater open?"] {
+            let d = Domain(); let r = try prepare(d, current: message(question))
+            XCTAssertEqual(d.reads, [.tonightPlan], question)
+            XCTAssertEqual(r.contexts.map(\.kind), [.tonightPlan], question)
+        }
+    }
+    /// English cues are words, never substrings: "eat" inside "weather",
+    /// "theater" or "great", and "cook" inside "cookie", name no meal.
+    func testEnglishMealCuesMatchWholeWordsOnly() {
+        for question in ["what's the weather tonight?", "what time does the theater open?",
+                         "what a great idea", "what cookies are on sale?"] {
+            XCTAssertFalse(ConversationContextAssembler.isMealQuestion(question), question)
+        }
+        for question in ["what should i cook tonight?", "what to eat for dinner?", "any dinner ideas?",
+                         "今晚吃什么", "今晚cook什么"] {
+            XCTAssertTrue(ConversationContextAssembler.isMealQuestion(question), question)
+        }
+    }
+    func testPlannerMealIntentDoesNotPreloadHomeShortlist() throws {
+        let d = Domain(); _ = try prepare(d, entry: .planner(weekStart: now, specialPlanID: nil), current: message("今晚吃什么"))
+        XCTAssertEqual(d.reads, [.plannerWeek])
+    }
+    func testShortlistExclusionKeepsInventory() throws {
+        let d = Domain(); let r = try prepare(d, current: message("今晚吃什么"), excluded: [.recipe])
+        XCTAssertEqual(d.reads, [.inventory, .tonightPlan]); XCTAssertEqual(r.contexts.map(\.kind), [.inventory, .tonightPlan])
+    }
+    /// The shortlist's missing counts are inventory facts; excluding inventory
+    /// must not let them through under another source's name.
+    func testInventoryExclusionAlsoWithholdsShortlist() throws {
+        let d = Domain(); let r = try prepare(d, current: message("今晚吃什么"), excluded: [.inventory])
+        XCTAssertEqual(d.reads, [.tonightPlan]); XCTAssertFalse(r.liveContext.contains("missingCount"))
+    }
+    /// Short sources must not strand room: beside an empty tonight plan and an
+    /// empty shortlist, a long inventory keeps more than an equal three-way
+    /// split could ever have given its whole entry, framing included.
+    func testShortSourcesLeaveTheirUnusedShareToALongInventory() throws {
+        let d = Domain(); d.lots = true; d.candidateCount = 0
+        let r = try prepare(d)
+        XCTAssertEqual(r.contexts.map(\.kind), [.inventory, .tonightPlan, .recipe])
+        let inventory = try XCTUnwrap(r.contexts.first { $0.kind == .inventory })
+        XCTAssertGreaterThan(inventory.value.utf16.count, (3000 - 80) / 3)
+        try assertUTF16Budgets(r)
+        XCTAssertTrue(r.liveContext.contains("\"partial\":true"))
     }
     func testPlannerUsesOpenedWeek() throws {
         let d = Domain(); _ = try prepare(d, entry: .planner(weekStart: now, specialPlanID: nil), current: message("安排菜单"))
@@ -106,7 +182,7 @@ final class ConversationContextAssemblerTests: XCTestCase {
     }
     func testExclusionsResetOnNextPrepare() throws {
         let d = Domain(); _ = try prepare(d, excluded: [.inventory]); d.eggs = 3
-        let r = try prepare(d); XCTAssertEqual(d.reads, [.tonightPlan, .inventory, .tonightPlan]); XCTAssertTrue(r.liveContext.contains("\"quantity\":3"))
+        let r = try prepare(d); XCTAssertEqual(d.reads, [.tonightPlan, .inventory, .tonightPlan, .recipe]); XCTAssertTrue(r.liveContext.contains("\"quantity\":3"))
     }
     func testAllSelectedExclusionsPreventReads() throws {
         let d = Domain(); let r = try prepare(d, entry: .planner(weekStart: now, specialPlanID: focusID), excluded: Set(AIContextKind.allCases))
@@ -157,7 +233,7 @@ final class ConversationContextAssemblerTests: XCTestCase {
     func testLiveBudgetRetainsValidJSONAndUsefulSources() throws {
         let d = Domain(); d.lots = true; let r = try prepare(d)
         XCTAssertLessThanOrEqual(independentCounts(r)[2], 3000)
-        XCTAssertEqual(r.contexts.count, 2); _ = try JSONSerialization.jsonObject(with: Data(r.liveContext.utf8))
+        XCTAssertEqual(r.contexts.count, 3); _ = try JSONSerialization.jsonObject(with: Data(r.liveContext.utf8))
         for c in r.contexts { _ = try JSONSerialization.jsonObject(with: Data(c.value.utf8)) }
     }
     func testCurrentUserBudgetIncludesFramingAndEscapes() throws {

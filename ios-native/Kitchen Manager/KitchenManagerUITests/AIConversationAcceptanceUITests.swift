@@ -152,7 +152,10 @@ final class AIConversationAcceptanceUITests: XCTestCase {
         openKitchenAIFromHome(app)
         XCTAssertTrue(app.buttons["kitchenAI.starter.用快过期的食材做饭"].exists)
         send("今晚想吃清淡一点，把快过期的先用掉。", in: app)
-        XCTAssertTrue(app.staticTexts["清蒸豆腐"].waitForExistence(timeout: 8))
+        // A recipe card is one accessibility element whose label opens with its title.
+        let card = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'kitchenAI.recipe.card.' AND label BEGINSWITH %@", "清蒸豆腐")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
         send("第二个加入今晚。", in: app)
         XCTAssertTrue(app.staticTexts["已加入今晚计划"].waitForExistence(timeout: 8), app.debugDescription)
         XCTAssertFalse(app.buttons["kitchenAI.planner.apply"].exists)

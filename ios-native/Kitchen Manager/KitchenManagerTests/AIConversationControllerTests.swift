@@ -105,6 +105,12 @@ final class AIConversationControllerTests: XCTestCase {
         }
     }
 
+    private final class NetworkStub: NetworkAvailabilityProviding, @unchecked Sendable {
+        var availability: NetworkAvailability
+        init(_ availability: NetworkAvailability) { self.availability = availability }
+        var currentAvailability: NetworkAvailability { availability }
+    }
+
     private struct Fixture {
         let container: ModelContainer
         let persistence: PersistenceSpy
@@ -115,10 +121,14 @@ final class AIConversationControllerTests: XCTestCase {
         let coordinator: ConversationActionCoordinator
         let fixedDate: Date
         let defaults: UserDefaults
+        /// Explicit so no test depends on the host machine's network path.
+        let network: NetworkStub
 
         @MainActor init(
-            metadataRequest: @escaping (String, String) async throws -> String = { _, _ in "" }
+            metadataRequest: @escaping (String, String) async throws -> String = { _, _ in "" },
+            network availability: NetworkAvailability = .available
         ) throws {
+            network = NetworkStub(availability)
             fixedDate = Date(timeIntervalSince1970: 1_800_000_000)
             defaults = UserDefaults(suiteName: UUID().uuidString)!
             let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
@@ -141,6 +151,7 @@ final class AIConversationControllerTests: XCTestCase {
                 orchestrator: orchestrator,
                 actionCoordinator: coordinator,
                 metadataService: ConversationMetadataService(request: metadataRequest),
+                network: network,
                 now: { Date(timeIntervalSince1970: 1_800_000_000) }
             )
         }
@@ -1371,4 +1382,162 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertEqual(f.controller.draftText, "保留在当前对话中的草稿")
         XCTAssertEqual(f.controller.nextTurnExcludedContexts, [.inventory])
     }
+
+    // MARK: - Tonight pilot: offline gate, announcements, adjustments
+
+    private func recipeBlock(_ title: String) -> AIContentBlock {
+        .recipe(AIRecipeBlock(recipe: Recipe(id: UUID().uuidString, title: title, cookingTime: 10, difficulty: "简单",
+            tags: [], ingredients: ["鸡蛋 2 个"], steps: ["炒"]), isTransient: true))
+    }
+
+    private func twoRecipeScript() -> [AIConversationTurnEvent] {
+        [.state(.requesting), .appendText("试试这两道"), .appendBlock(recipeBlock("番茄炒蛋")),
+         .appendBlock(recipeBlock("清炒菠菜")), .state(.completed), .finished]
+    }
+
+    func testHomeContextChipsIncludeTheRecipeShortlist() throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        XCTAssertEqual(f.controller.likelyContextKinds, [.inventory, .tonightPlan, .recipe])
+        f.controller.open(entryContext: .planner(weekStart: f.fixedDate, specialPlanID: nil))
+        XCTAssertFalse(f.controller.likelyContextKinds.contains(.recipe))
+    }
+
+    /// A known-down path stops the send before anything is consumed: the draft
+    /// stays, nothing is written, and no turn starts — not on the cloud and not
+    /// silently on a device model the member never chose (D-044).
+    func testExplicitlyOfflineSendKeepsDraftWritesNothingAndStartsNoTurn() async throws {
+        let f = try Fixture(network: .unavailable)
+        f.controller.open(entryContext: .home)
+        f.controller.nextTurnExcludedContexts = [.inventory]
+        await send("今晚吃什么", in: f)
+        XCTAssertEqual(f.controller.draftText, "今晚吃什么")
+        XCTAssertEqual(f.controller.nextTurnExcludedContexts, [.inventory])
+        XCTAssertTrue(f.orchestrator.inputs.isEmpty)
+        XCTAssertTrue(f.controller.messages.isEmpty)
+        XCTAssertTrue(try f.persistence.loadConversations().isEmpty)
+        XCTAssertEqual(f.controller.turnState, .idle)
+        XCTAssertEqual(f.controller.localErrorMessage, AIConversationAnnouncementText.offline)
+        XCTAssertEqual(f.controller.announcement?.text, AIConversationAnnouncementText.offline)
+
+        f.network.availability = .available
+        f.controller.send()
+        await settle()
+        XCTAssertEqual(f.orchestrator.inputs.count, 1, "the kept draft sends once the path is back")
+        XCTAssertEqual(f.orchestrator.inputs.first?.excludedContextKinds, [.inventory])
+    }
+
+    func testUnknownNetworkIsNotTreatedAsOffline() async throws {
+        let f = try Fixture(network: .unknown)
+        f.controller.open(entryContext: .home)
+        await send("今晚吃什么", in: f)
+        XCTAssertEqual(f.orchestrator.inputs.count, 1)
+        XCTAssertNil(f.controller.localErrorMessage)
+    }
+
+    func testOfflineRetryStartsNoTurnAndWritesNoAssistantRow() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        f.orchestrator.scripts = [.failure(NSError(domain: "test", code: 1))]
+        await send("今晚吃什么", in: f)
+        let rows = f.controller.messages.count
+        f.network.availability = .unavailable
+        f.controller.retryGeneration()
+        await settle()
+        XCTAssertEqual(f.orchestrator.inputs.count, 1)
+        XCTAssertEqual(f.controller.messages.count, rows)
+        XCTAssertTrue(f.controller.canRetryGeneration, "the retry stays available for when the path is back")
+    }
+
+    func testCompletedTurnAnnouncesWhatTheScreenShows() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        f.orchestrator.scripts = [.events(twoRecipeScript()), .events(completedScript())]
+        await send("今晚吃什么", in: f)
+        XCTAssertEqual(f.controller.announcement?.text, "Kitchen AI 已回复，推荐了 2 道菜")
+        let first = f.controller.announcement?.id
+        await send("谢谢", in: f)
+        XCTAssertEqual(f.controller.announcement?.text, "Kitchen AI 已回复")
+        XCTAssertNotEqual(f.controller.announcement?.id, first)
+    }
+
+    func testAutoExecutedActionOutcomeIsAnnouncedWithTheTurn() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        let status = AIActionStatusBlock(message: "已加入今晚计划", actionID: UUID(), canUndo: true)
+        f.orchestrator.scripts = [.events([.state(.executing), .appendBlock(.actionStatus(status)), .state(.completed), .finished])]
+        await send("第二个加入今晚", in: f)
+        XCTAssertEqual(f.controller.announcement?.text, "Kitchen AI 已回复，已加入今晚计划")
+    }
+
+    func testFailedTurnAnnouncesItsVisibleError() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        f.orchestrator.scripts = [.events([.appendBlock(.error(.init(message: "服务暂时不可用。", retry: .generation))), .state(.failed)])]
+        await send("今晚吃什么", in: f)
+        XCTAssertEqual(f.controller.announcement?.text, "回复未完成：服务暂时不可用。")
+    }
+
+    func testStoppedTurnIsNotAnnounced() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        f.orchestrator.scripts = [.manual]
+        await send("今晚吃什么", in: f)
+        f.controller.stop()
+        await settle()
+        XCTAssertNil(f.controller.announcement)
+    }
+
+    func testConfirmAndUndoAnnounceTheirOutcome() async throws {
+        let f = try Fixture()
+        let conversation = try makePersistedConversation(f)
+        f.controller.openConversation(id: conversation.id)
+        let prepared = try preparedShopping(f, conversationID: conversation.id, turnID: UUID())
+        f.orchestrator.scripts = [.events([.pendingAction(prepared), .state(.awaitingConfirmation)])]
+        await send("加入牛奶", in: f)
+        XCTAssertEqual(f.controller.announcement?.text, AIConversationAnnouncementText.awaitingConfirmation)
+        f.controller.confirmPreparedAction()
+        XCTAssertEqual(f.controller.announcement?.text, AIActionOutcomePresentation.outcomeTitle(for: prepared.proposal.actionType))
+        f.controller.undo(actionID: prepared.id)
+        XCTAssertEqual(f.controller.announcement?.text, AIActionOutcomePresentation.undoneTitle(for: prepared.proposal.actionType))
+    }
+
+    func testAdjustmentSuggestionsFollowARecipeTurnAndOnlyFillTheComposer() async throws {
+        let f = try Fixture()
+        f.controller.open(entryContext: .home)
+        XCTAssertTrue(f.controller.adjustmentSuggestions.isEmpty)
+        f.orchestrator.scripts = [.events(twoRecipeScript())]
+        await send("今晚吃什么", in: f)
+        XCTAssertEqual(f.controller.adjustmentSuggestions, AIConversationController.homeAdjustmentSuggestions)
+
+        let suggestion = f.controller.adjustmentSuggestions[0]
+        f.controller.applyAdjustmentSuggestion(suggestion)
+        await settle()
+        XCTAssertEqual(f.controller.draftText, suggestion)
+        XCTAssertEqual(f.orchestrator.inputs.count, 1, "a suggestion never sends by itself")
+        XCTAssertEqual(f.controller.messages.filter { $0.role == .user }.count, 1)
+    }
+
+    func testAdjustmentSuggestionsNeedACompletedHomeRecipeTurn() async throws {
+        let plain = try Fixture()
+        plain.controller.open(entryContext: .home)
+        await send("你好", in: plain)
+        XCTAssertTrue(plain.controller.adjustmentSuggestions.isEmpty, "no dishes, nothing to adjust")
+
+        let streaming = try Fixture()
+        streaming.controller.open(entryContext: .home)
+        streaming.orchestrator.scripts = [.manual]
+        await send("今晚吃什么", in: streaming)
+        streaming.orchestrator.emit(recipeBlockEvent())
+        await settle()
+        XCTAssertTrue(streaming.controller.adjustmentSuggestions.isEmpty, "not while the turn is still running")
+
+        let planner = try Fixture()
+        planner.controller.open(entryContext: .planner(weekStart: planner.fixedDate, specialPlanID: nil))
+        planner.orchestrator.scripts = [.events(twoRecipeScript())]
+        await send("今晚吃什么", in: planner)
+        XCTAssertTrue(planner.controller.adjustmentSuggestions.isEmpty, "the pilot is Home only")
+    }
+
+    private func recipeBlockEvent() -> AIConversationTurnEvent { .appendBlock(recipeBlock("番茄炒蛋")) }
 }

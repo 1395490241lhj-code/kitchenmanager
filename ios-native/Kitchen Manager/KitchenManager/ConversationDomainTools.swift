@@ -108,6 +108,53 @@ nonisolated struct AISpecialPlanContext: Codable, Equatable, Sendable {
     var dishes: [AISpecialPlanDishContext]
 }
 
+/// One dinner candidate from the member's own library, ranked by the app.
+///
+/// Facts only, never a sentence: the model chooses among these and explains
+/// its choice, but what the kitchen holds for a dish is answered here, by the
+/// same reading the recipe card shows (`KitchenAIStockReading`).
+nonisolated struct AIRecipeCandidateContext: Codable, Equatable, Sendable {
+    var recipeID: String
+    var title: String
+    /// Core ingredients with nothing on hand — presence only, never quantity —
+    /// the recipe library's 还缺 N 样 for the same dish.
+    var missingCount: Int
+    /// Whether an expiring ingredient from the recipe-creation pool is used.
+    var usesExpiring: Bool
+}
+
+/// Kitchen AI's one reading of a recipe against the kitchen, shared by the
+/// shortlist the model receives and the card the member sees, so the two can
+/// never reach different conclusions about the same dish. Each half follows
+/// the pool the canonical rule assigns it (Architecture §11, D-024):
+/// - 家里有 / 还缺 is a missing-ingredient judgement, which reads
+///   `availableInventory` — the answer the recipe library and Recipe Detail give.
+/// - 可用掉临期 is a recommendation's "use this up first" hint, which reads
+///   `recipeCreationExpiringItems`: ready-to-cook food still expires, but it is
+///   a finished dish, not an ingredient to plan a meal around.
+@MainActor
+struct KitchenAIStockReading {
+    private let onHand: RecipeStockMatch.Index
+    private let useUp: RecipeStockMatch.Index
+
+    init(_ kitchenStore: KitchenStore) {
+        onHand = RecipeStockMatch.Index(kitchenStore.availableInventory)
+        useUp = RecipeStockMatch.Index(kitchenStore.recipeCreationExpiringItems)
+    }
+
+    func summary(for recipe: Recipe) -> RecipeStockMatch.Summary {
+        RecipeStockMatch.summary(for: recipe, onHand: onHand, expiring: useUp)
+    }
+}
+
+nonisolated struct AIRecipeCandidatesContext: Codable, Equatable, Sendable {
+    var readAt: Date
+    /// Fewest missing first (counted over the recipe-creation pool), then
+    /// dishes that use something expiring, then library order. Order carries
+    /// the ranking; budgeting truncates its tail.
+    var candidates: [AIRecipeCandidateContext]
+}
+
 // MARK: - Tooling surface
 
 /// Why a domain tool refused, in terms a user can be told the truth in.
@@ -189,6 +236,8 @@ protocol AIConversationDomainTooling {
     func tonightPlanContext(now: Date, calendar: Calendar) -> AITonightPlanContext
     func plannerWeekContext(weekStart: Date, calendar: Calendar) -> AIPlannerWeekContext
     func specialPlanContext(id: UUID) -> AISpecialPlanContext?
+    /// A deterministic shortlist of library recipes for tonight.
+    func recipeCandidatesContext(now: Date, calendar: Calendar) -> AIRecipeCandidatesContext
     /// A supplied nonempty canonical ID wins; otherwise resolve one exact local title.
     func resolveRecipe(query: String, recipeID: String?) -> Recipe?
 
@@ -214,6 +263,10 @@ extension AIConversationDomainTooling {
 
     func plannerWeekContext(weekStart: Date) -> AIPlannerWeekContext {
         plannerWeekContext(weekStart: weekStart, calendar: calendar)
+    }
+
+    func recipeCandidatesContext(now: Date) -> AIRecipeCandidatesContext {
+        recipeCandidatesContext(now: now, calendar: calendar)
     }
 }
 
@@ -319,6 +372,49 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
                     isCooked: $0.isCooked
                 )
             }
+        )
+    }
+
+    /// At most this many library candidates travel with a dinner question.
+    static let recipeCandidateLimit = 8
+
+    /// Tonight's shortlist, ranked by the app so the model only chooses.
+    ///
+    /// The facts each candidate carries are `KitchenAIStockReading`, the same
+    /// reading its recipe card shows. The ranking is a recommendation path, so
+    /// it counts matches over the recipe-creation pool instead (D-024): a dish
+    /// whose only match is ready-to-cook food is never promoted by it, even
+    /// though that food is on hand and so not 还缺. Recipes already on tonight's
+    /// ordinary plan are left out, and a recipe with no usable ingredient line
+    /// is too, since nothing about it can be judged against the kitchen.
+    func recipeCandidatesContext(now: Date, calendar: Calendar) -> AIRecipeCandidatesContext {
+        let reading = KitchenAIStockReading(kitchenStore)
+        let rankingPool = RecipeStockMatch.Index(kitchenStore.recipeCreationInventory)
+        let noHint = RecipeStockMatch.Index([])
+        let scheduled = Set(kitchenStore.plans
+            .filter { calendar.isDate($0.date, inSameDayAs: now) }
+            .map(\.recipeID))
+        typealias Ranked = (index: Int, rankingMissing: Int, candidate: AIRecipeCandidateContext)
+        let ranked = recipeStore.recipes.enumerated().compactMap { index, recipe -> Ranked? in
+            guard !scheduled.contains(recipe.id) else { return nil }
+            let stock = reading.summary(for: recipe)
+            guard !stock.inStock.isEmpty || !stock.missing.isEmpty else { return nil }
+            let rankingMissing = RecipeStockMatch.summary(for: recipe, onHand: rankingPool, expiring: noHint).missing.count
+            return (index, rankingMissing, AIRecipeCandidateContext(
+                recipeID: recipe.id,
+                title: recipe.title,
+                missingCount: stock.missing.count,
+                usesExpiring: !stock.expiring.isEmpty
+            ))
+        }
+        .sorted { lhs, rhs in
+            if lhs.rankingMissing != rhs.rankingMissing { return lhs.rankingMissing < rhs.rankingMissing }
+            if lhs.candidate.usesExpiring != rhs.candidate.usesExpiring { return lhs.candidate.usesExpiring }
+            return lhs.index < rhs.index
+        }
+        return AIRecipeCandidatesContext(
+            readAt: now,
+            candidates: ranked.prefix(Self.recipeCandidateLimit).map(\.candidate)
         )
     }
 
