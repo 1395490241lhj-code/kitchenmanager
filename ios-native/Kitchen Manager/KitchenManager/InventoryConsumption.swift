@@ -942,14 +942,19 @@ struct CookConsumptionConfirmationView: View {
 
                 HStack {
                     Text("使用量")
-                    TextField("数量", value: draft.consumedQuantity, format: .number)
-                        .keyboardType(.decimalPad)
+                    ConsumedQuantityField(quantity: draft.consumedQuantity)
                         .frame(maxWidth: 80)
                     Text(draft.wrappedValue.requiredUnit ?? "")
                     Spacer()
-                    Text("扣减后剩 \(quantityText(resultingQuantity(draft.wrappedValue)))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let remaining = draft.wrappedValue.remainingAfterDeduction {
+                        Text("扣减后剩 \(quantityText(remaining))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("这一行不扣减")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 Menu {
@@ -1034,11 +1039,47 @@ struct CookConsumptionConfirmationView: View {
         return value.formatted(.number.precision(.fractionLength(0...2)))
     }
 
-    private func resultingQuantity(_ draft: InventoryConsumptionDraft) -> Double? {
-        guard let current = draft.currentQuantity, let consumed = draft.consumedQuantity else {
-            return draft.resultingQuantity
-        }
+}
+
+extension InventoryConsumptionDraft {
+    /// What the row leaves in stock, from the amount on screen. `nil` when the
+    /// amount is cleared: that row deducts nothing, so it must not keep showing
+    /// the remainder the planner originally estimated.
+    var remainingAfterDeduction: Double? {
+        guard let current = currentQuantity, let consumed = consumedQuantity else { return nil }
         return max(0, current - consumed)
+    }
+
+    /// Reads a typed 使用量. Empty or unreadable text is "no amount" (`nil`);
+    /// a comma decimal separator is accepted as well as a point.
+    static func enteredQuantity(from text: String) -> Double? {
+        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(cleaned), value.isFinite, value >= 0 else { return nil }
+        return value
+    }
+}
+
+/// The 使用量 field. A `TextField(value:format:)` commits only on return or
+/// when focus leaves, and the decimal pad has no return key, so tapping
+/// 更新冰箱 straight after typing could deduct the old amount. This writes the
+/// amount through on every keystroke instead.
+private struct ConsumedQuantityField: View {
+    @Binding var quantity: Double?
+    @State private var text: String
+
+    init(quantity: Binding<Double?>) {
+        _quantity = quantity
+        _text = State(initialValue: quantity.wrappedValue.map {
+            $0.formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
+        } ?? "")
+    }
+
+    var body: some View {
+        TextField("数量", text: $text)
+            .keyboardType(.decimalPad)
+            .onChange(of: text) { _, typed in
+                quantity = InventoryConsumptionDraft.enteredQuantity(from: typed)
+            }
     }
 }
 
