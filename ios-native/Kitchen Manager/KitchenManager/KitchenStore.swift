@@ -3179,10 +3179,7 @@ final class KitchenStore: ObservableObject {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: "expiryNotificationsEnabled") != nil,
               defaults.bool(forKey: "expiryNotificationsEnabled") else { return }
-        var leadTimes: Set<ExpiryNotificationLeadTime> = []
-        if defaults.bool(forKey: "notifyLeadTime1Day") { leadTimes.insert(.oneDayBefore) }
-        if defaults.bool(forKey: "notifyLeadTime3Day") { leadTimes.insert(.threeDaysBefore) }
-        if defaults.bool(forKey: "notifyLeadTimeDayOf") { leadTimes.insert(.dayOf) }
+        let leadTimes = ExpiryNotificationLeadTime.enabled(in: defaults)
         Task { @MainActor in
             ExpiryNotificationScheduler.rescheduleAll(for: inventory, leadTimes: leadTimes)
         }

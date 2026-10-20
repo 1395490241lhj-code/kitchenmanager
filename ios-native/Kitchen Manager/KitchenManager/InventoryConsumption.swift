@@ -336,6 +336,24 @@ enum ExpiryNotificationLeadTime: String, CaseIterable, Identifiable {
         case .dayOf: return 0
         }
     }
+
+    /// The `@AppStorage` key SettingsView's toggle writes.
+    var storageKey: String {
+        switch self {
+        case .oneDayBefore: return "notifyLeadTime1Day"
+        case .threeDaysBefore: return "notifyLeadTime3Day"
+        case .dayOf: return "notifyLeadTimeDayOf"
+        }
+    }
+
+    /// SettingsView's `@AppStorage` default. That default lives only in memory
+    /// until the user flips the toggle, so every other reader must apply it too —
+    /// `defaults.bool(forKey:)` would read an untouched 1-day toggle as off.
+    var isEnabledByDefault: Bool { self != .threeDaysBefore }
+
+    static func enabled(in defaults: UserDefaults) -> Set<ExpiryNotificationLeadTime> {
+        Set(allCases.filter { defaults.object(forKey: $0.storageKey) as? Bool ?? $0.isEnabledByDefault })
+    }
 }
 
 @MainActor
