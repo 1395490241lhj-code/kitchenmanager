@@ -114,8 +114,13 @@ struct ConversationContextAssembler {
         history = history.filter { Self.cost([AIConversationTranscriptMessage.from($0)!]) <= 3200 }
         history = Array(history.suffix(12))
         while Self.cost(history.compactMap(AIConversationTranscriptMessage.from)) > 3200 { history.removeFirst() }
+        // The model is never told the clock otherwise, and the dates it does
+        // see are encoded in UTC, so "明天" had nothing to count from. One
+        // local, day-level line — first, so a long instruction text cannot
+        // truncate it away — keeps the request deterministic within a day.
+        let today = "今天是 \(Self.localDayText(readAt, calendar: domainTools.calendar, withYear: true))（本地时区 \(domainTools.calendar.timeZone.identifier)）。\n"
         let prepared = PreparedAIConversationRequest(
-            system: Self.fit(systemInstructions, label: "instructions", role: .system, limit: 1600),
+            system: Self.fit(today + systemInstructions, label: "instructions", role: .system, limit: 1600),
             summary: Self.fit(summary, label: "summary", role: .system, limit: 1200),
             liveContext: live, recentMessages: history.compactMap(AIConversationTranscriptMessage.from),
             recentMessageIDs: history.map(\.id),
@@ -124,6 +129,17 @@ struct ConversationContextAssembler {
         guard prepared.bucketCharacterCounts.reduce(0, +) <= 10500,
               Self.cost(prepared.messages) <= 10500 else { throw ConversationPreparationError.contextTooLarge }
         return prepared
+    }
+
+    /// "2026-10-19 周一" (or "10月19日 周一") in the calendar's own time zone.
+    nonisolated static func localDayText(_ date: Date, calendar: Calendar, withYear: Bool) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day, .weekday], from: date)
+        let weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        let weekday = parts.weekday.map { weekdays[($0 - 1 + 7) % 7] } ?? ""
+        let year = parts.year ?? 0, month = parts.month ?? 0, day = parts.day ?? 0
+        return withYear
+            ? String(format: "%04d-%02d-%02d %@", year, month, day, weekday)
+            : "\(month)月\(day)日 \(weekday)"
     }
 
     nonisolated static func encoder() -> JSONEncoder {

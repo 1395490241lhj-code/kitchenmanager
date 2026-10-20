@@ -87,8 +87,11 @@ final class ConversationActionCoordinator {
                     throw AIActionExecutionError.invalidRecipe
                 }
                 plans.append(before)
+                // Which day: two days with the same dish, or a misread "明天",
+                // are otherwise indistinguishable before 应用修改.
+                let day = ConversationContextAssembler.localDayText(before.date, calendar: domain.calendar, withYear: false)
                 rows.append(.init(targetID: before.id,
-                    before: mealText(before.recipeName, servings: before.plannedServings, cooked: before.isCooked),
+                    before: "\(day) · " + mealText(before.recipeName, servings: before.plannedServings, cooked: before.isCooked),
                     after: mealText(recipe.title, servings: change.plannedServings ?? before.plannedServings, cooked: false)))
             }
             risk = changes.count == 1 ? .medium : .high

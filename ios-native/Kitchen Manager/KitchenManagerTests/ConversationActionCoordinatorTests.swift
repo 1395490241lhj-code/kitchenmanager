@@ -160,6 +160,15 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         _ = try f.c.execute(a)
         XCTAssertEqual(f.kitchen.plans.first { $0.id == row.id }?.plannedServings, 4)
     }
+    /// AI_LOGIC-4: the 确认计划变更 row names the day it changes.
+    func testPlannerPreviewRowNamesTheMealsDay() throws {
+        let f = Fixture(); let row = f.plan("红烧肉")
+        let a = try f.prepare(.replacePlannedMeal(planID: row.id, replacement: block()))
+        let day = ConversationContextAssembler.localDayText(row.date, calendar: f.domain.calendar, withYear: false)
+        let before = try preview(a).changes[0].before
+        XCTAssertTrue(before.hasPrefix("\(day) · 红烧肉"), before)
+        XCTAssertTrue(day.contains("月") && day.contains("日 周"))
+    }
     func testAStatedServingTargetIsPartOfTheIdempotencyKey() throws {
         let f = Fixture()
         let plain = try f.prepare(tonight()).idempotencyKey
