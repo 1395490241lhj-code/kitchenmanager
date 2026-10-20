@@ -246,10 +246,13 @@ struct InventoryView: View {
                                 .hidden
                             )
                             .accessibilityIdentifier("inventory.item.\(item.id.uuidString)")
+                            // Explicit tint: the app-wide blue tint otherwise
+                            // overrides the destructive red.
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("删除", role: .destructive) {
                                     itemPendingDeletion = item
                                 }
+                                .tint(AppTheme.danger)
                             }
                             // The commonest change to a food row. Only offered
                             // while there is something left to use up.

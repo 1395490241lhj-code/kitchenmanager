@@ -637,6 +637,9 @@ struct PlannerView: View {
                 } label: {
                     Text("移出计划")
                 }
+                // Explicit tint: the app-wide blue tint otherwise overrides
+                // the destructive red.
+                .tint(AppTheme.danger)
                 .accessibilityIdentifier("planner.meal.remove.\(meal.id.uuidString)")
             }
             .contextMenu {
