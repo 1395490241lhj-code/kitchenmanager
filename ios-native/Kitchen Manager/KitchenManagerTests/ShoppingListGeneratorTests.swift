@@ -239,6 +239,36 @@ final class ShoppingListGeneratorTests: XCTestCase {
         XCTAssertTrue(draft.missingItems.contains { $0.displayName == "生抽" })
     }
 
+    /// A line with no amount used to be "需要购买" even with the food at home.
+    /// Like Home's readiness it is judged by presence.
+    func test_lineWithoutQuantity_inStock_isCovered() {
+        let draft = generate(
+            recipe(title: "白灼生菜", ingredients: ["鸡蛋 1个", "生菜 适量"]),
+            inventory: [item("生菜", quantity: 1, unit: "颗")]
+        )
+        XCTAssertFalse(draft.missingItems.contains { $0.displayName == "生菜" })
+        XCTAssertEqual(draft.coveredItems.map(\.displayName), ["生菜"])
+    }
+
+    func test_lineWithoutQuantity_notInStock_isStillMissing() {
+        let draft = generate(recipe(title: "白灼生菜", ingredients: ["生菜 适量"]))
+        XCTAssertEqual(draft.missingItems.map(\.displayName), ["生菜"])
+    }
+
+    func test_lineWithoutQuantity_importsWithoutTheWord适量AsAUnit() {
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let store = ShoppingListGenerationStore()
+        store.generate(
+            source: .recipe(recipe(title: "白灼生菜", ingredients: ["生菜 适量"]), servings: 1),
+            kitchenStore: kitchen, recipeStore: recipeStore
+        )
+        store.importSelectedItems(into: kitchen)
+        let row = kitchen.shoppingItems.first { $0.name == "生菜" }
+        XCTAssertNotNil(row)
+        XCTAssertNotEqual(row?.unit, "适量")
+        XCTAssertEqual(row?.unit, "份")
+    }
+
     func test_condimentLookingIngredient_doesNotMatchBaseIngredientInInventory() {
         // "牛肉酱" (a processed product) must not be treated as the same
         // ingredient as "牛肉" (fresh beef) sitting in inventory.

@@ -512,6 +512,12 @@ struct ShoppingListGenerator {
                     requirement.isCoveredByInventory = false
                     missing.append(requirement)
                 }
+            } else if !matchedInventory.isEmpty {
+                // No amount to measure a shortfall against: judged by presence,
+                // the same rule as Home's readiness (`RecipeStockMatch`).
+                requirement.missingQuantity = 0
+                requirement.isCoveredByInventory = true
+                covered.append(requirement)
             } else {
                 requirement.isCoveredByInventory = false
                 missing.append(requirement)
@@ -768,7 +774,9 @@ final class ShoppingListGenerationStore: ObservableObject {
         let additions = selected.map { item -> KitchenShoppingItem in
             var quantity = (item.missingQuantity ?? item.requiredQuantity ?? 1)
             quantity = quantity > 0 ? quantity : 1
-            let unit = item.unit?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "适量"
+            // "1 适量" is not an amount; a line without a unit gets the
+            // list's ordinary default unit, as a manual add does.
+            let unit = item.unit?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty ?? "份"
             return KitchenShoppingItem(
                 name: item.displayName,
                 quantity: quantity,
@@ -954,7 +962,7 @@ struct ShoppingListGenerationView: View {
     }
 
     private func coverageText(_ item: IngredientRequirement) -> String {
-        guard let required = item.requiredQuantity else { return "库存足够" }
+        guard let required = item.requiredQuantity else { return "家里有" }
         if let available = item.availableQuantity {
             return "需要 \(required.formatted()) · 现有 \(available.formatted()) \(item.unit ?? "")"
         }
