@@ -244,6 +244,41 @@ final class ConversationOrchestratorTests: XCTestCase {
         XCTAssertTrue(step2Messages.contains(where: { $0.role == .tool && $0.toolCallID == "call-inv-1" }))
     }
 
+    /// 消息上下文 with 库存 switched off used to skip only the preload: a
+    /// read_inventory call still sent the inventory to the provider.
+    func testReadToolHonoursAContextSourceTheMemberTurnedOff() async throws {
+        let env = try TestEnv()
+        env.kitchenStore.addInventory(name: "私密食材", quantity: 1, unit: "个", expiryDate: nil)
+        let step1Events: [AIConversationStreamEvent] = [
+            .toolCall(id: "call-inv-off", name: "read_inventory", arguments: Data("{}".utf8)),
+            .completed(finishReason: "tool_calls")
+        ]
+        let transport = ScriptedTransport(stepResponses: [step1Events, [.completed(finishReason: "stop")]])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let input = AIConversationTurnInput(
+            conversationID: env.conversationID,
+            turnID: env.turnID,
+            currentUserMessage: env.currentUserMessage,
+            excludedContextKinds: [.inventory]
+        )
+        let events = try await collectEvents(from: orchestrator.runTurn(input))
+
+        let captured = await transport.capturedRequests
+        XCTAssertEqual(captured.count, 2)
+        let toolResult = try XCTUnwrap(captured[1].messages.first { $0.role == .tool && $0.toolCallID == "call-inv-off" })
+        XCTAssertTrue(toolResult.content?.contains("excluded_by_member") ?? false)
+        for request in captured {
+            for message in request.messages {
+                XCTAssertFalse(message.content?.contains("私密食材") ?? false, "库存关闭时不能发给模型")
+            }
+        }
+        let snapshots = events.compactMap { event -> AIContextSnapshot? in
+            if case .contextSnapshot(let snapshot) = event { return snapshot }
+            return nil
+        }
+        XCTAssertFalse(snapshots.contains { $0.contextKinds.contains(.inventory) })
+    }
+
     // 2: READ LOOP: step 2 two recipe-card calls -> two blocks emitted in order
     func testReadLoop_step2TwoRecipeCardCalls_emitsTwoBlocksInOrder() async throws {
         let env = try TestEnv()
