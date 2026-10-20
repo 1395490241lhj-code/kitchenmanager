@@ -90,7 +90,8 @@ test("all editable recipe save and plan entries share draft eligibility", () => 
   assert.match(addRecipe, /return editableDraft\.isSaveEligible/);
   assert.match(addRecipe, /\.disabled\(!draft\.isSaveEligible\)/);
   assert.match(addRecipe, /generatorStore\.isGenerating \|\| !isDraftSaveEligible/);
-  assert.match(addRecipe, /hasAddedCurrentDraftToPlan \|\| !isDraftSaveEligible/);
+  // AI 做菜 has no unsaved "仅加入今日计划": a plan must name a saved recipe.
+  assert.doesNotMatch(addRecipe, /仅加入今日计划/);
   assert.match(imageImport, /return draft\.isSaveEligible/);
   assert.match(recipes, /\.disabled\(!draft\.isSaveEligible\)/);
 });
