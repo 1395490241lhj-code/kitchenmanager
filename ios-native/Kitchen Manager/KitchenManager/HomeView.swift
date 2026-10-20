@@ -424,7 +424,7 @@ struct HomeView: View {
         NavigationStack {
             ImportRecipeView(
                 initialURLText: SharedImportCoordinator.prefillText(for: request),
-                autoStart: true,
+                autoStart: sharedImportCoordinator.shouldAutoStart(request),
                 onSaved: {
                     sharedImportCoordinator.markHandedOff(request)
                     showToast("已保存到菜谱库")
@@ -435,6 +435,15 @@ struct HomeView: View {
                     Button("关闭") {
                         sharedImportCoordinator.snooze(request)
                     }
+                }
+                // Closing keeps the share for later; this removes it, for a
+                // link that cannot be read or is already in the library.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("不再导入", role: .destructive) {
+                        sharedImportCoordinator.discard(request)
+                        showToast("已移除这条分享")
+                    }
+                    .accessibilityIdentifier("sharedImport.discard")
                 }
             }
         }

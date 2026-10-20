@@ -109,9 +109,11 @@ test("home IA removes the legacy smart-import stack while share handoff keeps re
     home,
     /\.sheet\(item: sharedImportSheetBinding\) \{ request in\s*sharedImportSheetContent\(request\)\s*\}/
   );
+  // A share auto-starts only the first time it is shown; one already shown
+  // and closed (a failed or already-imported link) waits for 开始识别.
   assert.match(
     home,
-    /private func sharedImportSheetContent\(_ request: SharedImportRequest\) -> some View \{[\s\S]*ImportRecipeView\([\s\S]*autoStart: true/
+    /private func sharedImportSheetContent\(_ request: SharedImportRequest\) -> some View \{[\s\S]*ImportRecipeView\([\s\S]*autoStart: sharedImportCoordinator\.shouldAutoStart\(request\)/
   );
   assert.match(home, /case \.clipboardImport\(let presentation\):[\s\S]*ImportRecipeView\(/);
 });
