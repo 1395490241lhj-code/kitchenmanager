@@ -243,13 +243,14 @@ struct RestockSuggestion: Identifiable {
 }
 
 struct RestockSuggestionEngine {
-    /// A pending list row for the same ingredient in the same or a convertible
-    /// unit. A row in an unrelated unit does not count: adding would not merge
-    /// into it, and it says nothing about how much is already coming.
+    /// A list row for the same ingredient in the same or a convertible unit,
+    /// pending or ticked: a ticked row has been bought and only waits for
+    /// 入库, so suggesting it again would buy it twice. A row in an unrelated
+    /// unit does not count: it says nothing about how much is already coming.
     static func isOnShoppingList(name: String, unit: String?, in shoppingItems: [KitchenShoppingItem]) -> Bool {
         let key = IngredientNormalizer.matchKey(name)
         return shoppingItems.contains { item in
-            guard !item.isDone, IngredientNormalizer.matchKey(item.name) == key else { return false }
+            guard IngredientNormalizer.matchKey(item.name) == key else { return false }
             guard let unit else { return true }
             return IngredientNormalizer.normalizedUnit(item.unit) == IngredientNormalizer.normalizedUnit(unit)
                 || UnitConverter.areConvertible(item.unit, unit)

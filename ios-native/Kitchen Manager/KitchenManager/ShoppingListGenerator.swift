@@ -524,39 +524,51 @@ struct ShoppingListGenerator {
             }
         }
 
-        // What the pending list already holds. With `.subtract` it is not
-        // bought again; with `.inform` the row keeps its full amount and stays
+        // What the list already holds. With `.subtract` it is not bought
+        // again; with `.inform` the row keeps its full amount and stays
         // selected, and only says what is listed. Only quantities in the same
         // or a convertible unit count — 1 份 says nothing about how many 个
         // are already on the list.
+        //
+        // A ticked row counts too: it has been bought and only waits for
+        // 入库. Leaving it out made the kitchen neither have it nor have it on
+        // the list, so every generator asked to buy it again.
         var stillMissing: [IngredientRequirement] = []
         var alreadyListed: [IngredientRequirement] = []
         for var item in missing {
-            let pendingItems = existingShoppingItems.filter {
-                !$0.isDone && IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(item.displayName)
+            let listedItems = existingShoppingItems.filter {
+                IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(item.displayName)
             }
-            guard let first = pendingItems.first else {
+            guard let first = listedItems.first else {
                 stillMissing.append(item)
                 continue
             }
-            let pending = item.unit.flatMap { Self.pendingQuantity(pendingItems, in: $0) }
+            let allBought = listedItems.allSatisfy(\.isDone)
+            let someBought = listedItems.contains(where: \.isDone)
+            func onList(_ amount: String) -> String {
+                if allBought { return "已买「\(amount)」，待入库" }
+                return someBought ? "买菜清单中已有「\(amount)」（部分已买，待入库）" : "买菜清单中已有「\(amount)」"
+            }
+            let pending = item.unit.flatMap { Self.pendingQuantity(listedItems, in: $0) }
             let note: String
             if pendingList == .inform, let pending, pending > 0, let unit = item.unit {
-                note = "买菜清单中已有「\(item.displayName) \(pending.formatted()) \(unit)」；如果已为这道菜加过，可取消勾选"
+                note = "\(onList("\(item.displayName) \(pending.formatted()) \(unit)"))；如果已为这道菜加过，可取消勾选"
             } else if pendingList == .subtract, let need = item.missingQuantity, let pending, pending > 0, let unit = item.unit {
                 let listed = "\(item.displayName) \(pending.formatted()) \(unit)"
                 let remaining = need - pending
                 if remaining <= 0 {
                     item.missingQuantity = 0
                     item.isSelected = false
-                    item.warning = "已在清单：\(listed)"
+                    item.warning = allBought
+                        ? "已在清单：已买「\(listed)」，待入库"
+                        : "已在清单：\(listed)\(someBought ? "（部分已买，待入库）" : "")"
                     alreadyListed.append(item)
                     continue
                 }
                 item.missingQuantity = Self.isCountableUnit(unit) ? remaining.rounded(.up) : remaining
-                note = "买菜清单中已有「\(listed)」，这里只列还差的数量"
+                note = "\(onList(listed))，这里只列还差的数量"
             } else {
-                note = "买菜清单中已有「\(first.name) \(first.quantity.formatted()) \(first.unit)」，请确认是否还需要"
+                note = "\(onList("\(first.name) \(first.quantity.formatted()) \(first.unit)"))，请确认是否还需要"
             }
             item.warning = item.warning.map { "\($0)；\(note)" } ?? note
             stillMissing.append(item)

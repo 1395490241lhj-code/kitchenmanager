@@ -292,14 +292,46 @@ final class ShoppingListGeneratorTests: XCTestCase {
         XCTAssertTrue(draft.missingItems[0].warning?.contains("买菜清单中已有") ?? false)
     }
 
-    func test_doneShoppingItem_doesNotTriggerMergeNote() {
-        // Per the current implementation, `existingShoppingItems.first(where: { !$0.isDone && ... })`
-        // explicitly excludes completed items from the merge-note check.
+    /// SHOPPING_LOGIC-4: a ticked row has been bought and waits for 入库. It
+    /// used to count as neither stock nor list, so the sheet asked to buy it
+    /// again without a word. It is now named like a listed row (`.inform`).
+    func test_doneShoppingItem_isNamedAsBoughtAwaitingStockIn() {
         let draft = generate(
             recipe(title: "菜", ingredients: ["番茄 3个"]),
             existingShoppingItems: [KitchenShoppingItem(name: "番茄", quantity: 1, unit: "个", isDone: true)]
         )
-        XCTAssertNil(draft.missingItems[0].warning)
+        XCTAssertEqual(draft.missingItems[0].warning, "已买「番茄 1 个」，待入库；如果已为这道菜加过，可取消勾选")
+    }
+
+    /// With `.subtract` (Home 还缺, restock), what was bought covers the need.
+    func test_doneShoppingItem_coversTheNeedWhenSubtracting() {
+        let kitchen = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let draft = ShoppingListGenerator().generate(
+            source: .recipe(recipe(title: "菜", ingredients: ["鸡蛋 6个"]), servings: 1),
+            inventory: kitchen.inventory,
+            existingShoppingItems: [KitchenShoppingItem(name: "鸡蛋", quantity: 6, unit: "个", isDone: true)],
+            recipeStore: recipeStore,
+            pendingList: .subtract
+        )
+        XCTAssertTrue(draft.missingItems.isEmpty)
+        XCTAssertEqual(draft.alreadyListedItems.first?.warning, "已在清单：已买「鸡蛋 6 个」，待入库")
+    }
+
+    func test_doneShoppingItem_onlyTheShortfallIsLeftWhenSubtracting() {
+        let draft = ShoppingListGenerator().generate(
+            source: .recipe(recipe(title: "菜", ingredients: ["鸡蛋 6个"]), servings: 1),
+            inventory: [],
+            existingShoppingItems: [KitchenShoppingItem(name: "鸡蛋", quantity: 4, unit: "个", isDone: true)],
+            recipeStore: recipeStore,
+            pendingList: .subtract
+        )
+        XCTAssertEqual(draft.missingItems.first?.missingQuantity, 2)
+        XCTAssertEqual(draft.missingItems.first?.warning, "已买「鸡蛋 4 个」，待入库，这里只列还差的数量")
+    }
+
+    func test_tickedStapleIsAlreadyOnTheListForRestock() {
+        let list = [KitchenShoppingItem(name: "盐", quantity: 1, unit: "包", isDone: true)]
+        XCTAssertTrue(RestockSuggestionEngine.isOnShoppingList(name: "盐", unit: "包", in: list))
     }
 
     // MARK: - Pending shopping
