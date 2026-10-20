@@ -300,7 +300,7 @@ struct HomeView: View {
         // The existing generation flow, over the same plans the hero measures.
         // It already separates covered from missing and preselects the latter.
         .navigationDestination(isPresented: $isShowingMissingShopping) {
-            ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
+            ShoppingListGenerationView(source: .todayPlans(uncookedTodayPlans))
         }
         // An explicit selection + `navigationDestination(item:)`, never
         // `NavigationLink(value:)` — see the ExpirySheet note above for why
@@ -597,13 +597,18 @@ struct HomeView: View {
         }
     }
 
+    /// Today's meals still to cook — what 还缺 and its shopping speak for.
+    private var uncookedTodayPlans: [MealPlanItem] {
+        kitchenStore.todayPlans.filter { !$0.isCooked }
+    }
+
     /// True when the pending 买菜清单 already holds everything today's meals
     /// still need. Read through the same generator the 还缺 row opens; this is
     /// all of today's meals at once, so it may subtract the pending list, while
     /// the screen behind the row only marks each listed item.
     private var isTodayShortfallAlreadyListed: Bool {
         let draft = ShoppingListGenerator().generate(
-            source: .todayPlans(kitchenStore.todayPlans),
+            source: .todayPlans(uncookedTodayPlans),
             inventory: kitchenStore.inventory,
             existingShoppingItems: kitchenStore.shoppingItems,
             recipeStore: recipeStore,
@@ -637,8 +642,10 @@ struct HomeView: View {
         let minutes = plans.reduce(into: 0) { total, plan in
             total += recipeStore.recipe(id: plan.recipeID)?.cookingTime ?? 0
         }
+        // Readiness is the exception: only dishes still to cook can lack an
+        // ingredient, and a cooked dish's food is already used up.
         let readiness = HomeMealReadinessProjection.readiness(
-            plans: plans,
+            plans: dashboard.pendingPlans,
             recipes: { recipeStore.recipe(id: $0) },
             inventory: kitchenStore.inventory
         )
@@ -700,8 +707,8 @@ struct HomeView: View {
                 .accessibilityIdentifier("home.specialPlan.open")
 
             case .planExecution:
-                let missing = dashboard.allPlans.allSatisfy(\.isCooked) ? [] : HomeMealReadinessProjection.missingIngredients(
-                    plans: dashboard.allPlans,
+                let missing = HomeMealReadinessProjection.missingIngredients(
+                    plans: dashboard.pendingPlans,
                     recipes: { recipeStore.recipe(id: $0) },
                     inventory: kitchenStore.inventory
                 )

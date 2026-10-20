@@ -24,6 +24,10 @@ struct HomeDashboardSummary: Equatable {
     /// measures readiness over the whole menu, so a three-plan preview would
     /// silently exclude the fourth dish from every number on the page.
     let allPlans: [MealPlanItem]
+    /// Today's plans not cooked yet: the only ones that can still be missing
+    /// an ingredient. A cooked dish's food was used up by cooking it, so
+    /// counting it would ask to buy what was just eaten.
+    let pendingPlans: [MealPlanItem]
     let totalPlanCount: Int
     let completedPlanCount: Int
     let expiredCount: Int
@@ -49,6 +53,7 @@ struct HomeDashboardSummary: Equatable {
         let pendingPlans = todayPlans.filter { !$0.isCooked }
         let completedPlans = todayPlans.filter(\.isCooked)
         allPlans = pendingPlans + completedPlans
+        self.pendingPlans = pendingPlans
         totalPlanCount = todayPlans.count
         completedPlanCount = completedPlans.count
 
