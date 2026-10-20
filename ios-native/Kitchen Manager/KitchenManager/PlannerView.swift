@@ -559,6 +559,10 @@ struct PlannerView: View {
             }
         }
         .plannerList()
+        // The system row minimum (52pt on iOS 26/27) otherwise wins over an
+        // unplanned day's 44pt whole-row target, making an empty day exactly as
+        // tall as a planned meal row. List-level: a row-level value is ignored.
+        .environment(\.defaultMinListRowHeight, AppTheme.minimumHitTarget)
     }
 
     private var recipeLibrarySection: some View {
