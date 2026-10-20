@@ -750,7 +750,12 @@ final class HomeDashboardUITests: XCTestCase {
             attachScreenshot(of: decision, named: "home-polish-decision-\(name)")
             let decisionShelf = element(decision, "home.recommendation.shelf")
             let terminal = decision.buttons["home.recommendation.regenerate"]
-            for _ in 0..<5 where terminal.frame.maxX > decisionShelf.frame.maxX { decisionShelf.swipeLeft() }
+            // The shelf is lazy: the terminal card may not be built until the
+            // shelf scrolls near it, so a missing card also means swipe on.
+            for _ in 0..<5 where !terminal.exists || terminal.frame.maxX > decisionShelf.frame.maxX {
+                decisionShelf.swipeLeft()
+            }
+            XCTAssertTrue(terminal.waitForExistence(timeout: 5), "the shelf must end in 换一批")
             XCTAssertLessThanOrEqual(terminal.frame.maxX, decisionShelf.frame.maxX)
             XCTAssertTrue(terminal.isHittable)
             attachScreenshot(of: decision, named: "home-polish-terminal-\(name)")
