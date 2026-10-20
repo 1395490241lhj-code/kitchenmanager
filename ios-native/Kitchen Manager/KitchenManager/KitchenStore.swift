@@ -546,10 +546,22 @@ enum InventoryExpiryStatus: String, Hashable {
     }
 }
 
-enum PantryStapleError: LocalizedError {
+enum PantryStapleError: LocalizedError, Equatable {
     case missingName
+    /// A same-name batch exists and the user did not pick it. Saving would
+    /// overwrite that batch's quantity and date, so it is refused instead.
+    case alreadyInInventory(name: String, isStaple: Bool)
 
-    var errorDescription: String? { "请填写常备食材名称。" }
+    var errorDescription: String? {
+        switch self {
+        case .missingName:
+            return "请填写常备食材名称。"
+        case let .alreadyInInventory(name, isStaple):
+            return isStaple
+                ? "常备货架上已有「\(name)」，可以直接在货架里编辑它。"
+                : "库存里已有「\(name)」。请在上方「从现有库存选择」里选它，以免改掉那一批的数量和保质期。"
+        }
+    }
 }
 
 nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
@@ -2388,11 +2400,16 @@ final class KitchenStore: ObservableObject {
         let cleanName = IngredientNormalizer.normalizedName(name)
         let cleanUnit = IngredientNormalizer.normalizedUnit(unit)
         guard !cleanName.isEmpty else { throw PantryStapleError.missingName }
+        // Only the row the caller names is updated. A same-name batch that was
+        // not picked keeps its own quantity and date: it is reported, never
+        // silently overwritten.
         let index = id.flatMap { target in inventory.firstIndex(where: { $0.id == target }) }
-            ?? inventory.firstIndex(where: {
-                IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(cleanName)
-                    && IngredientNormalizer.normalizedUnit($0.unit) == cleanUnit
-            })
+        if index == nil, let existing = inventory.first(where: {
+            IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(cleanName)
+                && IngredientNormalizer.normalizedUnit($0.unit) == cleanUnit
+        }) {
+            throw PantryStapleError.alreadyInInventory(name: existing.name, isStaple: existing.isStaple)
+        }
         if let index {
             inventory[index].name = cleanName
             inventory[index].quantity = max(0, quantity)

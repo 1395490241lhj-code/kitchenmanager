@@ -248,6 +248,9 @@ struct AddPantryStapleView: View {
     @State private var trackingMode: StapleTrackingMode = .quantity
     @State private var availabilityStatus: StapleAvailabilityStatus = .available
     @State private var errorMessage: String?
+    /// The existing batch picked under 从现有库存选择. Saving updates exactly
+    /// that row; renaming afterwards means a new staple again.
+    @State private var pickedItemID: UUID?
 
     private let presets = ["鸡蛋", "牛奶", "大米", "面粉", "食用油", "盐", "糖", "生抽", "醋", "黑胡椒", "葱", "姜", "蒜", "咖啡豆"]
     private let statusPresets = Set(["食用油", "盐", "糖", "生抽", "醋", "黑胡椒", "葱", "姜", "蒜"])
@@ -262,6 +265,7 @@ struct AddPantryStapleView: View {
                                 name = item.name
                                 quantity = item.quantity
                                 unit = item.unit
+                                pickedItemID = item.id
                             } label: {
                                 HStack {
                                     Text(item.name)
@@ -289,6 +293,11 @@ struct AddPantryStapleView: View {
                 }
 
                 stapleFields
+            }
+            .onChange(of: name) { _, newName in
+                if let pickedItemID, store.inventory.first(where: { $0.id == pickedItemID })?.name != newName {
+                    self.pickedItemID = nil
+                }
             }
             .navigationTitle("添加常备食材")
             .navigationBarTitleDisplayMode(.inline)
@@ -334,7 +343,7 @@ struct AddPantryStapleView: View {
     private func save() {
         do {
             try store.saveStaple(
-                id: nil,
+                id: pickedItemID,
                 name: name,
                 quantity: quantity,
                 unit: unit,

@@ -349,6 +349,45 @@ final class KitchenStoreTests: XCTestCase {
         XCTAssertEqual(item.quantity, 0)
     }
 
+    /// 添加常备食材 used to look up the first same-name row and overwrite its
+    /// quantity and date with whatever the form held.
+    func test_saveStaple_withoutAPickedRow_neverOverwritesAnExistingBatch() {
+        let date = Calendar.current.date(byAdding: .day, value: 6, to: Date())!
+        store.addInventory(name: "鸡蛋", quantity: 10, unit: "个", expiryDate: date)
+
+        XCTAssertThrowsError(try store.saveStaple(
+            id: nil, name: "鸡蛋", quantity: 0, unit: "个",
+            minimumQuantity: 6, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil
+        )) { error in
+            XCTAssertEqual(error as? PantryStapleError, .alreadyInInventory(name: "鸡蛋", isStaple: false))
+        }
+        XCTAssertEqual(store.inventory.count, 1)
+        XCTAssertEqual(store.inventory[0].quantity, 10)
+        XCTAssertEqual(store.inventory[0].expiryDate, date)
+        XCTAssertFalse(store.inventory[0].isStaple)
+    }
+
+    func test_saveStaple_withAPickedRow_updatesOnlyThatBatch() throws {
+        let soon = Calendar.current.date(byAdding: .day, value: 2, to: Date())!
+        let later = Calendar.current.date(byAdding: .day, value: 9, to: Date())!
+        store.addInventory(name: "牛奶", quantity: 1, unit: "盒", expiryDate: soon)
+        store.addInventory(name: "牛奶", quantity: 2, unit: "盒", expiryDate: later)
+        let picked = try XCTUnwrap(store.inventory.first { $0.expiryDate == later })
+
+        try store.saveStaple(
+            id: picked.id, name: "牛奶", quantity: 2, unit: "盒",
+            minimumQuantity: 1, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil
+        )
+
+        let other = try XCTUnwrap(store.inventory.first { $0.id != picked.id })
+        XCTAssertEqual(other.quantity, 1)
+        XCTAssertEqual(other.expiryDate, soon, "the batch nobody picked keeps its date")
+        XCTAssertFalse(other.isStaple)
+        XCTAssertTrue(try XCTUnwrap(store.inventory.first { $0.id == picked.id }).isStaple)
+    }
+
     func test_stockIn_leavesAQuantityModeStapleStatusFieldAlone() throws {
         try store.saveStaple(
             id: nil, name: "鸡蛋", quantity: 1, unit: "个",
