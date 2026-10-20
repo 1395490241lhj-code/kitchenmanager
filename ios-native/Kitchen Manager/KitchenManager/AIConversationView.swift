@@ -13,6 +13,12 @@ struct AIConversationView: View {
     @State private var showingRenameAlert = false
     @State private var renameText = ""
     @State private var showingDeleteConfirmation = false
+    /// Whether new transcript content should bring the view to the bottom; see
+    /// `AIConversationAutoScroll`.
+    @State private var followsTranscriptBottom = true
+    @State private var isUserScrollingTranscript = false
+    @State private var isKeyboardVisible = false
+    @State private var userScrollBeganWithKeyboard = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,7 +45,7 @@ struct AIConversationView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(controller.messages) { message in
+                            ForEach(AIConversationTranscriptPresentation.visibleMessages(controller.messages)) { message in
                                 MessageRowView(message: message)
                                     .id(message.id)
                             }
@@ -56,14 +62,55 @@ struct AIConversationView: View {
                         .padding(.vertical, KitchenTheme.modulePadding)
                     }
                     .scrollDismissesKeyboard(.interactively)
-                    .onChange(of: controller.messages.count) { _, _ in
+                    // Only the member's own drag decides whether they are still
+                    // reading the bottom; programmatic scrolls (.animating) and
+                    // content growth never flip it.
+                    .onScrollPhaseChange { _, newPhase, context in
+                        switch newPhase {
+                        case .tracking, .interacting, .decelerating:
+                            if !isUserScrollingTranscript {
+                                userScrollBeganWithKeyboard = isKeyboardVisible
+                            }
+                            isUserScrollingTranscript = true
+                        case .idle:
+                            guard isUserScrollingTranscript else { return }
+                            isUserScrollingTranscript = false
+                            let geometry = context.geometry
+                            followsTranscriptBottom = AIConversationAutoScroll.followsAfterUserScroll(
+                                previous: followsTranscriptBottom,
+                                beganWithKeyboard: userScrollBeganWithKeyboard,
+                                isNearBottom: AIConversationAutoScroll.isNearBottom(
+                                    contentOffsetY: geometry.contentOffset.y,
+                                    contentHeight: geometry.contentSize.height,
+                                    containerHeight: geometry.containerSize.height,
+                                    bottomInset: geometry.contentInsets.bottom
+                                )
+                            )
+                        case .animating:
+                            break
+                        @unknown default:
+                            break
+                        }
+                    }
+                    // One trigger, at most one scroll per update.
+                    .onChange(of: scrollTrigger) { old, new in
+                        if AIConversationAutoScroll.resumesFollowing(from: old, to: new) {
+                            followsTranscriptBottom = true
+                            isUserScrollingTranscript = false
+                        }
+                        guard AIConversationAutoScroll.shouldFollow(
+                            followsBottom: followsTranscriptBottom,
+                            userIsScrolling: isUserScrollingTranscript
+                        ) else { return }
                         scrollToBottom(proxy: proxy)
                     }
-                    .onChange(of: controller.turnState) { _, _ in
-                        scrollToBottom(proxy: proxy)
+                    // A drag that starts with the keyboard up is the interactive
+                    // dismissal, not a scroll up to reread.
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                        isKeyboardVisible = true
                     }
-                    .onChange(of: controller.contentRevision) { _, _ in
-                        scrollToBottom(proxy: proxy)
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                        isKeyboardVisible = false
                     }
                 }
             }
@@ -218,6 +265,16 @@ struct AIConversationView: View {
         AIConversationTaskIdentity(
             conversation: controller.currentConversation,
             isPersisted: controller.isPersisted
+        )
+    }
+
+    private var scrollTrigger: AIConversationAutoScroll.Trigger {
+        AIConversationAutoScroll.Trigger(
+            conversationID: controller.currentConversation?.id,
+            latestUserMessageID: controller.messages.last { $0.role == .user }?.id,
+            messageCount: controller.messages.count,
+            revision: controller.contentRevision,
+            turnState: controller.turnState
         )
     }
 

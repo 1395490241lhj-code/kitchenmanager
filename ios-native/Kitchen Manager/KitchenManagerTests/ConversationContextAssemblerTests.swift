@@ -169,6 +169,80 @@ final class ConversationContextAssemblerTests: XCTestCase {
         let d = Domain(); let r = try prepare(d, current: message("今晚吃什么"), excluded: [.inventory])
         XCTAssertEqual(d.reads, [.tonightPlan]); XCTAssertFalse(r.liveContext.contains("missingCount"))
     }
+    /// A short follow-up inside a conversation that already asked what to eat is
+    /// the same question: 「今晚做什么」 after 「用快过期的食材做饭」 read only the
+    /// tonight plan on device and the model answered in prose without cards.
+    func testMealFollowUpInAMealConversationReadsTheKitchen() throws {
+        for question in ["今晚做什么", "今晚做什么？", "那明天做啥", "换一个", "换一批", "再来一个", "换个清淡的",
+                         "推荐点简单的", "还有别的吗", "有没有其他的", "Anything else?", "What else?"] {
+            let d = Domain()
+            let r = try prepare(d, history: [message("用快过期的食材做饭", index: 1)], current: message(question, index: 3))
+            XCTAssertEqual(d.reads, [.inventory, .tonightPlan, .recipe], question)
+            XCTAssertNotNil(r.contexts.first { $0.kind == .recipe }, question)
+        }
+    }
+    /// Without an earlier meal question the same words stay unread, so a fresh
+    /// or unrelated conversation keeps the conservative rule.
+    func testFollowUpWordsWithoutAPriorMealQuestionReadNothingExtra() throws {
+        for history in [[], [message("今晚会下雨吗", index: 1)], [message("用快过期的食材做饭", index: 1, role: .assistant)]] {
+            let d = Domain(); _ = try prepare(d, history: history, current: message("今晚做什么", index: 3))
+            XCTAssertEqual(d.reads, [.tonightPlan])
+        }
+    }
+    /// Privacy: inside a conversation that already talked about cooking, a
+    /// question that merely shares a word with a follow-up (换, 推荐, 做什么) is not
+    /// one. The follow-up must be the whole short question, so these read only
+    /// the tonight plan and the model can still ask for more through its tools.
+    func testMealFollowUpPrivacyNegativesDoNotReadTheKitchen() throws {
+        for question in ["我想换手机", "推荐电影院", "今晚做什么运动", "今晚做什么运动好", "换个话题", "推荐一部电影",
+                         "还有别的事吗", "帮我推荐个电影", "Anything else about my phone?"] {
+            let d = Domain()
+            let r = try prepare(d, history: [message("用快过期的食材做饭", index: 1)], current: message(question, index: 3))
+            XCTAssertEqual(d.reads, [.tonightPlan], question)
+            XCTAssertEqual(r.contexts.map(\.kind), [.tonightPlan], question)
+            XCTAssertFalse(r.liveContext.contains("missingCount"), question)
+        }
+    }
+    func testNonFoodQuestionInAMealConversationStaysUnread() throws {
+        for question in ["今晚会下雨吗", "谢谢", "明天几点下班"] {
+            let d = Domain(); _ = try prepare(d, history: [message("今晚吃什么", index: 1)], current: message(question, index: 3))
+            XCTAssertEqual(d.reads, [.tonightPlan], question)
+        }
+    }
+    func testMealFollowUpKeepsTheInventoryExclusion() throws {
+        let d = Domain()
+        let r = try prepare(d, history: [message("今晚吃什么", index: 1)], current: message("换一个", index: 3), excluded: [.inventory])
+        XCTAssertEqual(d.reads, [.tonightPlan]); XCTAssertFalse(r.liveContext.contains("missingCount"))
+    }
+    /// Only the last few questions carry the meal intent; an old one does not
+    /// keep reading the kitchen for the rest of the conversation.
+    func testOnlyRecentMealQuestionsCarryOver() throws {
+        let history = [message("今晚吃什么", index: 1)] + (2...4).map { message("今晚会下雨吗", index: $0) }
+        let d = Domain(); _ = try prepare(d, history: history, current: message("换一个", index: 9))
+        XCTAssertEqual(d.reads, [.tonightPlan])
+    }
+    /// Recommendations are cards, not prose: the model is told to present each
+    /// dish with present_recipe_card, keep the text short and leave kitchen facts
+    /// to the card. The instructions must still reach the model whole.
+    func testInstructionsAskForCardsShortTextAndNoKitchenClaims() throws {
+        let text = ConversationContextAssembler.instructions
+        XCTAssertTrue(text.contains("present_recipe_card"))
+        XCTAssertTrue(text.contains("recipeID"))
+        XCTAssertTrue(text.contains("不要自行断言"))
+        XCTAssertTrue(text.contains("没有合适的菜"))
+        // The length rule is scoped to recommendations: Planner changes and
+        // explanatory questions keep the detail they need.
+        XCTAssertTrue(text.contains("推荐菜时："))
+        XCTAssertTrue(text.contains("计划调整与其他问题按需完整回答"))
+        XCTAssertFalse(text.contains("正文最多两三句"))
+        let r = try prepare(current: message("今晚吃什么"))
+        XCTAssertTrue(r.system.contains(text), "instructions must not be truncated by the system budget")
+    }
+    func testPlannerFollowUpIsUnchanged() throws {
+        let d = Domain()
+        _ = try prepare(d, entry: .planner(weekStart: now, specialPlanID: nil), history: [message("今晚吃什么", index: 1)], current: message("今晚做什么", index: 3))
+        XCTAssertEqual(d.reads, [.plannerWeek])
+    }
     /// Short sources must not strand room: beside an empty tonight plan and an
     /// empty shortlist, a long inventory keeps more than an equal three-way
     /// split could ever have given its whole entry, framing included.
