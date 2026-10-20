@@ -386,6 +386,9 @@ struct RecipeDetailView: View {
     /// happened to be: nothing here is today-specific, and the Planner opens
     /// meals on any date through the same path.
     let plan: MealPlanItem?
+    /// The Special Plan dish this page was opened for, so its cook is keyed
+    /// to that dish rather than being a second, unplanned one.
+    var specialPlanDish: SpecialPlanDishCookingContext? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
@@ -399,9 +402,10 @@ struct RecipeDetailView: View {
     @State private var errorMessage: String?
     @StateObject private var cookingSession: RecipeCookingSession
 
-    init(recipe: Recipe, plan: MealPlanItem? = nil) {
+    init(recipe: Recipe, plan: MealPlanItem? = nil, specialPlanDish: SpecialPlanDishCookingContext? = nil) {
         self.recipe = recipe
         self.plan = plan
+        self.specialPlanDish = specialPlanDish
         // Falls back to the recipe's own yield, not to 1: with no stated target
         // the honest default is "cook it as written". `baseServings` lets the
         // session convert instead of multiplying blind.
@@ -580,7 +584,9 @@ struct RecipeDetailView: View {
     }
 
     private var startCookingAction: some View {
-        Button { cookingRequest = CookingFlowRequest(recipe: recipe, plan: plan) } label: {
+        Button {
+            cookingRequest = CookingFlowRequest(recipe: recipe, plan: plan, specialPlanDish: specialPlanDish)
+        } label: {
             Label("开始烹饪", systemImage: "flame.fill")
                 .frame(maxWidth: .infinity)
         }

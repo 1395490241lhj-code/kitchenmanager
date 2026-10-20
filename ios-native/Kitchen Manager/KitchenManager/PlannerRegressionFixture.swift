@@ -299,6 +299,7 @@ struct PlannerRegressionHost: View {
                             initialDraft: PlannerRegressionFixture.state == "PLANNER_DATA_DRAFT" ? PlannerRegressionFixture.draft : []) { }
                             .navigationDestination(for: PlannerRoute.self) { route in
                                 if case .recipe(let id) = route, let recipe = library.recipe(id: id) { RecipeDetailView(recipe: recipe) }
+                                if case let .specialPlanDish(planID, dishID) = route { SpecialPlanDishRecipeDestination(planID: planID, dishID: dishID) }
                             }
                     }
                 } else {

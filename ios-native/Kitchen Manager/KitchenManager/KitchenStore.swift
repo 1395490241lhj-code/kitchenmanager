@@ -1926,6 +1926,16 @@ final class KitchenStore: ObservableObject {
         return .saved(updated[planIndex])
     }
 
+    /// Marks a Special Plan dish cooked after its consumption was confirmed (or
+    /// skipped for an event away from home), in the shape the confirmation
+    /// sheet reports back. Shared by the plan's tick and the recipe page's cook.
+    func completeSpecialPlanDish(planID: UUID, dishID: UUID) -> CookConsumptionCompletionOutcome {
+        if case .saved = setSpecialPlanDishCookedPersisted(planID: planID, dishID: dishID, isCooked: true) {
+            return .completed
+        }
+        return .dishStateSaveFailed(message: "菜品完成状态未保存，请重试。")
+    }
+
     /// Restates which recipe named dishes point at, leaving the rest of the
     /// event alone. One durable write for the whole set.
     ///

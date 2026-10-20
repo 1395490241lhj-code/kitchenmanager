@@ -200,19 +200,7 @@ struct SpecialPlanDetailView: View {
                     recipeID: recipe.id,
                     recipeName: dish.recipeName
                 ) { setOutcome in
-                    let result = kitchenStore.setSpecialPlanDishCookedPersisted(
-                        planID: plan.id,
-                        dishID: dish.id,
-                        isCooked: true
-                    )
-                    switch result {
-                    case .saved:
-                        setOutcome(.completed)
-                    case .notFound, .persistenceFailed:
-                        setOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
-                    case .rejected:
-                        setOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
-                    }
+                    setOutcome(kitchenStore.completeSpecialPlanDish(planID: plan.id, dishID: dish.id))
                 }
             }
         }
@@ -449,7 +437,7 @@ struct SpecialPlanDetailView: View {
             .accessibilityLabel(dish.isCooked ? "标记未完成" : "标记完成")
             .accessibilityIdentifier("planner.dish.done.\(dish.id.uuidString)")
 
-            NavigationLink(value: PlannerRoute.recipe(dish.recipeID)) {
+            NavigationLink(value: PlannerRoute.specialPlanDish(planID: plan.id, dishID: dish.id)) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dish.recipeName)
                         .font(.headline)
@@ -527,6 +515,27 @@ struct SpecialPlanDetailView: View {
         formatter.locale = Locale(identifier: "zh_Hans_CN")
         formatter.dateFormat = "M月d日 EEEE HH:mm"
         return formatter.string(from: scheduledAt)
+    }
+}
+
+// MARK: - Dish recipe
+
+/// The recipe page for one Special Plan dish, carrying the dish so cooking
+/// from here is keyed to it.
+struct SpecialPlanDishRecipeDestination: View {
+    @EnvironmentObject private var kitchenStore: KitchenStore
+    @EnvironmentObject private var recipeStore: RecipeStore
+    let planID: UUID
+    let dishID: UUID
+
+    var body: some View {
+        if let plan = kitchenStore.specialPlans.first(where: { $0.id == planID }),
+           let dish = plan.dishes.first(where: { $0.id == dishID }),
+           let recipe = recipeStore.recipe(id: dish.recipeID) {
+            RecipeDetailView(recipe: recipe, specialPlanDish: SpecialPlanDishCookingContext(plan: plan, dish: dish))
+        } else {
+            ContentUnavailableView("菜谱不存在", systemImage: "questionmark.folder")
+        }
     }
 }
 

@@ -13,6 +13,9 @@ import SwiftUI
 enum PlannerRoute: Hashable {
     case specialPlan(UUID)
     case recipe(String)
+    /// A Special Plan dish's recipe, opened as that dish so cooking it there
+    /// is that dish's cook. Resolved fresh, like `plannedMeal`.
+    case specialPlanDish(planID: UUID, dishID: UUID)
     /// An ordinary meal, carried by id rather than by value so the destination
     /// always resolves the current plan: an edit that lands while the detail is
     /// open must not leave a stale copy on the navigation path.
@@ -308,6 +311,8 @@ struct PlannerView: View {
                         } else {
                             ContentUnavailableView("菜谱不存在", systemImage: "questionmark.folder")
                         }
+                    case let .specialPlanDish(planID, dishID):
+                        SpecialPlanDishRecipeDestination(planID: planID, dishID: dishID)
                     case .plannedMeal(let id):
                         plannedMealDestination(id)
                     case .todayShopping:
@@ -684,6 +689,7 @@ struct PlannerView: View {
         path.wrappedValue.removeAll { route in
             switch route {
             case .specialPlan(let routeID): return routeID == id
+            case .specialPlanDish(let planID, _): return planID == id
             case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator, .kitchenAI, .recipeLibrary: return false
             }
         }
