@@ -227,7 +227,15 @@ final class AIConversationWorkspaceUITests: XCTestCase {
                     drag(app, from: 0.3, to: 0.98)
                     continue
                 }
-                drag(app, from: 0.4, to: 0.2)
+                // The transcript follows its newest content, so a target can
+                // also sit above the band — at accessibility sizes the
+                // 继续调整 suggestions push the last card up. Scroll back toward
+                // it in small steps; otherwise scroll on down.
+                if element.exists, element.frame.minY <= 140 {
+                    drag(app, from: 0.3, to: 0.45)
+                } else {
+                    drag(app, from: 0.4, to: 0.2)
+                }
             }
             XCTFail("Could not bring \(element) into view")
         }
@@ -1435,6 +1443,71 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         let tail = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'TAIL_MARKER_LONG_STREAM_ACTIVE'")).firstMatch
         XCTAssertTrue(tail.waitForExistence(timeout: 8))
         XCTAssertTrue(tail.isHittable)
+    }
+
+    /// Scrolling up to reread while a long reply is still arriving must not be
+    /// undone by every new piece; sending the next message, with the keyboard
+    /// up, follows the newest content again.
+    func test47_ScrollingUpDuringStreamingIsNotPulledBackAndASendFollowsAgain() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_INCREMENTAL_STREAM"
+        ])
+        func capture(_ name: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "AutoScroll-" + name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        let composer = composerField(app)
+        composer.tap()
+        composer.typeText("备料顺序")
+        app.buttons["kitchenAI.send"].tap()
+
+        let stop = app.buttons["kitchenAI.stop"]
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        let reply = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '第 8 段'")).firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 8), "the reply should be long enough to scroll before the member scrolls up")
+
+        // Drags stay in the upper transcript: a gesture that lands on the
+        // keyboard is read as slide-typing, not as a scroll.
+        func drag(from start: CGFloat, to end: CGFloat) {
+            let window = app.windows.firstMatch
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: start))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: end)))
+        }
+        // First the member drags the keyboard away, as people do after sending.
+        drag(from: 0.3, to: 0.98)
+        XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 1), "the drag should dismiss the keyboard")
+        // Then scrolls up (finger moves down) to reread the question while the reply keeps arriving.
+        let question = app.staticTexts["备料顺序"]
+        for _ in 0..<6 where !(question.exists && question.isHittable) {
+            drag(from: 0.25, to: 0.75)
+        }
+        XCTAssertTrue(question.exists && question.isHittable, "scrolling up should bring the question back into view")
+        XCTAssertTrue(stop.exists, "the reply is still streaming while the member reads above it")
+        capture("1-ScrolledUpMidStream")
+
+        // More pieces keep arriving; the member's position must hold.
+        XCTAssertTrue(app.buttons["kitchenAI.send"].waitForExistence(timeout: 20), "the stream should finish")
+        XCTAssertTrue(question.exists && question.isHittable, "later deltas must not pull the member back to the bottom")
+        capture("2-StreamFinishedPositionHeld")
+
+        // A new message with the keyboard up follows the newest content again.
+        composer.tap()
+        composer.typeText("再说一遍")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "the keyboard is up while sending")
+        app.buttons["kitchenAI.send"].tap()
+        XCTAssertTrue(stop.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["kitchenAI.send"].waitForExistence(timeout: 20))
+        // A lazy transcript may drop rows far off screen, so check what is in
+        // view: the end of a reply is, and the first question is not.
+        let replyEnds = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '全部说完'"))
+        XCTAssertTrue(replyEnds.firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(replyEnds.allElementsBoundByIndex.contains { $0.isHittable }, "the newest reply's end should be in view")
+        XCTAssertTrue(!question.exists || !question.isHittable,
+                      "after a send the transcript follows the new reply, away from the first question")
+        capture("3-SendFollowsWithKeyboard")
     }
 
     func test41_TransientRecipeDetailIsReadOnly() {

@@ -1291,6 +1291,28 @@ function cleanAiChatContent(content) {
 
 // Which layer ended the request: our own SDK deadline, or the provider's own
 // gateway timeout. Shared by the primary-attempt and final failure logs.
+// The logger allowlist names fields; it does not vet their values. Upstream error
+// codes and request ids are third-party strings, so before they reach a log line
+// they must be short safe identifiers: an unexpected code is normalised, an
+// unexpected request id is dropped.
+const SAFE_UPSTREAM_CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+const SAFE_UPSTREAM_REQUEST_ID = /^[A-Za-z0-9_-]{8,128}$/;
+
+function safeUpstreamCode(code) {
+  if (code === undefined || code === null || code === '') return undefined;
+  const text = String(code);
+  return SAFE_UPSTREAM_CODE.test(text) ? text : 'unrecognized';
+}
+
+function safeUpstreamRequestId(id) {
+  const text = typeof id === 'string' ? id : '';
+  return SAFE_UPSTREAM_REQUEST_ID.test(text) ? text : undefined;
+}
+
+function safeUpstreamStatus(status) {
+  return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+}
+
 function aiTimeoutSource(info) {
   if (info.code === 'ECONNABORTED') return 'server_sdk_deadline';
   return info.status === 504 ? 'upstream_response' : undefined;
@@ -1589,6 +1611,10 @@ app.post('/api/ai-conversation', async (req, res) => {
   let answeredProvider = primaryConfig.provider;
   let answeredAttempt = 1;
   let failureCode = null;
+  // 失败时只保留可安全记录的分类：上游状态、上游错误码、上游请求 id。detail（上游
+  // 错误正文）可能含 key 片段或 prompt 回显，永远不取。
+  let upstreamFailure = null;
+  let primaryFailure = null;
   // 客户端断开才中止上游。请求体读完**不是**断开信号：express.json() 把 body 读完
   // 之后 req 立刻 close（此时 req.complete === true），每个正常请求都会走到那里，
   // 拿它当断开信号会在响应还开着的时候掐掉一条健康的流。真正的断开只有两种：
@@ -1641,8 +1667,13 @@ app.post('/api/ai-conversation', async (req, res) => {
     } catch (err) {
       if (clientAborted) break;
       failureCode = 'provider_unavailable';
+      const info = getUpstreamAiErrorInfo(err);
       // 换 provider 只允许发生在第一个用户可见事件之前：已经发出去的内容不能重放。
-      if (visibleEvents === 0 && index + 1 < attempts.length && isTransientProviderFailure(err)) continue;
+      if (visibleEvents === 0 && index + 1 < attempts.length && isTransientProviderFailure(err)) {
+        primaryFailure = info;
+        continue;
+      }
+      upstreamFailure = info;
       writeConversationEvent(res, streamErrorEvent('provider_unavailable'));
       visibleEvents += 1;
       break;
@@ -1662,8 +1693,19 @@ app.post('/api/ai-conversation', async (req, res) => {
     attempt: answeredAttempt,
     fallbackTriggered: answeredAttempt > 1,
     durationMs: Date.now() - startedAt,
-    resultCode: clientAborted ? 'client_aborted' : (failureCode || 'success')
+    resultCode: clientAborted ? 'client_aborted' : (failureCode || 'success'),
+    primaryProvider: primaryConfig.provider,
+    timeoutMs: attempts[answeredAttempt - 1].timeout,
+    // 只有字节数，不含内容：用来判断失败是否与请求体积相关（上下文预加载、工具结果）。
+    requestSizeBytes: Buffer.byteLength(JSON.stringify(conversationRequest.messages), 'utf8')
   };
+  if (primaryFailure) logFields.fallbackReason = safeUpstreamCode(primaryFailure.code);
+  if (upstreamFailure) {
+    logFields.status = safeUpstreamStatus(upstreamFailure.status);
+    logFields.reason = safeUpstreamCode(upstreamFailure.code);
+    logFields.timeoutSource = aiTimeoutSource(upstreamFailure);
+    logFields.upstreamRequestId = safeUpstreamRequestId(upstreamFailure.upstreamRequestId);
+  }
   if (failureCode && !clientAborted) observabilityLogger.log('ai_conversation_failed', 'warn', logFields);
   else observabilityLogger.log('ai_conversation_completed', logFields);
 });
