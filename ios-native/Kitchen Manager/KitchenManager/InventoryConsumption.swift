@@ -283,6 +283,11 @@ struct RestockSuggestionEngine {
         for recordItem in justConsumed where recordItem.resultingQuantity <= 0 {
             let key = IngredientNormalizer.matchKey(recordItem.ingredientName)
             guard suggestions[key] == nil else { continue }
+            // One record item is one batch. Emptying the oldest batch says
+            // nothing about the food while another batch still holds some.
+            guard !kitchenStore.inventory.contains(where: {
+                $0.isAvailable && IngredientNormalizer.matchKey($0.name) == key
+            }) else { continue }
             suggestions[key] = RestockSuggestion(
                 id: "consumed-\(key)", name: recordItem.ingredientName, suggestedQuantity: nil, unit: recordItem.unit,
                 reason: "做饭后已用完", source: .consumed,

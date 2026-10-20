@@ -68,9 +68,7 @@ struct HomeDashboardSummary: Equatable {
         let expiringItems = inventory.filter {
             $0.isAvailable && !$0.isStaple && ($0.expiryStatus == .today || $0.expiryStatus == .soon)
         }
-        let lowStockItems = inventory.filter {
-            $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
-        }
+        let lowStockItems = Self.lowStockByFood(inventory)
         expiredCount = expiredItems.count
         expiringSoonCount = expiringItems.count
         lowStockCount = lowStockItems.count
@@ -90,6 +88,33 @@ struct HomeDashboardSummary: Equatable {
             now: now,
             calendar: calendar
         )
+    }
+
+    /// Low or used-up judged per food, not per batch row. A batch emptied by
+    /// cooking stays as a 0 row next to a newer batch with a different expiry,
+    /// and that row alone made Home say "鸡蛋 · 已用完" while eggs remained. A
+    /// food any batch still has enough of is not flagged, and a flagged food
+    /// is one row: the batch with the most left, so a food with some left reads
+    /// 库存偏低 rather than 已用完.
+    static func lowStockByFood(_ inventory: [InventoryItem]) -> [InventoryItem] {
+        func isFlagged(_ item: InventoryItem) -> Bool {
+            item.stapleStatus == .low || item.stapleStatus == .outOfStock
+        }
+        let stockedFoods = Set(inventory.filter { $0.isAvailable && !isFlagged($0) }
+            .map { IngredientNormalizer.matchKey($0.name) })
+        var chosen: [String: InventoryItem] = [:]
+        var order: [String] = []
+        for item in inventory where isFlagged(item) {
+            let key = IngredientNormalizer.matchKey(item.name)
+            guard !stockedFoods.contains(key) else { continue }
+            if let current = chosen[key] {
+                if item.quantity > current.quantity { chosen[key] = item }
+            } else {
+                chosen[key] = item
+                order.append(key)
+            }
+        }
+        return order.compactMap { chosen[$0] }
     }
 
     var hasInventoryAlerts: Bool {
