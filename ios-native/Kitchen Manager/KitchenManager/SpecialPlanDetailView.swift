@@ -16,6 +16,8 @@ struct SpecialPlanDetailView: View {
     @State private var toastToken: UUID?
     @State private var isConfirmingDelete = false
     @State private var isConfirmingDiscardOnBack = false
+    /// The not-yet-cooked dishes a new AI menu would replace, while asking.
+    @State private var dishesReplacedByMenuSave: [SpecialPlanDish]?
     /// Transient AI menu state. Owned by the screen, never persisted: leaving
     /// the detail discards any unsaved draft.
     @StateObject private var menuDraft: SpecialPlanMenuDraftStore
@@ -154,6 +156,16 @@ struct SpecialPlanDetailView: View {
         } message: {
             Text("「\(plan.title)」和其中的菜品安排会被删除，无法撤销。菜谱库里的菜谱不受影响。")
         }
+        .alert(
+            "用新菜单替换这些菜？",
+            isPresented: Binding(get: { dishesReplacedByMenuSave != nil }, set: { if !$0 { dishesReplacedByMenuSave = nil } }),
+            presenting: dishesReplacedByMenuSave
+        ) { _ in
+            Button("替换并保存", role: .destructive) { saveMenuDraft() }
+            Button("取消", role: .cancel) {}
+        } message: { replaced in
+            Text("保存后，还没做的「\(replaced.map(\.recipeName).joined(separator: "、"))」会从这次的菜单里移除，包括你从菜谱库加的菜。已经做好的菜会保留。")
+        }
         .alert("放弃这份 AI 菜单草稿？", isPresented: $isConfirmingDiscardOnBack) {
             Button("放弃并返回", role: .destructive) {
                 menuDraft.discard()
@@ -204,6 +216,10 @@ struct SpecialPlanDetailView: View {
                 }
             }
         }
+    }
+
+    private func saveMenuDraft() {
+        menuDraft.save(to: planID, kitchenStore: kitchenStore, recipeStore: recipeStore)
     }
 
     // MARK: - Canonical menu
@@ -301,11 +317,12 @@ struct SpecialPlanDetailView: View {
                 }
 
                 Button {
-                    guard menuDraft.save(
-                        to: planID,
-                        kitchenStore: kitchenStore,
-                        recipeStore: recipeStore
-                    ) else { return }
+                    let replaced = SpecialPlanMenuAcceptance.dishesReplacedBySaving(planID: planID, kitchenStore: kitchenStore)
+                    if replaced.isEmpty {
+                        saveMenuDraft()
+                    } else {
+                        dishesReplacedByMenuSave = replaced
+                    }
                 } label: {
                     Label("保存菜单", systemImage: "square.and.arrow.down")
                         .frame(minHeight: AppTheme.minimumHitTarget)

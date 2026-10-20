@@ -36,6 +36,14 @@ enum SpecialPlanMenuAcceptanceError: LocalizedError, Equatable {
 }
 
 enum SpecialPlanMenuAcceptance {
+    /// The dishes saving a new AI menu would replace: everything not yet
+    /// cooked, including dishes the member added from the library. Shown
+    /// before the save so nothing disappears without a word.
+    @MainActor
+    static func dishesReplacedBySaving(planID: UUID, kitchenStore: KitchenStore) -> [SpecialPlanDish] {
+        kitchenStore.specialPlans.first { $0.id == planID }?.dishes.filter { !$0.isCooked } ?? []
+    }
+
     /// Accepts a draft menu.
     ///
     /// Order matters: recipes are resolved or created first so the plan only
@@ -89,11 +97,15 @@ enum SpecialPlanMenuAcceptance {
         let references = batch.recipes.map {
             SpecialPlanDish(recipeID: $0.id, recipeName: $0.title)
         }
+        // A dish already cooked has been eaten and, when it used home stock,
+        // has a consumption receipt keyed to its id. A new menu replaces only
+        // what is still to be cooked; the cooked dishes stay, ids and all.
+        let cooked = kitchenStore.specialPlans.first { $0.id == planID }?.dishes.filter(\.isCooked) ?? []
 
         // The plan write is last, so nothing references a recipe that does not
         // exist yet, and it persists before it publishes — a menu the database
         // refused must not be sitting on screen looking saved.
-        let outcome = kitchenStore.setSpecialPlanDishes(planID: planID, dishes: references)
+        let outcome = kitchenStore.setSpecialPlanDishes(planID: planID, dishes: cooked + references)
         switch outcome {
         case .saved:
             return references
