@@ -33,14 +33,29 @@ enum PantryRestockNotificationScheduler {
             content.title = status == .outOfStock ? "\(item.name)没有了" : "\(item.name)快用完了"
             content.body = "当前剩余 \(item.quantity.formatted()) \(item.unit)，可以加入买菜清单。"
             content.sound = .default
+            let fireDate = nextReminderDate(after: Date())
             let request = UNNotificationRequest(
                 identifier: identifier,
                 content: content,
-                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+                trigger: UNCalendarNotificationTrigger(
+                    dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate),
+                    repeats: false
+                )
             )
             UNUserNotificationCenter.current().add(request)
         }
         defaults.set(current, forKey: stateKey)
+    }
+
+    /// When a restock reminder is delivered: the next 9:00, the hour the expiry
+    /// reminders use. A staple almost always runs low through an in-app edit or
+    /// a cook confirmation, so the old one-second trigger fired while the app
+    /// was in front, where iOS does not show it. Restocking before then
+    /// removes the pending reminder (see `sync`).
+    static func nextReminderDate(after now: Date, calendar: Calendar = .current) -> Date {
+        let todayAtNine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
+        if todayAtNine > now { return todayAtNine }
+        return calendar.date(byAdding: .day, value: 1, to: todayAtNine) ?? now
     }
 
     /// Phase B3: the startup pass that `KitchenStore.init`'s `inventory`

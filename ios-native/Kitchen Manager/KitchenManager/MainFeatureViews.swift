@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import UserNotifications
 
 /// Unified presentation limits for shared screen chrome — navigation titles,
 /// summaries, section headers, filter bars, toolbar/tab glyphs, and the
@@ -1893,6 +1894,10 @@ struct SettingsView: View {
     @EnvironmentObject private var syncSmokeController: SyncSmokeController
     #endif
     @State private var isShowingPermissionDeniedAlert = false
+    /// Read on appear and on every return to the foreground, so a change made
+    /// in iOS Settings shows here.
+    @State private var notificationAuthorization: UNAuthorizationStatus?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingClearDataAlert = false
     #if DEBUG
     @State private var isShowingSyncSmokeConfirmation = false
@@ -1995,11 +2000,11 @@ struct SettingsView: View {
 
             Section {
                 Toggle("食材到期提醒", isOn: Binding(
-                    get: { notificationsEnabled },
+                    get: { ExpiryNotificationScheduler.isReminderEffectivelyOn(stored: notificationsEnabled, authorization: notificationAuthorization) },
                     set: { handleNotificationsToggle($0) }
                 ))
                 .accessibilityIdentifier("settings.expiryNotifications.toggle")
-                if notificationsEnabled {
+                if ExpiryNotificationScheduler.isReminderEffectivelyOn(stored: notificationsEnabled, authorization: notificationAuthorization) {
                     Toggle(
                         ExpiryNotificationLeadTime.oneDayBefore.title,
                         isOn: $notifyLeadTime1Day
@@ -2017,7 +2022,7 @@ struct SettingsView: View {
                 }
 
                 Toggle("常备食材补货提醒", isOn: Binding(
-                    get: { stapleNotificationsEnabled },
+                    get: { ExpiryNotificationScheduler.isReminderEffectivelyOn(stored: stapleNotificationsEnabled, authorization: notificationAuthorization) },
                     set: { handleStapleNotificationsToggle($0) }
                 ))
                 .accessibilityIdentifier("settings.stapleNotifications.toggle")
@@ -2025,7 +2030,16 @@ struct SettingsView: View {
             } header: {
                 Text("提醒")
             } footer: {
-                Text("首次开启提醒时，会请求系统通知权限。")
+                if notificationAuthorization == .denied {
+                    Text("系统通知已关闭，提醒不会送达。在 iOS“设置”中允许 Kitchen Manager 发送通知后，这里会恢复你之前的选择。")
+                        .accessibilityIdentifier("settings.notifications.denied")
+                } else {
+                    Text("首次开启提醒时，会请求系统通知权限。常备食材补货提醒会在早上 9 点送达。")
+                }
+            }
+            .task { await refreshNotificationAuthorization() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await refreshNotificationAuthorization() } }
             }
             .onChange(of: notifyLeadTime1Day) { _, _ in rescheduleNotifications() }
             .onChange(of: notifyLeadTime3Day) { _, _ in rescheduleNotifications() }
@@ -2187,6 +2201,7 @@ struct SettingsView: View {
         }
         Task {
             let granted = await ExpiryNotificationScheduler.requestAuthorizationIfNeeded()
+            await refreshNotificationAuthorization()
             await MainActor.run {
                 notificationsEnabled = granted
                 if granted {
@@ -2210,6 +2225,10 @@ struct SettingsView: View {
         ExpiryNotificationScheduler.rescheduleAll(for: store.inventory, leadTimes: leadTimes)
     }
 
+    private func refreshNotificationAuthorization() async {
+        notificationAuthorization = await ExpiryNotificationScheduler.currentAuthorizationStatus()
+    }
+
     private func handleStapleNotificationsToggle(_ enabled: Bool) {
         guard enabled else {
             stapleNotificationsEnabled = false
@@ -2218,6 +2237,7 @@ struct SettingsView: View {
         }
         Task {
             let granted = await ExpiryNotificationScheduler.requestAuthorizationIfNeeded()
+            await refreshNotificationAuthorization()
             await MainActor.run {
                 stapleNotificationsEnabled = granted
                 if granted {

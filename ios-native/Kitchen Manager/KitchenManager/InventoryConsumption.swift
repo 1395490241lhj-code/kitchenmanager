@@ -403,6 +403,14 @@ enum ExpiryNotificationScheduler {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
+    /// What a reminder toggle shows. Turning notifications off in iOS Settings
+    /// never reached the stored preference, so the toggles stayed on while no
+    /// reminder could arrive. Denied reads as off; the stored choice is kept,
+    /// so allowing notifications again restores it.
+    nonisolated static func isReminderEffectivelyOn(stored: Bool, authorization: UNAuthorizationStatus?) -> Bool {
+        stored && authorization != .denied
+    }
+
     /// Clears every pending expiry notification and reschedules from the current
     /// inventory — the simplest way to satisfy "update on add/edit/merge, cancel on
     /// delete, never duplicate" all at once without per-item diffing.
