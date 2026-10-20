@@ -59,14 +59,25 @@ struct InventoryConsumptionDraft: Identifiable, Hashable {
 struct InventoryConsumptionPlanner {
     struct RecipeConsumptionInput {
         let recipe: Recipe
-        let servings: Int
+        /// The servings actually cooked, when someone stated them; `nil` is
+        /// "as written". Quantities scale by servings ÷ `recipe.baseServings`,
+        /// the factor the shopping list and cooking mode already use, so a
+        /// meal bought and cooked for 4 is also deducted for 4.
+        let servings: Int?
     }
 
     func plan(for inputs: [RecipeConsumptionInput], inventory: [InventoryItem]) -> [InventoryConsumptionDraft] {
         var merged: [String: InventoryConsumptionDraft] = [:]
-        var servingsMismatch: Set<String> = []
+        // Lines whose recipe was asked for another yield but states no base
+        // yield to convert from. Only these are left as written with a warning.
+        var baseYieldMissing: Set<String> = []
 
         for input in inputs {
+            let factor = RecipeQuantityScaler.factor(
+                baseServings: input.recipe.baseServings,
+                targetServings: input.servings
+            )
+            let cannotScale = factor == nil && (input.servings ?? 1) != 1
             let lines = input.recipe.ingredients
             for line in lines {
                 let parsed = IngredientParser.parse(line)
@@ -92,12 +103,13 @@ struct InventoryConsumptionPlanner {
                 )
 
                 if let quantity = canonicalQuantity {
-                    draft.requiredQuantity = (draft.requiredQuantity ?? 0) + quantity
+                    draft.requiredQuantity = (draft.requiredQuantity ?? 0)
+                        + RecipeQuantityScaler.scale(quantity: quantity, factor: factor ?? 1)
                 }
                 if !draft.sourceRecipeNames.contains(input.recipe.title) {
                     draft.sourceRecipeNames.append(input.recipe.title)
                 }
-                if input.servings != 1 { servingsMismatch.insert(key) }
+                if cannotScale { baseYieldMissing.insert(key) }
                 merged[key] = draft
             }
         }
@@ -119,7 +131,7 @@ struct InventoryConsumptionPlanner {
 
             if draft.requiredQuantity == nil {
                 draft.warning = "用量不明确，请确认使用量"
-            } else if servingsMismatch.contains(key) {
+            } else if baseYieldMissing.contains(key) {
                 draft.warning = "菜谱没有标注份量，用量未按人数换算，请确认"
             }
 
@@ -530,7 +542,8 @@ final class CookConsumptionStore: ObservableObject {
             var inputs: [InventoryConsumptionPlanner.RecipeConsumptionInput] = []
             var unresolved: [String] = []
             if let recipe {
-                inputs.append(.init(recipe: recipe, servings: 1))
+                // As written (D-047): a Special Plan dish is never scaled by headcount.
+                inputs.append(.init(recipe: recipe, servings: nil))
             } else {
                 unresolved.append("这道菜品")
             }
@@ -567,10 +580,9 @@ final class CookConsumptionStore: ObservableObject {
                 unresolved.append(plan.recipeName)
                 continue
             }
-            // `nil` target -> 1, so an unstated plan cannot raise the
-            // "you picked a different headcount" warning. Consumption still
-            // never rescales quantities.
-            inputs.append(.init(recipe: recipe, servings: plan.plannedServings ?? 1))
+            // `nil` stays "as written"; a stated target scales like the
+            // shopping list did for the same meal.
+            inputs.append(.init(recipe: recipe, servings: plan.plannedServings))
         }
         unresolvedPlanNames = unresolved
         drafts = planner.plan(for: inputs, inventory: kitchenStore.inventory)

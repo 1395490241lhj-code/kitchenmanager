@@ -7,8 +7,8 @@ import Foundation
 // separate axis from `MealPlanItem.plannedServings`, which is how many recipe
 // servings a plan prepares. The two can disagree on purpose: cooking four
 // servings and eating two tonight is `plannedServings = 4` with two portions
-// kept for later. Quantities are still not rescaled — see
-// `ShoppingListGeneratorTests.test_servingsOtherThanOne_addsWarning_...`.
+// kept for later. Portions never rescale quantities; ingredient amounts follow
+// `plannedServings` ÷ the recipe's base yield (`RecipeQuantityScaler`).
 //
 // Nothing here drives ingredient, inventory or shopping quantity maths. These
 // values record intent and are displayed; that boundary is intentional.

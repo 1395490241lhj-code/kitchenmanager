@@ -19,7 +19,7 @@ enum HomeMealReadinessProjection {
     ) -> HomeMealReadiness? {
         let inputs = plans.compactMap { plan -> InventoryConsumptionPlanner.RecipeConsumptionInput? in
             guard let recipe = recipes(plan.recipeID) else { return nil }
-            return .init(recipe: recipe, servings: plan.plannedServings ?? 1)
+            return .init(recipe: recipe, servings: plan.plannedServings)
         }
         guard !inputs.isEmpty else { return nil }
 
@@ -44,7 +44,7 @@ enum HomeMealReadinessProjection {
     ) -> [String] {
         let inputs = plans.compactMap { plan -> InventoryConsumptionPlanner.RecipeConsumptionInput? in
             guard let recipe = recipes(plan.recipeID) else { return nil }
-            return .init(recipe: recipe, servings: plan.plannedServings ?? 1)
+            return .init(recipe: recipe, servings: plan.plannedServings)
         }
         guard !inputs.isEmpty else { return [] }
         return InventoryConsumptionPlanner().plan(for: inputs, inventory: inventory)
