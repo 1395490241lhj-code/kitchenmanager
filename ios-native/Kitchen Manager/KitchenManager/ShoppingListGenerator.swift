@@ -115,8 +115,15 @@ nonisolated enum IngredientParser {
         "千克", "公斤", "kg", "克", "g", "磅", "lb", "oz", "斤", "两",
         "毫升", "ml", "升", "l", "汤匙", "茶匙",
         "个", "颗", "只", "盒", "包", "瓶", "袋", "把", "根", "块", "片", "份", "勺",
-        "碗", "听", "罐", "束", "卷", "头", "打"
+        "碗", "听", "罐", "束", "卷", "头", "打",
+        // Everyday recipe measure words: "蒜 3 瓣", "鲈鱼 1 条", "白菜 1 棵".
+        // Without them the whole line became the name ("蒜 3 瓣").
+        "条", "棵", "瓣", "枚", "粒", "朵"
     ]
+
+    /// Joins two numbers into one range token ("2-3", "1~2"). Only ever
+    /// between two digits, so "-5 个" stays 5 and a hyphenated name stays whole.
+    private static let rangeSeparators: Set<Character> = ["-", "~", "～"]
 
     static func parse(_ rawLine: String) -> ParsedIngredient {
         let raw = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -208,8 +215,19 @@ nonisolated enum IngredientParser {
             // as one token and handed to resolveQuantityToken below, instead
             // of the walk-back stopping at "/" and leaving a stray "1/" on
             // the name with only the "2" read as the quantity.
-            guard character.isNumber || character == "." || character == "/" else { break }
-            numberStart = previous
+            if character.isNumber || character == "." || character == "/" {
+                numberStart = previous
+                continue
+            }
+            // "鸡蛋 2-3" is name "鸡蛋" with the range 2-3, not name "鸡蛋 2-"
+            // with 3: the walk-back used to stop at the separator.
+            if rangeSeparators.contains(character),
+               numberStart < trimmed.endIndex, trimmed[numberStart].isNumber,
+               previous > trimmed.startIndex, trimmed[trimmed.index(before: previous)].isNumber {
+                numberStart = previous
+                continue
+            }
+            break
         }
         guard numberStart < trimmed.endIndex else { return nil }
 
@@ -307,11 +325,14 @@ nonisolated enum IngredientParser {
                 return n / d
             }
         }
-        if trimmed.contains("-") || trimmed.contains("~") {
-            let parts = trimmed.components(separatedBy: CharacterSet(charactersIn: "-~"))
+        if trimmed.contains(where: rangeSeparators.contains) {
+            let parts = trimmed.components(separatedBy: CharacterSet(charactersIn: "-~～"))
                 .map { $0.trimmingCharacters(in: .whitespaces) }
             let numbers = parts.compactMap { Double($0) ?? chineseNumerals[$0] }
-            if numbers.count == 2 { return (numbers[0] + numbers[1]) / 2 }
+            // The upper end: buying for "2-3 个" means having 3, and a
+            // shortfall judged against the lower end would under-buy. The
+            // recipe text keeps the range for display.
+            if numbers.count == 2 { return max(numbers[0], numbers[1]) }
         }
         return nil
     }
@@ -601,7 +622,7 @@ struct ShoppingListGenerator {
     /// parser's existing unit list rather than a new unit ontology.
     private static let countableUnits: Set<String> = [
         "个", "颗", "只", "根", "块", "片", "瓣", "把", "盒", "包", "瓶", "袋",
-        "束", "卷", "头", "打", "听", "罐", "份"
+        "束", "卷", "头", "打", "听", "罐", "份", "条", "棵", "枚", "粒", "朵"
     ]
 
     static func isCountableUnit(_ unit: String?) -> Bool {
