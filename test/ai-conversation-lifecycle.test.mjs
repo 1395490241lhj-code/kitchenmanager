@@ -14,6 +14,7 @@ const Module = require('node:module');
 const realExpress = require('express');
 const originalLoad = Module._load;
 const originalWrite = http.ServerResponse.prototype.write;
+const originalConsoleLog = console.log;
 const root = process.cwd();
 const serverPath = path.resolve(root, 'server.js');
 const serverModulesDir = path.resolve(root, 'src/server') + path.sep;
@@ -46,6 +47,17 @@ function spyOnResponseWrites() {
   http.ServerResponse.prototype.write = function write(chunk, ...rest) {
     if (chunk) responseWrites.push(String(chunk));
     return originalWrite.call(this, chunk, ...rest);
+  };
+}
+
+// Node 22 的 node:test 父进程读完一帧之后不再找帧头，直接把紧跟的 4 个字节当下一帧长度
+// （nodejs/node#64061；修复 #64706 只进了 v24+，v22.x 未回移，见 #65934）。server.js 的
+// 启动日志以 emoji 开头，恰好落在一帧后面时会被算成负长度，整个测试文件当场崩溃。
+// 只给这一行补 ASCII 前缀，日志内容和其余输出原样保留；afterEach 负责还原。
+function prefixStartupLog() {
+  console.log = (first, ...rest) => {
+    const line = typeof first === 'string' && first.startsWith('🍳 Kitchen Manager') ? `[server] ${first}` : first;
+    return originalConsoleLog.call(console, line, ...rest);
   };
 }
 
@@ -99,6 +111,8 @@ async function startRealServer({ streams = [], env = {} } = {}) {
     ...env
   };
   spyOnResponseWrites();
+  // 启动日志在 listen 回调里打印，比 require 返回更晚，所以要在 require 之前装上。
+  prefixStartupLog();
   clearServerRequireCache();
   require(serverPath);
 
@@ -117,6 +131,7 @@ afterEach(async () => {
   while (pendingGates.length) pendingGates.pop()();
   await new Promise((r) => setTimeout(r, 10));
   http.ServerResponse.prototype.write = originalWrite;
+  console.log = originalConsoleLog;
   if (runningServer) {
     runningServer.closeAllConnections?.();
     await new Promise((resolveClose) => runningServer.close(resolveClose));
