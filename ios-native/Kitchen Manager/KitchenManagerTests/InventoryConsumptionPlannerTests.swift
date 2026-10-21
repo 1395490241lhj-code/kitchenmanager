@@ -136,6 +136,92 @@ final class InventoryConsumptionPlannerTests: XCTestCase {
         XCTAssertNil(drafts[0].currentQuantity, "no usable quantity when units cannot be converted")
     }
 
+    /// Stock entered as "1 份" against a recipe line "2 个" used to render as
+    /// 库存 - 个 / 使用量 0 / 扣减后剩 0 and deduct nothing without saying so.
+    func test_unconvertibleUnits_showStockInItsOwnUnit_andAreNotDeducted() {
+        let drafts = planner.plan(
+            for: [input(recipe(title: "番茄炒蛋", ingredients: ["番茄 2个"]))],
+            inventory: [item("番茄", quantity: 1, unit: "份")]
+        )
+        let draft = drafts[0]
+        XCTAssertNotNil(draft.matchedInventoryID)
+        XCTAssertNil(draft.currentQuantity)
+        XCTAssertEqual(draft.unconvertibleStockText, "1 份")
+        XCTAssertNil(draft.consumedQuantity, "no fabricated 0 deduction")
+        XCTAssertNil(draft.resultingQuantity, "no fabricated 剩 0")
+        XCTAssertFalse(draft.isSelected, "the row stays out of the deduction")
+        XCTAssertTrue(draft.warning?.contains("单位不同") ?? false)
+        XCTAssertTrue(draft.warning?.contains("未扣减") ?? false)
+    }
+
+    func test_unconvertibleUnits_confirmLeavesThatStockUntouched() throws {
+        let kitchenStore = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dish = recipe(title: "番茄炒蛋", ingredients: ["番茄 2个", "鸡蛋 2个"])
+        kitchenStore.addInventory(name: "番茄", quantity: 1, unit: "份", expiryDate: nil)
+        kitchenStore.addInventory(name: "鸡蛋", quantity: 5, unit: "个", expiryDate: nil)
+        let store = CookConsumptionStore()
+        store.buildDrafts(planIDs: [], recipe: dish, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        XCTAssertTrue(store.confirm(planIDs: [], recipeID: dish.id, recipeName: dish.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+
+        XCTAssertEqual(kitchenStore.inventory.first { $0.name == "番茄" }?.quantity, 1)
+        XCTAssertEqual(kitchenStore.inventory.first { $0.name == "鸡蛋" }?.quantity, 3)
+        XCTAssertEqual(try XCTUnwrap(kitchenStore.consumptionRecords.first).items.map(\.ingredientName), ["鸡蛋"])
+    }
+
+    /// One convertible batch and one that is not: the box expires first, so
+    /// FEFO used to reach it first and zero it as if "1 盒" were "1 个".
+    func test_mixedBatches_onlyTheConvertibleBatchIsDeducted() throws {
+        let kitchenStore = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let recipeStore = RecipeStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        let dish = recipe(title: "番茄炒蛋", ingredients: ["鸡蛋 2个"])
+        let soon = Calendar.current.date(byAdding: .day, value: 1, to: Date())!
+        let later = Calendar.current.date(byAdding: .day, value: 10, to: Date())!
+        kitchenStore.addInventory(name: "鸡蛋", quantity: 1, unit: "盒", expiryDate: soon)
+        kitchenStore.addInventory(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: later)
+        let store = CookConsumptionStore()
+        store.buildDrafts(planIDs: [], recipe: dish, kitchenStore: kitchenStore, recipeStore: recipeStore)
+
+        let draft = try XCTUnwrap(store.drafts.first)
+        XCTAssertEqual(draft.currentQuantity, 6, "the box was never counted as 个")
+        XCTAssertTrue(draft.warning?.contains("另有 1 盒") ?? false, "the sheet must say the box is left alone")
+
+        XCTAssertTrue(store.confirm(planIDs: [], recipeID: dish.id, recipeName: dish.title, kitchenStore: kitchenStore, recipeStore: recipeStore))
+
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "盒" }?.quantity, 1, "一整盒鸡蛋不能被当成 1 个扣掉")
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "个" }?.quantity, 4)
+        let record = try XCTUnwrap(kitchenStore.consumptionRecords.first)
+        XCTAssertEqual(record.items.map(\.unit), ["个"])
+    }
+
+    func test_mixedBatches_weightLineNeverDeductsAPortionBatch() {
+        let kitchenStore = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+        // The 份 batch expires first, so FEFO reaches it before the 克 batch.
+        kitchenStore.addInventory(name: "猪肉", quantity: 1, unit: "份", expiryDate: Date().addingTimeInterval(86_400))
+        kitchenStore.addInventory(name: "猪肉", quantity: 500, unit: "克", expiryDate: Date().addingTimeInterval(86_400 * 5))
+        let draft = InventoryConsumptionDraft(
+            id: "猪肉|克", ingredientName: "猪肉", normalizedName: "猪肉",
+            requiredQuantity: 200, requiredUnit: "克", matchedInventoryID: nil,
+            currentQuantity: 500, consumedQuantity: 200, resultingQuantity: 300,
+            isSelected: true, warning: nil, sourceRecipeNames: ["菜"]
+        )
+
+        kitchenStore.applyConsumption([draft], planIDs: [], recipeID: nil, recipeName: "菜")
+
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "份" }?.quantity, 1)
+        XCTAssertEqual(kitchenStore.inventory.first { $0.unit == "克" }?.quantity, 300)
+    }
+
+    func test_mixedStockUnits_areListedPerUnit() {
+        let drafts = planner.plan(
+            for: [input(recipe(title: "菜", ingredients: ["番茄 2个"]))],
+            inventory: [item("番茄", quantity: 1, unit: "份"), item("番茄", quantity: 0.5, unit: "盒")]
+        )
+        let parts = drafts[0].unconvertibleStockText?.components(separatedBy: "、") ?? []
+        XCTAssertEqual(Set(parts), ["1 份", "0.5 盒"])
+    }
+
     func test_ingredientWithNoUnit_sumsRawQuantities() {
         // "生菜" (not "盐") on purpose: Recipe's own classifier reclassifies
         // seasoning names like 盐/鱼露 into `.seasonings`, which this planner

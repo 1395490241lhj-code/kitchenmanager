@@ -94,15 +94,16 @@ nonisolated struct ConversationResponseInterpreter {
                 return .appendBlock(.contextResult(.init(id: context.blockID, title: title, rows: rows, kind: kind)))
             case "propose_add_recipe_to_tonight":
                 let args = try object(value, allowed: ["recipe", "plannedServings"])
-                // These existing proposal cases cannot carry servings. Refuse
-                // explicit intent rather than silently discarding or guessing it.
-                guard args["plannedServings"] == nil else { throw Invalid.arguments }
-                return .proposeAction(.addRecipeToTonight(recipe: try recipe(args["recipe"], path: "recipe", context: context)))
+                // The server advertises plannedServings, so "4 个人吃" arrives
+                // with it. Refusing it failed the most natural request outright.
+                return .proposeAction(.addRecipeToTonight(
+                    recipe: try recipe(args["recipe"], path: "recipe", context: context),
+                    plannedServings: try plannedServings(args)))
             case "propose_replace_planned_meal":
                 let args = try object(value, allowed: ["planID", "replacement", "plannedServings"])
-                guard args["plannedServings"] == nil else { throw Invalid.arguments }
                 return .proposeAction(.replacePlannedMeal(planID: try uuid(args, "planID"),
-                    replacement: try recipe(args["replacement"], path: "replacement", context: context)))
+                    replacement: try recipe(args["replacement"], path: "replacement", context: context),
+                    plannedServings: try plannedServings(args)))
             case "propose_apply_planner_changes":
                 let args = try object(value, allowed: ["changes"])
                 let changes = try array(args, "changes", nonempty: true).enumerated().map { index, value in
@@ -139,6 +140,16 @@ nonisolated struct ConversationResponseInterpreter {
         } catch {
             return .appendBlock(.error(.init(id: context.blockID, message: "无法识别这次操作，没有改动。", retry: .interpretation)))
         }
+    }
+
+    /// A stated serving target: absent or null is "not stated"; anything else
+    /// must be a whole number of servings the app can store (1–12), the same
+    /// rule as `propose_apply_planner_changes`.
+    private func plannedServings(_ args: [String: JSONAnyValue]) throws -> Int? {
+        guard let value = args["plannedServings"] else { return nil }
+        if case .null = value { return nil }
+        guard case .number(let n) = value, n.isFinite, n.rounded() == n, (1...12).contains(n) else { throw Invalid.arguments }
+        return Int(n)
     }
 
     private func recipe(_ value: JSONAnyValue?, path: String, context: AIConversationInterpretationContext) throws -> AIRecipeBlock {

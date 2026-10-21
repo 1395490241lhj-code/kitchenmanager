@@ -51,6 +51,38 @@ final class HomeDashboardSummaryTests: XCTestCase {
         XCTAssertEqual(summary.todayPlanState, .partial)
     }
 
+    /// 红烧豆腐 is cooked and its 豆腐 used up; 番茄炒蛋 is still to cook and
+    /// has its food. Home's 还缺 and readiness read `pendingPlans`, so the
+    /// eaten 豆腐 must not come back as something to buy.
+    func testCookedPlansAreNotCountedAsMissingOrInReadiness() {
+        let cooked = MealPlanItem(recipeID: "tofu", recipeName: "红烧豆腐", isCooked: true)
+        let pending = MealPlanItem(recipeID: "eggs", recipeName: "番茄炒蛋")
+        let recipes: [String: Recipe] = [
+            "tofu": Recipe(id: "tofu", title: "红烧豆腐", cookingTime: nil, difficulty: nil, tags: [], ingredients: ["豆腐 1盒"], steps: ["烧"]),
+            "eggs": Recipe(id: "eggs", title: "番茄炒蛋", cookingTime: nil, difficulty: nil, tags: [], ingredients: ["番茄 2个"], steps: ["炒"])
+        ]
+        let inventory = [InventoryItem(name: "番茄", quantity: 3, unit: "个", expiryDate: nil)]
+        let summary = HomeDashboardSummary(inventory: inventory, todayPlans: [cooked, pending], shoppingItems: [])
+
+        XCTAssertEqual(summary.pendingPlans.map(\.recipeName), ["番茄炒蛋"])
+        XCTAssertEqual(
+            HomeMealReadinessProjection.missingIngredients(plans: summary.pendingPlans, recipes: { recipes[$0] }, inventory: inventory),
+            []
+        )
+        XCTAssertEqual(
+            HomeMealReadinessProjection.readiness(plans: summary.pendingPlans, recipes: { recipes[$0] }, inventory: inventory),
+            HomeMealReadiness(ready: 1, total: 1)
+        )
+        XCTAssertEqual(summary.allPlans.count, 2, "the hero still counts the whole menu")
+    }
+
+    func testAllPlansCookedLeavesNothingPending() {
+        let summary = HomeDashboardSummary(
+            inventory: [], todayPlans: [plan("红烧豆腐", cooked: true)], shoppingItems: []
+        )
+        XCTAssertTrue(summary.pendingPlans.isEmpty)
+    }
+
     func testInventorySummarySeparatesExpiredExpiringAndLowStock() {
         let summary = HomeDashboardSummary(
             inventory: [

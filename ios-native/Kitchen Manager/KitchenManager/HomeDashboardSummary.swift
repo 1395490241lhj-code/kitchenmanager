@@ -24,6 +24,10 @@ struct HomeDashboardSummary: Equatable {
     /// measures readiness over the whole menu, so a three-plan preview would
     /// silently exclude the fourth dish from every number on the page.
     let allPlans: [MealPlanItem]
+    /// Today's plans not cooked yet: the only ones that can still be missing
+    /// an ingredient. A cooked dish's food was used up by cooking it, so
+    /// counting it would ask to buy what was just eaten.
+    let pendingPlans: [MealPlanItem]
     let totalPlanCount: Int
     let completedPlanCount: Int
     let expiredCount: Int
@@ -49,6 +53,7 @@ struct HomeDashboardSummary: Equatable {
         let pendingPlans = todayPlans.filter { !$0.isCooked }
         let completedPlans = todayPlans.filter(\.isCooked)
         allPlans = pendingPlans + completedPlans
+        self.pendingPlans = pendingPlans
         totalPlanCount = todayPlans.count
         completedPlanCount = completedPlans.count
 
@@ -63,9 +68,7 @@ struct HomeDashboardSummary: Equatable {
         let expiringItems = inventory.filter {
             $0.isAvailable && !$0.isStaple && ($0.expiryStatus == .today || $0.expiryStatus == .soon)
         }
-        let lowStockItems = inventory.filter {
-            $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
-        }
+        let lowStockItems = Self.lowStockByFood(inventory)
         expiredCount = expiredItems.count
         expiringSoonCount = expiringItems.count
         lowStockCount = lowStockItems.count
@@ -85,6 +88,33 @@ struct HomeDashboardSummary: Equatable {
             now: now,
             calendar: calendar
         )
+    }
+
+    /// Low or used-up judged per food, not per batch row. A batch emptied by
+    /// cooking stays as a 0 row next to a newer batch with a different expiry,
+    /// and that row alone made Home say "鸡蛋 · 已用完" while eggs remained. A
+    /// food any batch still has enough of is not flagged, and a flagged food
+    /// is one row: the batch with the most left, so a food with some left reads
+    /// 库存偏低 rather than 已用完.
+    static func lowStockByFood(_ inventory: [InventoryItem]) -> [InventoryItem] {
+        func isFlagged(_ item: InventoryItem) -> Bool {
+            item.stapleStatus == .low || item.stapleStatus == .outOfStock
+        }
+        let stockedFoods = Set(inventory.filter { $0.isAvailable && !isFlagged($0) }
+            .map { IngredientNormalizer.matchKey($0.name) })
+        var chosen: [String: InventoryItem] = [:]
+        var order: [String] = []
+        for item in inventory where isFlagged(item) {
+            let key = IngredientNormalizer.matchKey(item.name)
+            guard !stockedFoods.contains(key) else { continue }
+            if let current = chosen[key] {
+                if item.quantity > current.quantity { chosen[key] = item }
+            } else {
+                chosen[key] = item
+                order.append(key)
+            }
+        }
+        return order.compactMap { chosen[$0] }
     }
 
     var hasInventoryAlerts: Bool {
@@ -313,11 +343,27 @@ struct HomeDashboardHeaderModel: Equatable {
 enum HomeDashboardModuleIssue: Equatable {
     case inventory
     case shopping
+    case plans
+    case weeklyPlan
+    case specialPlans
 
-    static func issues(inventoryNotice: String?, shoppingNotice: String?) -> [Self] {
+    /// Inventory and shopping notices also carry non-failure copy, so they
+    /// count only when they say 失败. The plan, weekly-menu and special-plan
+    /// notices are set only when a read or a save went wrong — they used to be
+    /// set and never shown, so a failed save looked like a saved one.
+    static func issues(
+        inventoryNotice: String?,
+        shoppingNotice: String?,
+        planNotice: String? = nil,
+        weeklyPlanNotice: String? = nil,
+        specialPlanNotice: String? = nil
+    ) -> [Self] {
         var issues: [Self] = []
         if inventoryNotice?.contains("失败") == true { issues.append(.inventory) }
         if shoppingNotice?.contains("失败") == true { issues.append(.shopping) }
+        if planNotice != nil { issues.append(.plans) }
+        if weeklyPlanNotice != nil { issues.append(.weeklyPlan) }
+        if specialPlanNotice != nil { issues.append(.specialPlans) }
         return issues
     }
 
@@ -325,6 +371,9 @@ enum HomeDashboardModuleIssue: Equatable {
         switch self {
         case .inventory: "库存暂未完全保存"
         case .shopping: "购物清单暂未完全保存"
+        case .plans: "用餐计划暂未完全保存"
+        case .weeklyPlan: "每周菜单暂未完全保存"
+        case .specialPlans: "特殊计划暂时无法读取或保存"
         }
     }
 
@@ -332,6 +381,17 @@ enum HomeDashboardModuleIssue: Equatable {
         switch self {
         case .inventory: "查看食材"
         case .shopping: "查看清单"
+        case .plans, .weeklyPlan, .specialPlans: "查看计划"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .inventory: "home.issue.inventory"
+        case .shopping: "home.issue.shopping"
+        case .plans: "home.issue.plans"
+        case .weeklyPlan: "home.issue.weeklyPlan"
+        case .specialPlans: "home.issue.specialPlans"
         }
     }
 }

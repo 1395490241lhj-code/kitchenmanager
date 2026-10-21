@@ -172,15 +172,21 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         return MealPlanItem.normalizedPlannerDate(for: raw, calendar: calendar)
     }
 
+    /// `now` defaults to the draft's own first day, so these tests exercise the
+    /// write order and recovery rather than the stale-draft prompt.
     private func materialize(
         _ harness: Harness,
-        confirmedAppend: Bool = false
+        confirmedAppend: Bool = false,
+        confirmedShiftToToday: Bool = false,
+        now: Date? = nil
     ) -> WeeklyMaterializationOutcome {
         harness.planner.materialize(
             kitchenStore: harness.kitchen,
             recipeStore: harness.recipes,
             confirmedAppend: confirmedAppend,
-            calendar: calendar
+            confirmedShiftToToday: confirmedShiftToToday,
+            calendar: calendar,
+            now: now ?? startDate
         )
     }
 
@@ -499,7 +505,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         XCTAssertEqual(harness.kitchen.plans.count, 1, "the meal they removed stays removed")
         XCTAssertEqual(harness.kitchen.weeklyPlan?.materialization?.state, .materialized)
         XCTAssertEqual(
-            reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar),
+            reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar, now: startDate),
             .alreadyMaterialized,
             "and the menu never offers to add itself again"
         )
@@ -534,7 +540,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         // And it can be added on its own days, without disturbing the original's.
         let planner = reopen(harness)
         let outcome = planner.materialize(
-            kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar
+            kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar, now: copy.startDate
         )
         XCTAssertTrue(outcome.didChangeSchedule)
         XCTAssertEqual(harness.kitchen.plans.count, 2, "the original meal stands and the copy adds its own")
@@ -701,7 +707,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         reopened.generatedPlan = malformed
 
         XCTAssertEqual(
-            reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar),
+            reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar, now: startDate),
             .staleReceipt
         )
         XCTAssertTrue(harness.kitchen.plans.isEmpty)
@@ -767,7 +773,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         XCTAssertEqual(harness.kitchen.plans.count, 1, "repair appends nothing")
 
         // And if the member somehow taps again, the store says it is done.
-        let again = reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar)
+        let again = reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar, now: startDate)
         XCTAssertEqual(again, .alreadyMaterialized)
         XCTAssertNil(hostSummary(again, harness))
     }
@@ -795,7 +801,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
 
         let reopened = reopen(harness)
         XCTAssertTrue(reopened.repairReceiptIfMealsArePresent(kitchenStore: harness.kitchen), "already finalized, nothing to do")
-        let outcome = reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar)
+        let outcome = reopened.materialize(kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: calendar, now: startDate)
         XCTAssertEqual(outcome, .alreadyMaterialized)
         XCTAssertNil(hostSummary(outcome, harness))
     }
@@ -899,7 +905,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         var edited = try XCTUnwrap(reopened.generatedPlan)
         edited.days[1].meals[0].recipes = []
         reopened.generatedPlan = edited
-        let outcome = reopened.materialize(kitchenStore: stale.kitchen, recipeStore: stale.recipes, calendar: calendar)
+        let outcome = reopened.materialize(kitchenStore: stale.kitchen, recipeStore: stale.recipes, calendar: calendar, now: startDate)
         XCTAssertEqual(outcome, .staleReceipt)
         XCTAssertNil(WeeklyMaterializationHostNotification.summary(for: outcome, of: edited, calendar: calendar))
 
@@ -909,7 +915,7 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         partial.kitchen.appendPlans([
             MealPlanItem(id: receipt.planIDs[0], recipeID: "weekly-ai-1", recipeName: "番茄炒蛋", date: try XCTUnwrap(receipt.planDates)[0])
         ])
-        let partialOutcome = reopen(partial).materialize(kitchenStore: partial.kitchen, recipeStore: partial.recipes, calendar: calendar)
+        let partialOutcome = reopen(partial).materialize(kitchenStore: partial.kitchen, recipeStore: partial.recipes, calendar: calendar, now: startDate)
         XCTAssertNil(hostSummary(partialOutcome, partial), "a question to the member is not a completion")
     }
 
@@ -929,5 +935,286 @@ final class WeeklyMenuMaterializationTests: XCTestCase {
         XCTAssertEqual(materialize(harness), .planPersistenceFailed)
         harness.todayPlan.shouldFail = false
         return try XCTUnwrap(harness.weekly.plan?.materialization)
+    }
+}
+
+// MARK: - A draft whose first day has passed
+
+extension WeeklyMenuMaterializationTests {
+    /// A draft is persisted the moment it is generated, so it can be added days
+    /// later. Its own days have passed by then, and writing them would put the
+    /// whole menu onto dates that are already gone.
+    func testAStaleDraftNeverWritesItsPastDaysUnasked() {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        let threeDaysLater = calendar.date(byAdding: .day, value: 3, to: startDate)!
+
+        _ = harness.planner.materialize(
+            kitchenStore: harness.kitchen, recipeStore: harness.recipes,
+            calendar: calendar, now: threeDaysLater
+        )
+
+        XCTAssertTrue(harness.kitchen.plans.isEmpty, "nothing is written onto days that have already passed")
+        XCTAssertEqual(harness.todayPlan.replaceCallCount, 0)
+    }
+}
+
+extension WeeklyMenuMaterializationTests {
+    private func day(_ offset: Int, from base: Date, in calendar: Calendar) -> Date {
+        let raw = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: base))!
+        return MealPlanItem.normalizedPlannerDate(for: raw, calendar: calendar)
+    }
+
+    private var threeDaysLater: Date {
+        calendar.date(byAdding: DateComponents(day: 3, hour: 19), to: startDate)!
+    }
+
+    func testADraftStartingTodayIsAddedWithoutAsking() throws {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        let thatEvening = calendar.date(byAdding: .hour, value: 21, to: startDate)!
+
+        let outcome = materialize(harness, now: thatEvening)
+
+        XCTAssertTrue(outcome.didChangeSchedule, "today is not a past day: \(outcome)")
+        XCTAssertEqual(harness.kitchen.plans.map(\.date), [expectedDate(dayIndex: 0)])
+    }
+
+    func testAStaleDraftNamesTheDaysItWouldMoveToAndWritesNothing() throws {
+        let harness = makeHarness()
+        let original = draft(days: [
+            0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")],
+            2: [aiDish(id: "weekly-ai-2", title: "青椒肉丝", ingredient: "青椒 3 个")]
+        ])
+        harness.planner.generatedPlan = original
+
+        let outcome = materialize(harness, now: threeDaysLater)
+
+        let today = calendar.startOfDay(for: threeDaysLater)
+        XCTAssertEqual(outcome, .staleStartConfirmationRequired(WeeklyStaleDraftShift(
+            originalStart: calendar.startOfDay(for: startDate),
+            newStart: today,
+            newEnd: calendar.date(byAdding: .day, value: 2, to: today)!,
+            dayOffset: 3
+        )))
+        XCTAssertTrue(harness.kitchen.plans.isEmpty)
+        XCTAssertEqual(harness.todayPlan.replaceCallCount, 0)
+        XCTAssertEqual(harness.weekly.replaceCallCount, 0, "asking writes nothing, not even the draft")
+        XCTAssertTrue(harness.recipes.userRecipes.isEmpty)
+        XCTAssertEqual(harness.planner.generatedPlan, original, "the screen keeps showing the draft as it was")
+    }
+
+    /// Cancelling is not calling again. The next tap asks again, still writing nothing.
+    func testCancellingTheMoveKeepsTheDraftAndAsksAgainNextTime() throws {
+        let harness = makeHarness()
+        let original = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        harness.planner.generatedPlan = original
+
+        guard case .staleStartConfirmationRequired = materialize(harness, now: threeDaysLater) else {
+            return XCTFail("expected the move to be asked for")
+        }
+        guard case .staleStartConfirmationRequired = materialize(harness, now: threeDaysLater) else {
+            return XCTFail("a cancelled move is asked for again")
+        }
+        XCTAssertEqual(harness.planner.generatedPlan, original)
+        XCTAssertTrue(harness.kitchen.plans.isEmpty)
+        XCTAssertNil(harness.weekly.plan)
+    }
+
+    func testConfirmingMovesTheWholeDraftToTodayKeepingEveryDishInOrder() throws {
+        let harness = makeHarness()
+        try harness.recipes.saveUserRecipe(storedRecipe(id: "local-1", title: "红烧肉"))
+        harness.planner.generatedPlan = draft(days: [
+            0: [localDish(id: "local-1", title: "红烧肉"), aiDish(id: "weekly-ai-1", title: "番茄炒蛋")],
+            2: [aiDish(id: "weekly-ai-2", title: "青椒肉丝", ingredient: "青椒 3 个")]
+        ])
+
+        let outcome = materialize(harness, confirmedShiftToToday: true, now: threeDaysLater)
+
+        let items = try XCTUnwrap(outcome.materializedItems, "\(outcome)")
+        XCTAssertEqual(outcome, .materialized(items))
+        let today = threeDaysLater
+        XCTAssertEqual(harness.kitchen.plans.map(\.date),
+                       [day(0, from: today, in: calendar), day(0, from: today, in: calendar), day(2, from: today, in: calendar)],
+                       "each day keeps its offset from the first, now counted from today")
+        XCTAssertEqual(harness.kitchen.plans.map(\.recipeID), ["local-1", "weekly-ai-1", "weekly-ai-2"],
+                       "every dish keeps its position and its recipe")
+
+        let stored = try XCTUnwrap(harness.weekly.plan)
+        XCTAssertTrue(calendar.isDate(stored.startDate, inSameDayAs: today), "the durable draft starts today")
+        XCTAssertEqual(harness.planner.generatedPlan?.startDate, stored.startDate, "the screen shows the same days")
+        XCTAssertEqual(stored.days.map(\.dayIndex), [0, 2])
+        let receipt = try XCTUnwrap(stored.materialization)
+        XCTAssertEqual(receipt.state, .materialized)
+        XCTAssertEqual(receipt.planIDs, harness.kitchen.plans.map(\.id))
+        XCTAssertEqual(receipt.planDates, harness.kitchen.plans.map(\.date))
+        let shown = stored.coveredDays(calendar: calendar)
+        XCTAssertTrue(calendar.isDate(shown.start, inSameDayAs: harness.kitchen.plans[0].date))
+        XCTAssertTrue(calendar.isDate(shown.end, inSameDayAs: harness.kitchen.plans[2].date))
+    }
+
+    func testMovingAcrossAWeekAMonthAndAYearCountsCivilDays() throws {
+        let harness = makeHarness()
+        var plan = draft(days: Dictionary(uniqueKeysWithValues: (0..<7).map { index in
+            (index, [aiDish(id: "weekly-ai-\(index)", title: "菜\(index)")])
+        }))
+        plan.startDate = calendar.date(from: DateComponents(year: 2026, month: 12, day: 29, hour: 8))!
+        harness.planner.generatedPlan = plan
+        let now = calendar.date(from: DateComponents(year: 2027, month: 1, day: 2, hour: 15))!
+
+        let outcome = materialize(harness, confirmedShiftToToday: true, now: now)
+
+        XCTAssertTrue(outcome.didChangeSchedule, "\(outcome)")
+        XCTAssertEqual(harness.kitchen.plans.map(\.date), (0..<7).map { day($0, from: now, in: calendar) })
+        let first = calendar.dateComponents([.year, .month, .day], from: harness.kitchen.plans[0].date)
+        let last = calendar.dateComponents([.year, .month, .day], from: harness.kitchen.plans[6].date)
+        XCTAssertEqual([first.year, first.month, first.day], [2027, 1, 2])
+        XCTAssertEqual([last.year, last.month, last.day], [2027, 1, 8])
+    }
+
+    /// New York moves its clocks on 2026-03-08. A move counted in seconds would
+    /// land an hour off a day boundary; counted in civil days it cannot.
+    func testMovingAcrossADaylightSavingChangeKeepsCivilDays() throws {
+        let harness = makeHarness()
+        var newYork = Calendar(identifier: .gregorian)
+        newYork.timeZone = TimeZone(identifier: "America/New_York")!
+        var plan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")],
+                                1: [aiDish(id: "weekly-ai-2", title: "青椒肉丝", ingredient: "青椒 3 个")]])
+        plan.startDate = newYork.date(from: DateComponents(year: 2026, month: 3, day: 5))!
+        harness.planner.generatedPlan = plan
+        let now = newYork.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 0, minute: 30))!
+
+        guard case .staleStartConfirmationRequired(let shift) = harness.planner.materialize(
+            kitchenStore: harness.kitchen, recipeStore: harness.recipes, calendar: newYork, now: now
+        ) else { return XCTFail("expected the move to be asked for") }
+        XCTAssertEqual(shift.dayOffset, 5)
+
+        let outcome = harness.planner.materialize(
+            kitchenStore: harness.kitchen, recipeStore: harness.recipes,
+            confirmedShiftToToday: true, calendar: newYork, now: now
+        )
+        XCTAssertTrue(outcome.didChangeSchedule, "\(outcome)")
+        XCTAssertEqual(harness.kitchen.plans.map(\.date), [day(0, from: now, in: newYork), day(1, from: now, in: newYork)])
+        let days = harness.kitchen.plans.map { newYork.dateComponents([.month, .day], from: $0.date) }
+        XCTAssertEqual(days.map { [$0.month, $0.day] }, [[3, 10], [3, 11]])
+    }
+
+    /// Agreeing to move the menu is not agreeing to append onto today's meals.
+    func testAMovedDraftStillAsksBeforeAppendingOntoPlannedDays() throws {
+        let harness = makeHarness()
+        harness.kitchen.addPlan(
+            recipe: storedRecipe(id: "existing", title: "既有"),
+            on: day(0, from: threeDaysLater, in: calendar), calendar: calendar
+        )
+        let before = harness.kitchen.plans
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+
+        let afterMove = materialize(harness, confirmedShiftToToday: true, now: threeDaysLater)
+
+        guard case .confirmationRequired(let collision) = afterMove else {
+            return XCTFail("expected the collision check on the moved days, got \(afterMove)")
+        }
+        XCTAssertEqual(collision.dayCount, 1)
+        XCTAssertEqual(harness.kitchen.plans, before, "nothing is appended before the member agrees")
+        XCTAssertTrue(calendar.isDate(try XCTUnwrap(harness.weekly.plan).startDate, inSameDayAs: threeDaysLater),
+                      "the move the member agreed to is kept")
+
+        let appended = materialize(harness, confirmedAppend: true, now: threeDaysLater)
+
+        XCTAssertTrue(appended.didChangeSchedule, "the moved menu is not asked about twice: \(appended)")
+        XCTAssertEqual(harness.kitchen.plans.count, 2)
+        XCTAssertEqual(harness.kitchen.plans.last?.date, day(0, from: threeDaysLater, in: calendar))
+    }
+
+    func testAMoveThatCannotBeSavedWritesNoMeals() throws {
+        let harness = makeHarness()
+        let original = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        harness.planner.generatedPlan = original
+        harness.weekly.shouldFail = true
+
+        let outcome = materialize(harness, confirmedShiftToToday: true, now: threeDaysLater)
+
+        XCTAssertEqual(outcome, .receiptPersistenceFailed)
+        XCTAssertTrue(harness.kitchen.plans.isEmpty)
+        XCTAssertEqual(harness.todayPlan.replaceCallCount, 0, "no meal is written onto days the draft could not save")
+        XCTAssertTrue(harness.recipes.userRecipes.isEmpty)
+        XCTAssertEqual(harness.planner.generatedPlan, original, "the screen does not show days that were never saved")
+    }
+
+    /// A pending receipt owns its recorded days. A later retry finishes it on
+    /// exactly those days, even when they have passed, and never moves it.
+    func testAPendingReceiptIsFinishedOnItsOwnDaysAndNeverMoved() throws {
+        let harness = makeHarness()
+        let receipt = try pendingReceiptAfterAFailedPlanWrite(harness)
+        let reopened = reopen(harness)
+
+        let outcome = reopened.materialize(
+            kitchenStore: harness.kitchen, recipeStore: harness.recipes,
+            confirmedShiftToToday: true, calendar: calendar, now: threeDaysLater
+        )
+
+        let items = try XCTUnwrap(outcome.materializedItems, "\(outcome)")
+        XCTAssertEqual(items.map(\.id), receipt.planIDs, "the retry reuses the recorded ids")
+        XCTAssertEqual(harness.kitchen.plans.map(\.date), receipt.planDates, "and the recorded days")
+        XCTAssertTrue(calendar.isDate(try XCTUnwrap(harness.weekly.plan).startDate, inSameDayAs: startDate))
+    }
+
+    func testAFinishedMenuIsNeitherMovedNorAddedAgain() throws {
+        let harness = makeHarness()
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-1", title: "番茄炒蛋")]])
+        XCTAssertTrue(materialize(harness).didChangeSchedule)
+        let plans = harness.kitchen.plans
+
+        XCTAssertEqual(materialize(harness, confirmedShiftToToday: true, now: threeDaysLater), .alreadyMaterialized)
+        XCTAssertEqual(harness.kitchen.plans, plans)
+    }
+
+    /// A stored menu whose add is still pending is the only record of that
+    /// interrupted write. Moving a different, newer draft must not replace it.
+    func testANewStaleDraftNeverReplacesAnotherMenusPendingReceipt() throws {
+        let harness = makeHarness()
+        let receipt = try pendingReceiptAfterAFailedPlanWrite(harness)
+        harness.planner.generatedPlan = draft(days: [0: [aiDish(id: "weekly-ai-9", title: "清炒时蔬", ingredient: "青菜 1 把")]])
+
+        let outcome = materialize(harness, confirmedShiftToToday: true, now: threeDaysLater)
+
+        XCTAssertEqual(outcome, .receiptPersistenceFailed)
+        XCTAssertEqual(harness.weekly.plan?.materialization, receipt, "the pending receipt survives untouched")
+        XCTAssertTrue(harness.kitchen.plans.isEmpty)
+    }
+
+    func testTheConfirmationNamesTheOriginalAndTheNewDays() {
+        let shift = WeeklyStaleDraftShift(
+            originalStart: calendar.date(from: DateComponents(year: 2026, month: 3, day: 18))!,
+            newStart: calendar.date(from: DateComponents(year: 2026, month: 3, day: 21))!,
+            newEnd: calendar.date(from: DateComponents(year: 2026, month: 3, day: 27))!,
+            dayOffset: 3
+        )
+        XCTAssertEqual(WeeklyStaleDraftCopy.message(for: shift, calendar: calendar),
+                       "这份菜单的开始日期（3月18日）已过。加入后会整体顺延到今天开始（3月21日–3月27日），菜品和顺序不变。")
+    }
+
+    /// Started last year, moved into this one: without years "12月29日" and
+    /// "1月2日" would read as the same winter in either order.
+    func testTheConfirmationNamesYearsWhenTheStartWasLastYear() {
+        let shift = WeeklyStaleDraftShift(
+            originalStart: calendar.date(from: DateComponents(year: 2025, month: 12, day: 29))!,
+            newStart: calendar.date(from: DateComponents(year: 2026, month: 1, day: 2))!,
+            newEnd: calendar.date(from: DateComponents(year: 2026, month: 1, day: 8))!,
+            dayOffset: 4
+        )
+        XCTAssertEqual(WeeklyStaleDraftCopy.message(for: shift, calendar: calendar),
+                       "这份菜单的开始日期（2025年12月29日）已过。加入后会整体顺延到今天开始（2026年1月2日–2026年1月8日），菜品和顺序不变。")
+    }
+
+    func testTheConfirmationNamesYearsWhenTheMovedDaysCrossNewYear() {
+        let shift = WeeklyStaleDraftShift(
+            originalStart: calendar.date(from: DateComponents(year: 2026, month: 12, day: 26))!,
+            newStart: calendar.date(from: DateComponents(year: 2026, month: 12, day: 28))!,
+            newEnd: calendar.date(from: DateComponents(year: 2027, month: 1, day: 3))!,
+            dayOffset: 2
+        )
+        XCTAssertEqual(WeeklyStaleDraftCopy.message(for: shift, calendar: calendar),
+                       "这份菜单的开始日期（2026年12月26日）已过。加入后会整体顺延到今天开始（2026年12月28日–2027年1月3日），菜品和顺序不变。")
     }
 }

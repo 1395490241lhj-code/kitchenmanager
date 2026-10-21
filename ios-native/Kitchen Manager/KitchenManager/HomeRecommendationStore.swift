@@ -246,6 +246,99 @@ private enum AIRecommendationServiceError: Error {
     case invalidResponse
 }
 
+/// What 加入今天 on a recommendation card did.
+enum HomeRecommendationAddOutcome: Equatable {
+    /// `recipe` is the library recipe the new plan points at. `savedToLibrary`
+    /// is true only when this tap created it.
+    case added(recipe: Recipe, savedToLibrary: Bool)
+    case alreadyToday(recipe: Recipe)
+    case saveFailed(message: String)
+
+    /// The library recipe today's plan points at, when there is one.
+    var plannedRecipe: Recipe? {
+        switch self {
+        case .added(let recipe, _), .alreadyToday(let recipe): return recipe
+        case .saveFailed: return nil
+        }
+    }
+
+    var toastMessage: String {
+        switch self {
+        case .added(_, let savedToLibrary):
+            return savedToLibrary ? "已加入今天，并保存到菜谱库" : "已加入今天"
+        case .alreadyToday:
+            return "已在今天"
+        case .saveFailed(let message):
+            return message
+        }
+    }
+
+    var toastStyle: AppFeedbackStyle {
+        switch self {
+        case .added: return .success
+        case .alreadyToday: return .warning
+        case .saveFailed: return .error
+        }
+    }
+}
+
+enum HomeRecommendationPlanning {
+    /// Adds a recommended dish to today, saving it to the library first when it
+    /// only exists on the card.
+    ///
+    /// An AI recommendation is an in-memory recipe. A plan that pointed at it
+    /// could not be opened, cooked or shopped for once the card was gone, so it
+    /// goes through the same materializer Special Plan and Kitchen AI use:
+    /// reuse an identical library recipe, otherwise save a new one. The card's
+    /// own id is not reused — it is derived from the dish name, so a different
+    /// dish of the same name would collide with it.
+    @MainActor
+    static func addToToday(
+        _ recipe: Recipe,
+        recipeStore: RecipeStore,
+        kitchenStore: KitchenStore,
+        makeRecipeID: () -> String = { "home-ai-\(UUID().uuidString.lowercased())" }
+    ) -> HomeRecommendationAddOutcome {
+        let planned: Recipe
+        var savedToLibrary = false
+        if let library = recipeStore.recipe(id: recipe.id) {
+            planned = library
+        } else {
+            let candidate = Recipe(
+                id: makeRecipeID(),
+                title: recipe.title,
+                cookingTime: recipe.cookingTime,
+                difficulty: recipe.difficulty,
+                tags: recipe.tags,
+                ingredients: recipe.ingredients,
+                seasonings: recipe.seasonings,
+                steps: recipe.steps,
+                baseServings: recipe.baseServings,
+                source: recipe.source
+            )
+            do {
+                let batch = try GeneratedRecipeMaterializer.materialize(
+                    [GeneratedRecipeCandidate(existingRecipeID: nil, recipe: candidate)],
+                    recipeStore: recipeStore
+                )
+                guard let resolved = batch.recipes.first else {
+                    return .saveFailed(message: GeneratedRecipeMaterializerError.saveFailed(title: recipe.title).localizedDescription)
+                }
+                planned = resolved
+                savedToLibrary = !batch.createdRecipeIDs.isEmpty
+            } catch {
+                return .saveFailed(message: error.localizedDescription)
+            }
+        }
+
+        if kitchenStore.todayPlans.contains(where: { $0.recipeID == planned.id }) {
+            return .alreadyToday(recipe: planned)
+        }
+        kitchenStore.addPlan(recipe: planned)
+        return .added(recipe: planned, savedToLibrary: savedToLibrary)
+    }
+}
+
 @MainActor
 final class HomeRecommendationStore: ObservableObject {
     @Published var searchQuery = ""
@@ -265,6 +358,12 @@ final class HomeRecommendationStore: ObservableObject {
     private var lastCompletedSearchQuery = ""
     private var recommendationSessionDay: Date?
     private var hasLoadedRecommendationsForSession = false
+    /// True while the defaults on screen were computed from the built-in
+    /// samples because the library had not loaded yet. Those may be replaced
+    /// once, when the real library arrives, and only while the member has not
+    /// searched, asked for 换一批, removed a card or browsed them.
+    private var mayReplaceSampleDefaults = false
+    private static let sampleRecipeIDs = Set(Recipe.samples.map(\.id))
     private let currentDate: () -> Date
 
     init(currentDate: @escaping () -> Date = { Date() }) {
@@ -304,10 +403,15 @@ final class HomeRecommendationStore: ObservableObject {
         expiringIngredients: [String]
     ) {
         refreshRecommendationSessionIfNeeded()
+        let isSampleSource = Self.isSampleLibrary(recipes)
+        let replacesSampleDefaults = hasLoadedRecommendationsForSession
+            && mayReplaceSampleDefaults
+            && !isSampleSource
+            && currentRecommendationIndex == 0
         guard searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !isSearchingRecommendations,
               !isGeneratingRecommendations,
-              !hasLoadedRecommendationsForSession else {
+              !hasLoadedRecommendationsForSession || replacesSampleDefaults else {
             return
         }
         apply(
@@ -321,6 +425,13 @@ final class HomeRecommendationStore: ObservableObject {
         recommendationError = nil
         recommendationNotice = nil
         hasLoadedRecommendationsForSession = true
+        mayReplaceSampleDefaults = isSampleSource
+    }
+
+    /// The member opened a recommended recipe or the 更多推荐 page. What they
+    /// looked at stays put rather than being swapped when the library arrives.
+    func noteRecommendationsBrowsed() {
+        mayReplaceSampleDefaults = false
     }
 
     func searchRecommendations(
@@ -345,6 +456,7 @@ final class HomeRecommendationStore: ObservableObject {
         }
         guard query != lastCompletedSearchQuery || recommendedRecipes.isEmpty else { return }
 
+        mayReplaceSampleDefaults = false
         cancelCurrentRequest()
         let requestID = UUID()
         activeRequestID = requestID
@@ -404,6 +516,7 @@ final class HomeRecommendationStore: ObservableObject {
     ) async {
         refreshRecommendationSessionIfNeeded()
         guard !isGeneratingRecommendations else { return }
+        mayReplaceSampleDefaults = false
         cancelCurrentRequest()
         let requestID = UUID()
         activeRequestID = requestID
@@ -470,6 +583,7 @@ final class HomeRecommendationStore: ObservableObject {
     ) {
         refreshRecommendationSessionIfNeeded()
         cancelCurrentRequest()
+        mayReplaceSampleDefaults = false
         searchQuery = ""
         lastCompletedSearchQuery = ""
         recommendationError = nil
@@ -486,8 +600,17 @@ final class HomeRecommendationStore: ObservableObject {
     }
 
     func removeRecommendation(id: String) {
+        mayReplaceSampleDefaults = false
         recommendedRecipes.removeAll { $0.id == id }
         repairIndex()
+    }
+
+    /// Points a card at the library recipe it was just saved as, so 已加入,
+    /// 查看菜谱 and the today filter all read the recipe the plan names.
+    func replaceRecommendationRecipe(id: String, with recipe: Recipe) {
+        guard let index = recommendedRecipes.firstIndex(where: { $0.id == id }) else { return }
+        let card = recommendedRecipes[index]
+        recommendedRecipes[index] = RecipeRecommendation(recipe: recipe, reason: card.reason, source: card.source)
     }
 
     func cancelRequests() {
@@ -743,6 +866,10 @@ final class HomeRecommendationStore: ObservableObject {
         isGeneratingRecommendations = false
         requestTask = nil
         activeRequestID = nil
+    }
+
+    private static func isSampleLibrary(_ recipes: [Recipe]) -> Bool {
+        !recipes.isEmpty && recipes.allSatisfy { sampleRecipeIDs.contains($0.id) }
     }
 
     private static func normalizedQuery(_ query: String) -> String {

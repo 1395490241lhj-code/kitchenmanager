@@ -42,6 +42,18 @@ final class PlannerQuickCompleteUITests: XCTestCase {
             attempts += 1
         }
         XCTAssertTrue(element.waitForExistence(timeout: 5), "row \(identifier) missing")
+        // A row found by swiping may still be decelerating, and a press or
+        // swipe that lands mid-scroll only stops the scroll. Wait until the
+        // row is hittable and its frame has stopped moving.
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: element)
+        _ = XCTWaiter().wait(for: [hittable], timeout: 5)
+        var last = element.frame
+        for _ in 0..<8 {
+            Thread.sleep(forTimeInterval: 0.25)
+            let now = element.frame
+            if now == last { break }
+            last = now
+        }
         return element
     }
 

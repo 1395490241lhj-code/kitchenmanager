@@ -390,8 +390,9 @@ final class AIRecipeGeneratorStore: ObservableObject {
         return recipe
     }
 
-    func addToPlan(_ kitchenStore: KitchenStore, recipe: Recipe? = nil) throws -> Recipe {
-        let recipe = try recipe ?? currentRecipe()
+    /// Takes the recipe `save(into:)` returned. A plan names its recipe by id,
+    /// so planning a draft that was never saved leaves a meal pointing at nothing.
+    func addToPlan(_ kitchenStore: KitchenStore, recipe: Recipe) throws -> Recipe {
         // Explicit provenance: the user chose this headcount in the generator's
         // own stepper and the prompt wrote quantities for it, so it is a real
         // target for this plan rather than an inherited default.

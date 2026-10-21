@@ -268,7 +268,7 @@ private struct AIRecipeConfirmationView: View {
     let onFinish: (AIRecipeFinishDestination) -> Void
 
     private enum ConfirmationAction {
-        case saveAndPlan, saveOnly, addToPlan
+        case saveAndPlan, saveOnly
     }
 
     @State private var performingAction: ConfirmationAction?
@@ -331,12 +331,10 @@ private struct AIRecipeConfirmationView: View {
                 }
 
                 Section {
+                    // No plan-only entry here: a plan names its recipe by id,
+                    // so a draft that was never saved left a meal pointing at
+                    // nothing. 保存并加入计划 above is the way onto the plan.
                     Menu {
-                        Button("仅加入今日计划", systemImage: "calendar.badge.plus") {
-                            Task { await addToPlanOnly() }
-                        }
-                        .disabled(generatorStore.hasAddedCurrentDraftToPlan || !isDraftSaveEligible)
-
                         Button("重新生成", systemImage: "arrow.clockwise") {
                             Task {
                                 await generatorStore.generate(
@@ -418,21 +416,6 @@ private struct AIRecipeConfirmationView: View {
             _ = try generatorStore.save(into: recipeStore)
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             finish(at: .recipeLibrary)
-        } catch {
-            generatorStore.errorMessage = error.localizedDescription
-            performingAction = nil
-        }
-    }
-
-    @MainActor
-    private func addToPlanOnly() async {
-        guard performingAction == nil else { return }
-        performingAction = .addToPlan
-        await Task.yield()
-        do {
-            _ = try generatorStore.addToPlan(kitchenStore)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-            finish(at: .today)
         } catch {
             generatorStore.errorMessage = error.localizedDescription
             performingAction = nil

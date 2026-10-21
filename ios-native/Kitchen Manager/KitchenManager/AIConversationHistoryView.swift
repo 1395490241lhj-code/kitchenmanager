@@ -56,6 +56,7 @@ struct AIConversationHistoryView: View {
                                 } label: {
                                     Label("删除", systemImage: "trash")
                                 }
+                                .tint(AppTheme.danger)
                                 Button {
                                     conversationToRename = conv
                                     newTitleText = conv.title
@@ -93,6 +94,7 @@ struct AIConversationHistoryView: View {
                                 } label: {
                                     Label("删除", systemImage: "trash")
                                 }
+                                .tint(AppTheme.danger)
                                 Button {
                                     conversationToRename = conv
                                     newTitleText = conv.title
@@ -130,6 +132,7 @@ struct AIConversationHistoryView: View {
                                 } label: {
                                     Label("删除", systemImage: "trash")
                                 }
+                                .tint(AppTheme.danger)
                                 Button {
                                     conversationToRename = conv
                                     newTitleText = conv.title

@@ -124,7 +124,10 @@ final class AIConversationAcceptanceUITests: XCTestCase {
         send("把周三晚餐换清淡一点。", in: app)
         let apply = app.buttons["kitchenAI.planner.apply"]
         XCTAssertTrue(apply.waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["香辣鸡丁 · 未做"].exists)
+        // The row names the meal's day before the dish (AI_LOGIC-4).
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS %@ AND label ENDSWITH %@", "日 周", " · 香辣鸡丁 · 未做"
+        )).firstMatch.exists)
         XCTAssertTrue(app.staticTexts["清蒸豆腐 · 未做"].exists)
         app.navigationBars.buttons.element(boundBy: 0).tap()
         XCTAssertTrue(original.exists)

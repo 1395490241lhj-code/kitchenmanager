@@ -60,8 +60,8 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         func currentStateMatchesPostState(of receipt: AIDomainMutationReceipt) -> Bool { live.currentStateMatchesPostState(of: receipt) }
         func isCompletelyReversed(_ receipt: AIDomainMutationReceipt) -> Bool { live.isCompletelyReversed(receipt) }
         func write() throws { writes += 1; beforeWrite?(); if let failure { throw failure } }
-        func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt {
-            try write(); return try live.addRecipeToTonight(block, now: now)
+        func addRecipeToTonight(_ block: AIRecipeBlock, plannedServings: Int?, now: Date) throws -> AIDomainMutationReceipt {
+            try write(); return try live.addRecipeToTonight(block, plannedServings: plannedServings, now: now)
         }
         func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt {
             try write(); return try live.replacePlannedMeals(changes)
@@ -144,6 +144,35 @@ final class ConversationActionCoordinatorTests: XCTestCase {
     }
     private func expect(_ error: AIActionExecutionError, _ operation: () throws -> Void, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertThrowsError(try operation(), file: file, line: line) { XCTAssertEqual($0 as? AIActionExecutionError, error, file: file, line: line) }
+    }
+
+    // AI_LOGIC-1: a stated serving target ("4 个人吃") reaches the plan.
+    func testTonightWithAStatedServingTargetWritesIt() throws {
+        let f = Fixture()
+        let a = try f.prepare(.addRecipeToTonight(recipe: block(), plannedServings: 4))
+        _ = try f.c.execute(a)
+        XCTAssertEqual(f.kitchen.plans.last?.plannedServings, 4)
+    }
+    func testReplacementWithAStatedServingTargetPreviewsAndWritesIt() throws {
+        let f = Fixture(); let row = f.plan()
+        let a = try f.prepare(.replacePlannedMeal(planID: row.id, replacement: block(), plannedServings: 4))
+        XCTAssertTrue(try preview(a).changes[0].after.contains("4 份"))
+        _ = try f.c.execute(a)
+        XCTAssertEqual(f.kitchen.plans.first { $0.id == row.id }?.plannedServings, 4)
+    }
+    /// AI_LOGIC-4: the 确认计划变更 row names the day it changes.
+    func testPlannerPreviewRowNamesTheMealsDay() throws {
+        let f = Fixture(); let row = f.plan("红烧肉")
+        let a = try f.prepare(.replacePlannedMeal(planID: row.id, replacement: block()))
+        let day = ConversationContextAssembler.localDayText(row.date, calendar: f.domain.calendar, withYear: false)
+        let before = try preview(a).changes[0].before
+        XCTAssertTrue(before.hasPrefix("\(day) · 红烧肉"), before)
+        XCTAssertTrue(day.contains("月") && day.contains("日 周"))
+    }
+    func testAStatedServingTargetIsPartOfTheIdempotencyKey() throws {
+        let f = Fixture()
+        let plain = try f.prepare(tonight()).idempotencyKey
+        XCTAssertNotEqual(plain, try f.prepare(.addRecipeToTonight(recipe: block(), plannedServings: 4)).idempotencyKey)
     }
 
     // Risk / truthful diff. Every assertion uses the real store adapter.

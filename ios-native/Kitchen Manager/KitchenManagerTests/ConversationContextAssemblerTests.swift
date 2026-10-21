@@ -39,7 +39,7 @@ final class ConversationContextAssemblerTests: XCTestCase {
                 peopleCount: 4, constraintNotes: lots ? Array(repeating: String(repeating: "\"\n长", count: 500), count: 50) : ["无辣"], notes: lots ? String(repeating: "长", count: 10000) : "家人", usesHomeInventory: true, dishes: [])
         }
         func resolveRecipe(query: String, recipeID: String?) -> Recipe? { XCTFail("No recipe preload"); return nil }
-        func addRecipeToTonight(_ block: AIRecipeBlock, now: Date) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
+        func addRecipeToTonight(_ block: AIRecipeBlock, plannedServings: Int?, now: Date) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replacePlannedMeals(_ changes: [AIPlannerMealChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
         func addShoppingItems(_ items: [AIShoppingItemProposal]) throws -> AIDomainMutationReceipt { fatalError("no mutation") }
@@ -172,6 +172,25 @@ final class ConversationContextAssemblerTests: XCTestCase {
         XCTAssertLessThanOrEqual(independentCounts(r).reduce(0,+), 10500)
         XCTAssertLessThanOrEqual(encodedCount(r.messages), 10500)
     }
+    /// AI_LOGIC-4: the model was never told today's date. It now gets one
+    /// local, day-level line at the top of the system text.
+    func testSystemTextStatesTodaysLocalDate() throws {
+        let r = try prepare()
+        XCTAssertTrue(r.system.contains("今天是 2027-01-15 周五（本地时区 GMT）"), r.system)
+        XCTAssertTrue(r.system.contains("你是 Kitchen AI"))
+    }
+    func testTodaysDateIsTheLocalDayNotTheUTCDay() throws {
+        let d = Domain(); d.calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let lateEvening = now.addingTimeInterval(10 * 3600) // 2027-01-15 18:00 UTC = 01-16 02:00 in Shanghai
+        let r = try ConversationContextAssembler(domainTools: d).prepare(entry: .home, summary: "", messages: [],
+            currentUserMessage: message("明天吃什么"), excludedKinds: [], readAt: lateEvening)
+        XCTAssertTrue(r.system.contains("今天是 2027-01-16 周六（本地时区 Asia/Shanghai）"), r.system)
+    }
+    func testTheDateSurvivesAnOversizedInstructionText() throws {
+        let r = try prepare(system: String(repeating: "x", count: 20000))
+        XCTAssertTrue(r.system.contains("今天是 2027-01-15"))
+    }
+
     func testSameInputsAreDeterministicDespiteAdapterClock() throws {
         let d = Domain(); let a = try prepare(d); d.stamp = now; let b = try prepare(d)
         XCTAssertEqual(a, b); XCTAssertFalse(a.liveContext.contains("readAt"))

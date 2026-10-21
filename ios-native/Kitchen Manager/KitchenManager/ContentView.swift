@@ -24,8 +24,15 @@ struct KitchenManagerApp: App {
     @StateObject private var recommendationStore = HomeRecommendationStore()
     @StateObject private var dayRhythmStore = DayRhythmStore()
     @StateObject private var mealPortionStore = MealPortionStore()
-    @StateObject private var sharedImportCoordinator = SharedImportCoordinator(queue: SharedImportConfig.makeQueue())
+    @StateObject private var sharedImportCoordinator = Self.makeSharedImportCoordinator()
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
+
+    private static func makeSharedImportCoordinator() -> SharedImportCoordinator {
+        #if DEBUG
+        if let seeded = SharedImportUITestSeed.coordinatorIfRequested() { return seeded }
+        #endif
+        return SharedImportCoordinator(queue: SharedImportConfig.makeQueue())
+    }
 
     init() {
         #if DEBUG
@@ -147,7 +154,17 @@ struct KitchenManagerApp: App {
         _kitchenStore = StateObject(wrappedValue: kitchenStoreInstance)
         _authStore = StateObject(wrappedValue: authStoreInstance)
         _guestMergeController = StateObject(wrappedValue: guestMergeControllerInstance)
-        _accountDeletionController = StateObject(wrappedValue: AccountDeletionController(persistence: persistence.sync))
+        #if DEBUG
+        let accountDeletionService: AccountDeletionService? = AccountLifecycleFixture.active != nil
+            ? AccountLifecycleFixtureDeletionService()
+            : nil
+        #else
+        let accountDeletionService: AccountDeletionService? = nil
+        #endif
+        _accountDeletionController = StateObject(wrappedValue: AccountDeletionController(
+            persistence: persistence.sync,
+            service: accountDeletionService
+        ))
 
         let conversationStoreInstance = ConversationStore(
             persistence: persistence.conversations,
@@ -673,6 +690,64 @@ private enum HomeFullDayFixture {
     ]
 }
 
+#if DEBUG
+/// UI-test-only stand-in for a shared link that was shown once and closed
+/// without saving — the state 不再导入 exists for. The queue lives in a fresh
+/// temporary directory and the shown marker in its own defaults suite, so the
+/// real App Group queue and the app's own defaults are never touched, and the
+/// link does not start a network import by itself. A seed that cannot be
+/// isolated stops the app with the reason instead of falling back to either.
+enum SharedImportUITestSeed {
+    static let launchArgument = "UITEST_SEED_SHARED_IMPORT_STUCK"
+
+    enum SeedError: Error, Equatable {
+        case defaultsSuiteUnavailable(suiteName: String)
+        case requestNotQueued(directory: String, reason: String)
+    }
+
+    static func coordinatorIfRequested(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> SharedImportCoordinator? {
+        guard arguments.contains(launchArgument) else { return nil }
+        do {
+            return try isolatedCoordinator()
+        } catch {
+            fatalError("\(launchArgument): \(error). Stopping instead of using the App Group queue or standard defaults.")
+        }
+    }
+
+    static func isolatedCoordinator(
+        suiteName: String = "uitest-shared-import-\(UUID().uuidString)",
+        directory: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("uitest-shared-import-\(UUID().uuidString)")
+    ) throws -> SharedImportCoordinator {
+        // Defaults first, so a refused suite leaves no queue file behind.
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            throw SeedError.defaultsSuiteUnavailable(suiteName: suiteName)
+        }
+        let queue = SharedImportQueue(directoryURL: directory)
+        let request = SharedImportRequest(
+            createdAt: Date(),
+            source: .sharedURL,
+            url: URL(string: "https://example.com/recipes/unreadable-share"),
+            text: nil,
+            originalHostBundleIdentifier: nil
+        )
+        do {
+            guard try queue.enqueue(request) else {
+                throw SeedError.requestNotQueued(directory: directory.path, reason: "enqueue returned false")
+            }
+        } catch let error as SeedError {
+            throw error
+        } catch {
+            throw SeedError.requestNotQueued(directory: directory.path, reason: String(describing: error))
+        }
+        defaults.set([request.id.uuidString], forKey: SharedImportCoordinator.shownRequestIDsKey)
+        return SharedImportCoordinator(queue: queue, defaults: defaults)
+    }
+}
+#endif
+
 private enum RecipeUITestSeed {
     static var isolatesRecipeStore: Bool {
         let arguments = ProcessInfo.processInfo.arguments
@@ -681,7 +756,8 @@ private enum RecipeUITestSeed {
             "UITEST_SEED_RECIPE_COOKING",
             "UITEST_SEED_RECIPE_LONG",
             "UITEST_RECIPE_EMPTY_SCREENSHOT",
-            "UITEST_SEED_ACCESSIBILITY_RECOMMENDATION"
+            "UITEST_SEED_ACCESSIBILITY_RECOMMENDATION",
+            "UITEST_SEED_CONSUMPTION_REVIEW"
         ].contains { arguments.contains($0) }
     }
 
@@ -1422,6 +1498,26 @@ struct ContentView: View {
             navigationStore.showRecipeLibrary()
         }
         #if DEBUG
+        // One recipe whose lines meet three kinds of stock in the cook
+        // confirmation sheet: a counted batch (鸡蛋), stock in a unit the recipe
+        // cannot be converted to (番茄 1 盒), and a status-tracked staple (葱 有货).
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_CONSUMPTION_REVIEW") else { return }
+            kitchenStore.clearAllLocalData()
+            recipeStore.clearLocalData()
+            recipeStore.add(Recipe(
+                id: "ui-test-consumption-review", title: "葱香番茄炒蛋", cookingTime: 15, difficulty: "简单",
+                tags: ["UI 测试"], ingredients: ["鸡蛋 2 个", "番茄 2 个", "葱 2"], steps: ["打蛋。", "下锅翻炒。", "撒葱出锅。"]
+            ))
+            kitchenStore.addInventory(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
+            kitchenStore.addInventory(name: "番茄", quantity: 1, unit: "盒", expiryDate: nil)
+            try? kitchenStore.saveStaple(
+                id: nil, name: "葱", quantity: 0, unit: "份",
+                minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+                note: nil, category: nil, trackingMode: .status, availabilityStatus: .available
+            )
+            navigationStore.showRecipeLibrary()
+        }
         .task {
             guard ProcessInfo.processInfo.arguments.contains("UITEST_RECIPE_EMPTY_SCREENSHOT") else { return }
             kitchenStore.clearAllLocalData()

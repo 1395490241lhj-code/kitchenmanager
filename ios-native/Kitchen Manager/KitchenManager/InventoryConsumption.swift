@@ -45,6 +45,14 @@ struct InventoryConsumptionDraft: Identifiable, Hashable {
     var isSelected: Bool
     var warning: String?
     var sourceRecipeNames: [String]
+    /// Stock that matched by name but whose unit cannot be converted to the
+    /// recipe's, in the stock's own unit (for example "1 份"). Non-nil means
+    /// this row deducts nothing.
+    var unconvertibleStockText: String? = nil
+    /// The status of a status-tracked staple that is the only stock matching
+    /// this line (有货 / 快没了). Non-nil means this row deducts nothing: the
+    /// staple holds a status, not a count.
+    var statusStapleText: String? = nil
 }
 
 // MARK: - Planner
@@ -55,14 +63,25 @@ struct InventoryConsumptionDraft: Identifiable, Hashable {
 struct InventoryConsumptionPlanner {
     struct RecipeConsumptionInput {
         let recipe: Recipe
-        let servings: Int
+        /// The servings actually cooked, when someone stated them; `nil` is
+        /// "as written". Quantities scale by servings ÷ `recipe.baseServings`,
+        /// the factor the shopping list and cooking mode already use, so a
+        /// meal bought and cooked for 4 is also deducted for 4.
+        let servings: Int?
     }
 
     func plan(for inputs: [RecipeConsumptionInput], inventory: [InventoryItem]) -> [InventoryConsumptionDraft] {
         var merged: [String: InventoryConsumptionDraft] = [:]
-        var servingsMismatch: Set<String> = []
+        // Lines whose recipe was asked for another yield but states no base
+        // yield to convert from. Only these are left as written with a warning.
+        var baseYieldMissing: Set<String> = []
 
         for input in inputs {
+            let factor = RecipeQuantityScaler.factor(
+                baseServings: input.recipe.baseServings,
+                targetServings: input.servings
+            )
+            let cannotScale = factor == nil && (input.servings ?? 1) != 1
             let lines = input.recipe.ingredients
             for line in lines {
                 let parsed = IngredientParser.parse(line)
@@ -88,28 +107,45 @@ struct InventoryConsumptionPlanner {
                 )
 
                 if let quantity = canonicalQuantity {
-                    draft.requiredQuantity = (draft.requiredQuantity ?? 0) + quantity
+                    draft.requiredQuantity = (draft.requiredQuantity ?? 0)
+                        + RecipeQuantityScaler.scale(quantity: quantity, factor: factor ?? 1)
                 }
                 if !draft.sourceRecipeNames.contains(input.recipe.title) {
                     draft.sourceRecipeNames.append(input.recipe.title)
                 }
-                if input.servings != 1 { servingsMismatch.insert(key) }
+                if cannotScale { baseYieldMissing.insert(key) }
                 merged[key] = draft
             }
         }
 
         for key in merged.keys {
             guard var draft = merged[key] else { continue }
-            let matched = Self.matchingInventory(for: draft, in: inventory)
+            // A status-tracked staple (葱姜蒜盐油 as 有货 / 快没了) is present but
+            // holds no count: its quantity is a placeholder, so it is never part
+            // of a deduction. Only batches with a real amount are.
+            let named = Self.matchingInventory(for: draft, in: inventory)
+            let matched = named.filter { !$0.isStatusTrackedStaple }
+            let statusStaples = named.filter(\.isStatusTrackedStaple)
 
             if !matched.isEmpty {
                 draft.matchedInventoryID = matched.first?.id
                 draft.currentQuantity = Self.availableQuantity(for: draft, items: matched)
+                if draft.currentQuantity == nil, draft.requiredUnit != nil {
+                    draft.unconvertibleStockText = Self.stockText(matched)
+                }
+            } else if let staple = statusStaples.first {
+                // Still in stock for every presence reader (Home readiness counts
+                // a matched row), just not something cooking can count down.
+                draft.matchedInventoryID = staple.id
+                draft.statusStapleText = staple.stapleAvailabilityStatus.title
             }
+            let untouchedBatches = draft.currentQuantity == nil ? [] : draft.requiredUnit.map { unit in
+                matched.filter { UnitConverter.convert($0.quantity, from: $0.unit, to: unit) == nil }
+            } ?? []
 
             if draft.requiredQuantity == nil {
                 draft.warning = "用量不明确，请确认使用量"
-            } else if servingsMismatch.contains(key) {
+            } else if baseYieldMissing.contains(key) {
                 draft.warning = "菜谱没有标注份量，用量未按人数换算，请确认"
             }
 
@@ -117,12 +153,41 @@ struct InventoryConsumptionPlanner {
                 let notFound = "库存中没有找到「\(draft.ingredientName)」"
                 draft.warning = draft.warning.map { "\($0)；\(notFound)" } ?? notFound
                 draft.consumedQuantity = nil
+            } else if let status = draft.statusStapleText {
+                // It is there, and saying so matters as much as not deducting:
+                // this row used to zero the placeholder while the shelf kept
+                // saying 有货, so matching, shopping and AI called it missing.
+                // The only note on the row: an amount to confirm or scale means
+                // nothing for a line that deducts nothing.
+                draft.warning = "「\(draft.ingredientName)」是按状态记录的常备食材（\(status)），做饭不会自动扣减；用完时请在常备食材里把状态改为「快没了」或「缺货」"
+                draft.consumedQuantity = nil
+                draft.resultingQuantity = nil
+                draft.isSelected = false
+            } else if let stock = draft.unconvertibleStockText {
+                // A count of 个 says nothing about how much of 1 份 it is. The
+                // row used to show 库存 - / 使用量 0 / 剩 0 and deduct nothing
+                // without saying so; it now says so and stays out of the deduction.
+                let mismatch = "库存是 \(stock)，和菜谱的单位不同，无法换算，未扣减；需要时请在库存中手动调整"
+                draft.warning = draft.warning.map { "\($0)；\(mismatch)" } ?? mismatch
+                draft.consumedQuantity = nil
+                draft.resultingQuantity = nil
+                draft.isSelected = false
             } else {
                 let target = draft.requiredQuantity ?? 0
                 let available = draft.currentQuantity ?? 0
                 let consumed = max(0, min(target, available))
                 draft.consumedQuantity = draft.requiredQuantity == nil ? nil : consumed
                 draft.resultingQuantity = max(0, available - consumed)
+                if !untouchedBatches.isEmpty {
+                    // The deduction skips these batches too; say so instead of
+                    // letting 库存 silently exclude a box the user can see.
+                    let note = "另有 \(Self.stockText(untouchedBatches)) 单位不同，无法换算，不会扣减"
+                    draft.warning = draft.warning.map { "\($0)；\(note)" } ?? note
+                }
+                if !statusStaples.isEmpty {
+                    let note = "常备食材按状态记录，不计入库存，也不会扣减"
+                    draft.warning = draft.warning.map { "\($0)；\(note)" } ?? note
+                }
             }
 
             merged[key] = draft
@@ -146,6 +211,21 @@ struct InventoryConsumptionPlanner {
         inventory
             .filter { RecipeStockMatch.item($0, matches: draft.ingredientName) }
             .sorted { ($0.remainingDays ?? 9999) < ($1.remainingDays ?? 9999) }
+    }
+
+    /// "1 份" or "1 份、200 克": each unit the matched stock is held in, summed.
+    private static func stockText(_ items: [InventoryItem]) -> String {
+        var units: [String] = []
+        var totals: [String: Double] = [:]
+        for item in items {
+            if totals[item.unit] == nil { units.append(item.unit) }
+            totals[item.unit, default: 0] += item.quantity
+        }
+        return units.map { unit in
+            let amount = (totals[unit] ?? 0).formatted(.number.precision(.fractionLength(0...2)))
+            return unit.isEmpty ? amount : "\(amount) \(unit)"
+        }
+        .joined(separator: "、")
     }
 
     private static func availableQuantity(for draft: InventoryConsumptionDraft, items: [InventoryItem]) -> Double? {
@@ -186,13 +266,30 @@ struct RestockSuggestion: Identifiable {
     let unit: String?
     let reason: String
     let source: RestockSuggestionSource
+    /// The pending 买菜清单 already holds this, so 加入清单 would only add it twice.
+    var isAlreadyOnShoppingList = false
 }
 
 struct RestockSuggestionEngine {
+    /// A list row for the same ingredient in the same or a convertible unit,
+    /// pending or ticked: a ticked row has been bought and only waits for
+    /// 入库, so suggesting it again would buy it twice. A row in an unrelated
+    /// unit does not count: it says nothing about how much is already coming.
+    static func isOnShoppingList(name: String, unit: String?, in shoppingItems: [KitchenShoppingItem]) -> Bool {
+        let key = IngredientNormalizer.matchKey(name)
+        return shoppingItems.contains { item in
+            guard IngredientNormalizer.matchKey(item.name) == key else { return false }
+            guard let unit else { return true }
+            return IngredientNormalizer.normalizedUnit(item.unit) == IngredientNormalizer.normalizedUnit(unit)
+                || UnitConverter.areConvertible(item.unit, unit)
+        }
+    }
+
     func generate(
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore,
-        justConsumed: [InventoryConsumptionRecordItem] = []
+        justConsumed: [InventoryConsumptionRecordItem] = [],
+        excludingPlanIDs: Set<UUID> = []
     ) -> [RestockSuggestion] {
         var suggestions: [String: RestockSuggestion] = [:]
 
@@ -207,16 +304,25 @@ struct RestockSuggestionEngine {
                 suggestedQuantity: target.flatMap { $0 > 0 ? $0 : nil },
                 unit: item.unit,
                 reason: item.stapleStatus == .outOfStock ? "常备食材已缺货" : "库存低于常备阈值",
-                source: .pantryStaple
+                source: .pantryStaple,
+                isAlreadyOnShoppingList: Self.isOnShoppingList(name: item.name, unit: item.unit, in: kitchenStore.shoppingItems)
             )
         }
 
         for recordItem in justConsumed where recordItem.resultingQuantity <= 0 {
             let key = IngredientNormalizer.matchKey(recordItem.ingredientName)
             guard suggestions[key] == nil else { continue }
+            // One record item is one batch. Emptying the oldest batch says
+            // nothing about the food while another batch still holds some.
+            guard !kitchenStore.inventory.contains(where: {
+                $0.isAvailable && IngredientNormalizer.matchKey($0.name) == key
+            }) else { continue }
             suggestions[key] = RestockSuggestion(
                 id: "consumed-\(key)", name: recordItem.ingredientName, suggestedQuantity: nil, unit: recordItem.unit,
-                reason: "做饭后已用完", source: .consumed
+                reason: "做饭后已用完", source: .consumed,
+                isAlreadyOnShoppingList: Self.isOnShoppingList(
+                    name: recordItem.ingredientName, unit: recordItem.unit, in: kitchenStore.shoppingItems
+                )
             )
         }
 
@@ -224,13 +330,19 @@ struct RestockSuggestionEngine {
         // result screen has not been added to anything, so it must not change
         // what the kitchen says it needs to buy; that screen's own
         // 生成购物清单 is where a draft turns into shopping, explicitly.
+        //
+        // `excludingPlanIDs` are the meals this cook just consumed. They are
+        // marked cooked only after the confirmation returns, so without this
+        // the meal on the stove would ask to be bought again.
         let upcoming = PlannedMealHorizon.upcoming(plans: kitchenStore.plans)
+            .filter { !excludingPlanIDs.contains($0.id) }
         if !upcoming.isEmpty {
             let draft = ShoppingListGenerator().generate(
                 source: .plannedMeals(upcoming),
                 inventory: kitchenStore.inventory,
                 existingShoppingItems: kitchenStore.shoppingItems,
-                recipeStore: recipeStore
+                recipeStore: recipeStore,
+                pendingList: .subtract
             )
             for item in draft.missingItems {
                 let key = IngredientNormalizer.matchKey(item.displayName)
@@ -238,6 +350,16 @@ struct RestockSuggestionEngine {
                 suggestions[key] = RestockSuggestion(
                     id: "planned-\(key)", name: item.displayName, suggestedQuantity: item.missingQuantity, unit: item.unit,
                     reason: "未来 7 天计划需要", source: .plannedMeals
+                )
+            }
+            // The generator already subtracted the pending list; these are
+            // covered by it in full.
+            for item in draft.alreadyListedItems {
+                let key = IngredientNormalizer.matchKey(item.displayName)
+                guard suggestions[key] == nil else { continue }
+                suggestions[key] = RestockSuggestion(
+                    id: "planned-\(key)", name: item.displayName, suggestedQuantity: nil, unit: item.unit,
+                    reason: "未来 7 天计划需要", source: .plannedMeals, isAlreadyOnShoppingList: true
                 )
             }
         }
@@ -270,6 +392,24 @@ enum ExpiryNotificationLeadTime: String, CaseIterable, Identifiable {
         case .dayOf: return 0
         }
     }
+
+    /// The `@AppStorage` key SettingsView's toggle writes.
+    var storageKey: String {
+        switch self {
+        case .oneDayBefore: return "notifyLeadTime1Day"
+        case .threeDaysBefore: return "notifyLeadTime3Day"
+        case .dayOf: return "notifyLeadTimeDayOf"
+        }
+    }
+
+    /// SettingsView's `@AppStorage` default. That default lives only in memory
+    /// until the user flips the toggle, so every other reader must apply it too —
+    /// `defaults.bool(forKey:)` would read an untouched 1-day toggle as off.
+    var isEnabledByDefault: Bool { self != .threeDaysBefore }
+
+    static func enabled(in defaults: UserDefaults) -> Set<ExpiryNotificationLeadTime> {
+        Set(allCases.filter { defaults.object(forKey: $0.storageKey) as? Bool ?? $0.isEnabledByDefault })
+    }
 }
 
 @MainActor
@@ -289,6 +429,14 @@ enum ExpiryNotificationScheduler {
 
     static func currentAuthorizationStatus() async -> UNAuthorizationStatus {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    /// What a reminder toggle shows. Turning notifications off in iOS Settings
+    /// never reached the stored preference, so the toggles stayed on while no
+    /// reminder could arrive. Denied reads as off; the stored choice is kept,
+    /// so allowing notifications again restores it.
+    nonisolated static func isReminderEffectivelyOn(stored: Bool, authorization: UNAuthorizationStatus?) -> Bool {
+        stored && authorization != .denied
     }
 
     /// Clears every pending expiry notification and reschedules from the current
@@ -436,7 +584,8 @@ final class CookConsumptionStore: ObservableObject {
             var inputs: [InventoryConsumptionPlanner.RecipeConsumptionInput] = []
             var unresolved: [String] = []
             if let recipe {
-                inputs.append(.init(recipe: recipe, servings: 1))
+                // As written (D-047): a Special Plan dish is never scaled by headcount.
+                inputs.append(.init(recipe: recipe, servings: nil))
             } else {
                 unresolved.append("这道菜品")
             }
@@ -473,10 +622,9 @@ final class CookConsumptionStore: ObservableObject {
                 unresolved.append(plan.recipeName)
                 continue
             }
-            // `nil` target -> 1, so an unstated plan cannot raise the
-            // "you picked a different headcount" warning. Consumption still
-            // never rescales quantities.
-            inputs.append(.init(recipe: recipe, servings: plan.plannedServings ?? 1))
+            // `nil` stays "as written"; a stated target scales like the
+            // shopping list did for the same meal.
+            inputs.append(.init(recipe: recipe, servings: plan.plannedServings))
         }
         unresolvedPlanNames = unresolved
         drafts = planner.plan(for: inputs, inventory: kitchenStore.inventory)
@@ -614,7 +762,8 @@ final class CookConsumptionStore: ObservableObject {
         restockSuggestions = restockEngine.generate(
             kitchenStore: kitchenStore,
             recipeStore: recipeStore,
-            justConsumed: record.items
+            justConsumed: record.items,
+            excludingPlanIDs: Set(planIDs)
         )
         didConfirm = true
         return true
@@ -808,8 +957,37 @@ struct CookConsumptionConfirmationView: View {
                     }
                 }
             }
+            // Nothing to deduct in a unit the stock is not held in, nor from a
+            // staple that holds a status instead of a count.
+            .disabled(draft.wrappedValue.unconvertibleStockText != nil || draft.wrappedValue.statusStapleText != nil)
 
-            if draft.wrappedValue.matchedInventoryID != nil {
+            if let status = draft.wrappedValue.statusStapleText {
+                HStack {
+                    Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
+                    Spacer()
+                    Text("常备 \(status)")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Label("按状态记录，不自动扣减", systemImage: "minus.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("consumption.\(draft.wrappedValue.id).statusStaple")
+            } else if let stock = draft.wrappedValue.unconvertibleStockText {
+                HStack {
+                    Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
+                    Spacer()
+                    Text("库存 \(stock)")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Label("单位不同，未扣减", systemImage: "minus.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("consumption.\(draft.wrappedValue.id).notDeducted")
+            } else if draft.wrappedValue.matchedInventoryID != nil {
                 HStack {
                     Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
                     Spacer()
@@ -820,14 +998,19 @@ struct CookConsumptionConfirmationView: View {
 
                 HStack {
                     Text("使用量")
-                    TextField("数量", value: draft.consumedQuantity, format: .number)
-                        .keyboardType(.decimalPad)
+                    ConsumedQuantityField(quantity: draft.consumedQuantity)
                         .frame(maxWidth: 80)
                     Text(draft.wrappedValue.requiredUnit ?? "")
                     Spacer()
-                    Text("扣减后剩 \(quantityText(resultingQuantity(draft.wrappedValue)))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let remaining = draft.wrappedValue.remainingAfterDeduction {
+                        Text("扣减后剩 \(quantityText(remaining))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("这一行不扣减")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 Menu {
@@ -881,15 +1064,26 @@ struct CookConsumptionConfirmationView: View {
                             Text(suggestion.reason).font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button("加入清单") {
-                            kitchenStore.addShopping(
-                                name: suggestion.name,
-                                quantity: suggestion.suggestedQuantity ?? 1,
-                                unit: suggestion.unit ?? "适量",
-                                source: "补货建议"
-                            )
+                        // Read live: the suggestions are a snapshot taken at
+                        // confirmation, and a second tap must not add it twice.
+                        if suggestion.isAlreadyOnShoppingList
+                            || RestockSuggestionEngine.isOnShoppingList(
+                                name: suggestion.name, unit: suggestion.unit, in: kitchenStore.shoppingItems
+                            ) {
+                            Text("已在清单")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Button("加入清单") {
+                                kitchenStore.addShopping(
+                                    name: suggestion.name,
+                                    quantity: suggestion.suggestedQuantity ?? 1,
+                                    unit: suggestion.unit ?? "适量",
+                                    source: "补货建议"
+                                )
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
             }
@@ -901,11 +1095,47 @@ struct CookConsumptionConfirmationView: View {
         return value.formatted(.number.precision(.fractionLength(0...2)))
     }
 
-    private func resultingQuantity(_ draft: InventoryConsumptionDraft) -> Double? {
-        guard let current = draft.currentQuantity, let consumed = draft.consumedQuantity else {
-            return draft.resultingQuantity
-        }
+}
+
+extension InventoryConsumptionDraft {
+    /// What the row leaves in stock, from the amount on screen. `nil` when the
+    /// amount is cleared: that row deducts nothing, so it must not keep showing
+    /// the remainder the planner originally estimated.
+    var remainingAfterDeduction: Double? {
+        guard let current = currentQuantity, let consumed = consumedQuantity else { return nil }
         return max(0, current - consumed)
+    }
+
+    /// Reads a typed 使用量. Empty or unreadable text is "no amount" (`nil`);
+    /// a comma decimal separator is accepted as well as a point.
+    static func enteredQuantity(from text: String) -> Double? {
+        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(cleaned), value.isFinite, value >= 0 else { return nil }
+        return value
+    }
+}
+
+/// The 使用量 field. A `TextField(value:format:)` commits only on return or
+/// when focus leaves, and the decimal pad has no return key, so tapping
+/// 更新冰箱 straight after typing could deduct the old amount. This writes the
+/// amount through on every keystroke instead.
+private struct ConsumedQuantityField: View {
+    @Binding var quantity: Double?
+    @State private var text: String
+
+    init(quantity: Binding<Double?>) {
+        _quantity = quantity
+        _text = State(initialValue: quantity.wrappedValue.map {
+            $0.formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
+        } ?? "")
+    }
+
+    var body: some View {
+        TextField("数量", text: $text)
+            .keyboardType(.decimalPad)
+            .onChange(of: text) { _, typed in
+                quantity = InventoryConsumptionDraft.enteredQuantity(from: typed)
+            }
     }
 }
 

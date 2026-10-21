@@ -584,8 +584,11 @@ nonisolated struct AIShoppingItemProposal: Codable, Equatable, Sendable {
 /// `ConversationActionCoordinator` is the only path from here to a domain write.
 /// A capability the model merely asks for does not exist.
 nonisolated enum AIActionProposal: Codable, Equatable, Sendable {
-    case addRecipeToTonight(recipe: AIRecipeBlock)
-    case replacePlannedMeal(planID: UUID, replacement: AIRecipeBlock)
+    /// `plannedServings` is the stated target ("4 个人吃"), 1–12, or nil when
+    /// nobody stated one. Never persisted: proposals live only in a prepared
+    /// action, and a nil value encodes exactly as before for the idempotency key.
+    case addRecipeToTonight(recipe: AIRecipeBlock, plannedServings: Int? = nil)
+    case replacePlannedMeal(planID: UUID, replacement: AIRecipeBlock, plannedServings: Int? = nil)
     case applyPlannerChanges(changes: [AIPlannerMealChange])
     case replaceSpecialPlanDishes(planID: UUID, changes: [AISpecialPlanDishChange])
     case addShoppingItems(items: [AIShoppingItemProposal])
@@ -613,9 +616,9 @@ nonisolated enum AIActionProposal: Codable, Equatable, Sendable {
     /// silently drop it.
     var relatedEntityIDs: [String] {
         switch self {
-        case let .addRecipeToTonight(recipe):
+        case let .addRecipeToTonight(recipe, _):
             return [recipe.recipe.id]
-        case let .replacePlannedMeal(planID, replacement):
+        case let .replacePlannedMeal(planID, replacement, _):
             return [planID.uuidString, replacement.recipe.id]
         case let .applyPlannerChanges(changes):
             return changes.flatMap { [$0.planID.uuidString, $0.replacement.recipe.id] }

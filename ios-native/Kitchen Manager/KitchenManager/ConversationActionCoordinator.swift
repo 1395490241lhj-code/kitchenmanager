@@ -71,7 +71,10 @@ final class ConversationActionCoordinator {
         var rows: [AIPlannerChangeRow] = []
         let risk: AIActionRisk
         switch proposal {
-        case .addRecipeToTonight:
+        case let .addRecipeToTonight(_, servings):
+            if let servings, !Recipe.validBaseServings.contains(servings) {
+                throw AIActionExecutionError.invalidRecipe
+            }
             risk = .low
         case .replacePlannedMeal, .applyPlannerChanges:
             let changes = plannerChanges(proposal)
@@ -84,8 +87,11 @@ final class ConversationActionCoordinator {
                     throw AIActionExecutionError.invalidRecipe
                 }
                 plans.append(before)
+                // Which day: two days with the same dish, or a misread "明天",
+                // are otherwise indistinguishable before 应用修改.
+                let day = ConversationContextAssembler.localDayText(before.date, calendar: domain.calendar, withYear: false)
                 rows.append(.init(targetID: before.id,
-                    before: mealText(before.recipeName, servings: before.plannedServings, cooked: before.isCooked),
+                    before: "\(day) · " + mealText(before.recipeName, servings: before.plannedServings, cooked: before.isCooked),
                     after: mealText(recipe.title, servings: change.plannedServings ?? before.plannedServings, cooked: false)))
             }
             risk = changes.count == 1 ? .medium : .high
@@ -171,7 +177,8 @@ final class ConversationActionCoordinator {
         let receipt: AIDomainMutationReceipt
         do {
             switch action.proposal {
-            case let .addRecipeToTonight(recipe): receipt = try domain.addRecipeToTonight(recipe, now: time)
+            case let .addRecipeToTonight(recipe, servings):
+                receipt = try domain.addRecipeToTonight(recipe, plannedServings: servings, now: time)
             case .replacePlannedMeal, .applyPlannerChanges: receipt = try domain.replacePlannedMeals(plannerChanges(action.proposal))
             case let .replaceSpecialPlanDishes(planID, changes): receipt = try domain.replaceSpecialPlanDishes(planID: planID, changes: changes)
             case let .addShoppingItems(items): receipt = try domain.addShoppingItems(items)
@@ -258,7 +265,8 @@ final class ConversationActionCoordinator {
 
     private func plannerChanges(_ proposal: AIActionProposal) -> [AIPlannerMealChange] {
         switch proposal {
-        case let .replacePlannedMeal(id, replacement): return [.init(planID: id, replacement: replacement)]
+        case let .replacePlannedMeal(id, replacement, servings):
+            return [.init(planID: id, replacement: replacement, plannedServings: servings)]
         case let .applyPlannerChanges(changes): return changes
         default: return []
         }
@@ -266,8 +274,8 @@ final class ConversationActionCoordinator {
 
     private func recipeBlocks(_ proposal: AIActionProposal) -> [AIRecipeBlock] {
         switch proposal {
-        case let .addRecipeToTonight(recipe): return [recipe]
-        case let .replacePlannedMeal(_, replacement): return [replacement]
+        case let .addRecipeToTonight(recipe, _): return [recipe]
+        case let .replacePlannedMeal(_, replacement, _): return [replacement]
         case let .applyPlannerChanges(changes): return changes.map(\.replacement)
         case let .replaceSpecialPlanDishes(_, changes): return changes.map(\.replacement)
         case .addShoppingItems: return []
@@ -288,8 +296,10 @@ final class ConversationActionCoordinator {
         }
         let effective: AIActionProposal
         switch proposal {
-        case let .addRecipeToTonight(recipe): effective = .addRecipeToTonight(recipe: resolved(recipe))
-        case let .replacePlannedMeal(id, recipe): effective = .replacePlannedMeal(planID: id, replacement: resolved(recipe))
+        case let .addRecipeToTonight(recipe, servings):
+            effective = .addRecipeToTonight(recipe: resolved(recipe), plannedServings: servings)
+        case let .replacePlannedMeal(id, recipe, servings):
+            effective = .replacePlannedMeal(planID: id, replacement: resolved(recipe), plannedServings: servings)
         case let .applyPlannerChanges(changes): effective = .applyPlannerChanges(changes: changes.map {
             .init(planID: $0.planID, replacement: resolved($0.replacement), plannedServings: $0.plannedServings)
         })

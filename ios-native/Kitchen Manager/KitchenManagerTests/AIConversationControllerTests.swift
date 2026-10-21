@@ -475,6 +475,61 @@ final class AIConversationControllerTests: XCTestCase {
         XCTAssertEqual(f.controller.turnState, .idle)
     }
 
+    // MARK: - AI_LOGIC-7: Today and Planner pages share this controller
+
+    private let todayPage = UUID()
+    private let plannerPage = UUID()
+    private var plannerEntry: AIConversationEntryContext { .planner(weekStart: Fixture.calendar.date(from: DateComponents(year: 2027, month: 1, day: 4))!, specialPlanID: nil) }
+
+    func testAnotherPageAppearingWhileIdleOpensItsOwnConversation() async throws {
+        let f = try Fixture()
+        f.controller.pageAppeared(todayPage, entryContext: .home)
+        XCTAssertEqual(f.controller.activeEntryContext, .home)
+
+        f.controller.pageAppeared(plannerPage, entryContext: plannerEntry)
+        XCTAssertEqual(f.controller.activeEntryContext, plannerEntry, "a send from the Planner page must not go into Today's conversation")
+
+        f.controller.pageAppeared(todayPage, entryContext: .home)
+        XCTAssertEqual(f.controller.activeEntryContext, .home, "returning to Today shows Today's conversation again")
+    }
+
+    func testAnotherPageAppearingNeverCancelsAReplyInProgress() async throws {
+        let f = try Fixture()
+        f.controller.pageAppeared(todayPage, entryContext: .home)
+        f.orchestrator.scripts = [.manual]
+        await send("今晚吃什么", in: f)
+        XCTAssertTrue(f.controller.isGenerating)
+        let conversation = f.controller.currentConversation?.id
+
+        f.controller.pageAppeared(plannerPage, entryContext: plannerEntry)
+
+        XCTAssertEqual(f.orchestrator.cancelCount, 0)
+        XCTAssertTrue(f.controller.isGenerating)
+        XCTAssertEqual(f.controller.currentConversation?.id, conversation)
+    }
+
+    func testAnotherPageAppearingNeverDropsAPendingConfirmation() async throws {
+        let f = try Fixture()
+        f.controller.pageAppeared(todayPage, entryContext: .home)
+        let (_, prepared) = try await pendingMeal(f)
+
+        f.controller.pageAppeared(plannerPage, entryContext: plannerEntry)
+
+        XCTAssertEqual(f.controller.preparedAction, prepared)
+        XCTAssertEqual(f.controller.turnState, .awaitingConfirmation)
+    }
+
+    func testTheOwningPageKeepsAConversationPickedFromHistory() async throws {
+        let f = try Fixture()
+        f.controller.pageAppeared(todayPage, entryContext: .home)
+        let picked = try makePersistedConversation(f)
+        f.controller.openConversation(id: picked.id)
+
+        f.controller.pageAppeared(todayPage, entryContext: .home)
+
+        XCTAssertEqual(f.controller.currentConversation?.id, picked.id)
+    }
+
     func testReopenTerminalActionDoesNotPreserveCapability() async throws {
         let f = try Fixture()
         let (conversation, prepared) = try await pendingMeal(f)

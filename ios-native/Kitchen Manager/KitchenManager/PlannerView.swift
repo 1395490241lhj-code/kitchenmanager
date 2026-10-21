@@ -13,6 +13,9 @@ import SwiftUI
 enum PlannerRoute: Hashable {
     case specialPlan(UUID)
     case recipe(String)
+    /// A Special Plan dish's recipe, opened as that dish so cooking it there
+    /// is that dish's cook. Resolved fresh, like `plannedMeal`.
+    case specialPlanDish(planID: UUID, dishID: UUID)
     /// An ordinary meal, carried by id rather than by value so the destination
     /// always resolves the current plan: an edit that lands while the detail is
     /// open must not leave a stale copy on the navigation path.
@@ -308,6 +311,8 @@ struct PlannerView: View {
                         } else {
                             ContentUnavailableView("菜谱不存在", systemImage: "questionmark.folder")
                         }
+                    case let .specialPlanDish(planID, dishID):
+                        SpecialPlanDishRecipeDestination(planID: planID, dishID: dishID)
                     case .plannedMeal(let id):
                         plannedMealDestination(id)
                     case .todayShopping:
@@ -317,10 +322,16 @@ struct PlannerView: View {
                             weekStart: weekStart, specialPlanID: specialPlanID
                         ))
                     case .weeklyGenerator:
-                        WeeklyMenuPlannerView(onWorkflowActive: { activeWeeklyWorkflow = $0 }) { summary in
-                            weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
-                            path.wrappedValue.removeAll()
-                        }
+                        WeeklyMenuPlannerView(
+                            onWorkflowActive: { activeWeeklyWorkflow = $0 },
+                            onMaterialized: { summary in
+                                weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
+                                path.wrappedValue.removeAll()
+                            },
+                            preferredStartDate: creationDefaultDate,
+                            // Production injects nothing and keeps the real clock.
+                            now: injectedNow.map { injected in { injected } }
+                        )
                     case .recipeLibrary:
                         RecipeListView()
                     }
@@ -550,6 +561,10 @@ struct PlannerView: View {
             }
         }
         .plannerList()
+        // The system row minimum (52pt on iOS 26/27) otherwise wins over an
+        // unplanned day's 44pt whole-row target, making an empty day exactly as
+        // tall as a planned meal row. List-level: a row-level value is ignored.
+        .environment(\.defaultMinListRowHeight, AppTheme.minimumHitTarget)
     }
 
     private var recipeLibrarySection: some View {
@@ -633,6 +648,9 @@ struct PlannerView: View {
                 } label: {
                     Text("移出计划")
                 }
+                // Explicit tint: the app-wide blue tint otherwise overrides
+                // the destructive red.
+                .tint(AppTheme.danger)
                 .accessibilityIdentifier("planner.meal.remove.\(meal.id.uuidString)")
             }
             .contextMenu {
@@ -677,6 +695,7 @@ struct PlannerView: View {
         path.wrappedValue.removeAll { route in
             switch route {
             case .specialPlan(let routeID): return routeID == id
+            case .specialPlanDish(let planID, _): return planID == id
             case .recipe, .plannedMeal, .todayShopping, .weeklyGenerator, .kitchenAI, .recipeLibrary: return false
             }
         }
@@ -806,7 +825,7 @@ struct PlannerView: View {
                 ContentUnavailableView(
                     "菜谱暂不可用",
                     systemImage: "book.closed",
-                    description: Text("这份计划保留不变，可以稍后重试。")
+                    description: Text(MealPlanItem.missingRecipeExplanation)
                 )
             }
         } else {

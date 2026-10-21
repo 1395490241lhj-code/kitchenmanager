@@ -17,14 +17,46 @@ import SwiftUI
 struct CookingFlowRequest: Identifiable, Equatable {
     let recipe: Recipe
     let plan: MealPlanItem?
+    /// Set when the recipe was opened from a Special Plan dish. The cook is
+    /// then that dish's cook (D-047): its receipt is keyed to the dish, so
+    /// ticking the dish afterwards finds it instead of deducting again.
+    var specialPlanDish: SpecialPlanDishCookingContext? = nil
 
-    var id: String { "\(plan?.id.uuidString ?? "-")|\(recipe.id)" }
+    var id: String { "\(plan?.id.uuidString ?? specialPlanDish?.dishID.uuidString ?? "-")|\(recipe.id)" }
+
+    /// The confirmation target for a Special Plan dish, or nil when the event
+    /// does not use home inventory — the same rule as ticking the dish.
+    var specialPlanConsumptionTarget: CookConsumptionTarget? {
+        guard let dish = specialPlanDish, dish.usesHomeInventory else { return nil }
+        return .specialPlanDish(
+            planID: dish.planID,
+            dishID: dish.dishID,
+            planTitleSnapshot: dish.planTitle,
+            recipe: recipe
+        )
+    }
 
     /// The yield this cook starts from: the plan's stated target when it has
     /// one, otherwise the recipe's own base. Never 1 by default — a recipe with
     /// a stated yield should be cooked as written rather than divided down.
     var initialServings: Int {
         plan?.plannedServings ?? recipe.baseServings ?? 1
+    }
+
+    /// Today's uncooked meal of this exact recipe, for a cook started from a
+    /// page that was not opened for any plan. Cooking it as a direct recipe and
+    /// then ticking the meal deducted the same dish twice. This only finds the
+    /// candidate; the member is asked whether it is that meal. Matched by
+    /// recipe id, never by name.
+    static func todayPlanCandidate(
+        recipeID: String,
+        plans: [MealPlanItem],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> MealPlanItem? {
+        plans
+            .filter { !$0.isCooked && $0.recipeID == recipeID && calendar.isDate($0.date, inSameDayAs: now) }
+            .min { $0.date < $1.date }
     }
 }
 
@@ -47,7 +79,13 @@ private struct CookingFlowModifier: ViewModifier {
                     plan: active.plan
                 ) {
                     request = nil
-                    confirming = active
+                    if let dish = active.specialPlanDish, !dish.usesHomeInventory {
+                        // Cooked away from the home kitchen: complete the dish
+                        // and deduct nothing, as ticking it on the plan does.
+                        _ = kitchenStore.completeSpecialPlanDish(planID: dish.planID, dishID: dish.dishID)
+                    } else {
+                        confirming = active
+                    }
                 } onExit: {
                     // Leaving cooking mode writes nothing. That is the whole
                     // point of a confirmation-first flow.
@@ -56,19 +94,49 @@ private struct CookingFlowModifier: ViewModifier {
                 .environmentObject(kitchenStore)
             }
             .sheet(item: $confirming) { active in
-                CookConsumptionConfirmationView(
-                    title: active.recipe.title,
-                    planIDs: active.plan.map { [$0.id] } ?? [],
-                    recipeID: active.recipe.id,
-                    recipeName: active.recipe.title,
-                    // A planned dish deducts against its plan; a recipe cooked
-                    // outside a plan supplies the recipe instead.
-                    recipe: active.plan == nil ? active.recipe : nil,
-                    servings: session.servings
-                ) {
-                    if let plan = active.plan { kitchenStore.markPlanCooked(plan) }
+                if let target = active.specialPlanConsumptionTarget, let dish = active.specialPlanDish {
+                    CookConsumptionConfirmationView(
+                        target: target,
+                        title: active.recipe.title,
+                        recipeID: active.recipe.id,
+                        recipeName: active.recipe.title
+                    ) { setOutcome in
+                        setOutcome(kitchenStore.completeSpecialPlanDish(planID: dish.planID, dishID: dish.dishID))
+                    }
+                } else {
+                    plannedOrDirectConfirmation(active)
                 }
             }
+    }
+
+    private func plannedOrDirectConfirmation(_ active: CookingFlowRequest) -> some View {
+        CookConsumptionConfirmationView(
+            title: active.recipe.title,
+            planIDs: active.plan.map { [$0.id] } ?? [],
+            recipeID: active.recipe.id,
+            recipeName: active.recipe.title,
+            // A planned dish deducts against its plan; a recipe cooked
+            // outside a plan supplies the recipe instead.
+            recipe: active.plan == nil ? active.recipe : nil,
+            servings: session.servings
+        ) {
+            if let plan = active.plan { kitchenStore.markPlanCooked(plan) }
+        }
+    }
+}
+
+/// Which Special Plan dish a recipe page was opened for.
+struct SpecialPlanDishCookingContext: Hashable {
+    let planID: UUID
+    let dishID: UUID
+    let planTitle: String
+    let usesHomeInventory: Bool
+
+    init(plan: SpecialPlan, dish: SpecialPlanDish) {
+        planID = plan.id
+        dishID = dish.id
+        planTitle = plan.title
+        usesHomeInventory = plan.usesHomeInventory
     }
 }
 

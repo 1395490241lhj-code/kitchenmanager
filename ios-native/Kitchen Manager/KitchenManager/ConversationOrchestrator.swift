@@ -52,6 +52,8 @@ protocol ConversationOrchestrating: AnyObject {
 final class ConversationOrchestrator: ConversationOrchestrating {
     static let maxProviderStepsPerTurn = 6
     static let maxToolCallsPerTurn = 12
+    /// What a read of a source the member switched off for this message returns.
+    static let excludedByMemberToolResult = #"{"error":"excluded_by_member","message":"成员已关闭本条消息的这项上下文，请不要读取或推测其内容。"}"#
 
     /// Cross-layer contract constant pinned to src/server/config.js: AI_PROMPT_MAX_CHARS = 12000.
     nonisolated static let serverPromptMaxChars = 12000
@@ -666,17 +668,28 @@ final class ConversationOrchestrator: ConversationOrchestrating {
                         cleanupActiveRun(runID)
                         return
                     }
+                    let kind: AIContextKind
+                    switch readRequest {
+                    case .inventory: kind = .inventory
+                    case .tonightPlan: kind = .tonightPlan
+                    case .plannerWeek: kind = .plannerWeek
+                    case .specialPlan: kind = .specialPlan
+                    case .resolveRecipe: kind = .recipe
+                    }
+                    // The member turned this source off for this message. A
+                    // read tool must not fetch around that choice; the call
+                    // still gets its tool result so the transcript stays valid.
+                    if input.excludedContextKinds.contains(kind) {
+                        if let toolMsg = AIConversationTranscriptMessage.toolResult(
+                            forToolCallID: call.id, text: Self.excludedByMemberToolResult
+                        ) {
+                            ephemeralTranscript.append(toolMsg)
+                        }
+                        continue
+                    }
                     do {
                         let executedResult = try executeReadTool(readRequest)
                         let resultText = executedResult.text
-                        let kind: AIContextKind
-                        switch readRequest {
-                        case .inventory: kind = .inventory
-                        case .tonightPlan: kind = .tonightPlan
-                        case .plannerWeek: kind = .plannerWeek
-                        case .specialPlan: kind = .specialPlan
-                        case .resolveRecipe: kind = .recipe
-                        }
                         let fingerprint = SHA256.hash(data: Data(resultText.utf8)).map { String(format: "%02x", $0) }.joined()
                         var updatedKinds = Set(currentTurnSnapshot.contextKinds)
                         updatedKinds.insert(kind)

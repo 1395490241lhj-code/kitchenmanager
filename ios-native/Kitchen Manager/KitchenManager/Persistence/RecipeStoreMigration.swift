@@ -18,38 +18,18 @@ enum RecipeStoreMigration {
         recipes: UserRecipePersistenceProtocol,
         preferences: RecipePreferencePersistenceProtocol
     ) throws -> MigratedRecipeStoreState {
+        if userDefaults.bool(forKey: completionKey) {
+            // Steady-state launch path. One-shot: once the migration below has
+            // been verified, an empty recipe table or preference set is the
+            // member's own state (their last recipe deleted, every favourite
+            // removed). Re-seeding from the legacy keys here brought those back
+            // on every relaunch. The legacy keys themselves stay untouched.
+            return try loadedState(recipes: recipes, preferences: preferences)
+        }
+
         let legacyRecipes = try loadLegacyRecipes(from: userDefaults)
         let legacyFavoriteIDs = Set(userDefaults.stringArray(forKey: legacyFavoritesKey) ?? [])
         let legacyFrequentIDs = Set(userDefaults.stringArray(forKey: legacyFrequentKey) ?? [])
-
-        if userDefaults.bool(forKey: completionKey) {
-            // Steady-state launch path — runs on every cold launch once the
-            // one-off migration below has completed, so it only reads what it
-            // actually returns. It used to eagerly fetch recipes, the record
-            // count and preferences up front and then fetch recipes and
-            // preferences *again* via `loadedState`, costing five store round
-            // trips on the main actor before the first frame where two suffice.
-            //
-            // `storedRecordCount()` is deliberately still the guard for the
-            // legacy restore rather than `loadRecipes().isEmpty`: the two
-            // differ when the table holds only rows `loadRecipes()` skips as
-            // corrupt, and re-seeding legacy data over those is not this
-            // path's job. It is now only asked for when legacy data actually
-            // exists, since the branch requires both conditions anyway.
-            if !legacyRecipes.isEmpty, try recipes.storedRecordCount() == 0 {
-                try recipes.replaceRecipes(with: legacyRecipes)
-            }
-            var storedPreferences = try preferences.loadPreferences()
-            if storedPreferences.isEmpty, !legacyFavoriteIDs.isEmpty || !legacyFrequentIDs.isEmpty {
-                try preferences.replacePreferences(with: legacyPreferences(favorites: legacyFavoriteIDs, frequent: legacyFrequentIDs))
-                storedPreferences = try preferences.loadPreferences()
-            }
-            return MigratedRecipeStoreState(
-                userRecipes: try recipes.loadRecipes(),
-                favoriteRecipeIDs: Set(storedPreferences.filter(\.isFavorite).map(\.recipeID)),
-                frequentRecipeIDs: Set(storedPreferences.filter(\.isFrequent).map(\.recipeID))
-            )
-        }
 
         let storedRecipes = try recipes.loadRecipes()
         let storedPreferences = try preferences.loadPreferences()

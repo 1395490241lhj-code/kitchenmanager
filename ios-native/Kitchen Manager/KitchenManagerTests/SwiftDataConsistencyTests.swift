@@ -32,7 +32,10 @@ final class SwiftDataConsistencyTests: XCTestCase {
         )
     }
 
-    func testCompletedMarkersWithEmptyTablesRecoverEveryLegacyModule() throws {
+    /// PERSISTENCE_LIFECYCLE-4: legacy migration is one-shot. Once a module's
+    /// marker says the migration was verified, an empty table is the member's
+    /// own state and is not refilled from the legacy JSON.
+    func testCompletedMarkersWithEmptyTablesStayEmpty() throws {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let bundle = KitchenPersistenceFactory.isolatedInMemory()
         let inventory = InventoryItem(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
@@ -53,11 +56,40 @@ final class SwiftDataConsistencyTests: XCTestCase {
          WeeklyPlanMigration.completionKey].forEach { defaults.set(true, forKey: $0) }
 
         let restored = store(defaults, bundle)
-        XCTAssertEqual(restored.inventory, [inventory])
-        XCTAssertEqual(restored.shoppingItems, [shopping])
-        XCTAssertEqual(restored.plans, [plan])
-        XCTAssertEqual(restored.consumptionRecords, [consumption])
-        XCTAssertEqual(restored.weeklyPlan, weekly)
+        XCTAssertTrue(restored.inventory.isEmpty)
+        XCTAssertTrue(restored.shoppingItems.isEmpty)
+        XCTAssertTrue(restored.plans.isEmpty)
+        XCTAssertTrue(restored.consumptionRecords.isEmpty)
+        XCTAssertNil(restored.weeklyPlan)
+        XCTAssertNotNil(defaults.data(forKey: ShoppingListMigration.legacyShoppingKey), "the legacy JSON itself is left alone")
+    }
+
+    /// The upgraded-install path end to end: the first launch migrates the
+    /// legacy data, the member then empties the list, the plans and the weekly
+    /// menu, and a relaunch keeps them empty.
+    func testListsEmptiedAfterMigrationStayEmptyAfterRelaunch() throws {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let bundle = KitchenPersistenceFactory.isolatedInMemory()
+        let plan = MealPlanItem(recipeID: "recipe", recipeName: "番茄炒蛋")
+        defaults.set(try JSONEncoder().encode([KitchenShoppingItem(name: "牛奶", quantity: 1, unit: "盒")]),
+                     forKey: ShoppingListMigration.legacyShoppingKey)
+        defaults.set(try JSONEncoder().encode([plan]), forKey: TodayPlanMigration.legacyPlansKey)
+        defaults.set(try JSONEncoder().encode(weeklyPlan()), forKey: WeeklyPlanMigration.legacyKey)
+
+        let upgraded = store(defaults, bundle)
+        XCTAssertEqual(upgraded.shoppingItems.map(\.name), ["牛奶"], "the first launch still migrates")
+        XCTAssertEqual(upgraded.plans.map(\.id), [plan.id])
+        XCTAssertNotNil(upgraded.weeklyPlan)
+
+        upgraded.markAllPendingShoppingPurchased()
+        upgraded.clearCompletedShopping()
+        _ = upgraded.removePlan(id: plan.id)
+        upgraded.deleteWeeklyPlan()
+
+        let relaunched = store(defaults, bundle)
+        XCTAssertTrue(relaunched.shoppingItems.isEmpty)
+        XCTAssertTrue(relaunched.plans.isEmpty)
+        XCTAssertNil(relaunched.weeklyPlan)
     }
 
     func testClearAllDeletesSixModulesAndLegacyFallbackDoesNotResurrect() throws {

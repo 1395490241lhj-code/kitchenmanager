@@ -162,7 +162,13 @@ final class PlannerMealEditUITests: XCTestCase {
         )
         XCTAssertEqual(app.staticTexts["planner.mealForm.cookedFooter"].label, "这道菜已完成，份量不再可改")
         XCTAssertFalse(app.switches["planner.mealForm.servingsToggle"].isEnabled)
-        XCTAssertFalse(app.buttons["planner.mealForm.servings-Increment"].isEnabled)
+        // The fixed count is plain text, not a disabled Stepper: on iOS 26.5 a
+        // disabled Stepper's + still read as enabled. The seed stores 2.
+        XCTAssertTrue(app.staticTexts["2 人份"].exists, "a completed meal shows its fixed count")
+        XCTAssertFalse(app.buttons["planner.mealForm.servings-Increment"].exists,
+                       "a completed meal offers no + control")
+        XCTAssertFalse(app.buttons["planner.mealForm.servings-Decrement"].exists,
+                       "a completed meal offers no − control")
         XCTAssertTrue(app.descendants(matching: .any)["planner.mealForm.date"].isEnabled,
                       "the date stays editable on a completed meal")
     }

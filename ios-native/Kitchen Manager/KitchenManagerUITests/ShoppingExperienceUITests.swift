@@ -194,8 +194,15 @@ final class ShoppingExperienceUITests: XCTestCase {
         let app = launchShopping()
 
         openBulkMenu(in: app)
+        XCTAssertTrue(app.buttons["全部标记为已购买"].waitForExistence(timeout: 5))
         app.buttons["全部标记为已购买"].tap()
+        // 全部标记为已购买 shows a 撤销 toast. Let it run out before opening the
+        // menu again, so its dismissal can't re-render the toolbar mid-tap.
+        let undo = app.buttons["feedback.toast.action"]
+        XCTAssertTrue(undo.waitForExistence(timeout: 5), "mark-all offers 撤销")
+        XCTAssertTrue(undo.waitForNonExistence(timeout: 10), "the 撤销 toast expires on its own")
         openBulkMenu(in: app)
+        XCTAssertTrue(app.buttons["清除已购买"].waitForExistence(timeout: 5))
         app.buttons["清除已购买"].tap()
         XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
         app.alerts.firstMatch.buttons["清除已购买"].tap()

@@ -87,8 +87,9 @@ final class InventoryItemKindTests: XCTestCase {
         store.addInventory(name: "食用油", quantity: 1, unit: "瓶", expiryDate: Date())
         XCTAssertNotNil(item(named: "食用油")?.expiryDate)
 
+        // The row is picked under 从现有库存选择, as the add sheet now requires.
         try store.saveStaple(
-            id: nil,
+            id: item(named: "食用油")?.id,
             name: "食用油",
             quantity: 1,
             unit: "瓶",

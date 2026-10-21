@@ -205,70 +205,116 @@ struct RecipeDraftEditorSections: View {
     }
 }
 
+/// One editable ingredient line with an identity that survives edits.
+///
+/// The editor used to derive its rows from the joined text with empty lines
+/// dropped and identify them by position. Emptying a row removed it on the
+/// next read, every later row moved up, and the focused field — still the
+/// same position — was now editing the next line. A row keeps its id while
+/// it is empty; empty lines are only dropped when the recipe is saved
+/// (`EditableRecipeDraft.makeRecipe`).
+struct RecipeEditableLine: Identifiable, Equatable {
+    let id: UUID
+    var text: String
+}
+
+enum RecipeEditableLines {
+    /// Rows for `text`, reusing the ids of `existing` by position. Returns
+    /// `existing` untouched when it already spells `text`, which is what keeps
+    /// an edit from rebuilding the row being typed in.
+    static func rows(for text: String, reusing existing: [RecipeEditableLine] = []) -> [RecipeEditableLine] {
+        if joined(existing) == text { return existing }
+        let lines = text.isEmpty ? [] : text.components(separatedBy: "\n")
+        return lines.enumerated().map { index, line in
+            RecipeEditableLine(id: existing.indices.contains(index) ? existing[index].id : UUID(), text: line)
+        }
+    }
+
+    static func joined(_ rows: [RecipeEditableLine]) -> String {
+        rows.map(\.text).joined(separator: "\n")
+    }
+
+    static func removing(_ id: RecipeEditableLine.ID, from rows: [RecipeEditableLine]) -> [RecipeEditableLine] {
+        rows.filter { $0.id != id }
+    }
+
+    /// Moves one row to the other bucket. A line the other bucket already
+    /// holds word for word is not added twice.
+    static func moving(
+        _ id: RecipeEditableLine.ID,
+        from rows: [RecipeEditableLine],
+        into otherText: String
+    ) -> (rows: [RecipeEditableLine], otherText: String) {
+        guard let row = rows.first(where: { $0.id == id }) else { return (rows, otherText) }
+        var destination = EditableRecipeDraft.nonEmptyLines(otherText)
+        let value = row.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.isEmpty, !destination.contains(value) { destination.append(value) }
+        return (removing(id, from: rows), destination.joined(separator: "\n"))
+    }
+}
+
 private struct RecipeIngredientBucketEditor: View {
     let placeholder: String
     let moveTitle: String
     @Binding var text: String
     @Binding var otherText: String
     @State private var newLine = ""
+    @State private var rows: [RecipeEditableLine]
 
-    private var lines: [String] { EditableRecipeDraft.nonEmptyLines(text) }
+    init(placeholder: String, moveTitle: String, text: Binding<String>, otherText: Binding<String>) {
+        self.placeholder = placeholder
+        self.moveTitle = moveTitle
+        _text = text
+        _otherText = otherText
+        _rows = State(initialValue: RecipeEditableLines.rows(
+            for: EditableRecipeDraft.nonEmptyLines(text.wrappedValue).joined(separator: "\n")
+        ))
+    }
 
     var body: some View {
-        ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+        ForEach($rows) { $row in
             HStack {
-                TextField(placeholder, text: lineBinding(index, fallback: line))
+                TextField(placeholder, text: $row.text)
                 Menu {
-                    Button(moveTitle, systemImage: "arrow.right") { move(index) }
-                    Button("删除", systemImage: "trash", role: .destructive) { remove(index) }
+                    Button(moveTitle, systemImage: "arrow.right") { move(row.id) }
+                    Button("删除", systemImage: "trash", role: .destructive) { remove(row.id) }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel("编辑\(line)")
+                .accessibilityLabel("编辑\(row.text)")
             }
         }
         TextField(placeholder, text: $newLine)
             .onSubmit(add)
+            // Rows are the editing truth; the draft text follows them, and a
+            // change made from outside (a line moved in from the other bucket)
+            // is folded back into the rows without renumbering them.
+            .onChange(of: rows) { _, updated in
+                let joined = RecipeEditableLines.joined(updated)
+                if joined != text { text = joined }
+            }
+            .onChange(of: text) { _, updated in
+                rows = RecipeEditableLines.rows(for: updated, reusing: rows)
+            }
         Button("添加", systemImage: "plus") { add() }
             .disabled(newLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-    }
-
-    private func lineBinding(_ index: Int, fallback: String) -> Binding<String> {
-        Binding(
-            get: { lines.indices.contains(index) ? lines[index] : fallback },
-            set: { value in
-                var updated = lines
-                guard updated.indices.contains(index) else { return }
-                updated[index] = value
-                text = updated.joined(separator: "\n")
-            }
-        )
     }
 
     private func add() {
         let clean = newLine.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
-        var updated = lines
-        updated.append(clean)
-        text = updated.joined(separator: "\n")
+        rows.append(RecipeEditableLine(id: UUID(), text: clean))
         newLine = ""
     }
 
-    private func move(_ index: Int) {
-        var updated = lines
-        guard updated.indices.contains(index) else { return }
-        let value = updated.remove(at: index)
-        text = updated.joined(separator: "\n")
-        var destination = EditableRecipeDraft.nonEmptyLines(otherText)
-        if !destination.contains(value) { destination.append(value) }
-        otherText = destination.joined(separator: "\n")
+    private func move(_ id: RecipeEditableLine.ID) {
+        let moved = RecipeEditableLines.moving(id, from: rows, into: otherText)
+        rows = moved.rows
+        otherText = moved.otherText
     }
 
-    private func remove(_ index: Int) {
-        var updated = lines
-        guard updated.indices.contains(index) else { return }
-        updated.remove(at: index)
-        text = updated.joined(separator: "\n")
+    private func remove(_ id: RecipeEditableLine.ID) {
+        rows = RecipeEditableLines.removing(id, from: rows)
     }
 }
 
