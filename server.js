@@ -1291,31 +1291,112 @@ function cleanAiChatContent(content) {
 
 // Which layer ended the request: our own SDK deadline, or the provider's own
 // gateway timeout. Shared by the primary-attempt and final failure logs.
-// The logger allowlist names fields; it does not vet their values. Upstream error
-// codes and request ids are third-party strings, so before they reach a log line
-// they must be short safe identifiers: an unexpected code is normalised, an
-// unexpected request id is dropped.
-const SAFE_UPSTREAM_CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const SAFE_UPSTREAM_REQUEST_ID = /^[A-Za-z0-9_-]{8,128}$/;
-
-function safeUpstreamCode(code) {
-  if (code === undefined || code === null || code === '') return undefined;
-  const text = String(code);
-  return SAFE_UPSTREAM_CODE.test(text) ? text : 'unrecognized';
-}
-
-function safeUpstreamRequestId(id) {
-  const text = typeof id === 'string' ? id : '';
-  return SAFE_UPSTREAM_REQUEST_ID.test(text) ? text : undefined;
-}
-
-function safeUpstreamStatus(status) {
-  return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
-}
-
 function aiTimeoutSource(info) {
   if (info.code === 'ECONNABORTED') return 'server_sdk_deadline';
   return info.status === 504 ? 'upstream_response' : undefined;
+}
+
+// /api/ai-conversation failure diagnostics. They read a few primitive fields off
+// the thrown error and never throw themselves: a diagnostic must not turn a handled
+// provider failure into an unhandled rejection. The shared getUpstreamAiErrorInfo
+// is not used here because it String()s arbitrary error codes (an object code can
+// throw) and invents a 502/504 for errors that carried no HTTP status.
+// The logger allowlist names fields; it does not vet their values. Upstream error
+// codes and request ids are third-party strings, so before they reach a log line
+// they must be short safe identifiers: an unexpected code is normalised, an
+// unexpected request id is dropped. Only the body's code/type fields are read;
+// its message text never is.
+const SAFE_UPSTREAM_CODE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+const SAFE_UPSTREAM_REQUEST_ID = /^[A-Za-z0-9_-]{8,128}$/;
+const UNREADABLE = Symbol('unreadable');
+
+// A getter or Proxy trap may throw on access; such a field reads as UNREADABLE.
+function readErrorField(target, key) {
+  if (target === null || (typeof target !== 'object' && typeof target !== 'function')) return undefined;
+  try {
+    return target[key];
+  } catch {
+    return UNREADABLE;
+  }
+}
+
+function isPresentField(value) {
+  return value === UNREADABLE || Boolean(value);
+}
+
+// Only string or finite-number codes are kept. Anything else becomes a fixed
+// category and is never stringified.
+function safeFailureCode(value) {
+  let text = '';
+  if (typeof value === 'string') text = value;
+  else if (typeof value === 'number' && Number.isFinite(value)) text = String(value);
+  return SAFE_UPSTREAM_CODE.test(text) ? text : 'unrecognized';
+}
+
+// Only a status the error itself carries from an HTTP response counts. Transport
+// failures and SDK timeouts have none, so the field is omitted for them.
+function failureHttpStatus(err) {
+  const candidates = [readErrorField(readErrorField(err, 'response'), 'status'), readErrorField(err, 'status')];
+  return candidates.find((status) => Number.isInteger(status) && status >= 100 && status <= 599);
+}
+
+// Same precedence as getUpstreamAiErrorInfo: response body error, SDK error body,
+// then the error's own code/type; an SDK timeout with no code is ECONNABORTED.
+function failureReason(err) {
+  const data = readErrorField(readErrorField(err, 'response'), 'data');
+  const dataError = readErrorField(data, 'error');
+  const sdkError = readErrorField(err, 'error');
+  let upstreamError = null;
+  if (typeof dataError === 'object' && dataError !== null) upstreamError = dataError;
+  else if (typeof sdkError === 'object' && sdkError !== null) upstreamError = sdkError;
+  const code = [
+    readErrorField(upstreamError, 'code'),
+    readErrorField(upstreamError, 'type'),
+    readErrorField(data, 'code'),
+    readErrorField(err, 'code'),
+    readErrorField(err, 'type')
+  ].find(isPresentField);
+  if (code !== undefined) return safeFailureCode(code);
+  const constructorName = readErrorField(readErrorField(err, 'constructor'), 'name');
+  return constructorName === 'APIConnectionTimeoutError' ? 'ECONNABORTED' : 'upstream_error';
+}
+
+function failureHeader(headers, name) {
+  try {
+    if (headers === null || typeof headers !== 'object') return undefined;
+    if (typeof headers.get === 'function') return headers.get(name);
+    const key = Object.keys(headers).find((candidate) => candidate.toLowerCase() === name);
+    return key === undefined ? undefined : headers[key];
+  } catch {
+    return undefined;
+  }
+}
+
+// The first well-formed id wins; malformed ones are skipped, never logged. The SDK
+// keeps response headers on err.headers and x-request-id on err.requestID.
+function failureRequestId(err) {
+  const headerSources = [readErrorField(readErrorField(err, 'response'), 'headers'), readErrorField(err, 'headers')];
+  const candidates = [];
+  for (const name of ['x-groq-id', 'x-request-id', 'x-trace-id']) {
+    for (const headers of headerSources) candidates.push(failureHeader(headers, name));
+  }
+  candidates.push(readErrorField(err, 'requestID'));
+  return candidates.find((id) => typeof id === 'string' && SAFE_UPSTREAM_REQUEST_ID.test(id));
+}
+
+function conversationFailureInfo(err) {
+  try {
+    const status = failureHttpStatus(err);
+    const reason = failureReason(err);
+    return {
+      status,
+      reason,
+      timeoutSource: aiTimeoutSource({ code: reason, status }),
+      upstreamRequestId: failureRequestId(err)
+    };
+  } catch {
+    return { reason: 'unrecognized' };
+  }
 }
 
 // 只记录限流后端与剩余时间，用来在生产上证明限流走的是共享 store 而不是每实例
@@ -1611,8 +1692,8 @@ app.post('/api/ai-conversation', async (req, res) => {
   let answeredProvider = primaryConfig.provider;
   let answeredAttempt = 1;
   let failureCode = null;
-  // 失败时只保留可安全记录的分类：上游状态、上游错误码、上游请求 id。detail（上游
-  // 错误正文）可能含 key 片段或 prompt 回显，永远不取。
+  // 失败时只保留可安全记录的分类：错误对象自带的 HTTP 状态、规范化后的错误码、超时来源、
+  // 上游请求 id。上游错误的消息文本可能含 key 片段或 prompt 回显，永远不读。
   let upstreamFailure = null;
   let primaryFailure = null;
   // 客户端断开才中止上游。请求体读完**不是**断开信号：express.json() 把 body 读完
@@ -1667,7 +1748,9 @@ app.post('/api/ai-conversation', async (req, res) => {
     } catch (err) {
       if (clientAborted) break;
       failureCode = 'provider_unavailable';
-      const info = getUpstreamAiErrorInfo(err);
+      // 诊断提取本身不会抛异常。下面的 isTransientProviderFailure 不在此列：它对畸形错误码
+      // 仍可能抛出，这是本诊断之前就有的行为。
+      const info = conversationFailureInfo(err);
       // 换 provider 只允许发生在第一个用户可见事件之前：已经发出去的内容不能重放。
       if (visibleEvents === 0 && index + 1 < attempts.length && isTransientProviderFailure(err)) {
         primaryFailure = info;
@@ -1697,14 +1780,15 @@ app.post('/api/ai-conversation', async (req, res) => {
     primaryProvider: primaryConfig.provider,
     timeoutMs: attempts[answeredAttempt - 1].timeout,
     // 只有字节数，不含内容：用来判断失败是否与请求体积相关（上下文预加载、工具结果）。
+    // 只统计 messages，不含工具定义和模型参数，不等于发给 provider 的完整请求体积。
     requestSizeBytes: Buffer.byteLength(JSON.stringify(conversationRequest.messages), 'utf8')
   };
-  if (primaryFailure) logFields.fallbackReason = safeUpstreamCode(primaryFailure.code);
+  if (primaryFailure) logFields.fallbackReason = primaryFailure.reason;
   if (upstreamFailure) {
-    logFields.status = safeUpstreamStatus(upstreamFailure.status);
-    logFields.reason = safeUpstreamCode(upstreamFailure.code);
-    logFields.timeoutSource = aiTimeoutSource(upstreamFailure);
-    logFields.upstreamRequestId = safeUpstreamRequestId(upstreamFailure.upstreamRequestId);
+    logFields.status = upstreamFailure.status;
+    logFields.reason = upstreamFailure.reason;
+    logFields.timeoutSource = upstreamFailure.timeoutSource;
+    logFields.upstreamRequestId = upstreamFailure.upstreamRequestId;
   }
   if (failureCode && !clientAborted) observabilityLogger.log('ai_conversation_failed', 'warn', logFields);
   else observabilityLogger.log('ai_conversation_completed', logFields);

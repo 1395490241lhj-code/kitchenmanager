@@ -8,6 +8,9 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const Module = require('node:module');
 const originalLoad = Module._load;
+// 真实 SDK 只用来构造错误对象：路由在生产上收到的就是这些类的实例。server.js 自己拿到的
+// 仍是下面 loadServerWithStreams 注入的 mock。
+const RealOpenAI = require('openai');
 const root = process.cwd();
 const serverPath = resolve(root, 'server.js');
 const serverModulesDir = resolve(root, 'src/server') + path.sep;
@@ -826,7 +829,8 @@ test('/api/ai-conversation 失败日志带上安全的失败分类，并区分�
   assert.equal(entry.attempt, 2);
   assert.equal(entry.fallbackTriggered, true);
   assert.equal(entry.fallbackReason, 'rate_limit_exceeded');
-  assert.equal(entry.status, 504);
+  // SDK 自己的超时没有 HTTP 状态，不能记成合成的 504。
+  assert.equal(entry.status, undefined);
   assert.equal(entry.reason, 'ECONNABORTED');
   assert.equal(entry.timeoutSource, 'server_sdk_deadline');
   assert.equal(entry.timeoutMs, 20000);
@@ -904,4 +908,255 @@ test('/api/ai-conversation 首个 provider 的失败原因同样经过归一化'
   assert.equal(entries[0].event, 'ai_conversation_completed');
   assert.equal(entries[0].fallbackTriggered, true);
   assert.equal(entries[0].fallbackReason, 'unrecognized');
+});
+
+// 下面的失败都用真实 openai SDK 的错误类构造：HTTP 状态在 err.status，错误码在
+// err.error.code / err.code，请求 id 在 err.requestID 与 err.headers（Headers 实例）。
+const SECRET_LIKE = 'gsk_live_secret_should_never_be_logged';
+const UPSTREAM_BODY = 'upstream body echo of the prompt';
+const INVENTORY_TEXT = '库存：鸡胸肉 2 块，西兰花 1 颗';
+const BODY_WITH_INVENTORY = {
+  ...VALID_BODY,
+  messages: [
+    { role: 'user', content: '今晚想吃清淡一点' },
+    { role: 'assistant', tool_calls: [{ id: 'call_inv', type: 'function', function: { name: 'read_inventory', arguments: '{}' } }] },
+    { role: 'tool', tool_call_id: 'call_inv', content: INVENTORY_TEXT }
+  ]
+};
+const PROVIDER_UNAVAILABLE = { type: 'error', code: 'provider_unavailable', message: 'AI 服务暂时不可用。' };
+
+function sdkHttpError(status, error, requestId) {
+  const headers = new Headers(requestId === undefined ? {} : { 'x-request-id': requestId });
+  return RealOpenAI.APIError.generate(status, { error }, undefined, headers);
+}
+
+function throwing(err) {
+  return async () => { throw err; };
+}
+
+// JSON 能表达、但 String() 会抛 TypeError 的错误码。
+function unstringifiableCode() {
+  return JSON.parse('{"toString":1}');
+}
+
+function assertNoSensitiveLog(logLines) {
+  for (const needle of [SECRET_LIKE, UPSTREAM_BODY, '今晚想吃清淡一点', INVENTORY_TEXT, '鸡胸肉', 'test-groq-key', 'test-gemini-key']) {
+    assert.equal(logLines.includes(needle), false, `log must not contain ${needle}`);
+  }
+}
+
+test('/api/ai-conversation 错误码无法转成字符串时诊断不抛异常，客户端照常收到 provider_unavailable', async () => {
+  const err = sdkHttpError(400, { code: unstringifiableCode(), message: `${UPSTREAM_BODY} ${SECRET_LIKE}` }, 'req_0123456789abcdef');
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app, providerCalls } = loadServerWithStreams({ streams: [throwing(err)] });
+    const res = await runPost(app, '/api/ai-conversation', BODY_WITH_INVENTORY);
+    assert.equal(providerCalls.length, 1);
+    assert.equal(res.ended, true);
+    assert.deepEqual(events(res), [PROVIDER_UNAVAILABLE]);
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].event, 'ai_conversation_failed');
+  assert.equal(entries[0].status, 400);
+  assert.equal(entries[0].reason, 'unrecognized');
+  assert.equal(entries[0].upstreamRequestId, 'req_0123456789abcdef');
+  assertNoSensitiveLog(logLines);
+});
+
+test('/api/ai-conversation 兜底那一次或流中途带着畸形错误码失败，诊断同样不抛异常', async () => {
+  const hostileFallback = sdkHttpError(503, { code: unstringifiableCode(), message: UPSTREAM_BODY });
+  const fallbackRun = await captureConversationLog(async () => {
+    const { app, providerCalls } = loadServerWithStreams({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-gemini-key' },
+      streams: [throwing(new RealOpenAI.APIConnectionError({ message: 'Connection error.' })), throwing(hostileFallback)]
+    });
+    const res = await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider: 'gemini' });
+    assert.equal(providerCalls.length, 2);
+    assert.deepEqual(events(res), [PROVIDER_UNAVAILABLE]);
+  });
+  assert.equal(fallbackRun.entries.length, 1);
+  assert.equal(fallbackRun.entries[0].attempt, 2);
+  assert.equal(fallbackRun.entries[0].fallbackReason, 'upstream_error');
+  assert.equal(fallbackRun.entries[0].status, 503);
+  assert.equal(fallbackRun.entries[0].reason, 'unrecognized');
+  assertNoSensitiveLog(fallbackRun.logLines);
+
+  const midStream = async function* handler() {
+    yield textChunk('已经可见');
+    throw new RealOpenAI.APIError(undefined, { code: unstringifiableCode(), message: UPSTREAM_BODY }, undefined, undefined);
+  };
+  const midRun = await captureConversationLog(async () => {
+    const { app, providerCalls } = loadServerWithStreams({ streams: [midStream] });
+    const res = await runPost(app, '/api/ai-conversation', VALID_BODY);
+    assert.equal(providerCalls.length, 1);
+    assert.deepEqual(events(res), [{ type: 'text_delta', text: '已经可见' }, PROVIDER_UNAVAILABLE]);
+  });
+  assert.equal(midRun.entries.length, 1);
+  assert.equal(midRun.entries[0].status, undefined);
+  assert.equal(midRun.entries[0].reason, 'unrecognized');
+  assertNoSensitiveLog(midRun.logLines);
+});
+
+test('/api/ai-conversation 错误对象的属性读取本身抛异常时，诊断也不抛', async () => {
+  const err = new Error(UPSTREAM_BODY);
+  for (const key of ['status', 'code', 'type', 'error', 'response', 'headers', 'requestID', 'constructor']) {
+    Object.defineProperty(err, key, { get() { throw new Error(`getter ${key} exploded ${SECRET_LIKE}`); } });
+  }
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app, providerCalls } = loadServerWithStreams({ streams: [throwing(err)] });
+    const res = await runPost(app, '/api/ai-conversation', VALID_BODY);
+    assert.equal(providerCalls.length, 1);
+    assert.deepEqual(events(res), [PROVIDER_UNAVAILABLE]);
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].event, 'ai_conversation_failed');
+  assert.equal(entries[0].status, undefined);
+  assert.equal(entries[0].reason, 'unrecognized');
+  assert.equal(entries[0].upstreamRequestId, undefined);
+  assertNoSensitiveLog(logLines);
+});
+
+test('/api/ai-conversation 没有 HTTP 状态的网络错误不记合成的 502', async () => {
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({ streams: [throwing(new RealOpenAI.APIConnectionError({ message: 'Connection error.' }))] });
+    const res = await runPost(app, '/api/ai-conversation', VALID_BODY);
+    assert.deepEqual(events(res), [PROVIDER_UNAVAILABLE]);
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].status, undefined);
+  assert.equal(entries[0].reason, 'upstream_error');
+  assert.equal(entries[0].timeoutSource, undefined);
+  assertNoSensitiveLog(logLines);
+});
+
+test('/api/ai-conversation SDK 自身超时不记合成的 504；上游真实 504 才记 504', async () => {
+  const sdkTimeout = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({ streams: [throwing(new RealOpenAI.APIConnectionTimeoutError())] });
+    await runPost(app, '/api/ai-conversation', VALID_BODY);
+  });
+  assert.equal(sdkTimeout.entries.length, 1);
+  assert.equal(sdkTimeout.entries[0].status, undefined);
+  assert.equal(sdkTimeout.entries[0].reason, 'ECONNABORTED');
+  assert.equal(sdkTimeout.entries[0].timeoutSource, 'server_sdk_deadline');
+
+  const gatewayTimeout = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({
+      streams: [throwing(sdkHttpError(504, { type: 'gateway_timeout', message: UPSTREAM_BODY }, 'req_gateway_timeout_1'))]
+    });
+    await runPost(app, '/api/ai-conversation', VALID_BODY);
+  });
+  assert.equal(gatewayTimeout.entries.length, 1);
+  assert.equal(gatewayTimeout.entries[0].status, 504);
+  assert.equal(gatewayTimeout.entries[0].reason, 'gateway_timeout');
+  assert.equal(gatewayTimeout.entries[0].timeoutSource, 'upstream_response');
+  assertNoSensitiveLog(sdkTimeout.logLines + gatewayTimeout.logLines);
+});
+
+test('/api/ai-conversation 真实 HTTP 400/413/429/503 的状态与错误码原样记录', async () => {
+  const cases = [
+    { status: 400, error: { type: 'invalid_request_error', code: 'tool_use_failed' }, reason: 'tool_use_failed' },
+    { status: 400, error: { code: 400, status: 'INVALID_ARGUMENT' }, reason: '400' },
+    { status: 413, error: { type: 'tokens', code: 'rate_limit_exceeded' }, reason: 'rate_limit_exceeded' },
+    { status: 429, error: { type: 'requests', code: 'rate_limit_exceeded' }, reason: 'rate_limit_exceeded' },
+    { status: 503, error: { type: 'internal_server_error' }, reason: 'internal_server_error' }
+  ];
+  for (const item of cases) {
+    const err = sdkHttpError(item.status, { ...item.error, message: `${UPSTREAM_BODY} ${SECRET_LIKE}` }, 'req_01HXYZabcdef1234');
+    const { logLines, entries } = await captureConversationLog(async () => {
+      const { app, providerCalls } = loadServerWithStreams({ streams: [throwing(err)] });
+      const res = await runPost(app, '/api/ai-conversation', BODY_WITH_INVENTORY);
+      assert.equal(providerCalls.length, 1);
+      assert.deepEqual(events(res), [PROVIDER_UNAVAILABLE]);
+    });
+    assert.equal(entries.length, 1, `${item.status} ${item.reason}`);
+    assert.equal(entries[0].status, item.status);
+    assert.equal(entries[0].reason, item.reason);
+    assert.equal(entries[0].timeoutSource, undefined);
+    assert.equal(entries[0].upstreamRequestId, 'req_01HXYZabcdef1234');
+    assertNoSensitiveLog(logLines);
+  }
+});
+
+test('/api/ai-conversation SDK 的请求 id 合法时记录，畸形或超长时丢弃', async () => {
+  const cases = [
+    { id: 'req_01HXYZabcdef1234', logged: 'req_01HXYZabcdef1234' },
+    { id: `req id with spaces ${SECRET_LIKE}`, logged: undefined },
+    { id: 'r'.repeat(200), logged: undefined },
+    { id: undefined, logged: undefined }
+  ];
+  for (const item of cases) {
+    const err = sdkHttpError(429, { code: 'rate_limit_exceeded', message: UPSTREAM_BODY }, item.id);
+    assert.equal(err.requestID, item.id ?? null);
+    const { logLines, entries } = await captureConversationLog(async () => {
+      const { app } = loadServerWithStreams({ streams: [throwing(err)] });
+      await runPost(app, '/api/ai-conversation', VALID_BODY);
+    });
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].upstreamRequestId, item.logged);
+    assertNoSensitiveLog(logLines);
+  }
+});
+
+test('/api/ai-conversation 某个请求 id 头格式不对时，记录后面第一个格式正确的 id', async () => {
+  const headers = new Headers({ 'x-groq-id': `bad id ${SECRET_LIKE}`, 'x-request-id': 'req_0123456789abcdef' });
+  const err = RealOpenAI.APIError.generate(429, { error: { code: 'rate_limit_exceeded', message: UPSTREAM_BODY } }, undefined, headers);
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({ streams: [throwing(err)] });
+    await runPost(app, '/api/ai-conversation', VALID_BODY);
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].upstreamRequestId, 'req_0123456789abcdef');
+  assertNoSensitiveLog(logLines);
+});
+
+// 单个字段读不出来只影响那一个字段：其余诊断照常记录，而不是整体退回兜底分类。
+test('/api/ai-conversation 只有一个字段读取抛异常时，其余诊断照常记录', async () => {
+  const idThrows = sdkHttpError(429, { code: 'rate_limit_exceeded', message: UPSTREAM_BODY });
+  Object.defineProperty(idThrows, 'requestID', { get() { throw new Error(SECRET_LIKE); } });
+  const codeThrows = Object.defineProperty(Object.assign(new Error(UPSTREAM_BODY), { status: 503 }), 'code', {
+    get() { throw new Error(SECRET_LIKE); }
+  });
+  const cases = [
+    { err: idThrows, status: 429, reason: 'rate_limit_exceeded' },
+    { err: codeThrows, status: 503, reason: 'unrecognized' }
+  ];
+  for (const item of cases) {
+    const { logLines, entries } = await captureConversationLog(async () => {
+      const { app } = loadServerWithStreams({ streams: [throwing(item.err)] });
+      const res = await runPost(app, '/api/ai-conversation', VALID_BODY);
+      assert.deepEqual(events(res), [PROVIDER_UNAVAILABLE]);
+    });
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].status, item.status);
+    assert.equal(entries[0].reason, item.reason);
+    assert.equal(entries[0].upstreamRequestId, undefined);
+    assertNoSensitiveLog(logLines);
+  }
+});
+
+test('/api/ai-conversation 流中途的失败没有 HTTP 状态时不记 status，事件与 provider 调用次数不变', async () => {
+  const midStream = async function* handler() {
+    yield textChunk('已经可见');
+    throw new RealOpenAI.APIError(undefined, { code: 'server_error', message: UPSTREAM_BODY }, undefined, undefined);
+  };
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app, providerCalls } = loadServerWithStreams({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-gemini-key' },
+      streams: [midStream, streamOf([textChunk('绝不应被调用'), finishChunk('stop')])]
+    });
+    const res = await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider: 'gemini' });
+    assert.equal(providerCalls.length, 1);
+    assert.deepEqual(events(res), [{ type: 'text_delta', text: '已经可见' }, PROVIDER_UNAVAILABLE]);
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].provider, 'gemini');
+  assert.equal(entries[0].attempt, 1);
+  assert.equal(entries[0].fallbackTriggered, false);
+  assert.equal(entries[0].status, undefined);
+  assert.equal(entries[0].reason, 'server_error');
+  assertNoSensitiveLog(logLines);
 });
