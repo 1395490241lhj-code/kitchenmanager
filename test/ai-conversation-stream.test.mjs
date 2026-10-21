@@ -783,3 +783,125 @@ test('ai-conversation 服务只承认计划中的十二个工具名', async () =
   assert.equal(selected[0].function.name, 'read_inventory');
   assert.throws(() => selectConversationTools(['read_inventory', 'rm_rf']), (err) => err.publicStatus === 400 && err.publicCode === 'unsupported_tool');
 });
+async function captureConversationLog(run) {
+  let logLines = '';
+  const originalWrite = process.stdout.write;
+  process.stdout.write = (line) => { logLines += String(line); return true; };
+  try {
+    await run();
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+  const entries = logLines.split('\n').filter(Boolean).map((line) => {
+    try { return JSON.parse(line); } catch { return null; }
+  }).filter(Boolean);
+  return { logLines, entries: entries.filter((entry) => String(entry.event).startsWith('ai_conversation_')) };
+}
+
+test('/api/ai-conversation 失败日志带上安全的失败分类，并区分首个 provider 的原因', async () => {
+  class APIConnectionTimeoutError extends Error {}
+  const rateLimited = async () => {
+    throw Object.assign(new Error('quota exceeded for gemini-secret'), {
+      status: 429,
+      error: { code: 'rate_limit_exceeded', message: 'quota exceeded for gemini-secret' }
+    });
+  };
+  const fallbackTimeout = async () => { throw new APIConnectionTimeoutError('Request timed out.'); };
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app, providerCalls } = loadServerWithStreams({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+      streams: [rateLimited, fallbackTimeout]
+    });
+    const res = await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider: 'gemini' });
+    assert.equal(providerCalls.length, 2);
+    assert.deepEqual(events(res), [{ type: 'error', code: 'provider_unavailable', message: 'AI 服务暂时不可用。' }]);
+  });
+
+  assert.equal(entries.length, 1);
+  const entry = entries[0];
+  assert.equal(entry.event, 'ai_conversation_failed');
+  assert.equal(entry.resultCode, 'provider_unavailable');
+  assert.equal(entry.primaryProvider, 'gemini');
+  assert.equal(entry.provider, 'groq');
+  assert.equal(entry.attempt, 2);
+  assert.equal(entry.fallbackTriggered, true);
+  assert.equal(entry.fallbackReason, 'rate_limit_exceeded');
+  assert.equal(entry.status, 504);
+  assert.equal(entry.reason, 'ECONNABORTED');
+  assert.equal(entry.timeoutSource, 'server_sdk_deadline');
+  assert.equal(entry.timeoutMs, 20000);
+  assert.ok(Number.isInteger(entry.requestSizeBytes) && entry.requestSizeBytes > 0);
+  assert.equal(logLines.includes('gemini-secret'), false);
+  assert.equal(logLines.includes('quota exceeded'), false);
+  assert.equal(logLines.includes('今晚想吃清淡一点'), false);
+});
+
+test('/api/ai-conversation 不切换 provider 的失败同样记录上游状态与错误码', async () => {
+  const tooLarge = async () => {
+    throw Object.assign(new Error('Request too large: tokens per minute limit'), {
+      status: 413,
+      error: { code: 'rate_limit_exceeded', message: 'Request too large: tokens per minute limit' }
+    });
+  };
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({ streams: [tooLarge] });
+    await runPost(app, '/api/ai-conversation', VALID_BODY);
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].event, 'ai_conversation_failed');
+  assert.equal(entries[0].provider, 'groq');
+  assert.equal(entries[0].attempt, 1);
+  assert.equal(entries[0].fallbackTriggered, false);
+  assert.equal(entries[0].fallbackReason, undefined);
+  assert.equal(entries[0].status, 413);
+  assert.equal(entries[0].reason, 'rate_limit_exceeded');
+  assert.equal(entries[0].timeoutMs, 45000);
+  assert.equal(logLines.includes('Request too large'), false);
+});
+
+// 白名单只限制字段名，不限制字段值：上游的错误码与请求 id 是第三方返回的任意字符串，
+// 进日志之前必须是短的安全标识，否则归一化（错误码）或丢弃（请求 id）。
+test('/api/ai-conversation 失败日志只记录安全格式的上游错误码与请求 id', async () => {
+  const hostileHeaders = new Map([['x-request-id', 'req id with spaces and gemini-secret']]);
+  const hostile = async () => {
+    throw Object.assign(new Error('boom'), {
+      status: 400,
+      error: { code: 'invalid value for user prompt: 今晚想吃清淡一点 gemini-secret', message: 'x' },
+      response: { status: 400, headers: { get: (name) => hostileHeaders.get(name) ?? null } }
+    });
+  };
+  const { logLines, entries } = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'gemini-secret' },
+      streams: [hostile]
+    });
+    await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider: 'gemini' });
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].status, 400);
+  assert.equal(entries[0].reason, 'unrecognized');
+  assert.equal(entries[0].upstreamRequestId, undefined);
+  assert.equal(logLines.includes('gemini-secret'), false);
+  assert.equal(logLines.includes('今晚想吃清淡一点'), false);
+});
+
+test('/api/ai-conversation 首个 provider 的失败原因同样经过归一化', async () => {
+  const hostilePrimary = async () => {
+    throw Object.assign(new Error('boom'), { status: 503, error: { code: 'Service Unavailable: retry later' } });
+  };
+  const fallbackOk = streamOf([textChunk('备用回答'), finishChunk('stop')]);
+  const { entries } = await captureConversationLog(async () => {
+    const { app } = loadServerWithStreams({
+      env: { AI_CHAT_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-gemini-key' },
+      streams: [hostilePrimary, fallbackOk]
+    });
+    await runPost(app, '/api/ai-conversation', { ...VALID_BODY, provider: 'gemini' });
+  });
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].event, 'ai_conversation_completed');
+  assert.equal(entries[0].fallbackTriggered, true);
+  assert.equal(entries[0].fallbackReason, 'unrecognized');
+});
