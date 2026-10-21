@@ -254,12 +254,28 @@ nonisolated enum WeeklyMaterializationHostNotification {
             // a success too, because the plan really changed.
             let range = plan.coveredDays(calendar: calendar)
             return WeeklyMaterializationSummary(startDate: range.start, endDate: range.end)
-        case .alreadyMaterialized, .confirmationRequired, .missingLocalRecipe,
+        case .alreadyMaterialized, .confirmationRequired, .staleStartConfirmationRequired, .missingLocalRecipe,
              .recipeIdentityConflict, .recipePersistenceFailed, .receiptPersistenceFailed,
              .planPersistenceFailed, .partialRecoveryRequired, .staleReceipt, .emptyDraft:
             return nil
         }
     }
+}
+
+/// A draft nobody has added yet whose first day has already passed.
+///
+/// A generated menu is kept until it is added, so it can be added days later.
+/// Its own days are gone by then; adding it moves the whole draft forward by
+/// whole civil days so it starts today, keeping every day's position, meal and
+/// dish. All dates are start-of-day instants in the calendar that computed them.
+nonisolated struct WeeklyStaleDraftShift: Equatable {
+    let originalStart: Date
+    /// The first and last day the menu covers once moved, the same range the
+    /// meals are written onto.
+    let newStart: Date
+    let newEnd: Date
+    /// Whole civil days the draft moves by.
+    let dayOffset: Int
 }
 
 /// What a member is about to append onto, when they already planned something.
@@ -291,6 +307,9 @@ nonisolated enum WeeklyMaterializationOutcome: Equatable {
     /// Target days already hold ordinary meals. Nothing was written; call again
     /// with `confirmedAppend` once the member has agreed.
     case confirmationRequired(WeeklyMaterializationCollision)
+    /// The draft's first day has passed. Nothing was written; call again with
+    /// `confirmedShiftToToday` once the member agrees to move it to today.
+    case staleStartConfirmationRequired(WeeklyStaleDraftShift)
     /// A dish points at a recipe that is no longer in the library.
     case missingLocalRecipe(dishName: String)
     /// A generated recipe's id is taken by different content. Carries the dish
@@ -1096,6 +1115,37 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         return max(preferred, today)
     }
 
+    /// Whether adding this draft has to move it first, and by how much.
+    ///
+    /// Only a draft that was never added: a receipt, pending or finished, owns
+    /// its recorded days, and moving it would break the retry that relies on
+    /// them. Compared by civil day in `calendar`, never by elapsed seconds, so a
+    /// daylight-saving change cannot make a past day look current or skip one.
+    nonisolated static func staleShift(
+        for plan: WeeklyMealPlan,
+        now: Date,
+        calendar: Calendar
+    ) -> WeeklyStaleDraftShift? {
+        guard plan.materialization == nil else { return nil }
+        let start = calendar.startOfDay(for: plan.startDate)
+        let today = calendar.startOfDay(for: now)
+        guard start < today,
+              let dayOffset = calendar.dateComponents([.day], from: start, to: today).day,
+              dayOffset > 0 else { return nil }
+        var moved = plan
+        moved.startDate = today
+        let range = moved.coveredDays(calendar: calendar)
+        return WeeklyStaleDraftShift(originalStart: start, newStart: range.start, newEnd: range.end, dayOffset: dayOffset)
+    }
+
+    /// The draft starting on `shift.newStart`. Days keep their `dayIndex`, so
+    /// every meal and dish keeps its position and identity.
+    nonisolated static func shifted(_ plan: WeeklyMealPlan, by shift: WeeklyStaleDraftShift) -> WeeklyMealPlan {
+        var moved = plan
+        moved.startDate = shift.newStart
+        return moved
+    }
+
     /// What the form says the next generation will cover.
     func nextGenerationDateRange(
         preferredStart: Date?,
@@ -1368,13 +1418,16 @@ final class WeeklyMenuPlannerStore: ObservableObject {
     /// Adds the whole menu to the meal plan.
     ///
     /// Call once; if the answer is `.confirmationRequired`, call again with
-    /// `confirmedAppend: true` after the member agrees. A draft that was already
-    /// materialized, or half-materialized, routes to the recovery paths instead.
+    /// `confirmedAppend: true` after the member agrees, and likewise
+    /// `.staleStartConfirmationRequired` with `confirmedShiftToToday: true`. A
+    /// draft that was already materialized, or half-materialized, routes to the
+    /// recovery paths instead and is never moved.
     @discardableResult
     func materialize(
         kitchenStore: KitchenStore,
         recipeStore: RecipeStore,
         confirmedAppend: Bool = false,
+        confirmedShiftToToday: Bool = false,
         calendar: Calendar = .current,
         now: Date = Date()
     ) -> WeeklyMaterializationOutcome {
@@ -1437,6 +1490,36 @@ final class WeeklyMenuPlannerStore: ObservableObject {
             )
 
         case .notStarted:
+            var draft = draft
+            var preparation = preparation
+            if let shift = Self.staleShift(for: draft, now: now, calendar: calendar) {
+                // Its days have passed. Nothing is written until the member has
+                // agreed to move the menu, and then the new days are durable
+                // before any meal is: the screen and the plan must not disagree
+                // about which days these are.
+                guard confirmedShiftToToday else { return .staleStartConfirmationRequired(shift) }
+                // The new days cannot be saved without replacing a stored menu
+                // whose add is still pending, and that receipt is the only way
+                // to finish that write. Keep it, and write nothing.
+                guard kitchenStore.weeklyPlan?.materialization?.state != .pending else {
+                    return .receiptPersistenceFailed
+                }
+                let moved = Self.shifted(draft, by: shift)
+                guard kitchenStore.commitWeeklyPlan(moved) else { return .receiptPersistenceFailed }
+                publish(moved)
+                draft = moved
+                do {
+                    preparation = try WeeklyMenuMaterializer.prepare(
+                        plan: draft, recipeStore: recipeStore, calendar: calendar
+                    )
+                } catch let failure as WeeklyMenuMaterializer.ResolutionFailure {
+                    return failure.outcome
+                } catch {
+                    return .recipePersistenceFailed
+                }
+            }
+            // The moved days still go through the collision check: agreeing to
+            // move a menu is not agreeing to append onto what is planned there.
             if !confirmedAppend,
                let collision = WeeklyMenuMaterializer.collision(
                    for: preparation.candidates, plans: kitchenStore.plans, calendar: calendar
@@ -1854,6 +1937,10 @@ struct WeeklyMenuPlannerView: View {
     /// The day the host would start new planning on — the Planner passes the
     /// week on screen. Never earlier than today; see `generationStartDate`.
     var preferredStartDate: Date? = nil
+    /// The host's "now", passed through to the result screen. `nil` is the
+    /// real clock; the Planner passes its own, so a fixture's Planner and the
+    /// menu it adds agree about which day is today.
+    var now: (() -> Date)? = nil
 
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
@@ -1993,7 +2080,7 @@ struct WeeklyMenuPlannerView: View {
         .tint(KitchenTheme.cookingGreen)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $isShowingResult) {
-            WeeklyMenuResultView(store: store, onMaterialized: onMaterialized)
+            WeeklyMenuResultView(store: store, onMaterialized: onMaterialized, now: now)
         }
         .alert(
             "暂时无法生成菜单",
@@ -2065,16 +2152,58 @@ struct MultiSelectionListView: View {
 
 // MARK: - Result view
 
-/// The three things that can interrupt adding a menu to the meal plan, kept out
+/// The days a moved draft will cover, in the copy the confirmation shows.
+/// The same range the meals are written onto (`WeeklyStaleDraftShift.newStart`
+/// to `newEnd`), formatted the way the result header formats its range. Only
+/// the start date is known to have passed — later days may still be ahead —
+/// and when the dates span two years every date carries its year.
+nonisolated enum WeeklyStaleDraftCopy {
+    static func message(for shift: WeeklyStaleDraftShift, calendar: Calendar = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        let spansYears = calendar.component(.year, from: shift.originalStart)
+            != calendar.component(.year, from: shift.newEnd)
+        formatter.dateFormat = spansYears ? "yyyy年M月d日" : "M月d日"
+        let original = formatter.string(from: shift.originalStart)
+        let range = calendar.isDate(shift.newStart, inSameDayAs: shift.newEnd)
+            ? formatter.string(from: shift.newStart)
+            : "\(formatter.string(from: shift.newStart))–\(formatter.string(from: shift.newEnd))"
+        return "这份菜单的开始日期（\(original)）已过。加入后会整体顺延到今天开始（\(range)），菜品和顺序不变。"
+    }
+}
+
+/// The four things that can interrupt adding a menu to the meal plan, kept out
 /// of the result view's own modifier chain so each stays type-checkable.
 private struct WeeklyMaterializationAlerts: ViewModifier {
     @Binding var collision: WeeklyMaterializationCollision?
+    @Binding var staleShift: WeeklyStaleDraftShift?
     @Binding var isShowingStaleNotice: Bool
     @Binding var failureMessage: String?
     let onConfirmAppend: () -> Void
+    let onConfirmShift: () -> Void
 
     func body(content: Content) -> some View {
         content
+            .alert(
+                "菜单日期已过",
+                isPresented: Binding(
+                    get: { staleShift != nil },
+                    set: { if !$0 { staleShift = nil } }
+                ),
+                presenting: staleShift
+            ) { _ in
+                Button("顺延到今天并加入") {
+                    staleShift = nil
+                    onConfirmShift()
+                }
+                .accessibilityIdentifier("weekly.stale.confirm")
+                Button("取消", role: .cancel) { staleShift = nil }
+                    .accessibilityIdentifier("weekly.stale.cancel")
+            } message: { shift in
+                Text(WeeklyStaleDraftCopy.message(for: shift))
+            }
             .alert(
                 "已有安排",
                 isPresented: Binding(
@@ -2120,6 +2249,10 @@ struct WeeklyMenuResultView: View {
     /// generator has no business owning navigation policy, so when nobody is
     /// listening a finished menu simply stays on screen.
     var onMaterialized: ((WeeklyMaterializationSummary) -> Void)?
+    /// Which day is today for 加入用餐计划. `nil` is the real clock; hosts and
+    /// fixtures with their own "now" pass it so a past first day is judged
+    /// against the same today the rest of their screen shows.
+    var now: (() -> Date)? = nil
 
     @State private var isShowingRegenerateConfirm = false
     @State private var isShowingDeleteConfirm = false
@@ -2128,6 +2261,7 @@ struct WeeklyMenuResultView: View {
     @State private var saveErrorMessage: String?
     @State private var failureMessage: String?
     @State private var pendingCollision: WeeklyMaterializationCollision?
+    @State private var pendingStaleShift: WeeklyStaleDraftShift?
     @State private var isShowingStaleNotice = false
     /// One repair attempt per appearance. A menu whose meals are already on the
     /// plan only needs its bookkeeping finished, and retrying that forever would
@@ -2257,9 +2391,11 @@ struct WeeklyMenuResultView: View {
         .modifier(
             WeeklyMaterializationAlerts(
                 collision: $pendingCollision,
+                staleShift: $pendingStaleShift,
                 isShowingStaleNotice: $isShowingStaleNotice,
                 failureMessage: $failureMessage,
-                onConfirmAppend: { runMaterialization(confirmedAppend: true) }
+                onConfirmAppend: { runMaterialization(confirmedAppend: true) },
+                onConfirmShift: { runMaterialization(confirmedShiftToToday: true) }
             )
         )
         .onDisappear {
@@ -2370,12 +2506,14 @@ struct WeeklyMenuResultView: View {
         }
     }
 
-    private func runMaterialization(confirmedAppend: Bool = false) {
+    private func runMaterialization(confirmedAppend: Bool = false, confirmedShiftToToday: Bool = false) {
         handle(
             store.materialize(
                 kitchenStore: kitchenStore,
                 recipeStore: recipeStore,
-                confirmedAppend: confirmedAppend
+                confirmedAppend: confirmedAppend,
+                confirmedShiftToToday: confirmedShiftToToday,
+                now: now?() ?? Date()
             )
         )
     }
@@ -2417,6 +2555,9 @@ struct WeeklyMenuResultView: View {
 
         case .confirmationRequired(let collision):
             pendingCollision = collision
+
+        case .staleStartConfirmationRequired(let shift):
+            pendingStaleShift = shift
 
         case .missingLocalRecipe(let dishName):
             failureMessage = "「\(dishName)」已不在菜谱库。请替换或移除这道菜后再试。"

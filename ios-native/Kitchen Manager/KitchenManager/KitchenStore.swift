@@ -397,6 +397,12 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         isStaple && stapleStatus == .low
     }
 
+    /// A staple tracked as 有货 / 快没了 / 缺货 rather than by count. Its quantity
+    /// is a placeholder kept in step with that status, never an amount to deduct.
+    var isStatusTrackedStaple: Bool {
+        isStaple && stapleTrackingMode == .status
+    }
+
     /// A status-tracked staple has no real count, but every reader of stock
     /// (`isAvailable`: recipe matching, shopping, AI) still goes by `quantity`.
     /// Keeps the two in step the way `cycleStapleStatus` does: 缺货 is 0,
@@ -2149,9 +2155,13 @@ final class KitchenStore: ObservableObject {
 
         for draft in drafts where draft.isSelected {
             guard var remaining = draft.consumedQuantity, remaining > 0 else { continue }
+            // A status-tracked staple holds a status, not a count, so its
+            // placeholder quantity is never deducted — even by a draft built
+            // elsewhere. Same rule as `InventoryConsumptionPlanner`.
             let matchingIndices = updatedInventory.indices
                 .filter {
                     updatedInventory[$0].isAvailable
+                        && !updatedInventory[$0].isStatusTrackedStaple
                         && IngredientNormalizer.matchKey(updatedInventory[$0].name) == IngredientNormalizer.matchKey(draft.ingredientName)
                 }
                 .sorted { (updatedInventory[$0].remainingDays ?? 9999) < (updatedInventory[$1].remainingDays ?? 9999) }

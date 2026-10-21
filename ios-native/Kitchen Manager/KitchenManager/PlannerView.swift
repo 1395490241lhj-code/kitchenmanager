@@ -328,7 +328,9 @@ struct PlannerView: View {
                                 weekStart = PlannerProjection.startOfWeek(containing: summary.startDate, calendar: calendar)
                                 path.wrappedValue.removeAll()
                             },
-                            preferredStartDate: creationDefaultDate
+                            preferredStartDate: creationDefaultDate,
+                            // Production injects nothing and keeps the real clock.
+                            now: injectedNow.map { injected in { injected } }
                         )
                     case .recipeLibrary:
                         RecipeListView()

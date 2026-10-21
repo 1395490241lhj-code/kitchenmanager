@@ -49,6 +49,10 @@ struct InventoryConsumptionDraft: Identifiable, Hashable {
     /// recipe's, in the stock's own unit (for example "1 份"). Non-nil means
     /// this row deducts nothing.
     var unconvertibleStockText: String? = nil
+    /// The status of a status-tracked staple that is the only stock matching
+    /// this line (有货 / 快没了). Non-nil means this row deducts nothing: the
+    /// staple holds a status, not a count.
+    var statusStapleText: String? = nil
 }
 
 // MARK: - Planner
@@ -116,7 +120,12 @@ struct InventoryConsumptionPlanner {
 
         for key in merged.keys {
             guard var draft = merged[key] else { continue }
-            let matched = Self.matchingInventory(for: draft, in: inventory)
+            // A status-tracked staple (葱姜蒜盐油 as 有货 / 快没了) is present but
+            // holds no count: its quantity is a placeholder, so it is never part
+            // of a deduction. Only batches with a real amount are.
+            let named = Self.matchingInventory(for: draft, in: inventory)
+            let matched = named.filter { !$0.isStatusTrackedStaple }
+            let statusStaples = named.filter(\.isStatusTrackedStaple)
 
             if !matched.isEmpty {
                 draft.matchedInventoryID = matched.first?.id
@@ -124,6 +133,11 @@ struct InventoryConsumptionPlanner {
                 if draft.currentQuantity == nil, draft.requiredUnit != nil {
                     draft.unconvertibleStockText = Self.stockText(matched)
                 }
+            } else if let staple = statusStaples.first {
+                // Still in stock for every presence reader (Home readiness counts
+                // a matched row), just not something cooking can count down.
+                draft.matchedInventoryID = staple.id
+                draft.statusStapleText = staple.stapleAvailabilityStatus.title
             }
             let untouchedBatches = draft.currentQuantity == nil ? [] : draft.requiredUnit.map { unit in
                 matched.filter { UnitConverter.convert($0.quantity, from: $0.unit, to: unit) == nil }
@@ -139,6 +153,16 @@ struct InventoryConsumptionPlanner {
                 let notFound = "库存中没有找到「\(draft.ingredientName)」"
                 draft.warning = draft.warning.map { "\($0)；\(notFound)" } ?? notFound
                 draft.consumedQuantity = nil
+            } else if let status = draft.statusStapleText {
+                // It is there, and saying so matters as much as not deducting:
+                // this row used to zero the placeholder while the shelf kept
+                // saying 有货, so matching, shopping and AI called it missing.
+                // The only note on the row: an amount to confirm or scale means
+                // nothing for a line that deducts nothing.
+                draft.warning = "「\(draft.ingredientName)」是按状态记录的常备食材（\(status)），做饭不会自动扣减；用完时请在常备食材里把状态改为「快没了」或「缺货」"
+                draft.consumedQuantity = nil
+                draft.resultingQuantity = nil
+                draft.isSelected = false
             } else if let stock = draft.unconvertibleStockText {
                 // A count of 个 says nothing about how much of 1 份 it is. The
                 // row used to show 库存 - / 使用量 0 / 剩 0 and deduct nothing
@@ -158,6 +182,10 @@ struct InventoryConsumptionPlanner {
                     // The deduction skips these batches too; say so instead of
                     // letting 库存 silently exclude a box the user can see.
                     let note = "另有 \(Self.stockText(untouchedBatches)) 单位不同，无法换算，不会扣减"
+                    draft.warning = draft.warning.map { "\($0)；\(note)" } ?? note
+                }
+                if !statusStaples.isEmpty {
+                    let note = "常备食材按状态记录，不计入库存，也不会扣减"
                     draft.warning = draft.warning.map { "\($0)；\(note)" } ?? note
                 }
             }
@@ -929,10 +957,24 @@ struct CookConsumptionConfirmationView: View {
                     }
                 }
             }
-            // Nothing to deduct in a unit the stock is not held in.
-            .disabled(draft.wrappedValue.unconvertibleStockText != nil)
+            // Nothing to deduct in a unit the stock is not held in, nor from a
+            // staple that holds a status instead of a count.
+            .disabled(draft.wrappedValue.unconvertibleStockText != nil || draft.wrappedValue.statusStapleText != nil)
 
-            if let stock = draft.wrappedValue.unconvertibleStockText {
+            if let status = draft.wrappedValue.statusStapleText {
+                HStack {
+                    Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
+                    Spacer()
+                    Text("常备 \(status)")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                Label("按状态记录，不自动扣减", systemImage: "minus.circle")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("consumption.\(draft.wrappedValue.id).statusStaple")
+            } else if let stock = draft.wrappedValue.unconvertibleStockText {
                 HStack {
                     Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
                     Spacer()

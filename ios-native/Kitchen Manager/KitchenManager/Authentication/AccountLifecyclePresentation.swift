@@ -779,6 +779,45 @@ final class AccountLifecycleFixtureAccountService: AccountService {
     }
 }
 
+/// Lets a fixture open 删除账号 without reaching the backend: the preview is
+/// canned, and every step past it refuses, so a UI test can read the screen
+/// but never move a deletion forward.
+@MainActor
+final class AccountLifecycleFixtureDeletionService: AccountDeletionService {
+    func preview(accessToken: String) async throws -> AccountDeletionPreview {
+        AccountDeletionPreview(
+            canDelete: true,
+            blockingReason: nil,
+            householdCount: 1,
+            ownedHouseholdCount: 1,
+            requiresOwnershipTransfer: false,
+            requiresHouseholdDeletion: true,
+            pendingMutationCountBucket: "0",
+            confirmationVersion: "ui-test-fixture"
+        )
+    }
+    func transferCandidates(accessToken: String, householdId: UUID) async throws -> [TransferCandidate] {
+        throw AccountDeletionError.unavailable
+    }
+    func transferOwnership(accessToken: String, householdId: UUID, newOwnerUserId: UUID) async throws {
+        throw AccountDeletionError.unavailable
+    }
+    func createReauthenticationProof(
+        accessToken: String,
+        confirmationVersion: String
+    ) async throws -> AccountDeletionReauthenticationResult {
+        throw AccountDeletionError.unavailable
+    }
+    func confirmDeletion(
+        accessToken: String,
+        idempotencyKey: UUID,
+        confirmationVersion: String,
+        reauthenticationProof: String
+    ) async throws -> AccountDeletionConfirmResult {
+        throw AccountDeletionError.unavailable
+    }
+}
+
 struct AccountLifecycleFixtureTransport: SyncTransport {
     func bootstrap() async throws -> SyncBootstrapResponse { throw SyncError.transport }
     func fetchChanges(scope: SyncScope, after cursor: SyncCursorValue, limit: Int) async throws -> SyncChangesResponse {

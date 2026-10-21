@@ -101,7 +101,7 @@ enum PlannerRegressionFixture {
             }
         }
         if state == "PLANNER_DATA_HOST_WEEKLY" {
-            kitchen.weeklyPlan = WeeklyMenuRegressionFixture.plan()
+            kitchen.weeklyPlan = WeeklyMenuRegressionFixture.hostPlan
         } else if state == "PLANNER_DATA_HOST_WEEKLY_CROSS" {
             kitchen.weeklyPlan = WeeklyMenuRegressionFixture.crossWeekPlan
         }
@@ -165,6 +165,32 @@ enum WeeklyMenuRegressionFixture {
             summary: nil,
             createdAt: startDate,
             materialization: receipt
+        )
+    }
+
+    /// The saved draft the Planner host opens: it starts on the Planner's own
+    /// today (Wednesday), so it is not a past menu, and its two dishes fall on
+    /// Wednesday and Saturday, clear of the Thursday/Friday meals the host
+    /// seeds, so joining it neither asks to move it nor to append. Its start
+    /// week is still 9月7日 – 9月13日.
+    static var hostPlan: WeeklyMealPlan {
+        let calendar = PlannerRegressionFixture.calendar
+        let start = MealPlanItem.normalizedPlannerDate(for: PlannerRegressionFixture.now, calendar: calendar)
+        let all = dishes
+        return WeeklyMealPlan(
+            startDate: start,
+            days: [
+                WeeklyMealPlanDay(dayIndex: 0, meals: [
+                    WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [all[0]])
+                ]),
+                WeeklyMealPlanDay(dayIndex: 3, meals: [
+                    WeeklyMealPlanMeal(mealIndex: 0, title: "晚餐", recipes: [all[1]])
+                ])
+            ],
+            shoppingItems: [],
+            servings: 2,
+            summary: nil,
+            createdAt: start
         )
     }
 
@@ -249,6 +275,11 @@ enum WeeklyMenuRegressionFixture {
             edited.days[1].meals[0].recipes = []
             return edited
 
+        case "PLANNER_DATA_WEEKLY_PAST_START":
+            // A draft never added, opened three days after its first day.
+            kitchen.plans = []
+            return plan()
+
         case "PLANNER_DATA_WEEKLY_MISSING_RECIPE":
             kitchen.plans = []
             var broken = plan()
@@ -268,8 +299,16 @@ private struct WeeklyMenuRegressionResult: View {
     @EnvironmentObject private var kitchen: KitchenStore
     @StateObject private var store = WeeklyMenuPlannerStore()
 
+    /// The day these menus are added on: their own first day, so a past first
+    /// day is never the thing under test — except in PAST_START, where it is.
+    private var today: Date {
+        let start = WeeklyMenuRegressionFixture.startDate
+        guard state == "PLANNER_DATA_WEEKLY_PAST_START" else { return start }
+        return PlannerRegressionFixture.calendar.date(byAdding: .day, value: 3, to: start) ?? start
+    }
+
     var body: some View {
-        NavigationStack { WeeklyMenuResultView(store: store) }
+        NavigationStack { WeeklyMenuResultView(store: store, now: { today }) }
             .task {
                 store.generatedPlan = WeeklyMenuRegressionFixture.seed(state: state, kitchen: kitchen)
             }
@@ -312,7 +351,8 @@ struct PlannerRegressionHost: View {
 private struct PlannerRegressionWeeklyResult: View {
     @StateObject private var store = WeeklyMenuPlannerStore()
     var body: some View {
-        NavigationStack { WeeklyMenuResultView(store: store) }
+        // Added on the menu's own first day; see `WeeklyMenuRegressionResult.today`.
+        NavigationStack { WeeklyMenuResultView(store: store, now: { PlannerRegressionFixture.monday }) }
             .task {
                 let dishes = PlannerRegressionFixture.recipes.prefix(4).map {
                     WeeklyMealPlanRecipe(id: $0.id, title: $0.title, ingredients: $0.ingredients,
