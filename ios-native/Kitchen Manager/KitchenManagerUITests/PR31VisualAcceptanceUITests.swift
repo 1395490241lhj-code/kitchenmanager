@@ -32,11 +32,16 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
     /// The simulator appearance alone does not reliably reach the app before its
     /// first render (on CI the Dark runs came out light), so the app's own
     /// appearance preference is pinned too — see `ContentView`'s UI-test hook.
+    /// The language and region are pinned to the app's own Chinese: lists sort
+    /// with `localizedCompare`, so an English CI simulator put the consumption
+    /// rows in another order than a member sees.
     private func launch(_ arguments: [String], _ variant: Variant) -> XCUIApplication {
         XCUIDevice.shared.appearance = variant.dark ? .dark : .light
         let app = XCUIApplication()
         app.launchArguments = arguments + [
             variant.dark ? "UITEST_FORCE_DARK_APPEARANCE" : "UITEST_FORCE_LIGHT_APPEARANCE",
+            "-AppleLanguages", "(zh-Hans)",
+            "-AppleLocale", "zh_CN",
             "-UIPreferredContentSizeCategoryName",
             variant.accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"
         ]
@@ -56,19 +61,23 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
     }
 
     /// A SwiftUI `Label`'s identifier can land on its icon (iOS 26.5 on CI), and
-    /// an icon is never hittable. So the identifier is only checked to survive,
-    /// and the label is found and judged by its text.
-    private func labelText(_ app: XCUIApplication, identifier: NSPredicate, containing fragment: String,
-                           _ variant: Variant, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+    /// an icon is never hittable. So the label is scrolled to and judged by its
+    /// text, and only then is its identifier checked to survive: a list row
+    /// off screen is not in the accessibility tree yet.
+    @discardableResult
+    private func revealLabel(_ app: XCUIApplication, identifier: NSPredicate, containing fragment: String,
+                             _ variant: Variant, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let label = reveal(text(app, containing: fragment), in: app, variant, file: file, line: line)
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier).firstMatch.exists,
                       "\(variant.name): no element matches \(identifier)", file: file, line: line)
-        return text(app, containing: fragment)
+        return label
     }
 
-    private func labelText(_ app: XCUIApplication, _ identifier: String, containing fragment: String,
-                           _ variant: Variant, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
-        labelText(app, identifier: NSPredicate(format: "identifier == %@", identifier), containing: fragment,
-                  variant, file: file, line: line)
+    @discardableResult
+    private func revealLabel(_ app: XCUIApplication, _ identifier: String, containing fragment: String,
+                             _ variant: Variant, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        revealLabel(app, identifier: NSPredicate(format: "identifier == %@", identifier), containing: fragment,
+                    variant, file: file, line: line)
     }
 
     /// Scrolls until the element is on screen and clear of the edges, or fails
@@ -194,8 +203,7 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars.staticTexts["我的"].waitForExistence(timeout: 5), "\(variant.name): 我的")
 
             reveal(element(app, "settings.backup.link"), in: app, variant).tap()
-            let backupWarning = reveal(labelText(app, "backup.userRecipes.warning", containing: "备份不包含用户菜谱",
-                                                 variant), in: app, variant)
+            let backupWarning = revealLabel(app, "backup.userRecipes.warning", containing: "备份不包含用户菜谱", variant)
             assertFullText(backupWarning, contains: "且无法从备份恢复", variant, "backup warning")
             capture(app, variant, "Settings-BackupScope")
             app.navigationBars.buttons.firstMatch.tap()
@@ -204,8 +212,7 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             capture(app, variant, "Settings-ClearDataRow")
             // The footer under the button is the last thing on the page: it
             // must scroll clear of the tab bar, not just exist.
-            let footer = reveal(labelText(app, "settings.cleardata.recipeWarning", containing: "厨房备份不包含用户菜谱",
-                                          variant), in: app, variant)
+            let footer = revealLabel(app, "settings.cleardata.recipeWarning", containing: "厨房备份不包含用户菜谱", variant)
             assertFullText(footer, contains: "清除后无法从备份恢复", variant, "clear-data footer")
             let tabBar = app.tabBars.firstMatch
             if tabBar.exists {
@@ -328,16 +335,14 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars.staticTexts["确认本次食材消耗"].waitForExistence(timeout: 8), "\(variant.name): sheet")
             capture(app, variant, "Consumption-Top")
 
-            let staple = labelText(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".statusStaple"),
-                                   containing: "按状态记录，不自动扣减", variant)
-            reveal(staple, in: app, variant)
+            revealLabel(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".statusStaple"),
+                        containing: "按状态记录，不自动扣减", variant)
             assertFullText(text(app, containing: "按状态记录的常备食材"), contains: "做饭不会自动扣减", variant, "status staple note")
             XCTAssertFalse(text(app, containing: "没有找到「葱」").exists, "\(variant.name): a status staple is never reported missing")
             capture(app, variant, "Consumption-StatusStaple")
 
-            let mismatch = labelText(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".notDeducted"),
-                                     containing: "单位不同，未扣减", variant)
-            reveal(mismatch, in: app, variant)
+            revealLabel(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".notDeducted"),
+                        containing: "单位不同，未扣减", variant)
             assertFullText(text(app, containing: "和菜谱的单位不同"), contains: "未扣减", variant, "unit mismatch note")
             capture(app, variant, "Consumption-UnitMismatch")
 
