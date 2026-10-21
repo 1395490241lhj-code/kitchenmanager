@@ -509,13 +509,23 @@ struct HomeView: View {
         HomeDashboardHeaderModel(displayName: displayName, householdName: householdName)
     }
 
+    /// 1.8s. UI tests can hold it longer, so the idle wait after a tap on a slow
+    /// simulator cannot outrun it (as `UndoToastTiming` does for 撤销); release
+    /// builds ignore the argument.
+    private static var toastLifetime: Duration {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_LONG_FEEDBACK_TOAST") { return .seconds(20) }
+        #endif
+        return .seconds(1.8)
+    }
+
     private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
             toastStyle = style
             toastMessage = message
         }
         Task {
-            try? await Task.sleep(for: .seconds(1.8))
+            try? await Task.sleep(for: Self.toastLifetime)
             await MainActor.run {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { toastMessage = nil }
             }

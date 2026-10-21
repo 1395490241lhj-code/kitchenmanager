@@ -29,10 +29,14 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
 
     // MARK: - Harness
 
+    /// The simulator appearance alone does not reliably reach the app before its
+    /// first render (on CI the Dark runs came out light), so the app's own
+    /// appearance preference is pinned too — see `ContentView`'s UI-test hook.
     private func launch(_ arguments: [String], _ variant: Variant) -> XCUIApplication {
         XCUIDevice.shared.appearance = variant.dark ? .dark : .light
         let app = XCUIApplication()
         app.launchArguments = arguments + [
+            variant.dark ? "UITEST_FORCE_DARK_APPEARANCE" : "UITEST_FORCE_LIGHT_APPEARANCE",
             "-UIPreferredContentSizeCategoryName",
             variant.accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"
         ]
@@ -49,6 +53,22 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
 
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// A SwiftUI `Label`'s identifier can land on its icon (iOS 26.5 on CI), and
+    /// an icon is never hittable. So the identifier is only checked to survive,
+    /// and the label is found and judged by its text.
+    private func labelText(_ app: XCUIApplication, identifier: NSPredicate, containing fragment: String,
+                           _ variant: Variant, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier).firstMatch.exists,
+                      "\(variant.name): no element matches \(identifier)", file: file, line: line)
+        return text(app, containing: fragment)
+    }
+
+    private func labelText(_ app: XCUIApplication, _ identifier: String, containing fragment: String,
+                           _ variant: Variant, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        labelText(app, identifier: NSPredicate(format: "identifier == %@", identifier), containing: fragment,
+                  variant, file: file, line: line)
     }
 
     /// Scrolls until the element is on screen and clear of the edges, or fails
@@ -174,8 +194,9 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars.staticTexts["我的"].waitForExistence(timeout: 5), "\(variant.name): 我的")
 
             reveal(element(app, "settings.backup.link"), in: app, variant).tap()
-            let backupWarning = reveal(element(app, "backup.userRecipes.warning"), in: app, variant)
-            XCTAssertFalse(backupWarning.label.hasSuffix("…"), "\(variant.name): backup warning truncated")
+            let backupWarning = reveal(labelText(app, "backup.userRecipes.warning", containing: "备份不包含用户菜谱",
+                                                 variant), in: app, variant)
+            assertFullText(backupWarning, contains: "且无法从备份恢复", variant, "backup warning")
             capture(app, variant, "Settings-BackupScope")
             app.navigationBars.buttons.firstMatch.tap()
 
@@ -183,7 +204,8 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             capture(app, variant, "Settings-ClearDataRow")
             // The footer under the button is the last thing on the page: it
             // must scroll clear of the tab bar, not just exist.
-            let footer = reveal(element(app, "settings.cleardata.recipeWarning"), in: app, variant)
+            let footer = reveal(labelText(app, "settings.cleardata.recipeWarning", containing: "厨房备份不包含用户菜谱",
+                                          variant), in: app, variant)
             assertFullText(footer, contains: "清除后无法从备份恢复", variant, "clear-data footer")
             let tabBar = app.tabBars.firstMatch
             if tabBar.exists {
@@ -270,7 +292,10 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
 
     func testStuckSharedLinkCanBeRemoved() {
         for variant in variants {
-            let app = launch(["UITEST_SEED_EMPTY_HOME", "UITEST_SEED_SHARED_IMPORT_STUCK"], variant)
+            // The removal toast normally lasts 1.8s, which the idle wait after
+            // the tap can outrun on CI; the argument holds it for the check.
+            let app = launch(["UITEST_SEED_EMPTY_HOME", "UITEST_SEED_SHARED_IMPORT_STUCK", "UITEST_LONG_FEEDBACK_TOAST"],
+                             variant)
             let discard = app.buttons["sharedImport.discard"]
             XCTAssertTrue(discard.waitForExistence(timeout: 15), "\(variant.name): the shared link sheet")
             assertReachable(discard, in: app, variant, "不再导入")
@@ -303,13 +328,15 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             XCTAssertTrue(app.navigationBars.staticTexts["确认本次食材消耗"].waitForExistence(timeout: 8), "\(variant.name): sheet")
             capture(app, variant, "Consumption-Top")
 
-            let staple = app.descendants(matching: .any).matching(NSPredicate(format: "identifier ENDSWITH %@", ".statusStaple")).firstMatch
+            let staple = labelText(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".statusStaple"),
+                                   containing: "按状态记录，不自动扣减", variant)
             reveal(staple, in: app, variant)
             assertFullText(text(app, containing: "按状态记录的常备食材"), contains: "做饭不会自动扣减", variant, "status staple note")
             XCTAssertFalse(text(app, containing: "没有找到「葱」").exists, "\(variant.name): a status staple is never reported missing")
             capture(app, variant, "Consumption-StatusStaple")
 
-            let mismatch = app.descendants(matching: .any).matching(NSPredicate(format: "identifier ENDSWITH %@", ".notDeducted")).firstMatch
+            let mismatch = labelText(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".notDeducted"),
+                                     containing: "单位不同，未扣减", variant)
             reveal(mismatch, in: app, variant)
             assertFullText(text(app, containing: "和菜谱的单位不同"), contains: "未扣减", variant, "unit mismatch note")
             capture(app, variant, "Consumption-UnitMismatch")
