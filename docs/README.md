@@ -22,6 +22,8 @@
 
 ### Design
 
+- [`design/IOS_NATIVE_MOTION_REFINEMENT.md`](design/IOS_NATIVE_MOTION_REFINEMENT.md)：EasyUI 概念映射、原生动效的局部采用范围与本次验证证据；共享约定仍由 Kitchen Design Language 的 Motion 节负责。
+
 - [`design/UI_TASTE.md`](design/UI_TASTE.md)：iOS 实质性视觉 refinement 的轻量判断层与 Taste Pass；不定义新 Design System。
 
 ### Product

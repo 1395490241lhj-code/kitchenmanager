@@ -5,6 +5,9 @@ enum KitchenMotion {
     static let quick: Animation = .snappy(duration: 0.2)
     static let standard: Animation = .smooth(duration: 0.28)
     static let emphasis: Animation = .smooth(duration: 0.32, extraBounce: 0.05)
+    // Semantic aliases reuse the existing curves; no second motion system.
+    static let morph = standard
+    static let feedback = quick
 }
 
 /// The approved Kitchen Manager visual language for Home and Inventory:

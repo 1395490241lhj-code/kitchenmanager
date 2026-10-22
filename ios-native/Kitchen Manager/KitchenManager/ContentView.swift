@@ -41,6 +41,7 @@ struct KitchenManagerApp: App {
             || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_FAKE")
             || AIConversationAcceptanceFixture.scenario != nil
         let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
+            || KitchenMotionImportFixture.isEnabled
             || PlannerRegressionFixture.isEnabled || PlanPersistenceFailureFixture.failingWriteIndex != nil
             || isConversationUITest
         var persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
@@ -534,7 +535,9 @@ struct KitchenManagerApp: App {
         WindowGroup {
             Group {
                 #if DEBUG
-                if PlannerRegressionFixture.isEnabled {
+                if KitchenMotionImportFixture.isEnabled {
+                    KitchenMotionImportFixture()
+                } else if PlannerRegressionFixture.isEnabled {
                     PlannerRegressionHost()
                 } else if AIRecipeRegenerationHost.isEnabled {
                     AIRecipeRegenerationHost()
