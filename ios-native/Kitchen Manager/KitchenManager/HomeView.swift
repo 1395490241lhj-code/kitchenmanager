@@ -1552,7 +1552,7 @@ private struct HomeRecommendationSection: View {
             Label(added ? "已加入" : "加入今天", systemImage: added ? "checkmark" : "plus")
                 .frame(maxWidth: .infinity)
         }
-        .buttonStyle(KitchenButtonStyle(role: .secondary))
+        .buttonStyle(KitchenButtonStyle(role: .secondary, homeTactile: true))
         .disabled(added)
         .accessibilityIdentifier("home.recommendation.\(recommendation.id).addToday")
 
@@ -1560,9 +1560,10 @@ private struct HomeRecommendationSection: View {
             onViewRecipe(recipe)
         } label: {
             Text("查看菜谱")
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, minHeight: KitchenTheme.controlHeight)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(KitchenButtonStyle(role: .utility, tint: KitchenTheme.cookingGreen))
+        .buttonStyle(KitchenButtonStyle(role: .utility, tint: KitchenTheme.cookingGreen, homeTactile: true))
         .accessibilityIdentifier("home.recommendation.\(recommendation.id).viewRecipe")
     }
 
@@ -1597,7 +1598,7 @@ private struct HomeRecommendationSection: View {
             Label(isGenerating ? "正在换一批…" : "换一批", systemImage: KitchenAISymbol.emblem)
                 .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget)
         }
-        .buttonStyle(KitchenButtonStyle(role: .secondary))
+        .buttonStyle(KitchenButtonStyle(role: .secondary, homeTactile: true))
         .disabled(isGenerating)
         .accessibilityIdentifier("home.recommendation.regenerate")
     }

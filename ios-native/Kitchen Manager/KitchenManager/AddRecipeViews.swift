@@ -639,15 +639,12 @@ struct ImportRecipeView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            if isSaving {
-                                ProgressView()
-                                    .tint(AppTheme.onManagementAction)
-                            } else {
-                                Label(
-                                    isSaved ? "已保存" : "保存到菜谱库",
-                                    systemImage: isSaved ? "checkmark.circle.fill" : "square.and.arrow.down"
-                                )
-                            }
+                            KitchenActionLabel(
+                                phase: savePhase,
+                                idleTitle: "保存到菜谱库",
+                                idleSymbol: "square.and.arrow.down"
+                            )
+                            .tint(AppTheme.onManagementAction)
                             Spacer()
                         }
                     }
@@ -716,6 +713,13 @@ struct ImportRecipeView: View {
             get: { editableDraft ?? EditableRecipeDraft() },
             set: { editableDraft = $0 }
         )
+    }
+
+    private var savePhase: KitchenActionPhase {
+        if isSaving { return .processing }
+        if isSaved { return .success }
+        if saveErrorMessage != nil { return .failure }
+        return .idle
     }
 
     private var canSave: Bool {

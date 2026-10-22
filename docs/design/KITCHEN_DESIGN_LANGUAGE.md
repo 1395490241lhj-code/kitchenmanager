@@ -33,11 +33,13 @@ The prior v1 text below is historical wherever it conflicts with this revision. 
 Motion is restrained and semantic, never decorative. Prefer SwiftUI system spring
 presets over custom easing curves. `KitchenMotion` lives beside `KitchenTheme`:
 
-| Token | Preset | Purpose |
+| Intent / token | Preset | Purpose |
 |---|---|---|
-| quick | `snappy(duration: 0.2)` | Direct selections and small controls. |
-| standard | `smooth(duration: 0.28)` | Content or local layout state transitions. |
-| emphasis | `smooth(duration: 0.32, extraBounce: 0.05)` | Rare emphasis with a very light spring; unused in this spike. |
+| Gentle / `standard` | `smooth(duration: 0.28)` | Content expansion and local layout transitions. |
+| Snappy / `quick` | `snappy(duration: 0.2)` | Direct selections and small controls. |
+| Morph / `morph` | Alias of `standard` | A continuous object's geometry change, only where needed. |
+| Feedback / `feedback` | Alias of `quick` | Short, local loading/result label crossfades. |
+| `emphasis` (reserved) | `smooth(duration: 0.32, extraBounce: 0.05)` | Rare emphasis; no new adoption in this refinement. |
 
 Preserve system-native NavigationStack, sheet, tab, picker, toggle and other
 platform transitions. Avoid broad implicit animations over large hierarchies;
@@ -47,15 +49,43 @@ when enabled. Preserve existing accessibility labels, traits and feedback.
 State changes and actions remain immediate and interruptible; never wait for an
 animation to finish before allowing interaction or completing a task.
 
-This spike animates only the Accessibility-size Inventory Menu's current-filter
-text with quick (the segmented Picker stays native), and Home's existing
-remaining-dishes disclosure with standard. AI result appearance gets no extra
-animation: the inspected recommendation flow already uses a native pager, and
-initial Home content loading is not an entrance-animation opportunity.
+The original D-043 adoption remains the Accessibility-size Inventory Menu's
+current-filter text with quick (the segmented Picker stays native), and Home's
+remaining-dishes disclosure with standard. D-048 subsequently replaced the
+recommendation pager with the native view-aligned inline shelf. Initial loading
+and result arrival remain free of entrance choreography.
+
+The 2026-10-22 bounded refinement opts Home's secondary recommendation controls
+into existing `homeTactile` feedback: the same quick press response as the lead
+action, with scale and custom animation suppressed under Reduce Motion. It does
+not change default shared-button behavior elsewhere, shelf geometry, snapping,
+card identity, vertical Accessibility layout or regeneration ownership.
+
+`KitchenActionLabel` is a presentation-only label inside an existing Button.
+It reserves all phase labels' intrinsic footprint, adapts to Dynamic Type,
+and uses `contentTransition(.opacity)` with Feedback for actual
+Idle → Processing → Success / Failure changes. The caller owns real state,
+disable rules, persistence, errors and navigation. Link-import save is the
+first consumer. Its native error alert and existing success haptic remain;
+do not add duplicate sensory feedback. Never add fake progress, timers,
+minimum loading dwell or a success hold. Fast local saves may navigate before
+the success label is perceptible; preserve that immediacy.
+
+Use `matchedGeometryEffect` with Morph only for the same content object within
+a stable namespace, when preserving its spatial identity helps the task.
+No current shelf or button needs a new geometry animation. Preserve native
+navigation/tab transitions. With Reduce Motion, disable custom transforms and
+animated geometry; keep static labels, native progress, alerts and valid actions.
+Hidden label-size reservations must be excluded from accessibility so VoiceOver
+encounters one real control with its current text. Never communicate a result
+through animation, color, sound or haptics alone. Dark appearance uses existing
+semantic materials; no new palette or fixed-size text is introduced.
 
 No whole-screen animation, appearance-only animation, staggered entrance,
 exaggerated bounce, decorative scale or Dribbble-style motion. Existing motion
-outside these two interactions is not globally migrated by this spike.
+outside these explicitly adopted interactions is not globally migrated.
+
+Audit, acceptance scope and current verification: [Native motion refinement](IOS_NATIVE_MOTION_REFINEMENT.md).
 
 ## Prior v1 specification — historical where superseded above
 
