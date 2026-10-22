@@ -227,7 +227,15 @@ final class AIConversationWorkspaceUITests: XCTestCase {
                     drag(app, from: 0.3, to: 0.98)
                     continue
                 }
-                drag(app, from: 0.4, to: 0.2)
+                // The transcript follows its newest content, so a target can
+                // also sit above the band — at accessibility sizes the
+                // 继续调整 suggestions push the last card up. Scroll back toward
+                // it in small steps; otherwise scroll on down.
+                if element.exists, element.frame.minY <= 140 {
+                    drag(app, from: 0.3, to: 0.45)
+                } else {
+                    drag(app, from: 0.4, to: 0.2)
+                }
             }
             XCTFail("Could not bring \(element) into view")
         }

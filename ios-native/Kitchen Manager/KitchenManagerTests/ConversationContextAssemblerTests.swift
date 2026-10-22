@@ -128,6 +128,43 @@ final class ConversationContextAssemblerTests: XCTestCase {
             XCTAssertEqual(r.contexts.map(\.kind), [.tonightPlan], question)
         }
     }
+    /// Eating out, a canteen, someone else's pick, or a medicine is not a question
+    /// about cooking at home. None of these may read inventory or the shortlist,
+    /// and nothing from either may reach the request: only the existing tonight
+    /// plan read remains.
+    func testEatingOutOrMedicineQuestionsAtHomeDoNotReadTheKitchen() throws {
+        for question in ["早餐吃什么药", "今天食堂吃什么", "老板推荐什么菜", "推荐几家做菜好吃的餐厅",
+                         "附近有什么好吃的饭店", "今晚想出去吃饭", "今晚想出去吃什么", "外卖吃什么好",
+                         "午饭吃什么药好", "餐厅推荐什么菜"] {
+            let d = Domain(); let r = try prepare(d, current: message(question))
+            XCTAssertEqual(d.reads, [.tonightPlan], question)
+            XCTAssertEqual(r.contexts.map(\.kind), [.tonightPlan], question)
+            XCTAssertFalse(r.liveContext.contains("eggs"), question)
+            XCTAssertFalse(r.liveContext.contains("missingCount"), question)
+        }
+    }
+    /// Cooking at home with the family's own food still reads the kitchen: the
+    /// inventory, tonight's plan and the shortlist, in that order.
+    func testHomeCookingQuestionsReadInventoryAndShortlist() throws {
+        for question in ["今晚吃什么", "用快过期的食材做饭", "推荐一道家常菜", "家里有鸡蛋能做什么", "今晚四个人吃什么",
+                         "冰箱里的东西能做点什么", "不想点外卖，在家做什么菜", "不点外卖了家里有鸡蛋能做什么"] {
+            let d = Domain(); let r = try prepare(d, current: message(question))
+            XCTAssertEqual(d.reads, [.inventory, .tonightPlan, .recipe], question)
+            XCTAssertEqual(r.contexts.map(\.kind), [.inventory, .tonightPlan, .recipe], question)
+            XCTAssertTrue(r.liveContext.contains("eggs"), question)
+        }
+    }
+    /// The inventory switch still wins for the newly read questions: no inventory
+    /// read, no shortlist, and no missing counts standing in for inventory facts.
+    func testInventoryExclusionHoldsForHomeIngredientQuestions() throws {
+        for question in ["家里有鸡蛋能做什么", "推荐一道家常菜"] {
+            let d = Domain(); let r = try prepare(d, current: message(question), excluded: [.inventory])
+            XCTAssertEqual(d.reads, [.tonightPlan], question)
+            XCTAssertEqual(r.contexts.map(\.kind), [.tonightPlan], question)
+            XCTAssertFalse(r.liveContext.contains("eggs"), question)
+            XCTAssertFalse(r.liveContext.contains("missingCount"), question)
+        }
+    }
     /// A food word is never enough on its own, and its parts must be joined:
     /// 饭 in 饭店 or 饭卡, 吃 in 吃药, 菜 in 菜馆 / 菜单 / 菜市场 and a meal of the day
     /// in 早餐店 or 午餐会议 name no meal; 吃什么 that picks a medicine, or 想吃 with
