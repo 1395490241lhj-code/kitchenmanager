@@ -12,6 +12,12 @@
 >
 > The body below is preserved as the audit record it was written to be.
 
+## Native motion refinement — integrated 2026-10-22
+
+[PR #36](https://github.com/1395490241lhj-code/kitchenmanager/pull/36) merged as `7962edc1b07b66b8533b6600753b77274f591567`, preserving accepted feature commit `bf4b461`. Home retains its native recommendation shelf, navigation, scrolling and Accessibility-size layout; its secondary controls now share existing tactile / Reduce Motion handling. Link-import saving uses a size-stable label driven by real save state. No dependency, persistence, inventory undo or other transactional change was introduced.
+
+Motion conventions remain in [Kitchen Design Language](docs/design/KITCHEN_DESIGN_LANGUAGE.md#motion); the [focused acceptance report](docs/design/IOS_NATIVE_MOTION_REFINEMENT.md) and PR retain verification evidence and compiler-warning limitations. VoiceOver speech, actual focus traversal/restoration and automatic announcements remain **UNVERIFIED**. This integration does not authorize further EasyUI work or change release / production-safety posture. The older snapshots below remain historical.
+
 ## Frozen iOS behavior / IA prototype seal — 2026-09-10
 
 Implementation through `d9da474` is integrated and pushed to main. Gate: **PASS WITH DOCUMENTED BASELINE REDS**. [Evidence, accessibility exception and deferred boundary](docs/archive/ios/BEHAVIOR_CONTRACT_SEAL.md).

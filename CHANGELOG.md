@@ -2,6 +2,11 @@
 
 Only notable changes that have entered `main` are recorded here. Current state belongs in [`PROJECT_STATUS.md`](PROJECT_STATUS.md); detailed evidence belongs in focused documents or Git history.
 
+## 2026-10-22
+
+- Integrated the native motion refinement ([PR #36](https://github.com/1395490241lhj-code/kitchenmanager/pull/36), merge `7962edc`, accepted commit `bf4b461`). Home's secondary recommendation controls reuse existing tactile / Reduce Motion feedback, and link-import saving keeps a stable button label footprint through real processing, success and failure states. Native browsing, navigation, immediate completion and business operations are preserved.
+- Documented Gentle / Snappy and Morph / Feedback conventions within the existing `KitchenMotion` vocabulary, without new UI dependencies or a parallel animation system. [Acceptance evidence and remaining accessibility limitations](docs/design/IOS_NATIVE_MOTION_REFINEMENT.md).
+
 ## 2026-09-12
 
 - Consolidated the native iOS Home information architecture (`be0f495` … `e51f059`). Home now has one planning-management destination, `用餐计划` → Planner, in every state; one discovery control, `更多推荐`; no toolbar `+`; and no Home-level `AI 换几道`. Each retired entry point kept its capability in the surface that owns it — import and add live in Recipes and Inventory, regeneration lives in the recommendation browser.
