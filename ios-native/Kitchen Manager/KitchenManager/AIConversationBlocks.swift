@@ -32,8 +32,13 @@ struct MessageRowView: View {
             .padding(.leading, 32)
         } else {
             VStack(alignment: .leading, spacing: 12) {
-                ForEach(message.contentBlocks) { block in
-                    ContentBlockView(block: block)
+                ForEach(AIContentBlockRun.runs(message.contentBlocks)) { run in
+                    switch run {
+                    case let .single(block):
+                        ContentBlockView(block: block)
+                    case let .recipes(_, blocks):
+                        AIRecipeGroupView(blocks: blocks)
+                    }
                 }
                 if let phase = Self.activityPhase(for: message, turnState: controller.turnState) {
                     KitchenAIStatus(phase: phase, message: phase.statusText, presentation: .conversation)
@@ -87,6 +92,112 @@ struct ContentBlockView: View {
     }
 }
 
+/// Adjacent recipe blocks in one message are one set of choices, so they are
+/// laid out — and announced — as one vertical group rather than as separate
+/// paragraphs of the turn. Every other block stays a run of its own.
+enum AIContentBlockRun: Identifiable, Equatable {
+    case single(AIContentBlock)
+    case recipes(id: UUID, [AIRecipeBlock])
+
+    var id: UUID {
+        switch self {
+        case let .single(block): return block.id
+        case let .recipes(id, _): return id
+        }
+    }
+
+    static func runs(_ blocks: [AIContentBlock]) -> [AIContentBlockRun] {
+        var runs: [AIContentBlockRun] = []
+        for block in blocks {
+            guard case let .recipe(recipe) = block else {
+                runs.append(.single(block))
+                continue
+            }
+            if case let .recipes(id, group)? = runs.last {
+                runs[runs.count - 1] = .recipes(id: id, group + [recipe])
+            } else if case let .single(.recipe(previous))? = runs.last {
+                runs[runs.count - 1] = .recipes(id: previous.id, [previous, recipe])
+            } else {
+                runs.append(.single(block))
+            }
+        }
+        return runs
+    }
+}
+
+struct AIRecipeGroupView: View {
+    let blocks: [AIRecipeBlock]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(blocks) { block in
+                AIRecipeBlockView(block: block)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(blocks.count) 道菜")
+        .accessibilityIdentifier("kitchenAI.recipe.group")
+    }
+}
+
+/// The card's kitchen facts, derived by `RecipeStockMatch` and never by the
+/// model: the model's reason explains a choice, these rows say what the
+/// kitchen actually holds. Wording follows the rest of the app's 还缺.
+///
+/// Presence only, over a recipe's main ingredients. The rule never compares
+/// quantities and never looks at seasonings, so no row may imply there is
+/// enough: one egg on hand for a six-egg recipe still reads as in stock, and
+/// the all-present row says plainly that amounts and seasonings were not checked.
+enum AIRecipeStockPresentation {
+    enum Kind: Hashable {
+        case inStock, missing, allPresent, expiring
+
+        var systemImage: String {
+            switch self {
+            case .inStock: return "refrigerator"
+            case .missing: return "cart"
+            case .allPresent: return "checkmark.circle"
+            case .expiring: return "clock.fill"
+            }
+        }
+    }
+
+    /// A no-break space glues the dot to 在库, so a wrap at accessibility
+    /// sizes never opens a line with a stray 「·」.
+    static let allPresentText = "主要食材在库\u{00A0}· 用量与调料未核对"
+    static let allPresentSpoken = "主要食材在库，用量与调料未核对"
+
+    struct Line: Equatable {
+        let kind: Kind
+        /// At most three names, then a count, so a row stays short on screen.
+        let text: String
+        /// Every name, for VoiceOver, which has no line to overflow.
+        let spoken: String
+    }
+
+    static func lines(for stock: RecipeStockMatch.Summary) -> [Line] {
+        var lines: [Line] = []
+        if !stock.inStock.isEmpty {
+            lines.append(line(.inStock, "家里有", stock.inStock))
+        }
+        if !stock.missing.isEmpty {
+            lines.append(line(.missing, "还缺", stock.missing))
+        } else if !stock.inStock.isEmpty {
+            lines.append(Line(kind: .allPresent, text: allPresentText, spoken: allPresentSpoken))
+        }
+        if !stock.expiring.isEmpty {
+            lines.append(line(.expiring, "可用掉临期", stock.expiring))
+        }
+        return lines
+    }
+
+    private static func line(_ kind: Kind, _ label: String, _ names: [String]) -> Line {
+        let shown = names.prefix(3).joined(separator: "、")
+        let text = names.count > 3 ? "\(label) \(shown) 等 \(names.count) 样" : "\(label) \(shown)"
+        return Line(kind: kind, text: text, spoken: "\(label)\(names.joined(separator: "、"))")
+    }
+}
+
 struct AITextBlockView: View {
     let block: AITextBlock
 
@@ -103,7 +214,11 @@ struct AITextBlockView: View {
 struct AIRecipeBlockView: View {
     let block: AIRecipeBlock
     @EnvironmentObject private var recipeStore: RecipeStore
+    @EnvironmentObject private var kitchenStore: KitchenStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// One icon column, so the three stock rows' text starts on one edge
+    /// whatever the symbol's own width.
+    @ScaledMetric(relativeTo: .footnote) private var stockIconWidth: CGFloat = 18
 
     var displayRecipe: Recipe {
         if !block.isTransient, let live = recipeStore.recipe(id: block.recipe.id) {
@@ -114,6 +229,22 @@ struct AIRecipeBlockView: View {
 
     var isLiveRecipe: Bool {
         !block.isTransient && recipeStore.recipe(id: block.recipe.id) != nil
+    }
+
+    /// The reading the shortlist sent the model, so the card cannot contradict
+    /// it, and whose 还缺 is the recipe library's and Recipe Detail's.
+    private var stockLines: [AIRecipeStockPresentation.Line] {
+        AIRecipeStockPresentation.lines(for: KitchenAIStockReading(kitchenStore).summary(for: displayRecipe))
+    }
+
+    private var accessibilitySummary: String {
+        var parts = [displayRecipe.title]
+        if block.isTransient { parts.append("AI 推荐草稿") }
+        if let cookingTime = displayRecipe.cookingTime { parts.append("\(cookingTime) 分钟") }
+        if let difficulty = displayRecipe.difficulty, !difficulty.isEmpty { parts.append(difficulty) }
+        parts.append("\(displayRecipe.ingredients.count) 种食材")
+        parts.append(contentsOf: stockLines.map(\.spoken))
+        return parts.joined(separator: "，")
     }
 
     @ViewBuilder
@@ -184,11 +315,28 @@ struct AIRecipeBlockView: View {
                 .font(.caption)
                 .foregroundStyle(KitchenTheme.textSecondary)
 
-                if !displayRecipe.ingredients.isEmpty {
+                // Rows wrap rather than truncate: at accessibility sizes a
+                // one-line limit cut the ingredient list to a single name.
+                let lines = stockLines
+                if !lines.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(lines, id: \.kind) { line in
+                            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                Image(systemName: line.kind.systemImage)
+                                    .foregroundStyle(line.kind == .expiring ? AppTheme.inventoryExpiring : KitchenTheme.textSecondary)
+                                    .frame(width: stockIconWidth)
+                                Text(line.text)
+                                    .foregroundStyle(KitchenTheme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .font(.footnote)
+                } else if !displayRecipe.ingredients.isEmpty {
                     Text(displayRecipe.ingredients.prefix(4).joined(separator: " · "))
                         .font(.caption)
                         .foregroundStyle(KitchenTheme.textSecondary)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(KitchenTheme.modulePadding)
@@ -200,6 +348,11 @@ struct AIRecipeBlockView: View {
                 RoundedRectangle(cornerRadius: KitchenTheme.functionalRadius, style: .continuous)
                     .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 0.75)
             )
+            // One stop for VoiceOver: the dish and its kitchen facts in a
+            // single summary, with 查看菜谱 as the separate action after it.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilitySummary)
+            .accessibilityIdentifier("kitchenAI.recipe.card.\(displayRecipe.id)")
 
             NavigationLink(destination: destinationDetailView) {
                 HStack {

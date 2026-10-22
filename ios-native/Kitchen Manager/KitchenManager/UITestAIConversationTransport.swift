@@ -192,6 +192,23 @@ actor UITestAIConversationTransport: AIConversationRuntimeTransport {
             return
         }
 
+        if args.contains("UITEST_AI_CONVERSATION_SCRIPT_TONIGHT_SHORTLIST") {
+            // Every claim here must match the fixture ContentView seeds: eggs
+            // expire tomorrow, chicken thigh in two days, one tomato on hand.
+            continuation.yield(.textDelta("鸡蛋明天到期，鸡腿肉也只剩两天，今晚可以先从这几道里挑：\n"))
+            let cards = [
+                #"{"recipe":{"recipeID":"rec-tomato-egg","title":"番茄炒蛋","reason":"先用掉明天到期的鸡蛋，15 分钟出锅"}}"#,
+                #"{"recipe":{"recipeID":"rec-kung-pao","title":"宫保鸡丁","reason":"顺手用掉快到期的鸡腿肉，需要先补配料"}}"#,
+                #"{"recipe":{"title":"家常豆腐","ingredients":[{"item":"北豆腐","qty":"1","unit":"块"},{"item":"青椒","qty":"1","unit":"个"}],"steps":["煎豆腐","调味"],"reason":"想吃清淡些时的选择"}}"#
+            ]
+            for (index, card) in cards.enumerated() {
+                continuation.yield(.toolCall(id: "c-tonight-\(index)", name: "present_recipe_card", arguments: Data(card.utf8)))
+            }
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
+
         if args.contains("UITEST_AI_CONVERSATION_SCRIPT_PLANNER_PREVIEW") {
             var targetPlanID = "99999999-9999-9999-9999-999999999999"
             for msg in request.messages {

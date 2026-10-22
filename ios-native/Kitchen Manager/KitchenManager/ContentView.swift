@@ -258,6 +258,29 @@ struct KitchenManagerApp: App {
             )
             try? recipeStoreInstance.saveUserRecipe(sample)
         }
+        if testArgs.contains("UITEST_AI_CONVERSATION_SCRIPT_TONIGHT_SHORTLIST") {
+            // Three recipe-card states for review: everything present with
+            // something expiring (one tomato for a two-tomato recipe, so the
+            // presence-only wording is exercised), a long shortfall that has to
+            // wrap at accessibility sizes, and a transient draft.
+            // Dates are explicit, never left to the suggested-expiry default, so
+            // the scripted reply in UITestAIConversationTransport can state them.
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date())
+            let inTwoDays = Calendar.current.date(byAdding: .day, value: 2, to: Date())
+            let nextWeek = Calendar.current.date(byAdding: .day, value: 10, to: Date())
+            kitchenStoreInstance.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nextWeek)
+            kitchenStoreInstance.addInventory(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: tomorrow)
+            kitchenStoreInstance.addInventory(name: "鸡腿肉", quantity: 2, unit: "块", expiryDate: inTwoDays)
+            for recipe in [
+                Recipe(id: "rec-tomato-egg", title: "番茄炒蛋", cookingTime: 15, difficulty: "简单", tags: ["家常菜"],
+                       ingredients: ["番茄 2 个", "鸡蛋 3 个"], steps: ["鸡蛋打散炒熟盛出。", "番茄炒软后倒回鸡蛋。"]),
+                Recipe(id: "rec-kung-pao", title: "宫保鸡丁", cookingTime: 25, difficulty: "中等", tags: ["川菜"],
+                       ingredients: ["鸡腿肉 300 克", "花生米 50 克", "干辣椒 8 个", "大葱 1 根", "生姜 1 块", "大蒜 20 克"],
+                       steps: ["鸡肉切丁腌制。", "爆香辣椒后下鸡丁。", "加入花生米翻匀。"])
+            ] {
+                try? recipeStoreInstance.saveUserRecipe(recipe)
+            }
+        }
         if testArgs.contains("UITEST_AI_CONVERSATION_SEED_SNAPSHOT_FALLBACK") {
             let p = persistence.conversations
             let now = Date()
