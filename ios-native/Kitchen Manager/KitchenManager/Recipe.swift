@@ -161,9 +161,16 @@ nonisolated enum RecipeIngredientClassifier {
         "豆粉", "淀粉", "生粉", "红薯淀粉", "玉米淀粉", "木薯粉", "水淀粉", "淀粉水", "炸粉", "腌肉粉",
         "食用油", "菜籽油", "菜油", "花生油", "猪油", "黄油", "橄榄油", "植物油", "调和油",
         "花椒", "花椒粉", "辣椒粉", "干辣椒", "八角", "桂皮", "香叶", "孜然", "五香粉", "十三香",
-        "清水", "水", "高汤", "骨汤", "鸡汤", "泡椒水"
+        "清水", "水", "高汤", "骨汤", "鸡汤", "泡椒水",
+        // Names the curated Sichuan library writes for the same things.
+        "汤", "红酱油", "甜酱", "豆瓣", "郫县豆瓣酱", "豆豉", "绍酒", "醪糟汁", "红糖", "冰糖汁",
+        "胡椒", "胡椒面", "花椒面", "五香面", "三奈", "草果", "陈皮", "泡辣椒", "泡红辣椒", "熟油辣椒",
+        "化猪油", "混合油", "生菜油", "豆腐乳水"
     ]
-    private static let aromaticNames: Set<String> = ["葱", "葱花", "姜", "姜末", "姜片", "蒜", "蒜末", "蒜片", "香菜"]
+    private static let aromaticNames: Set<String> = [
+        "葱", "葱花", "葱白", "葱节", "姜", "姜末", "姜片", "姜米", "蒜", "蒜末", "蒜片", "蒜米",
+        "葱姜", "姜葱", "香菜"
+    ]
     private static let quantityHintPattern = #"(?:少许|适量|[一二两半]?[勺匙]|汤匙|茶匙|克|毫升|杯|用于(?:腌制|勾芡|炸制|调味)|腌制|勾芡|炝锅|调味)"#
 
     static func classify(
@@ -209,7 +216,9 @@ nonisolated enum RecipeIngredientClassifier {
     }
 
     private static func ingredientName(from line: String) -> String {
-        line
+        // The shared parser first: it knows "2 g", "1/2 茶匙" and the like,
+        // which the pattern below does not, so "盐 2 g" is looked up as 盐.
+        IngredientParser.parse(line).displayName
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: #"\s*(?:\d+(?:\.\d+)?|[一二两半]+)?\s*(?:个|根|把|棵|块|袋|盒|片|只|条|份|勺|匙|汤匙|茶匙|克|毫升|杯|适量|少许).*$"#, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -278,6 +287,16 @@ final class RecipeStore: ObservableObject {
 
     func recipe(id: String) -> Recipe? {
         recipes.first { $0.id == id } ?? Recipe.samples.first { $0.id == id }
+    }
+
+    /// The library's current version of a recipe a screen captured earlier:
+    /// the user's copy, else the shared one, else the captured value itself.
+    /// Same precedence as `recipes`, without building the merged list on
+    /// every read of a view body.
+    func currentVersion(of recipe: Recipe) -> Recipe {
+        userRecipes.first { $0.id == recipe.id }
+            ?? remoteRecipes.first { $0.id == recipe.id }
+            ?? recipe
     }
 
     init(

@@ -397,6 +397,25 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         isStaple && stapleStatus == .low
     }
 
+    /// A staple tracked as 有货 / 快没了 / 缺货 rather than by count. Its quantity
+    /// is a placeholder kept in step with that status, never an amount to deduct.
+    var isStatusTrackedStaple: Bool {
+        isStaple && stapleTrackingMode == .status
+    }
+
+    /// A status-tracked staple has no real count, but every reader of stock
+    /// (`isAvailable`: recipe matching, shopping, AI) still goes by `quantity`.
+    /// Keeps the two in step the way `cycleStapleStatus` does: 缺货 is 0,
+    /// 有货 / 快没了 is at least 1.
+    mutating func syncQuantityWithStapleStatus() {
+        guard isStaple, stapleTrackingMode == .status else { return }
+        if stapleAvailabilityStatus == .missing {
+            quantity = 0
+        } else if quantity <= 0 {
+            quantity = 1
+        }
+    }
+
     var stapleStatus: StapleStockStatus {
         if stapleTrackingMode == .status {
             switch stapleAvailabilityStatus {
@@ -533,10 +552,22 @@ enum InventoryExpiryStatus: String, Hashable {
     }
 }
 
-enum PantryStapleError: LocalizedError {
+enum PantryStapleError: LocalizedError, Equatable {
     case missingName
+    /// A same-name batch exists and the user did not pick it. Saving would
+    /// overwrite that batch's quantity and date, so it is refused instead.
+    case alreadyInInventory(name: String, isStaple: Bool)
 
-    var errorDescription: String? { "请填写常备食材名称。" }
+    var errorDescription: String? {
+        switch self {
+        case .missingName:
+            return "请填写常备食材名称。"
+        case let .alreadyInInventory(name, isStaple):
+            return isStaple
+                ? "常备货架上已有「\(name)」，可以直接在货架里编辑它。"
+                : "库存里已有「\(name)」。请在上方「从现有库存选择」里选它，以免改掉那一批的数量和保质期。"
+        }
+    }
 }
 
 nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
@@ -597,6 +628,13 @@ nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
         )
         isCooked = try container.decodeIfPresent(Bool.self, forKey: .isCooked) ?? false
     }
+}
+
+extension MealPlanItem {
+    /// Shown where a plan names a recipe the library cannot resolve. Retrying
+    /// never brings such a recipe back, so the copy says what the member can do
+    /// instead.
+    static let missingRecipeExplanation = "这道菜没有保存在菜谱库里，无法查看做法或开始烹饪。计划仍然保留，可以移出后重新添加。"
 }
 
 extension MealPlanItem {
@@ -939,7 +977,13 @@ final class KitchenStore: ObservableObject {
     @Published var preparedComponents: [PreparedComponent] = [] { didSet { persistPreparedComponentsIfNeeded() } }
     /// Event-level special plans (multi-dish events). A separate planning source
     /// from `plans`; `PlannerProjection` merges the two for the Planner surface.
-    @Published var specialPlans: [SpecialPlan] = [] { didSet { persistSpecialPlansIfNeeded() } }
+    @Published var specialPlans: [SpecialPlan] = [] { didSet { persistSpecialPlansIfNeeded(previous: oldValue) } }
+    /// The stored special plans could not be read at launch, so `specialPlans`
+    /// is an empty stand-in. The table is only ever written whole: writing it
+    /// back would delete every record nobody could read. Ordinary edits are
+    /// refused until a clear-all or a restore leaves the table in a known state.
+    private var specialPlanLoadFailed = false
+    static let specialPlansUnreadableWriteRefusedNotice = "特殊计划暂时无法读取，为保护原有记录，这次修改没有保存。"
     @Published var inventoryNotice: String?
     @Published var shoppingNotice: String?
     @Published var planNotice: String?
@@ -1144,6 +1188,7 @@ final class KitchenStore: ObservableObject {
             specialPlans = try self.specialPlanPersistence.loadPlans()
         } catch {
             specialPlans = []
+            specialPlanLoadFailed = true
             specialPlanNotice = "特殊计划暂时无法读取，原始数据仍保留在设备上。"
             #if DEBUG
             print("[SpecialPlanPersistence] load failed: \(error)")
@@ -1292,6 +1337,12 @@ final class KitchenStore: ObservableObject {
                 && Self.expiryDatesCanMerge($0.expiryDate, effectiveExpiryDate)
         }) {
             inventory[index].quantity += safeQuantity
+            // A status-tracked staple reads its shelf state, not its quantity,
+            // so a stock-in has to say it is back — otherwise 盐 bought today
+            // still shows 缺货. Quantity-mode staples derive status already.
+            if inventory[index].isStaple, inventory[index].stapleTrackingMode == .status {
+                inventory[index].stapleAvailabilityStatus = .available
+            }
             // A more specific incoming kind promotes an ordinary row (the old
             // `isStaple || isStaple` rule, generalised); an already-classified
             // row is never silently reclassified by a later import.
@@ -1418,6 +1469,9 @@ final class KitchenStore: ObservableObject {
         planNotice = nil
         consumptionNotice = nil
         weeklyPlanNotice = nil
+        // The special-plan table was just emptied on purpose, so it is known again.
+        specialPlanLoadFailed = false
+        specialPlanNotice = nil
     }
 
     // MARK: - Special plans
@@ -1499,15 +1553,23 @@ final class KitchenStore: ObservableObject {
         return true
     }
 
-    private func persistSpecialPlansIfNeeded() {
+    private func persistSpecialPlansIfNeeded(previous: [SpecialPlan]) {
         guard !isLoading, !suppressSpecialPlanPersistence else { return }
+        guard !specialPlanLoadFailed else {
+            // Refused edits do not survive in memory either: the screen must
+            // not show a plan that the next launch will not have.
+            specialPlanNotice = Self.specialPlansUnreadableWriteRefusedNotice
+            suppressSpecialPlanPersistence = true
+            specialPlans = previous
+            suppressSpecialPlanPersistence = false
+            return
+        }
         do {
             try specialPlanPersistence.replacePlans(with: specialPlans)
         } catch {
-            // No view reads `specialPlanNotice` today. If one ever does, the
-            // Special Plan menu acceptance path would show this *and* its own
-            // `.planSaveFailed` message for one failure; that surface should
-            // defer to the caller's more specific copy.
+            // Home's module issues show `specialPlanNotice` as a passive row;
+            // the Special Plan menu acceptance path still shows its own, more
+            // specific `.planSaveFailed` message where the failure happened.
             specialPlanNotice = "特殊计划保存失败，请稍后重试。"
             #if DEBUG
             print("[SpecialPlanPersistence] save failed: \(error)")
@@ -1549,6 +1611,15 @@ final class KitchenStore: ObservableObject {
             )
         }
         if updated != plans { plans = updated }
+    }
+
+    /// Meals and Special Plan dishes still to cook that name this recipe, so
+    /// deleting it can say what would be left unable to open it.
+    func uncookedPlanReferenceCount(recipeID: String) -> Int {
+        plans.count { !$0.isCooked && $0.recipeID == recipeID }
+            + specialPlans.reduce(0) { total, plan in
+                total + plan.dishes.count { !$0.isCooked && $0.recipeID == recipeID }
+            }
     }
 
     func markPlanCooked(_ plan: MealPlanItem) {
@@ -1840,6 +1911,10 @@ final class KitchenStore: ObservableObject {
     /// `didSet`, where a failure can only become `specialPlanNotice` copy while
     /// the in-memory array keeps a change the disk never took.
     private func commitSpecialPlans(_ updated: [SpecialPlan]) -> Bool {
+        guard !specialPlanLoadFailed else {
+            specialPlanNotice = Self.specialPlansUnreadableWriteRefusedNotice
+            return false
+        }
         do {
             try specialPlanPersistence.replacePlans(with: updated)
         } catch {
@@ -1898,6 +1973,16 @@ final class KitchenStore: ObservableObject {
         updated[planIndex].updatedAt = now
         guard commitSpecialPlans(updated) else { return .persistenceFailed }
         return .saved(updated[planIndex])
+    }
+
+    /// Marks a Special Plan dish cooked after its consumption was confirmed (or
+    /// skipped for an event away from home), in the shape the confirmation
+    /// sheet reports back. Shared by the plan's tick and the recipe page's cook.
+    func completeSpecialPlanDish(planID: UUID, dishID: UUID) -> CookConsumptionCompletionOutcome {
+        if case .saved = setSpecialPlanDishCookedPersisted(planID: planID, dishID: dishID, isCooked: true) {
+            return .completed
+        }
+        return .dishStateSaveFailed(message: "菜品完成状态未保存，请重试。")
     }
 
     /// Restates which recipe named dishes point at, leaving the rest of the
@@ -2070,9 +2155,13 @@ final class KitchenStore: ObservableObject {
 
         for draft in drafts where draft.isSelected {
             guard var remaining = draft.consumedQuantity, remaining > 0 else { continue }
+            // A status-tracked staple holds a status, not a count, so its
+            // placeholder quantity is never deducted — even by a draft built
+            // elsewhere. Same rule as `InventoryConsumptionPlanner`.
             let matchingIndices = updatedInventory.indices
                 .filter {
                     updatedInventory[$0].isAvailable
+                        && !updatedInventory[$0].isStatusTrackedStaple
                         && IngredientNormalizer.matchKey(updatedInventory[$0].name) == IngredientNormalizer.matchKey(draft.ingredientName)
                 }
                 .sorted { (updatedInventory[$0].remainingDays ?? 9999) < (updatedInventory[$1].remainingDays ?? 9999) }
@@ -2080,8 +2169,17 @@ final class KitchenStore: ObservableObject {
             for index in matchingIndices {
                 guard remaining > 0 else { break }
                 let item = updatedInventory[index]
-                let convertedAvailable = draft.requiredUnit
-                    .flatMap { UnitConverter.convert(item.quantity, from: item.unit, to: $0) } ?? item.quantity
+                // Same rule the confirmation sheet sums stock by: a batch whose
+                // unit cannot be converted to the recipe's (1 盒 vs 个, 份 vs 克)
+                // was never counted for this line, so it is left untouched rather
+                // than deducted as if the numbers shared a unit.
+                let convertedAvailable: Double
+                if let requiredUnit = draft.requiredUnit {
+                    guard let converted = UnitConverter.convert(item.quantity, from: item.unit, to: requiredUnit) else { continue }
+                    convertedAvailable = converted
+                } else {
+                    convertedAvailable = item.quantity
+                }
                 guard convertedAvailable > 0 else { continue }
 
                 let consumeFromThisBatch = min(remaining, convertedAvailable)
@@ -2343,11 +2441,16 @@ final class KitchenStore: ObservableObject {
         let cleanName = IngredientNormalizer.normalizedName(name)
         let cleanUnit = IngredientNormalizer.normalizedUnit(unit)
         guard !cleanName.isEmpty else { throw PantryStapleError.missingName }
+        // Only the row the caller names is updated. A same-name batch that was
+        // not picked keeps its own quantity and date: it is reported, never
+        // silently overwritten.
         let index = id.flatMap { target in inventory.firstIndex(where: { $0.id == target }) }
-            ?? inventory.firstIndex(where: {
-                IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(cleanName)
-                    && IngredientNormalizer.normalizedUnit($0.unit) == cleanUnit
-            })
+        if index == nil, let existing = inventory.first(where: {
+            IngredientNormalizer.matchKey($0.name) == IngredientNormalizer.matchKey(cleanName)
+                && IngredientNormalizer.normalizedUnit($0.unit) == cleanUnit
+        }) {
+            throw PantryStapleError.alreadyInInventory(name: existing.name, isStaple: existing.isStaple)
+        }
         if let index {
             inventory[index].name = cleanName
             inventory[index].quantity = max(0, quantity)
@@ -2370,9 +2473,10 @@ final class KitchenStore: ObservableObject {
             inventory[index].stapleCategory = category?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
             inventory[index].stapleTrackingMode = trackingMode
             inventory[index].stapleAvailabilityStatus = availabilityStatus
+            inventory[index].syncQuantityWithStapleStatus()
             inventory[index].updatedAt = Date()
         } else {
-            inventory.append(InventoryItem(
+            var staple = InventoryItem(
                 name: cleanName,
                 quantity: max(0, quantity),
                 unit: cleanUnit,
@@ -2387,7 +2491,9 @@ final class KitchenStore: ObservableObject {
                 stapleCategory: category,
                 stapleTrackingMode: trackingMode,
                 stapleAvailabilityStatus: availabilityStatus
-            ))
+            )
+            staple.syncQuantityWithStapleStatus()
+            inventory.append(staple)
         }
     }
 
@@ -2736,6 +2842,8 @@ final class KitchenStore: ObservableObject {
         suppressSpecialPlanPersistence = true
         specialPlans = payload.specialPlans
         suppressSpecialPlanPersistence = false
+        // What was just published is what is stored, so the table is readable.
+        specialPlanLoadFailed = false
     }
 
     func toggleShopping(_ item: KitchenShoppingItem) {
@@ -2795,11 +2903,29 @@ final class KitchenStore: ObservableObject {
         shoppingItems.removeAll { $0.isDone }
     }
 
-    func markAllPendingShoppingPurchased() {
-        guard shoppingItems.contains(where: { !$0.isDone }) else { return }
+    /// Ticks every pending item and returns the ids it ticked, which is what
+    /// `unmarkShoppingPurchased(_:)` needs to undo exactly this tap.
+    @discardableResult
+    func markAllPendingShoppingPurchased() -> [UUID] {
+        let pendingIDs = shoppingItems.filter { !$0.isDone }.map(\.id)
+        guard !pendingIDs.isEmpty else { return [] }
         var updated = shoppingItems
         for index in updated.indices where !updated[index].isDone {
             updated[index].isDone = true
+        }
+        shoppingItems = updated
+        return pendingIDs
+    }
+
+    /// Undo for `markAllPendingShoppingPurchased()`: the rows it ticked that
+    /// are still ticked go back to pending. Rows already stocked in or deleted
+    /// since are gone and stay gone; rows ticked before the tap are untouched.
+    func unmarkShoppingPurchased(_ ids: [UUID]) {
+        let targets = Set(ids)
+        guard shoppingItems.contains(where: { targets.contains($0.id) && $0.isDone }) else { return }
+        var updated = shoppingItems
+        for index in updated.indices where targets.contains(updated[index].id) {
+            updated[index].isDone = false
         }
         shoppingItems = updated
     }
@@ -2888,13 +3014,20 @@ final class KitchenStore: ObservableObject {
     }
 
     @discardableResult
-    func duplicateWeeklyPlanForNextWeek() -> WeeklyMealPlan? {
-        guard let weeklyPlan,
-              let nextStart = Calendar.current.date(byAdding: .day, value: 7, to: weeklyPlan.startDate) else {
+    /// Copies `source` (the menu on screen; the stored one when nil) to start
+    /// seven days later, but never before today: a copy of an old menu would
+    /// otherwise land on days that are already gone.
+    func duplicateWeeklyPlanForNextWeek(
+        from source: WeeklyMealPlan? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> WeeklyMealPlan? {
+        guard let original = source ?? weeklyPlan,
+              let shifted = calendar.date(byAdding: .day, value: 7, to: original.startDate) else {
             return nil
         }
-        var copy = weeklyPlan
-        copy.startDate = nextStart
+        var copy = original
+        copy.startDate = max(calendar.startOfDay(for: shifted), calendar.startOfDay(for: now))
         copy.createdAt = Date()
         // A copy is a new menu, so it has never been added to the meal plan. It
         // must not inherit the original's materialization receipt: those ids
@@ -3166,10 +3299,7 @@ final class KitchenStore: ObservableObject {
         let defaults = UserDefaults.standard
         guard defaults.object(forKey: "expiryNotificationsEnabled") != nil,
               defaults.bool(forKey: "expiryNotificationsEnabled") else { return }
-        var leadTimes: Set<ExpiryNotificationLeadTime> = []
-        if defaults.bool(forKey: "notifyLeadTime1Day") { leadTimes.insert(.oneDayBefore) }
-        if defaults.bool(forKey: "notifyLeadTime3Day") { leadTimes.insert(.threeDaysBefore) }
-        if defaults.bool(forKey: "notifyLeadTimeDayOf") { leadTimes.insert(.dayOf) }
+        let leadTimes = ExpiryNotificationLeadTime.enabled(in: defaults)
         Task { @MainActor in
             ExpiryNotificationScheduler.rescheduleAll(for: inventory, leadTimes: leadTimes)
         }

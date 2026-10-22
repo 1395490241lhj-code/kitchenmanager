@@ -221,7 +221,12 @@ final class ComponentMealUITests: XCTestCase {
         field.tap()
         field.typeText("卤鸡腿")
 
-        XCTAssertFalse(app.staticTexts["prepared.editor.nameHint"].exists)
+        // Typing goes through partial names (卤, 卤鸡) that may show the hint
+        // for a moment, so wait for the final name to settle before judging.
+        XCTAssertTrue(
+            app.staticTexts["prepared.editor.nameHint"].waitForNonExistence(timeout: 3),
+            "a recognisable name shows no hint"
+        )
     }
 
     // MARK: - Appearance

@@ -127,7 +127,10 @@ struct HomeView: View {
 #endif
         return HomeDashboardModuleIssue.issues(
             inventoryNotice: kitchenStore.inventoryNotice,
-            shoppingNotice: kitchenStore.shoppingNotice
+            shoppingNotice: kitchenStore.shoppingNotice,
+            planNotice: kitchenStore.planNotice,
+            weeklyPlanNotice: kitchenStore.weeklyPlanNotice,
+            specialPlanNotice: kitchenStore.specialPlanNotice
         )
     }
 
@@ -207,7 +210,10 @@ struct HomeView: View {
                                 kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
                             },
                             onAddToToday: addRecommendationToPlan,
-                            onViewRecipe: { selectedRecipe = $0 },
+                            onViewRecipe: {
+                                recommendationStore.noteRecommendationsBrowsed()
+                                selectedRecipe = $0
+                            },
                             onRegenerate: regenerateHomeRecommendations
                         )
                     }
@@ -247,6 +253,7 @@ struct HomeView: View {
                                 switch issue {
                                 case .inventory: navigationStore.showInventory(.all)
                                 case .shopping: navigationStore.showShopping()
+                                case .plans, .weeklyPlan, .specialPlans: navigationStore.showPlanner()
                                 }
                             }
                         )
@@ -297,7 +304,7 @@ struct HomeView: View {
         // The existing generation flow, over the same plans the hero measures.
         // It already separates covered from missing and preselects the latter.
         .navigationDestination(isPresented: $isShowingMissingShopping) {
-            ShoppingListGenerationView(source: .todayPlans(kitchenStore.todayPlans))
+            ShoppingListGenerationView(source: .todayPlans(uncookedTodayPlans))
         }
         // An explicit selection + `navigationDestination(item:)`, never
         // `NavigationLink(value:)` — see the ExpirySheet note above for why
@@ -307,7 +314,7 @@ struct HomeView: View {
             if let recipe = recipeStore.recipe(id: plan.recipeID) {
                 RecipeDetailView(recipe: recipe, plan: plan)
             } else {
-                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text("这份计划保留不变，可以稍后重试。"))
+                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text(MealPlanItem.missingRecipeExplanation))
             }
         }
         .navigationDestination(item: $selectedRecipe) { recipe in
@@ -417,7 +424,7 @@ struct HomeView: View {
         NavigationStack {
             ImportRecipeView(
                 initialURLText: SharedImportCoordinator.prefillText(for: request),
-                autoStart: true,
+                autoStart: sharedImportCoordinator.shouldAutoStart(request),
                 onSaved: {
                     sharedImportCoordinator.markHandedOff(request)
                     showToast("已保存到菜谱库")
@@ -428,6 +435,15 @@ struct HomeView: View {
                     Button("关闭") {
                         sharedImportCoordinator.snooze(request)
                     }
+                }
+                // Closing keeps the share for later; this removes it, for a
+                // link that cannot be read or is already in the library.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("不再导入", role: .destructive) {
+                        sharedImportCoordinator.discard(request)
+                        showToast("已移除这条分享")
+                    }
+                    .accessibilityIdentifier("sharedImport.discard")
                 }
             }
         }
@@ -493,13 +509,23 @@ struct HomeView: View {
         HomeDashboardHeaderModel(displayName: displayName, householdName: householdName)
     }
 
+    /// 1.8s. UI tests can hold it longer, so the idle wait after a tap on a slow
+    /// simulator cannot outrun it (as `UndoToastTiming` does for 撤销); release
+    /// builds ignore the argument.
+    private static var toastLifetime: Duration {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("UITEST_LONG_FEEDBACK_TOAST") { return .seconds(20) }
+        #endif
+        return .seconds(1.8)
+    }
+
     private func showToast(_ message: String, style: AppFeedbackStyle = .success) {
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
             toastStyle = style
             toastMessage = message
         }
         Task {
-            try? await Task.sleep(for: .seconds(1.8))
+            try? await Task.sleep(for: Self.toastLifetime)
             await MainActor.run {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { toastMessage = nil }
             }
@@ -594,11 +620,37 @@ struct HomeView: View {
         }
     }
 
+    /// Today's meals still to cook — what 还缺 and its shopping speak for.
+    private var uncookedTodayPlans: [MealPlanItem] {
+        kitchenStore.todayPlans.filter { !$0.isCooked }
+    }
+
+    /// True when the pending 买菜清单 already holds everything today's meals
+    /// still need. Read through the same generator the 还缺 row opens; this is
+    /// all of today's meals at once, so it may subtract the pending list, while
+    /// the screen behind the row only marks each listed item.
+    private var isTodayShortfallAlreadyListed: Bool {
+        let draft = ShoppingListGenerator().generate(
+            source: .todayPlans(uncookedTodayPlans),
+            inventory: kitchenStore.inventory,
+            existingShoppingItems: kitchenStore.shoppingItems,
+            recipeStore: recipeStore,
+            pendingList: .subtract
+        )
+        return draft.missingItems.isEmpty && !draft.alreadyListedItems.isEmpty
+    }
+
     private func addRecommendationToPlan(_ recipe: Recipe) {
-        let alreadyAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
-        kitchenStore.addPlan(recipe: recipe)
-        UINotificationFeedbackGenerator().notificationOccurred(alreadyAdded ? .warning : .success)
-        showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
+        let outcome = HomeRecommendationPlanning.addToToday(
+            recipe,
+            recipeStore: recipeStore,
+            kitchenStore: kitchenStore
+        )
+        if let planned = outcome.plannedRecipe, planned.id != recipe.id {
+            recommendationStore.replaceRecommendationRecipe(id: recipe.id, with: planned)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(outcome.toastStyle == .success ? .success : .warning)
+        showToast(outcome.toastMessage, style: outcome.toastStyle)
     }
 
     /// Tonight's hero copy. Every number is counted from the plans on screen or
@@ -613,8 +665,10 @@ struct HomeView: View {
         let minutes = plans.reduce(into: 0) { total, plan in
             total += recipeStore.recipe(id: plan.recipeID)?.cookingTime ?? 0
         }
+        // Readiness is the exception: only dishes still to cook can lack an
+        // ingredient, and a cooked dish's food is already used up.
         let readiness = HomeMealReadinessProjection.readiness(
-            plans: plans,
+            plans: dashboard.pendingPlans,
             recipes: { recipeStore.recipe(id: $0) },
             inventory: kitchenStore.inventory
         )
@@ -676,16 +730,18 @@ struct HomeView: View {
                 .accessibilityIdentifier("home.specialPlan.open")
 
             case .planExecution:
+                let missing = HomeMealReadinessProjection.missingIngredients(
+                    plans: dashboard.pendingPlans,
+                    recipes: { recipeStore.recipe(id: $0) },
+                    inventory: kitchenStore.inventory
+                )
                 TodayPlanSummaryCard(
                     dashboard: dashboard,
                     hero: heroModel(for: dashboard),
                     onSelectPlan: { selectedPlan = $0 },
                     onStartCooking: startCooking,
-                    missingIngredients: dashboard.allPlans.allSatisfy(\.isCooked) ? [] : HomeMealReadinessProjection.missingIngredients(
-                        plans: dashboard.allPlans,
-                        recipes: { recipeStore.recipe(id: $0) },
-                        inventory: kitchenStore.inventory
-                    ),
+                    missingIngredients: missing,
+                    isMissingAlreadyListed: !missing.isEmpty && isTodayShortfallAlreadyListed,
                     onAddMissingToShopping: { isShowingMissingShopping = true }
                 )
 
@@ -703,7 +759,10 @@ struct HomeView: View {
                         kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
                     },
                     onAddToToday: addRecommendationToPlan,
-                    onViewRecipe: { selectedRecipe = $0 },
+                    onViewRecipe: {
+                        recommendationStore.noteRecommendationsBrowsed()
+                        selectedRecipe = $0
+                    },
                     onRegenerate: regenerateHomeRecommendations
                 )
 
@@ -1132,6 +1191,8 @@ private struct TodayPlanSummaryCard: View {
     /// Ingredients the hero's readiness counts as not in stock. Empty hides
     /// the 还缺 line, as does a fully cooked menu.
     var missingIngredients: [String] = []
+    /// The pending 买菜清单 already covers `missingIngredients`.
+    var isMissingAlreadyListed = false
     var onAddMissingToShopping: () -> Void = {}
 
     var body: some View {
@@ -1251,7 +1312,7 @@ private struct TodayPlanSummaryCard: View {
                     .foregroundStyle(KitchenTheme.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("加入买菜清单")
+                Text(isMissingAlreadyListed ? "已在清单" : "加入买菜清单")
                     .fontWeight(.semibold)
                     .fixedSize()
             }
@@ -1263,8 +1324,10 @@ private struct TodayPlanSummaryCard: View {
         .buttonStyle(.plain)
         .foregroundStyle(KitchenTheme.cookingGreen)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("库存还缺\(missingIngredients.joined(separator: "、"))")
-        .accessibilityHint("生成买菜清单")
+        .accessibilityLabel(
+            "库存还缺\(missingIngredients.joined(separator: "、"))" + (isMissingAlreadyListed ? "，已在买菜清单" : "")
+        )
+        .accessibilityHint(isMissingAlreadyListed ? "查看买菜清单的核对结果" : "生成买菜清单")
         .accessibilityAddTraits(.isButton)
         .accessibilityIdentifier("home.today.missing.addToShopping")
     }
@@ -1923,7 +1986,7 @@ private struct HomeModuleIssues: View {
         Text(issue.title)
             .font(.footnote)
             .foregroundStyle(.primary)
-            .accessibilityIdentifier(issue == .inventory ? "home.issue.inventory" : "home.issue.shopping")
+            .accessibilityIdentifier(issue.accessibilityIdentifier)
     }
 
     private func issueAction(_ issue: HomeDashboardModuleIssue) -> some View {
@@ -2268,6 +2331,9 @@ struct RecipeRecommendationBrowserView: View {
         .background(KitchenTheme.canvas)
         .navigationTitle("推荐")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            recommendationStore.noteRecommendationsBrowsed()
+        }
         .task(id: recipeStore.recipes.count) {
             loadDefaultRecommendationsIfNeeded()
         }
@@ -2551,12 +2617,18 @@ struct RecipeRecommendationBrowserView: View {
     }
 
     private func addRecommendationToPlan(_ recipe: Recipe) {
-        let alreadyAdded = kitchenStore.todayPlans.contains { $0.recipeID == recipe.id }
-        kitchenStore.addPlan(recipe: recipe)
-        UINotificationFeedbackGenerator().notificationOccurred(
-            alreadyAdded ? .warning : .success
+        let outcome = HomeRecommendationPlanning.addToToday(
+            recipe,
+            recipeStore: recipeStore,
+            kitchenStore: kitchenStore
         )
-        showToast(alreadyAdded ? "已在今天" : "已加入今天", style: alreadyAdded ? .warning : .success)
+        if let planned = outcome.plannedRecipe, planned.id != recipe.id {
+            recommendationStore.replaceRecommendationRecipe(id: recipe.id, with: planned)
+        }
+        UINotificationFeedbackGenerator().notificationOccurred(
+            outcome.toastStyle == .success ? .success : .warning
+        )
+        showToast(outcome.toastMessage, style: outcome.toastStyle)
     }
 
     private func showToast(_ message: String, style: AppFeedbackStyle = .success) {

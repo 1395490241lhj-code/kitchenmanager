@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+import UserNotifications
 
 /// Unified presentation limits for shared screen chrome — navigation titles,
 /// summaries, section headers, filter bars, toolbar/tab glyphs, and the
@@ -246,10 +247,13 @@ struct InventoryView: View {
                                 .hidden
                             )
                             .accessibilityIdentifier("inventory.item.\(item.id.uuidString)")
+                            // Explicit tint: the app-wide blue tint otherwise
+                            // overrides the destructive red.
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 Button("删除", role: .destructive) {
                                     itemPendingDeletion = item
                                 }
+                                .tint(AppTheme.danger)
                             }
                             // The commonest change to a food row. Only offered
                             // while there is something left to use up.
@@ -368,7 +372,10 @@ struct InventoryView: View {
                             }
                             .frame(minHeight: 44)
                         }
+                        // Rows already on the pending list stay out of the batch,
+                        // or 加入 N 项常备补货 would add them a second time.
                         let stapleSuggestions = restockSuggestions.filter { $0.source == .pantryStaple }
+                            .filter { !$0.isAlreadyOnShoppingList }
                         if !stapleSuggestions.isEmpty {
                             Button {
                                 stapleSuggestions.forEach(addSuggestion)
@@ -608,16 +615,26 @@ struct InventoryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    @ViewBuilder
     private func restockSuggestionButton(_ suggestion: RestockSuggestion) -> some View {
-        Button {
-            addSuggestion(suggestion)
-        } label: {
-            Text("加入清单")
+        if suggestion.isAlreadyOnShoppingList {
+            // Tapping again used to merge the same amount in a second time.
+            Text("已在清单")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 .frame(minHeight: AppTheme.minimumHitTarget)
-                .contentShape(Rectangle())
+                .accessibilityIdentifier("inventory.restock.alreadyListed")
+        } else {
+            Button {
+                addSuggestion(suggestion)
+            } label: {
+                Text("加入清单")
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("inventory.restock.add.button")
         }
-        .buttonStyle(.bordered)
-        .accessibilityIdentifier("inventory.restock.add.button")
     }
 }
 
@@ -841,6 +858,8 @@ struct ShoppingView: View {
     @State private var editingItem: KitchenShoppingItem?
     /// The last single-item removal, held only while its 撤销 toast is up.
     @State private var activeRemoval: ShoppingRemoval?
+    /// The rows the last 全部标记为已购买 ticked, held only while its 撤销 toast is up.
+    @State private var activeMarkAllIDs: [UUID]?
     @State private var removalToast: String?
     /// Identity of the current toast, so an older expiry never clears a newer one.
     @State private var removalToastToken: UUID?
@@ -1188,7 +1207,7 @@ struct ShoppingView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("全部标记为已购买", systemImage: "checkmark.circle") {
-                        store.markAllPendingShoppingPurchased()
+                        markAllPurchased()
                     }
                     .disabled(!bulkActions.canMarkAllPurchased)
 
@@ -1270,13 +1289,21 @@ struct ShoppingView: View {
             "清除 \(summary.purchasedCount) 项已购买项目？",
             isPresented: $isShowingClearPurchasedConfirm,
         ) {
+            // Ticked items have not been stocked in yet, so clearing them
+            // also drops them from what the kitchen knows it has. Say so, and
+            // offer the stock-in first.
+            Button("先全部入库") {
+                store.stockInCompletedShopping()
+                isPurchasedExpanded = false
+            }
+            .disabled(!bulkActions.canStockInPurchased)
             Button("清除已购买", role: .destructive) {
                 store.clearCompletedShopping()
                 isPurchasedExpanded = false
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("此操作只会删除已购买项目，待购买项目会保留。")
+            Text("这些已买的东西还没有入库，清除后不会记进库存。要记进库存，请先选「先全部入库」。待购买项目会保留。")
         }
         .alert(
             "买菜清单",
@@ -1309,6 +1336,7 @@ struct ShoppingView: View {
     /// tidying the list in the aisle slower than leaving it untidy.
     private func remove(_ item: KitchenShoppingItem) {
         guard let removal = store.removeShopping(id: item.id) else { return }
+        activeMarkAllIDs = nil
         activeRemoval = removal
         let token = UUID()
         removalToastToken = token
@@ -1316,13 +1344,28 @@ struct ShoppingView: View {
         scheduleRemovalToastExpiry(token: token)
     }
 
+    /// 全部标记为已购买 ticks the whole list in one tap, so it gets the same
+    /// 撤销 toast as a single removal instead of a confirmation.
+    private func markAllPurchased() {
+        let ticked = store.markAllPendingShoppingPurchased()
+        guard !ticked.isEmpty else { return }
+        activeRemoval = nil
+        activeMarkAllIDs = ticked
+        let token = UUID()
+        removalToastToken = token
+        withAnimation { removalToast = "已将 \(ticked.count) 项标记为已购买" }
+        scheduleRemovalToastExpiry(token: token)
+    }
+
     private func undoRemoval() {
         if let activeRemoval { store.restoreShopping(activeRemoval) }
+        if let activeMarkAllIDs { store.unmarkShoppingPurchased(activeMarkAllIDs) }
         dismissRemovalToast()
     }
 
     private func dismissRemovalToast() {
         activeRemoval = nil
+        activeMarkAllIDs = nil
         removalToastToken = nil
         withAnimation { removalToast = nil }
     }
@@ -1851,6 +1894,10 @@ struct SettingsView: View {
     @EnvironmentObject private var syncSmokeController: SyncSmokeController
     #endif
     @State private var isShowingPermissionDeniedAlert = false
+    /// Read on appear and on every return to the foreground, so a change made
+    /// in iOS Settings shows here.
+    @State private var notificationAuthorization: UNAuthorizationStatus?
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingClearDataAlert = false
     #if DEBUG
     @State private var isShowingSyncSmokeConfirmation = false
@@ -1953,11 +2000,11 @@ struct SettingsView: View {
 
             Section {
                 Toggle("食材到期提醒", isOn: Binding(
-                    get: { notificationsEnabled },
+                    get: { ExpiryNotificationScheduler.isReminderEffectivelyOn(stored: notificationsEnabled, authorization: notificationAuthorization) },
                     set: { handleNotificationsToggle($0) }
                 ))
                 .accessibilityIdentifier("settings.expiryNotifications.toggle")
-                if notificationsEnabled {
+                if ExpiryNotificationScheduler.isReminderEffectivelyOn(stored: notificationsEnabled, authorization: notificationAuthorization) {
                     Toggle(
                         ExpiryNotificationLeadTime.oneDayBefore.title,
                         isOn: $notifyLeadTime1Day
@@ -1975,7 +2022,7 @@ struct SettingsView: View {
                 }
 
                 Toggle("常备食材补货提醒", isOn: Binding(
-                    get: { stapleNotificationsEnabled },
+                    get: { ExpiryNotificationScheduler.isReminderEffectivelyOn(stored: stapleNotificationsEnabled, authorization: notificationAuthorization) },
                     set: { handleStapleNotificationsToggle($0) }
                 ))
                 .accessibilityIdentifier("settings.stapleNotifications.toggle")
@@ -1983,7 +2030,16 @@ struct SettingsView: View {
             } header: {
                 Text("提醒")
             } footer: {
-                Text("首次开启提醒时，会请求系统通知权限。")
+                if notificationAuthorization == .denied {
+                    Text("系统通知已关闭，提醒不会送达。在 iOS“设置”中允许 Kitchen Manager 发送通知后，这里会恢复你之前的选择。")
+                        .accessibilityIdentifier("settings.notifications.denied")
+                } else {
+                    Text("首次开启提醒时，会请求系统通知权限。常备食材补货提醒会在早上 9 点送达。")
+                }
+            }
+            .task { await refreshNotificationAuthorization() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await refreshNotificationAuthorization() } }
             }
             .onChange(of: notifyLeadTime1Day) { _, _ in rescheduleNotifications() }
             .onChange(of: notifyLeadTime3Day) { _, _ in rescheduleNotifications() }
@@ -2068,7 +2124,14 @@ struct SettingsView: View {
                 .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.cleardata.button")
             } footer: {
-                Text("此操作无法撤销，且不会影响远端菜谱库。")
+                VStack(alignment: .leading, spacing: 4) {
+                    // Backups leave user recipes out, so this is the one place
+                    // they can be lost for good. Said here, before the tap.
+                    Label("厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。", systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(AppTheme.warningInk)
+                        .accessibilityIdentifier("settings.cleardata.recipeWarning")
+                    Text("此操作无法撤销，且不会影响远端菜谱库。")
+                }
             }
 
             #if DEBUG
@@ -2110,7 +2173,7 @@ struct SettingsView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("这会删除本机的库存、常备设置、备餐、用餐与聚餐计划、每周菜单、买菜清单、消耗记录、用户菜谱、收藏和常做记录，无法撤销。远端菜谱库不会被删除。")
+            Text("这会删除本机的库存、常备设置、备餐、用餐与聚餐计划、每周菜单、买菜清单、消耗记录、用户菜谱、收藏和常做记录，无法撤销。注意：厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。远端菜谱库不会被删除。")
         }
         #if DEBUG
         .alert("Run Sync Smoke?", isPresented: $isShowingSyncSmokeConfirmation) {
@@ -2138,6 +2201,7 @@ struct SettingsView: View {
         }
         Task {
             let granted = await ExpiryNotificationScheduler.requestAuthorizationIfNeeded()
+            await refreshNotificationAuthorization()
             await MainActor.run {
                 notificationsEnabled = granted
                 if granted {
@@ -2161,6 +2225,10 @@ struct SettingsView: View {
         ExpiryNotificationScheduler.rescheduleAll(for: store.inventory, leadTimes: leadTimes)
     }
 
+    private func refreshNotificationAuthorization() async {
+        notificationAuthorization = await ExpiryNotificationScheduler.currentAuthorizationStatus()
+    }
+
     private func handleStapleNotificationsToggle(_ enabled: Bool) {
         guard enabled else {
             stapleNotificationsEnabled = false
@@ -2169,6 +2237,7 @@ struct SettingsView: View {
         }
         Task {
             let granted = await ExpiryNotificationScheduler.requestAuthorizationIfNeeded()
+            await refreshNotificationAuthorization()
             await MainActor.run {
                 stapleNotificationsEnabled = granted
                 if granted {
@@ -2232,7 +2301,11 @@ struct BackupRestoreView: View {
             }
 
             Section {
-                Text("备份包含库存与常备规则、用餐与聚餐计划、每周菜单、备餐、购物清单和消耗记录，不包含用户菜谱、收藏和常做记录。导入会替换备份范围内的本机数据。")
+                Label("备份不包含用户菜谱、收藏和常做记录。「清除全部本地数据」会一并删除它们，且无法从备份恢复。", systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.warningInk)
+                    .accessibilityIdentifier("backup.userRecipes.warning")
+                Text("备份包含库存与常备规则、用餐与聚餐计划、每周菜单、备餐、购物清单和消耗记录。导入会替换备份范围内的本机数据。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

@@ -320,4 +320,35 @@ final class WeeklyMenuMaterializationUITests: XCTestCase {
         let keep = app.buttons["weekly.result.recover.keep"]
         XCTAssertTrue(reveal(keep, in: app), "both choices stay reachable — \(diagnostics(keep, in: app))")
     }
+
+    // MARK: - A menu whose first day has passed
+
+    /// Opened three days after its first day: adding it asks before moving the
+    /// menu to today. 取消 keeps it unadded; agreeing adds it on the new days.
+    func testAPastMenuAsksToMoveToTodayAndCancellingAddsNothing() {
+        let app = launch("PLANNER_DATA_WEEKLY_PAST_START")
+        let add = app.buttons["weekly.result.materialize"]
+        XCTAssertTrue(reveal(add, in: app), diagnostics(add, in: app))
+        add.tap()
+
+        let alert = app.alerts["菜单日期已过"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "a past first day must be asked about")
+        let message = alert.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "整体顺延到今天开始")).firstMatch
+        XCTAssertTrue(message.exists, "the prompt must say the menu moves to today")
+        XCTAssertTrue(message.label.contains("9月7日"), "it names the original first day: \(message.label)")
+        XCTAssertTrue(message.label.contains("9月10日–9月12日"), "and the days it moves to: \(message.label)")
+        capture("PastStart-Prompt", app)
+
+        alert.buttons["weekly.stale.cancel"].firstMatch.tap()
+        XCTAssertFalse(isAddedStateVisible(app, timeout: 2), "取消 adds nothing")
+        XCTAssertTrue(add.exists && add.isEnabled, "the menu can still be added")
+
+        add.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "a cancelled move is asked about again")
+        alert.buttons["weekly.stale.confirm"].firstMatch.tap()
+        XCTAssertTrue(isAddedStateVisible(app), "agreeing adds the moved menu")
+        let range = element(app, "weekly.result.range")
+        XCTAssertTrue(range.label.contains("9月10日"), "the screen shows the days the meals were written on: \(range.label)")
+        capture("PastStart-Added", app)
+    }
 }

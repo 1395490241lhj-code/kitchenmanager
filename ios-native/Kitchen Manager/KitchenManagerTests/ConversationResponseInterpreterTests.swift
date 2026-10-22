@@ -130,9 +130,23 @@ final class ConversationResponseInterpreterTests: XCTestCase {
         reject("present_recipe_card", ["recipe": ["recipeID": "canonical-eggs", "title": "changed"]])
         reject("present_recipe_card", ["recipe": reference.merging(["steps": ["different"]]) { _, b in b }])
     }
-    func testSingleActionsRejectExplicitUnrepresentableServings() {
+    /// AI_LOGIC-1: the server advertises plannedServings on both single-meal
+    /// tools, so "今晚做红烧肉，4 个人吃" arrives with it. It used to be
+    /// refused outright; a stated whole number of servings is now carried.
+    func testSingleActionsCarryAStatedServingTarget() {
+        XCTAssertEqual(interpret("propose_add_recipe_to_tonight", valid("propose_add_recipe_to_tonight").merging(["plannedServings": 4]) { _, b in b }),
+                       .proposeAction(.addRecipeToTonight(recipe: block, plannedServings: 4)))
+        XCTAssertEqual(interpret("propose_replace_planned_meal", valid("propose_replace_planned_meal").merging(["plannedServings": 3]) { _, b in b }),
+                       .proposeAction(.replacePlannedMeal(planID: id, replacement: block, plannedServings: 3)))
+    }
+    func testSingleActionsReadANullServingTargetAsNotStated() {
         for name in ["propose_add_recipe_to_tonight", "propose_replace_planned_meal"] {
-            for servings: Any in [3, "3", NSNull()] { reject(name, valid(name).merging(["plannedServings": servings]) { _, b in b }) }
+            XCTAssertEqual(interpret(name, valid(name).merging(["plannedServings": NSNull()]) { _, b in b }), expected(name))
+        }
+    }
+    func testSingleActionsRejectUnrepresentableServings() {
+        for name in ["propose_add_recipe_to_tonight", "propose_replace_planned_meal"] {
+            for servings: Any in [true, "3", 1.5, 0, 13] { reject(name, valid(name).merging(["plannedServings": servings]) { _, b in b }) }
         }
     }
     func testBatchServingsRejectsCoercionFractionsAndOutOfRange() {
@@ -171,7 +185,7 @@ final class ConversationResponseInterpreterTests: XCTestCase {
         let c = AIConversationInterpretationContext(blockID: id, rowIDs: [], recipesByPath: [:],
             transientIdentitiesByPath: ["recipe": .init(blockID: rowID, recipeID: "generated")], calendar: context.calendar)
         let args: [String: Any] = ["recipe": ["title": "鸡蛋", "ingredients": [["item": "鸡蛋"]], "steps": ["煮熟"]]]
-        guard case .proposeAction(.addRecipeToTonight(let result)) = interpret("propose_add_recipe_to_tonight", args, context: c) else { return XCTFail() }
+        guard case .proposeAction(.addRecipeToTonight(let result, _)) = interpret("propose_add_recipe_to_tonight", args, context: c) else { return XCTFail() }
         XCTAssertTrue(result.isTransient); XCTAssertEqual(result.recipe.id, "generated"); XCTAssertEqual(result.id, rowID)
         XCTAssertEqual(result.recipe.ingredients, ["鸡蛋"]); XCTAssertEqual(result.recipe.steps, ["煮熟"])
     }

@@ -15,9 +15,28 @@ final class SharedImportCoordinator: ObservableObject {
     /// queue (never silently dropped) and will resurface on the next launch
     /// or when the user explicitly retries.
     private var snoozedRequestIDs: Set<UUID> = []
+    /// Requests the member has already been shown once and closed without
+    /// saving. Kept across launches so such a request — typically one whose
+    /// link could not be read or was already imported — no longer starts a
+    /// network import by itself on every launch; it waits for 开始识别.
+    /// Read lazily, never at launch.
+    private let defaults: UserDefaults
+    static let shownRequestIDsKey = "native_km_shared_import_shown_ids_v1"
 
-    init(queue: SharedImportQueue?) {
+    init(queue: SharedImportQueue?, defaults: UserDefaults = .standard) {
         self.queue = queue
+        self.defaults = defaults
+    }
+
+    private var shownRequestIDs: Set<UUID> {
+        get { Set((defaults.stringArray(forKey: Self.shownRequestIDsKey) ?? []).compactMap(UUID.init(uuidString:))) }
+        set { defaults.set(newValue.map(\.uuidString).sorted(), forKey: Self.shownRequestIDsKey) }
+    }
+
+    /// Whether presenting this request should start reading its link by
+    /// itself: only the first time it is shown.
+    func shouldAutoStart(_ request: SharedImportRequest) -> Bool {
+        !shownRequestIDs.contains(request.id)
     }
 
     var isQueueAvailable: Bool { queue != nil }
@@ -53,6 +72,11 @@ final class SharedImportCoordinator: ObservableObject {
             queue.remove(id: unsupported.id)
             snoozedRequestIDs.remove(unsupported.id)
         }
+        // Forget shown markers for requests that left the queue some other way.
+        let queuedIDs = Set(queued.map(\.id))
+        if !shownRequestIDs.isSubset(of: queuedIDs) {
+            shownRequestIDs = shownRequestIDs.intersection(queuedIDs)
+        }
 
         let candidates = queued.filter {
             $0.hasRequiredURL && !snoozedRequestIDs.contains($0.id)
@@ -85,6 +109,7 @@ final class SharedImportCoordinator: ObservableObject {
     func markHandedOff(_ request: SharedImportRequest) {
         queue?.remove(id: request.id)
         snoozedRequestIDs.remove(request.id)
+        shownRequestIDs.remove(request.id)
         clearIfCurrent(request)
     }
 
@@ -94,14 +119,18 @@ final class SharedImportCoordinator: ObservableObject {
     /// session to avoid the sheet popping back up on every scene-active.
     func snooze(_ request: SharedImportRequest) {
         snoozedRequestIDs.insert(request.id)
+        shownRequestIDs.insert(request.id)
         clearIfCurrent(request)
     }
 
     /// Explicit user-initiated "clear this" action, distinct from `snooze`:
-    /// actually removes the request from the queue.
+    /// actually removes the request from the queue. Wired to 不再导入, so a
+    /// share that cannot be imported no longer returns forever or fills the
+    /// 20-item queue the Share Extension refuses new shares beyond.
     func discard(_ request: SharedImportRequest) {
         queue?.remove(id: request.id)
         snoozedRequestIDs.remove(request.id)
+        shownRequestIDs.remove(request.id)
         clearIfCurrent(request)
     }
 

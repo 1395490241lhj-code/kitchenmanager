@@ -266,6 +266,139 @@ final class KitchenStoreTests: XCTestCase {
         XCTAssertTrue(store.inventory[0].isStaple, "isStaple is OR'ed across merges, never downgraded")
     }
 
+    /// 盐 tracked by status, marked 缺货, bought from the shopping list: the
+    /// shelf used to keep saying 缺货 because the merge only added quantity.
+    func test_stockIn_resetsAStatusModeStapleToAvailable() throws {
+        try store.saveStaple(
+            id: nil, name: "盐", quantity: 0, unit: "袋",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .status, availabilityStatus: .missing
+        )
+        XCTAssertEqual(store.inventory[0].stapleStatus, .outOfStock)
+
+        store.addShopping(name: "盐", quantity: 1, unit: "袋")
+        store.toggleShopping(store.shoppingItems[0])
+        store.stockInCompletedShopping()
+
+        XCTAssertEqual(store.inventory.count, 1, "merged into the staple, not a second row")
+        XCTAssertTrue(store.inventory[0].isStaple)
+        XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .available)
+        XCTAssertEqual(store.inventory[0].stapleStatus, .sufficient)
+    }
+
+    func test_manualAdd_resetsALowStatusModeStapleToAvailable() throws {
+        try store.saveStaple(
+            id: nil, name: "生抽", quantity: 1, unit: "瓶",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .status, availabilityStatus: .low
+        )
+        store.addInventory(name: "生抽", quantity: 1, unit: "瓶", expiryDate: nil)
+        XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .available)
+    }
+
+    /// The 葱姜蒜盐油 presets switch the add sheet to status mode with the
+    /// quantity field hidden at 0: the shelf said 有货 while recipe matching,
+    /// shopping and AI (all `isAvailable`) said there was none.
+    func test_saveStaple_statusModeInStock_isAvailableEverywhere() throws {
+        for status in [StapleAvailabilityStatus.available, .low] {
+            store = KitchenStore(userDefaults: UserDefaults(suiteName: UUID().uuidString)!)
+            try store.saveStaple(
+                id: nil, name: "葱", quantity: 0, unit: "份",
+                minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+                note: nil, category: nil, trackingMode: .status, availabilityStatus: status
+            )
+            XCTAssertEqual(store.inventory[0].quantity, 1, "\(status)")
+            XCTAssertTrue(store.inventory[0].isAvailable, "\(status)")
+            XCTAssertTrue(RecipeStockMatch.isInStock("葱", inventory: store.inventory), "\(status)")
+        }
+    }
+
+    func test_saveStaple_statusModeMissing_isNotAvailable() throws {
+        store.addInventory(name: "盐", quantity: 2, unit: "袋", expiryDate: nil)
+        try store.saveStaple(
+            id: store.inventory[0].id, name: "盐", quantity: 2, unit: "袋",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .status, availabilityStatus: .missing
+        )
+        XCTAssertEqual(store.inventory[0].quantity, 0)
+        XCTAssertFalse(store.inventory[0].isAvailable)
+    }
+
+    func test_saveStaple_quantityModeKeepsTheTypedZero() throws {
+        try store.saveStaple(
+            id: nil, name: "鸡蛋", quantity: 0, unit: "个",
+            minimumQuantity: 6, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .quantity, availabilityStatus: .available
+        )
+        XCTAssertEqual(store.inventory[0].quantity, 0)
+    }
+
+    /// What the detail screen's 跟踪方式 / 当前状态 pickers apply on each change.
+    func test_detailSwitchToStatusMode_keepsQuantityInStep() throws {
+        try store.saveStaple(
+            id: nil, name: "姜", quantity: 0, unit: "块",
+            minimumQuantity: nil, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .quantity, availabilityStatus: .available
+        )
+        var item = store.inventory[0]
+        item.stapleTrackingMode = .status
+        item.syncQuantityWithStapleStatus()
+        XCTAssertEqual(item.quantity, 1)
+        item.stapleAvailabilityStatus = .missing
+        item.syncQuantityWithStapleStatus()
+        XCTAssertEqual(item.quantity, 0)
+    }
+
+    /// 添加常备食材 used to look up the first same-name row and overwrite its
+    /// quantity and date with whatever the form held.
+    func test_saveStaple_withoutAPickedRow_neverOverwritesAnExistingBatch() {
+        let date = Calendar.current.date(byAdding: .day, value: 6, to: Date())!
+        store.addInventory(name: "鸡蛋", quantity: 10, unit: "个", expiryDate: date)
+
+        XCTAssertThrowsError(try store.saveStaple(
+            id: nil, name: "鸡蛋", quantity: 0, unit: "个",
+            minimumQuantity: 6, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil
+        )) { error in
+            XCTAssertEqual(error as? PantryStapleError, .alreadyInInventory(name: "鸡蛋", isStaple: false))
+        }
+        XCTAssertEqual(store.inventory.count, 1)
+        XCTAssertEqual(store.inventory[0].quantity, 10)
+        XCTAssertEqual(store.inventory[0].expiryDate, date)
+        XCTAssertFalse(store.inventory[0].isStaple)
+    }
+
+    func test_saveStaple_withAPickedRow_updatesOnlyThatBatch() throws {
+        let soon = Calendar.current.date(byAdding: .day, value: 2, to: Date())!
+        let later = Calendar.current.date(byAdding: .day, value: 9, to: Date())!
+        store.addInventory(name: "牛奶", quantity: 1, unit: "盒", expiryDate: soon)
+        store.addInventory(name: "牛奶", quantity: 2, unit: "盒", expiryDate: later)
+        let picked = try XCTUnwrap(store.inventory.first { $0.expiryDate == later })
+
+        try store.saveStaple(
+            id: picked.id, name: "牛奶", quantity: 2, unit: "盒",
+            minimumQuantity: 1, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil
+        )
+
+        let other = try XCTUnwrap(store.inventory.first { $0.id != picked.id })
+        XCTAssertEqual(other.quantity, 1)
+        XCTAssertEqual(other.expiryDate, soon, "the batch nobody picked keeps its date")
+        XCTAssertFalse(other.isStaple)
+        XCTAssertTrue(try XCTUnwrap(store.inventory.first { $0.id == picked.id }).isStaple)
+    }
+
+    func test_stockIn_leavesAQuantityModeStapleStatusFieldAlone() throws {
+        try store.saveStaple(
+            id: nil, name: "鸡蛋", quantity: 1, unit: "个",
+            minimumQuantity: 6, defaultRestockQuantity: nil, autoSuggestRestock: true,
+            note: nil, category: nil, trackingMode: .quantity, availabilityStatus: .low
+        )
+        store.addInventory(name: "鸡蛋", quantity: 2, unit: "个", expiryDate: nil)
+        XCTAssertEqual(store.inventory[0].stapleAvailabilityStatus, .low, "quantity mode derives its status from quantity")
+        XCTAssertEqual(store.inventory[0].stapleStatus, .low, "3 of 6 is still low")
+    }
+
     func test_sortedFreshInventory_excludesStaples() {
         store.addInventory(name: "鸡蛋", quantity: 1, unit: "个", expiryDate: nil, isStaple: true)
         store.addInventory(name: "番茄", quantity: 1, unit: "个", expiryDate: nil, isStaple: false)

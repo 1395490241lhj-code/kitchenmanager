@@ -114,7 +114,8 @@ final class PlannerMealCreateUITests: XCTestCase {
         if plannedRow.exists {
             XCTAssertLessThan(
                 add.frame.height, plannedRow.frame.height,
-                "an unplanned day must not claim as much height as a day that owns a meal"
+                "an unplanned day must not claim as much height as a day that owns a meal: "
+                    + "\(add.frame) vs \(plannedRow.frame)"
             )
         }
 

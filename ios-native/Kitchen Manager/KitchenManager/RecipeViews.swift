@@ -72,6 +72,32 @@ struct SampleFallbackNotice: View {
     }
 }
 
+/// 难度 and 烹饪时间 for the library. The built-in recipes state neither, so a
+/// strict match removed every one of them and the library looked as if it had
+/// no easy or quick dishes. A recipe that does not state the field is kept —
+/// the filter cannot judge it — and listed after the ones that match.
+enum RecipeLibraryFilter {
+    static func matches(difficulty: String?, selected: String?) -> Bool {
+        guard let selected, let difficulty else { return true }
+        return difficulty == selected
+    }
+
+    static func matches(cookingTime: Int?, maximum: Int?) -> Bool {
+        guard let maximum, let cookingTime else { return true }
+        return cookingTime <= maximum
+    }
+
+    /// Recipes that state the filtered fields first, the unlabelled after,
+    /// each group in its existing order.
+    static func labelledFirst(_ recipes: [Recipe], difficulty: String?, maximumTime: Int?) -> [Recipe] {
+        guard difficulty != nil || maximumTime != nil else { return recipes }
+        func isLabelled(_ recipe: Recipe) -> Bool {
+            (difficulty == nil || recipe.difficulty != nil) && (maximumTime == nil || recipe.cookingTime != nil)
+        }
+        return recipes.filter(isLabelled) + recipes.filter { !isLabelled($0) }
+    }
+}
+
 private enum RecipeAvailabilityFilter: String, CaseIterable, Identifiable {
     case all = "全部"
     case favorites = "收藏"
@@ -108,11 +134,14 @@ struct RecipeListView: View {
         if selectedTag != "全部标签" { values.append(selectedTag) }
         if selectedDifficulty != "全部难度" { values.append(selectedDifficulty) }
         if let maximumTime { values.append("\(maximumTime) 分钟内") }
+        // Say that recipes without the field are still listed, so the filter
+        // is not read as "every one of these is 简单 / quick".
+        if selectedDifficulty != "全部难度" || maximumTime != nil { values.append("含未标注") }
         return values.joined(separator: " · ")
     }
 
     private var recipes: [Recipe] {
-        sourceRecipes.filter { recipe in
+        let filtered = sourceRecipes.filter { recipe in
             let matchesSearch = searchText.isEmpty
                 || recipe.title.localizedCaseInsensitiveContains(searchText)
                 || recipe.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
@@ -128,10 +157,13 @@ struct RecipeListView: View {
             }
             return matchesSearch && matchesFilter
                 && (selectedTag == "全部标签" || recipe.tags.contains(selectedTag))
-                && (selectedDifficulty == "全部难度" || recipe.difficulty == selectedDifficulty)
-                && (maximumTime == nil || (recipe.cookingTime ?? .max) <= maximumTime!)
+                && RecipeLibraryFilter.matches(difficulty: recipe.difficulty, selected: difficultyFilter)
+                && RecipeLibraryFilter.matches(cookingTime: recipe.cookingTime, maximum: maximumTime)
         }
+        return RecipeLibraryFilter.labelledFirst(filtered, difficulty: difficultyFilter, maximumTime: maximumTime)
     }
+
+    private var difficultyFilter: String? { selectedDifficulty == "全部难度" ? nil : selectedDifficulty }
 
     var body: some View {
         List {
@@ -380,13 +412,21 @@ private struct RecipeListRow: View {
 }
 
 struct RecipeDetailView: View {
-    let recipe: Recipe
+    /// The recipe as it was when this page was opened. Callers pass a value
+    /// they captured, so the page reads the library's current version through
+    /// `recipe` instead: an edit saved here must show here, and a second edit
+    /// must start from the first one rather than overwrite it.
+    let openedRecipe: Recipe
     /// The scheduled meal this detail was opened for, when it was opened from
     /// one. Was `todayPlan`, which only ever described where the callers
     /// happened to be: nothing here is today-specific, and the Planner opens
     /// meals on any date through the same path.
     let plan: MealPlanItem?
+    /// The Special Plan dish this page was opened for, so its cook is keyed
+    /// to that dish rather than being a second, unplanned one.
+    var specialPlanDish: SpecialPlanDishCookingContext? = nil
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var kitchenStore: KitchenStore
     @State private var isShowingShoppingGeneration = false
@@ -396,12 +436,15 @@ struct RecipeDetailView: View {
     /// cooking mode, the consumption confirmation and `markPlanCooked` — lives
     /// in `cookingFlow(request:session:)`, shared with Home.
     @State private var cookingRequest: CookingFlowRequest?
+    /// Today's uncooked meal of this recipe, while asking whether this cook is it.
+    @State private var todayPlanCandidate: MealPlanItem?
     @State private var errorMessage: String?
     @StateObject private var cookingSession: RecipeCookingSession
 
-    init(recipe: Recipe, plan: MealPlanItem? = nil) {
-        self.recipe = recipe
+    init(recipe: Recipe, plan: MealPlanItem? = nil, specialPlanDish: SpecialPlanDishCookingContext? = nil) {
+        self.openedRecipe = recipe
         self.plan = plan
+        self.specialPlanDish = specialPlanDish
         // Falls back to the recipe's own yield, not to 1: with no stated target
         // the honest default is "cook it as written". `baseServings` lets the
         // session convert instead of multiplying blind.
@@ -410,6 +453,10 @@ struct RecipeDetailView: View {
             baseServings: recipe.baseServings
         ))
     }
+
+    /// The library's current version of this recipe; the opened value only
+    /// while the library does not hold it.
+    private var recipe: Recipe { recipeStore.currentVersion(of: openedRecipe) }
 
     private var cookingSteps: [String] { recipe.steps.filter { !$0.hasPrefix("小贴士：") } }
     /// Core ingredients with nothing in stock — the same answer the library's
@@ -552,11 +599,59 @@ struct RecipeDetailView: View {
         // The session stays this screen's own: its serving stepper and
         // ingredient checklist are bound to the same object the cook runs on.
         .cookingFlow(request: $cookingRequest, session: cookingSession)
-        .alert(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
-            Button(recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id }) ? "重置" : "删除", role: .destructive) { do { try recipeStore.deleteUserRecipe(id: recipe.id) } catch { errorMessage = error.localizedDescription } }
+        // An edit can change the base yield and the ingredient lines the
+        // checklist indexes, so the session follows the saved recipe.
+        .onChange(of: recipe) { _, updated in
+            cookingSession.configure(servings: cookingSession.servings, baseServings: updated.baseServings)
+        }
+        .confirmationDialog(
+            "这是今天计划里的那道吗？",
+            isPresented: Binding(get: { todayPlanCandidate != nil }, set: { if !$0 { todayPlanCandidate = nil } }),
+            titleVisibility: .visible,
+            presenting: todayPlanCandidate
+        ) { candidate in
+            Button("是，按今天的计划做") {
+                let request = CookingFlowRequest(recipe: recipe, plan: candidate)
+                // The same starting yield as opening the meal from the plan.
+                cookingSession.servings = request.initialServings
+                cookingRequest = request
+            }
+            Button("不是，单独做一次") {
+                cookingRequest = CookingFlowRequest(recipe: recipe, plan: nil)
+            }
             Button("取消", role: .cancel) {}
+        } message: { _ in
+            Text("今天的用餐计划里有「\(recipe.title)」还没做。选“是”会把这次做饭记在那一餐上并标为已完成，库存只扣一次。")
+        }
+        .alert(isLibraryOverride ? "重置这份菜谱？" : "删除这份菜谱？", isPresented: $isShowingDeleteAlert) {
+            Button(isLibraryOverride ? "重置" : "删除", role: .destructive) { deleteOrReset() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            // Deleting leaves every meal that names this recipe unable to open
+            // it, start cooking or feed the shopping list. Say how many first.
+            let planned = kitchenStore.uncookedPlanReferenceCount(recipeID: recipe.id)
+            if !isLibraryOverride, planned > 0 {
+                Text("这道菜还在 \(planned) 顿没做的计划里。删除后，这些计划将无法查看做法、开始烹饪，也不会计入买菜清单。")
+            }
         }
         .alert("操作失败", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("好", role: .cancel) {} } message: { Text(errorMessage ?? "请稍后重试。") }
+    }
+
+    /// A user copy of a shared library recipe: removing it resets to the
+    /// shared version rather than deleting the recipe.
+    private var isLibraryOverride: Bool {
+        recipeStore.remoteRecipes.contains(where: { $0.id == recipe.id })
+    }
+
+    private func deleteOrReset() {
+        let resets = isLibraryOverride
+        do {
+            try recipeStore.deleteUserRecipe(id: recipe.id)
+            // A deleted recipe has nothing left to show or add to a plan.
+            if !resets { dismiss() }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private var recipeHero: some View {
@@ -580,7 +675,14 @@ struct RecipeDetailView: View {
     }
 
     private var startCookingAction: some View {
-        Button { cookingRequest = CookingFlowRequest(recipe: recipe, plan: plan) } label: {
+        Button {
+            if plan == nil, specialPlanDish == nil,
+               let candidate = CookingFlowRequest.todayPlanCandidate(recipeID: recipe.id, plans: kitchenStore.plans) {
+                todayPlanCandidate = candidate
+            } else {
+                cookingRequest = CookingFlowRequest(recipe: recipe, plan: plan, specialPlanDish: specialPlanDish)
+            }
+        } label: {
             Label("开始烹饪", systemImage: "flame.fill")
                 .frame(maxWidth: .infinity)
         }

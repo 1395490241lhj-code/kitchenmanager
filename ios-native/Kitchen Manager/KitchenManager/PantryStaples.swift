@@ -33,14 +33,29 @@ enum PantryRestockNotificationScheduler {
             content.title = status == .outOfStock ? "\(item.name)没有了" : "\(item.name)快用完了"
             content.body = "当前剩余 \(item.quantity.formatted()) \(item.unit)，可以加入买菜清单。"
             content.sound = .default
+            let fireDate = nextReminderDate(after: Date())
             let request = UNNotificationRequest(
                 identifier: identifier,
                 content: content,
-                trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+                trigger: UNCalendarNotificationTrigger(
+                    dateMatching: Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate),
+                    repeats: false
+                )
             )
             UNUserNotificationCenter.current().add(request)
         }
         defaults.set(current, forKey: stateKey)
+    }
+
+    /// When a restock reminder is delivered: the next 9:00, the hour the expiry
+    /// reminders use. A staple almost always runs low through an in-app edit or
+    /// a cook confirmation, so the old one-second trigger fired while the app
+    /// was in front, where iOS does not show it. Restocking before then
+    /// removes the pending reminder (see `sync`).
+    static func nextReminderDate(after now: Date, calendar: Calendar = .current) -> Date {
+        let todayAtNine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: now) ?? now
+        if todayAtNine > now { return todayAtNine }
+        return calendar.date(byAdding: .day, value: 1, to: todayAtNine) ?? now
     }
 
     /// Phase B3: the startup pass that `KitchenStore.init`'s `inventory`
@@ -248,6 +263,9 @@ struct AddPantryStapleView: View {
     @State private var trackingMode: StapleTrackingMode = .quantity
     @State private var availabilityStatus: StapleAvailabilityStatus = .available
     @State private var errorMessage: String?
+    /// The existing batch picked under 从现有库存选择. Saving updates exactly
+    /// that row; renaming afterwards means a new staple again.
+    @State private var pickedItemID: UUID?
 
     private let presets = ["鸡蛋", "牛奶", "大米", "面粉", "食用油", "盐", "糖", "生抽", "醋", "黑胡椒", "葱", "姜", "蒜", "咖啡豆"]
     private let statusPresets = Set(["食用油", "盐", "糖", "生抽", "醋", "黑胡椒", "葱", "姜", "蒜"])
@@ -262,6 +280,7 @@ struct AddPantryStapleView: View {
                                 name = item.name
                                 quantity = item.quantity
                                 unit = item.unit
+                                pickedItemID = item.id
                             } label: {
                                 HStack {
                                     Text(item.name)
@@ -289,6 +308,11 @@ struct AddPantryStapleView: View {
                 }
 
                 stapleFields
+            }
+            .onChange(of: name) { _, newName in
+                if let pickedItemID, store.inventory.first(where: { $0.id == pickedItemID })?.name != newName {
+                    self.pickedItemID = nil
+                }
             }
             .navigationTitle("添加常备食材")
             .navigationBarTitleDisplayMode(.inline)
@@ -334,7 +358,7 @@ struct AddPantryStapleView: View {
     private func save() {
         do {
             try store.saveStaple(
-                id: nil,
+                id: pickedItemID,
                 name: name,
                 quantity: quantity,
                 unit: unit,
@@ -443,14 +467,14 @@ struct InventoryItemDetailView: View {
                 }
                 if store.inventory[index].isStaple {
                     Section("常备货架") {
-                        Picker("跟踪方式", selection: binding(\.stapleTrackingMode, default: .quantity)) {
+                        Picker("跟踪方式", selection: stapleStatusBinding(\.stapleTrackingMode, default: .quantity)) {
                             ForEach(StapleTrackingMode.allCases) { Text($0.title).tag($0) }
                         }
                         if store.inventory[index].stapleTrackingMode == .quantity {
                             TextField("最低库存", value: binding(\.lowStockThreshold, default: nil), format: .number)
                                 .keyboardType(.decimalPad)
                         } else {
-                            Picker("当前状态", selection: binding(\.stapleAvailabilityStatus, default: .available)) {
+                            Picker("当前状态", selection: stapleStatusBinding(\.stapleAvailabilityStatus, default: .available)) {
                                 ForEach(StapleAvailabilityStatus.allCases) { Text($0.title).tag($0) }
                             }
                         }
@@ -480,6 +504,21 @@ struct InventoryItemDetailView: View {
         } message: {
             Text("删除库存与取消常备不同，此操作会移除该库存记录。")
         }
+    }
+
+    /// The tracking-mode and status pickers also keep `quantity` in step, in one
+    /// write, so 有货 on the shelf is never 0 to recipe matching and shopping.
+    private func stapleStatusBinding<Value>(_ keyPath: WritableKeyPath<InventoryItem, Value>, default defaultValue: Value) -> Binding<Value> {
+        Binding(
+            get: { store.inventory.first(where: { $0.id == itemID })?[keyPath: keyPath] ?? defaultValue },
+            set: { newValue in
+                guard let idx = store.inventory.firstIndex(where: { $0.id == itemID }) else { return }
+                var item = store.inventory[idx]
+                item[keyPath: keyPath] = newValue
+                item.syncQuantityWithStapleStatus()
+                store.inventory[idx] = item
+            }
+        )
     }
 
     private func optionalText(_ value: Binding<String?>) -> Binding<String> {

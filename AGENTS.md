@@ -112,3 +112,13 @@ Use `km-delivery` before closing meaningful repository work.
 Final reporting must name the files changed, current validation actually obtained, important checks not run, data/security/environment effects, and remaining risks or follow-up. Never infer a broader pass from a narrower run or from an older report.
 
 For iOS implementation work, report the actual Xcode evidence: build outcome, diagnostics, tests run/results, visual Preview/render inspection where relevant, and whether validation used Xcode MCP or xcodebuild fallback.
+
+## Shared Mac resources (2026-10-19)
+
+Apply the simulator and temporary-file policy in `/Users/lianghongjing/.codex/AGENTS.md` to this project, its worktrees and subagents.
+
+- Record task-created temporary paths and promptly clean unneeded, reproducible scratch at completion, cancellation or handoff, after confirming no active references.
+- Reuse existing agent/project caches. Preserve source, uncommitted work, lockfiles, configuration/credentials, deliverables and required evidence; report cleanup results and retained temporary/cache paths, sizes, purposes and deletion conditions.
+- Claude Code and Codex each reuse their single fixed simulator across all projects. Same-owner projects and subagents take turns; wait or report occupancy conflicts, an unknown owner or a missing reserved device.
+- Without explicit user authorization, do not create/clone/add devices or runtimes, change the fixed identity, borrow the other owner's device, or launch extra simulators.
+- Run all simulator CLI tests through `~/.local/bin/dev-sim-slot run <owner> -- <original test command>`, using the assigned UDID and disabled parallel testing. `prepare` alone is not a test lock; coordinate whole MCP flows too, and finish with `status` without shutting down, resetting or deleting devices.

@@ -429,8 +429,15 @@ final class PlannerUITests: XCTestCase {
         XCTAssertTrue(inventoryRow.exists)
         XCTAssertTrue(inventoryRow.label.contains("不参考家中库存"), "got: \(inventoryRow.label)")
 
-        // Back on the week list the new plan (today, per the stub) shows.
-        app.navigationBars["周六朋友聚餐"].buttons.firstMatch.tap()
+        // Leaving with the unsaved draft asks first; discarding drops only
+        // the draft, so the plan itself still shows on the week list (today,
+        // per the stub).
+        let back = app.buttons["planner.special.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "an unsaved draft must replace the plain back button")
+        back.tap()
+        let discard = app.alerts["放弃这份 AI 菜单草稿？"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5), "leaving with a draft must ask first")
+        discard.buttons["放弃并返回"].tap()
         XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5))
         XCTAssertTrue(scrollTo("planner.special.entry.", in: app).exists)
     }
@@ -507,6 +514,11 @@ final class PlannerUITests: XCTestCase {
         let delete = app.buttons["planner.special.delete"]
         XCTAssertTrue(delete.waitForExistence(timeout: 5), "delete action missing")
         delete.tap()
+        // Deleting asks first; nothing is removed until the member confirms.
+        let confirm = app.alerts["删除这个特殊计划？"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "delete must ask for confirmation")
+        XCTAssertTrue(app.buttons["planner.special.edit"].exists, "the plan must still be open while the alert asks")
+        confirm.buttons["删除"].tap()
         XCTAssertTrue(
             app.navigationBars["用餐计划"].waitForExistence(timeout: 5),
             "deleting should return to the planner week list automatically"

@@ -7,7 +7,9 @@ struct AIConversationView: View {
     @EnvironmentObject private var controller: AIConversationController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var hasOpenedEntryContext = false
+    /// This page's identity to the shared controller, so it can tell its own
+    /// conversation from the one the other tab's Kitchen AI page left loaded.
+    @State private var pageID = UUID()
     @State private var showingHistorySheet = false
     @State private var showingContextSheet = false
     @State private var showingRenameAlert = false
@@ -68,11 +70,10 @@ struct AIConversationView: View {
                 }
             }
         }
+        // Every appearance, not only the first: coming back from the other
+        // tab's Kitchen AI must not leave that tab's conversation on this page.
         .onAppear {
-            if !hasOpenedEntryContext {
-                controller.open(entryContext: entryContext)
-                hasOpenedEntryContext = true
-            }
+            controller.pageAppeared(pageID, entryContext: entryContext)
         }
         // Turn and action outcomes land below the fold and away from focus;
         // VoiceOver hears them once, the moment the controller records them.

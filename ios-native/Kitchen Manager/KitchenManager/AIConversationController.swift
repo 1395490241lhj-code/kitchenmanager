@@ -169,6 +169,26 @@ final class AIConversationController: ObservableObject {
         metadataTasks.values.forEach { $0.task.cancel() }
     }
 
+    /// The Kitchen AI page that last opened a conversation here.
+    private var owningPageID: UUID?
+
+    /// A Kitchen AI page appeared. Today and the Planner share this controller
+    /// and both pages stay alive in their own tab stacks, so the page that
+    /// appears may find the other page's conversation loaded — and anything it
+    /// sent would have gone into that conversation. It reopens its own, but
+    /// never by cancelling a reply that is still being written or dropping a
+    /// change waiting for 应用修改: while the other page's work is in flight it
+    /// leaves that live conversation showing, and the page takes its own back
+    /// on a later appearance.
+    /// The page that already owns the controller keeps whatever it shows,
+    /// including a conversation picked from history.
+    func pageAppeared(_ pageID: UUID, entryContext: AIConversationEntryContext) {
+        guard pageID != owningPageID else { return }
+        guard !isGenerating, preparedAction == nil else { return }
+        owningPageID = pageID
+        open(entryContext: entryContext)
+    }
+
     func open(entryContext: AIConversationEntryContext) {
         stop()
         self.entryContext = entryContext

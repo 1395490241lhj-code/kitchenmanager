@@ -10,11 +10,10 @@ enum InventoryMigration {
         persistence: InventoryPersistenceProtocol
     ) throws -> [InventoryItem] {
         if userDefaults.bool(forKey: completionKey) {
-            let stored = try persistence.loadInventory()
-            guard stored.isEmpty else { return stored }
-            let legacy = try loadLegacyInventory(from: userDefaults)
-            guard !legacy.isEmpty else { return [] }
-            try persistence.replaceInventory(with: legacy)
+            // One-shot: once the migration has been verified, an empty table is
+            // the member's own state (a cleared list, the last plan removed), not
+            // a lost store. Re-reading the legacy JSON here brought long-gone
+            // data back on every relaunch. The JSON itself stays untouched.
             return try persistence.loadInventory()
         }
 

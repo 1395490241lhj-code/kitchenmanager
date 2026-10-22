@@ -38,6 +38,14 @@ const RECIPE_PAYLOAD_SCHEMA = {
   required: ['title']
 };
 
+// 单餐份量。iOS ConversationResponseInterpreter 只接受 1–12 的整数，越界会让整回合
+// 判为无效；不填时客户端沿用现有份量规则。范围写在描述里而不是 minimum/maximum，
+// 避免个别 provider 不认这两个关键字时整次请求被拒。
+const SINGLE_MEAL_SERVINGS_SCHEMA = {
+  type: 'integer',
+  description: '可选。成员明确说出人数或份数时才填，1 到 12 的整数；没说就不要填。'
+};
+
 function objectSchema(properties, required = []) {
   return { type: 'object', additionalProperties: false, properties, required };
 }
@@ -91,20 +99,19 @@ const TOOL_DEFINITIONS = Object.freeze({
       }
     }, ['title', 'rows'])
   },
-  // 这两个提案在 iOS 侧不携带份量（AIActionProposal 没有该字段），解释器会把带
-  // plannedServings 的调用整体判为无效、整回合失败；所以 schema 里也不提供它。
-  // propose_apply_planner_changes 的逐行 plannedServings 是客户端真实支持的，保留。
   propose_add_recipe_to_tonight: {
     description: '把一道菜加入今晚计划。低风险操作：客户端校验后直接执行，成员可撤销。',
     parameters: objectSchema({
-      recipe: RECIPE_PAYLOAD_SCHEMA
+      recipe: RECIPE_PAYLOAD_SCHEMA,
+      plannedServings: SINGLE_MEAL_SERVINGS_SCHEMA
     }, ['recipe'])
   },
   propose_replace_planned_meal: {
     description: '提议替换一条已排的普通用餐。',
     parameters: objectSchema({
       planID: { type: 'string' },
-      replacement: RECIPE_PAYLOAD_SCHEMA
+      replacement: RECIPE_PAYLOAD_SCHEMA,
+      plannedServings: SINGLE_MEAL_SERVINGS_SCHEMA
     }, ['planID', 'replacement'])
   },
   propose_apply_planner_changes: {

@@ -79,7 +79,9 @@ final class SpecialPlanMenuUITests: XCTestCase {
     /// Spec 20 + 21 + 22: an empty plan offers generation, shows a loading
     /// state, and lands on a draft.
     func testEmptyPlanGeneratesADraftMenu() {
-        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")
+        // The slow stub keeps the request in flight for 6s: the default 1.5s
+        // ended before a CI runner's first query after the tap (~2.2s).
+        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU", "UITEST_SPECIAL_PLAN_AI_SLOW")
         openSeededPlanDetail(from: app)
 
         let generate = app.buttons["planner.menu.generate"]
@@ -102,6 +104,30 @@ final class SpecialPlanMenuUITests: XCTestCase {
         // is visible, so the count is checked by scrolling to the last dish.
         XCTAssertTrue(scrollUntilExists(app.staticTexts["白灼菜心"], in: app), "the 7-person seed asks for six dishes; the sixth is missing")
         XCTAssertTrue(scrollUntilExists(app.buttons["planner.menu.save"], in: app), "save action missing on a draft")
+    }
+
+    /// The draft lives only on the detail screen. Back used to drop it without
+    /// a word; it now asks, and 继续编辑 keeps every dish.
+    func testLeavingWithAnUnsavedDraftAsksFirst() {
+        let app = launchWithEmptyMenu("UITEST_SPECIAL_PLAN_AI_MENU")
+        openSeededPlanDetail(from: app)
+        app.buttons["planner.menu.generate"].tap()
+        XCTAssertTrue(app.staticTexts["红烧牛腩"].waitForExistence(timeout: 10), "draft menu never appeared")
+
+        let back = app.buttons["planner.special.back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "an unsaved draft must replace the plain back button")
+        back.tap()
+        let alert = app.alerts["放弃这份 AI 菜单草稿？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "leaving with a draft must ask first")
+
+        alert.buttons["继续编辑"].tap()
+        XCTAssertTrue(app.navigationBars["朋友聚餐"].exists, "继续编辑 stays on the plan")
+        XCTAssertTrue(app.staticTexts["红烧牛腩"].exists, "继续编辑 keeps the draft")
+
+        back.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["放弃并返回"].tap()
+        XCTAssertTrue(app.navigationBars["用餐计划"].waitForExistence(timeout: 5), "放弃并返回 returns to the planner")
     }
 
     /// Spec 23: replacing one dish changes only that dish.
@@ -238,12 +264,22 @@ final class SpecialPlanMenuUITests: XCTestCase {
         func viewport() -> CGRect {
             let frame = app.collectionViews.firstMatch.frame.intersection(app.windows.firstMatch.frame)
             let top = max(frame.minY, app.navigationBars["朋友聚餐"].frame.maxY)
-            return CGRect(x: frame.minX, y: top, width: frame.width, height: frame.maxY - top)
+            // The floating tab bar overlays the list's last 83pt. A drag that
+            // started on it (y=794) left CI on the Planner root with this detail
+            // gone, so that band is not somewhere a row can be revealed or a
+            // drag can begin.
+            let tabBar = app.tabBars.firstMatch
+            let bottom = tabBar.exists ? min(frame.maxY, tabBar.frame.minY) : frame.maxY
+            return CGRect(x: frame.minX, y: top, width: frame.width, height: bottom - top)
         }
         func record(_ stage: String) {
+            // Diagnostic only: an absent row is reported by the loop's own
+            // guards, not by a snapshot failure from reading its frame.
             let row = app.collectionViews.firstMatch.cells.containing(.button, identifier: key).firstMatch
             let button = app.buttons[key]
-            trace.append("\(stage) id=\(key) cell=\(row.frame) button=\(button.frame) hittable=\(button.isHittable) viewport=\(viewport())")
+            let cell = row.exists ? "\(row.frame)" : "absent"
+            let control = button.exists ? "\(button.frame) hittable=\(button.isHittable)" : "absent"
+            trace.append("\(stage) id=\(key) cell=\(cell) button=\(control) viewport=\(viewport())")
         }
         record("initial")
         let initialFrame = app.buttons[key].frame

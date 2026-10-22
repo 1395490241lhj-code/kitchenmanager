@@ -57,10 +57,16 @@ final class RecipeCookingModeUITests: XCTestCase {
     func testCookingTimerCanStartAndCancelWithoutDebugUI() throws {
         let app = launchRecipes()
         app.buttons["recipe.detail.startCooking"].tap()
-        app.buttons["recipe.cooking.timer.start"].tap()
+        // Cooking mode slides in as a full-screen cover; a tap that lands while
+        // it is still moving is dropped, so wait until the timer is hittable.
+        let timerStart = app.buttons["recipe.cooking.timer.start"]
+        XCTAssertTrue(timerStart.waitForExistence(timeout: 5))
+        let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isHittable == true"), object: timerStart)
+        XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: 5), .completed, "the timer control never became tappable")
+        timerStart.tap()
         // The menu animates open; wait for its item rather than racing it.
         let oneMinute = app.buttons["1 分钟"]
-        XCTAssertTrue(oneMinute.waitForExistence(timeout: 3))
+        XCTAssertTrue(oneMinute.waitForExistence(timeout: 5))
         oneMinute.tap()
         XCTAssertTrue(app.buttons["recipe.cooking.timer.cancel"].waitForExistence(timeout: 3))
         attachScreenshot(of: app, named: "final-cooking-mode-timer")

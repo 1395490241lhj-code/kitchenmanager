@@ -6,6 +6,7 @@ struct SpecialPlanDetailView: View {
     @EnvironmentObject private var kitchenStore: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.dismiss) private var dismiss
     let planID: UUID
     /// Deleting is owned by the Planner, which also holds the navigation path
     /// and pops this screen in the same update.
@@ -13,6 +14,10 @@ struct SpecialPlanDetailView: View {
     @State private var sheet: SpecialPlanDetailSheet?
     @State private var toast: (message: String, style: AppFeedbackStyle)?
     @State private var toastToken: UUID?
+    @State private var isConfirmingDelete = false
+    @State private var isConfirmingDiscardOnBack = false
+    /// The not-yet-cooked dishes a new AI menu would replace, while asking.
+    @State private var dishesReplacedByMenuSave: [SpecialPlanDish]?
     /// Transient AI menu state. Owned by the screen, never persisted: leaving
     /// the detail discards any unsaved draft.
     @StateObject private var menuDraft: SpecialPlanMenuDraftStore
@@ -102,11 +107,25 @@ struct SpecialPlanDetailView: View {
         // Leaving the detail already discards the transient draft; it must also
         // stop whatever request is still running for it.
         .onDisappear { menuDraft.cancelGeneration() }
+        // The draft lives only on this screen, so leaving with one asks first.
+        // Hiding the system back button also turns off the edge swipe, which
+        // would otherwise drop the draft without a word.
+        .navigationBarBackButtonHidden(menuDraft.hasDraft)
         .toolbar {
+            if menuDraft.hasDraft {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isConfirmingDiscardOnBack = true
+                    } label: {
+                        Label("返回", systemImage: "chevron.backward")
+                    }
+                    .accessibilityIdentifier("planner.special.back")
+                }
+            }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
                     Button(role: .destructive) {
-                        onDelete()
+                        isConfirmingDelete = true
                     } label: {
                         Label("删除计划", systemImage: "trash")
                     }
@@ -130,6 +149,31 @@ struct SpecialPlanDetailView: View {
                 }
                 .accessibilityIdentifier("planner.special.add.dish")
             }
+        }
+        .alert("删除这个特殊计划？", isPresented: $isConfirmingDelete) {
+            Button("删除", role: .destructive) { onDelete() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("「\(plan.title)」和其中的菜品安排会被删除，无法撤销。菜谱库里的菜谱不受影响。")
+        }
+        .alert(
+            "用新菜单替换这些菜？",
+            isPresented: Binding(get: { dishesReplacedByMenuSave != nil }, set: { if !$0 { dishesReplacedByMenuSave = nil } }),
+            presenting: dishesReplacedByMenuSave
+        ) { _ in
+            Button("替换并保存", role: .destructive) { saveMenuDraft() }
+            Button("取消", role: .cancel) {}
+        } message: { replaced in
+            Text("保存后，还没做的「\(replaced.map(\.recipeName).joined(separator: "、"))」会从这次的菜单里移除，包括你从菜谱库加的菜。已经做好的菜会保留。")
+        }
+        .alert("放弃这份 AI 菜单草稿？", isPresented: $isConfirmingDiscardOnBack) {
+            Button("放弃并返回", role: .destructive) {
+                menuDraft.discard()
+                dismiss()
+            }
+            Button("继续编辑", role: .cancel) {}
+        } message: {
+            Text("草稿还没有保存，返回后这些菜不会保留。")
         }
         .sheet(item: $sheet) { sheet in
             switch sheet {
@@ -168,22 +212,14 @@ struct SpecialPlanDetailView: View {
                     recipeID: recipe.id,
                     recipeName: dish.recipeName
                 ) { setOutcome in
-                    let result = kitchenStore.setSpecialPlanDishCookedPersisted(
-                        planID: plan.id,
-                        dishID: dish.id,
-                        isCooked: true
-                    )
-                    switch result {
-                    case .saved:
-                        setOutcome(.completed)
-                    case .notFound, .persistenceFailed:
-                        setOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
-                    case .rejected:
-                        setOutcome(.dishStateSaveFailed(message: "菜品完成状态未保存，请重试。"))
-                    }
+                    setOutcome(kitchenStore.completeSpecialPlanDish(planID: plan.id, dishID: dish.id))
                 }
             }
         }
+    }
+
+    private func saveMenuDraft() {
+        menuDraft.save(to: planID, kitchenStore: kitchenStore, recipeStore: recipeStore)
     }
 
     // MARK: - Canonical menu
@@ -281,11 +317,12 @@ struct SpecialPlanDetailView: View {
                 }
 
                 Button {
-                    guard menuDraft.save(
-                        to: planID,
-                        kitchenStore: kitchenStore,
-                        recipeStore: recipeStore
-                    ) else { return }
+                    let replaced = SpecialPlanMenuAcceptance.dishesReplacedBySaving(planID: planID, kitchenStore: kitchenStore)
+                    if replaced.isEmpty {
+                        saveMenuDraft()
+                    } else {
+                        dishesReplacedByMenuSave = replaced
+                    }
                 } label: {
                     Label("保存菜单", systemImage: "square.and.arrow.down")
                         .frame(minHeight: AppTheme.minimumHitTarget)
@@ -417,7 +454,7 @@ struct SpecialPlanDetailView: View {
             .accessibilityLabel(dish.isCooked ? "标记未完成" : "标记完成")
             .accessibilityIdentifier("planner.dish.done.\(dish.id.uuidString)")
 
-            NavigationLink(value: PlannerRoute.recipe(dish.recipeID)) {
+            NavigationLink(value: PlannerRoute.specialPlanDish(planID: plan.id, dishID: dish.id)) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dish.recipeName)
                         .font(.headline)
@@ -495,6 +532,27 @@ struct SpecialPlanDetailView: View {
         formatter.locale = Locale(identifier: "zh_Hans_CN")
         formatter.dateFormat = "M月d日 EEEE HH:mm"
         return formatter.string(from: scheduledAt)
+    }
+}
+
+// MARK: - Dish recipe
+
+/// The recipe page for one Special Plan dish, carrying the dish so cooking
+/// from here is keyed to it.
+struct SpecialPlanDishRecipeDestination: View {
+    @EnvironmentObject private var kitchenStore: KitchenStore
+    @EnvironmentObject private var recipeStore: RecipeStore
+    let planID: UUID
+    let dishID: UUID
+
+    var body: some View {
+        if let plan = kitchenStore.specialPlans.first(where: { $0.id == planID }),
+           let dish = plan.dishes.first(where: { $0.id == dishID }),
+           let recipe = recipeStore.recipe(id: dish.recipeID) {
+            RecipeDetailView(recipe: recipe, specialPlanDish: SpecialPlanDishCookingContext(plan: plan, dish: dish))
+        } else {
+            ContentUnavailableView("菜谱不存在", systemImage: "questionmark.folder")
+        }
     }
 }
 

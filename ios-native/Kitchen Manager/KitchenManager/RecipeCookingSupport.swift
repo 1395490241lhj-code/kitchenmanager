@@ -76,8 +76,20 @@ final class RecipeCookingSession: ObservableObject {
 
 enum RecipeServingScaler {
     static func scaledText(_ text: String, multiplier: Double) -> String {
-        guard multiplier != 1,
-              let match = text.range(of: #"(?<![\d.])(\d+\s*/\s*\d+|\d+(?:\.\d+)?|½|¼|¾)"#, options: .regularExpression),
+        guard multiplier != 1 else { return text }
+        // A range scales at both ends: "2-3 个" for twice the servings is
+        // "4-6 个", not "4-3 个".
+        if let range = text.range(of: #"(?<![\d.])(\d+(?:\.\d+)?)\s*([-~～])\s*(\d+(?:\.\d+)?)"#, options: .regularExpression) {
+            let token = String(text[range])
+            let parts = token.components(separatedBy: CharacterSet(charactersIn: "-~～"))
+            if parts.count == 2,
+               let low = Double(parts[0].trimmingCharacters(in: .whitespaces)),
+               let high = Double(parts[1].trimmingCharacters(in: .whitespaces)),
+               let separator = token.first(where: { "-~～".contains($0) }) {
+                return text.replacingCharacters(in: range, with: "\(display(low * multiplier))\(separator)\(display(high * multiplier))")
+            }
+        }
+        guard let match = text.range(of: #"(?<![\d.])(\d+\s*/\s*\d+|\d+(?:\.\d+)?|½|¼|¾)"#, options: .regularExpression),
               let number = number(from: String(text[match])) else { return text }
         return text.replacingCharacters(in: match, with: display(number * multiplier))
     }

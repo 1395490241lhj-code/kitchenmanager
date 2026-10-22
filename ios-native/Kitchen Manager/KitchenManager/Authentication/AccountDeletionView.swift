@@ -18,10 +18,15 @@ struct AccountDeletionView: View {
 
     private var requiresTypedConfirmation: Bool { confirmationText == "DELETE" }
 
+    /// What a completed deletion does to this device. Mirrors
+    /// `KitchenStore.clearAllLocalData()`, which the deletion runs: every kitchen
+    /// table is cleared and only the recipe library is left.
+    static let localDataNotice = "删除完成后会自动退出登录，并清除本机的库存、买菜清单、用餐计划、每周菜单、聚餐计划、备餐组件和做饭消耗记录（菜谱库保留），无法恢复。之后仍可以游客模式使用。需要保留这些数据，请先到「设置 › 备份与恢复」导出备份。"
+
     var body: some View {
         Form {
             Section {
-                Text("删除账号会永久移除你的登录身份，与「退出登录」不同——退出登录不会删除任何数据，仍可随时重新登录。")
+                Text("删除账号会永久移除你的登录身份，并清除这台设备上的厨房数据，与「退出登录」不同——退出登录不会删除任何数据，仍可随时重新登录。")
             } header: {
                 Text("这与退出登录不同")
             }
@@ -53,7 +58,7 @@ struct AccountDeletionView: View {
             Button("取消", role: .cancel) {}
             Button("继续", role: .destructive) { showReauthenticationSheet = true }
         } message: {
-            Text("删除后，你的账号身份、家庭成员关系与同步记录将被永久移除或匿名化，且无法恢复。")
+            Text("删除后，你的账号身份、家庭成员关系与同步记录将被永久移除或匿名化，本机的厨房数据也会被清除，且无法恢复。建议先导出备份。")
         }
         .sheet(isPresented: $showReauthenticationSheet) {
             AccountDeletionReauthenticationView(controller: controller) {
@@ -152,7 +157,7 @@ struct AccountDeletionView: View {
             .disabled(!requiresTypedConfirmation || controller.isConfirming)
             .accessibilityLabel(Text("删除账号，此操作不可撤销"))
         } footer: {
-            Text("删除完成后会自动退出登录，本机可继续以游客模式使用。")
+            Text(Self.localDataNotice)
         }
     }
 }

@@ -90,7 +90,8 @@ test("all editable recipe save and plan entries share draft eligibility", () => 
   assert.match(addRecipe, /return editableDraft\.isSaveEligible/);
   assert.match(addRecipe, /\.disabled\(!draft\.isSaveEligible\)/);
   assert.match(addRecipe, /generatorStore\.isGenerating \|\| !isDraftSaveEligible/);
-  assert.match(addRecipe, /hasAddedCurrentDraftToPlan \|\| !isDraftSaveEligible/);
+  // AI 做菜 has no unsaved "仅加入今日计划": a plan must name a saved recipe.
+  assert.doesNotMatch(addRecipe, /仅加入今日计划/);
   assert.match(imageImport, /return draft\.isSaveEligible/);
   assert.match(recipes, /\.disabled\(!draft\.isSaveEligible\)/);
 });
@@ -108,9 +109,11 @@ test("home IA removes the legacy smart-import stack while share handoff keeps re
     home,
     /\.sheet\(item: sharedImportSheetBinding\) \{ request in\s*sharedImportSheetContent\(request\)\s*\}/
   );
+  // A share auto-starts only the first time it is shown; one already shown
+  // and closed (a failed or already-imported link) waits for 开始识别.
   assert.match(
     home,
-    /private func sharedImportSheetContent\(_ request: SharedImportRequest\) -> some View \{[\s\S]*ImportRecipeView\([\s\S]*autoStart: true/
+    /private func sharedImportSheetContent\(_ request: SharedImportRequest\) -> some View \{[\s\S]*ImportRecipeView\([\s\S]*autoStart: sharedImportCoordinator\.shouldAutoStart\(request\)/
   );
   assert.match(home, /case \.clipboardImport\(let presentation\):[\s\S]*ImportRecipeView\(/);
 });
