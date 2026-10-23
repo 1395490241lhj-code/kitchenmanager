@@ -261,8 +261,6 @@ private struct PreparedComponentEditor: View {
                     DatePicker("做好时间", selection: $preparedAt, displayedComponents: .date)
                     DatePicker("建议吃完", selection: $expiryDate, displayedComponents: .date)
                         .accessibilityIdentifier("prepared.editor.expiry")
-                } footer: {
-                    Text("默认日期只是根据状态和存放方式给的起点，可以按自己的判断修改。")
                 }
             }
             .navigationTitle(existing == nil ? "添加备餐" : "编辑备餐")

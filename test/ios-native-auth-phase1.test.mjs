@@ -36,7 +36,7 @@ test('Guest-first auth is app scoped without creating or switching kitchen persi
   assert.match(content, /AuthenticationAssembly\.make\(\)/);
   assert.match(content, /await authStore\.start\(\)/);
   assert.match(settings, /游客模式/);
-  assert.match(settings, /无需登录即可继续使用全部本机功能/);
+  assert.match(settings, /本机功能已全部可用/);
   assert.doesNotMatch(authStore, /KitchenStore|KitchenPersistenceFactory|ModelContainer/);
 });
 
