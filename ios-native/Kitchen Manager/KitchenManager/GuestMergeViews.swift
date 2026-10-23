@@ -40,8 +40,6 @@ struct GuestMergePromptView: View {
                     .foregroundStyle(AppTheme.onManagementAction)
                     .accessibilityIdentifier("guestMergePromptButton")
                 }
-            } footer: {
-                Text("购物清单、计划和菜谱不受影响，本次只涉及库存。")
             }
             .sheet(isPresented: $isShowingSheet) {
                 NavigationStack {
@@ -478,14 +476,11 @@ struct InventoryMergePreviewView: View {
                         LabeledContent("查看处理结果", value: summary.resolvedSummaryText)
                     }
                     .accessibilityIdentifier("guestMergeResolvedReviewLink")
-                } footer: {
-                    Text("仅供查看，不在此修改。")
                 }
             }
             Section {
                 Text("只合并库存，不会上传购物清单、计划或菜谱。")
                 Text("本步骤不会写入云端；确认后如有冲突不会自动覆盖，需要逐条选择。")
-                Text("可以随时取消，也可以稍后处理。")
                 Text("完成后的新增记录可在限定时间内回滚。")
             }
             .font(.footnote)
@@ -675,8 +670,6 @@ struct InventoryMergeConflictView: View {
                     Text("待处理冲突已全部选择")
                         .font(.body.weight(.semibold))
                         .accessibilityIdentifier("guestMergePreConfirmAllResolved")
-                } footer: {
-                    Text("返回上一页即可查看处理结果，或继续确认合并。")
                 }
             }
             Section {

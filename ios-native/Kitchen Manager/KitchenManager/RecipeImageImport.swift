@@ -498,7 +498,7 @@ struct RecipeImageImportView: View {
                 ContentUnavailableView(
                     "从图片导入菜谱",
                     systemImage: "text.viewfinder",
-                    description: Text("保证文字清晰，避免反光和阴影，尽量包含完整菜名、食材和步骤。长菜谱可以分段拍摄，截图不要裁掉关键内容。")
+                    description: Text("拍清楚完整的菜名、食材和步骤，避免反光；长菜谱可分段拍摄。")
                 )
                 HStack {
                     Button("拍照", systemImage: "camera") { requestCamera() }
