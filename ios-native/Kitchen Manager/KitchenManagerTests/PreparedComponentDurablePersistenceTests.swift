@@ -119,7 +119,7 @@ final class PreparedComponentDurablePersistenceTests: XCTestCase {
 
         try instanceScope {
             let instanceA = try makeStore()
-            [first, second, third].forEach(instanceA.addPreparedComponent)
+            [first, second, third].forEach { instanceA.addPreparedComponent($0) }
             XCTAssertEqual(instanceA.preparedComponents.count, 3)
         }
 

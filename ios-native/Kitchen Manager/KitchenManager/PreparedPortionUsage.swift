@@ -1,5 +1,21 @@
 import SwiftUI
 
+extension View {
+    /// Each entry point owns its error, including a sheet above another sheet.
+    /// A shared native alert keeps failure feedback consistent without turning
+    /// the store's persistent notice into a global success/error event stream.
+    func preparedFailureAlert(_ error: Binding<PreparedComponentMutationError?>) -> some View {
+        alert("备餐操作未完成", isPresented: Binding(
+            get: { error.wrappedValue != nil },
+            set: { if !$0 { error.wrappedValue = nil } }
+        )) {
+            Button("好", role: .cancel) { error.wrappedValue = nil }
+        } message: {
+            Text(error.wrappedValue?.localizedDescription ?? "请稍后重试。")
+        }
+    }
+}
+
 // MARK: - Taking one portion off a prepared batch (P1-F)
 //
 // P1-D built this on Home's quick card. Component Meal needs exactly the same

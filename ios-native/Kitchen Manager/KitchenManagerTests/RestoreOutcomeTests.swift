@@ -192,6 +192,29 @@ final class RestoreOutcomeTests: XCTestCase {
         for (key, script) in scripts { script.arm(replaceCalls: key == domain ? calls : []) }
     }
 
+    func testPreparedRemainsBlockedWhenUnsafeRecoveryAbortsBeforeItsRead() throws {
+        let data = try seedOriginalAndBuildCandidate()
+        var candidate = try JSONDecoder().decode(KitchenBackupPayload.self, from: data)
+        let imported = component(name: "导入备餐")
+        candidate.preparedComponents = [imported]
+        scripts[.preparedComponents]!.arm(replaceCalls: [2])
+        scripts[.specialPlans]!.arm(replaceCalls: [1])
+        scripts[.inventory]!.failLoad = true
+
+        XCTAssertThrowsError(try store.restoreBackupData(JSONEncoder().encode(candidate)))
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        XCTAssertEqual(store.addPreparedComponent(component(name: "后来添加")), .failure(.unavailable))
+        XCTAssertEqual(try base.preparedComponents.loadComponents(), [imported])
+
+        scripts[.preparedComponents]!.failLoad = true
+        XCTAssertThrowsError(try store.reloadPreparedComponents().get())
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        scripts[.preparedComponents]!.failLoad = false
+        try store.reloadPreparedComponents().get()
+        XCTAssertFalse(store.isPreparedComponentUnavailable)
+        XCTAssertEqual(store.preparedComponents, [imported])
+    }
+
     private func storedScope() throws -> KitchenBackupPayload {
         KitchenBackupPayload(
             inventory: try base.inventory.loadInventory(),

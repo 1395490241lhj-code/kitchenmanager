@@ -1,5 +1,33 @@
 import Foundation
 
+/// Store outcomes are explicit so a rejected write cannot be presented as a
+/// saved editor or a consumed portion. No storage error details reach the UI.
+enum PreparedComponentMutationError: Error, Equatable, LocalizedError {
+    case unavailable
+    case invalidComponent
+    case duplicateID
+    case missingRecord
+    case staleRecord
+    case saveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailable:
+            return "备餐记录暂时无法读取。为保护已有数据，修改已暂停，请重新读取后重试。"
+        case .invalidComponent:
+            return "请填写备餐名称后重试。"
+        case .duplicateID:
+            return "这条备餐记录已存在，请重新打开后查看。"
+        case .missingRecord:
+            return "这条备餐记录已不存在，这次操作没有保存。"
+        case .staleRecord:
+            return "这条备餐记录已变更，这次修改没有保存。请重新打开后查看。"
+        case .saveFailed:
+            return "备餐记录保存失败，请稍后重试。"
+        }
+    }
+}
+
 // MARK: - Prepared components (P1-B)
 //
 // A batch of portions made ahead: 周末卤好的鸡腿, 提前腌好的鸡肉. Deliberately a

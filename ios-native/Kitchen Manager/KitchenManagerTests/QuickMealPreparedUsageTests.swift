@@ -130,7 +130,7 @@ final class QuickMealPreparedUsageTests: XCTestCase {
 
         let previous = store.consumePreparedPortion(id: beef.id)
 
-        XCTAssertEqual(previous?.portionsRemaining, 1)
+        XCTAssertEqual((try? previous.get())?.portionsRemaining, 1)
         XCTAssertTrue(store.preparedComponents.isEmpty)
     }
 

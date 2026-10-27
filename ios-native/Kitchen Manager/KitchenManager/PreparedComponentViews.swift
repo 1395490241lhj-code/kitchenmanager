@@ -15,6 +15,7 @@ struct PreparedComponentsView: View {
     @State private var isAdding = false
     @State private var isAssembling = false
     @State private var toastMessage: String?
+    @State private var operationError: PreparedComponentMutationError?
 
     var body: some View {
         List {
@@ -30,7 +31,9 @@ struct PreparedComponentsView: View {
                     .accessibilityHint("用现有食材配一份主食、蛋白和蔬菜")
             }
 
-            if store.preparedComponents.isEmpty {
+            if store.isPreparedComponentUnavailable {
+                PreparedCollectionUnavailableView(identifierPrefix: "prepared")
+            } else if store.preparedComponents.isEmpty {
                 ContentUnavailableView(
                     "还没有备餐",
                     systemImage: "takeoutbag.and.cup.and.straw",
@@ -48,13 +51,22 @@ struct PreparedComponentsView: View {
                     .buttonStyle(.plain)
                 }
                 .onDelete { offsets in
-                    for index in offsets {
-                        store.removePreparedComponent(id: store.preparedComponents[index].id)
+                    // Capture identities before any successful deletion shifts
+                    // the collection. Refuse the failed operation visibly.
+                    let ids = offsets.compactMap { index in
+                        store.preparedComponents.indices.contains(index) ? store.preparedComponents[index].id : nil
+                    }
+                    for id in ids {
+                        if case .failure(let error) = store.removePreparedComponent(id: id) {
+                            toastMessage = nil
+                            operationError = error
+                            return
+                        }
                     }
                 }
             }
 
-            if let notice = store.preparedComponentNotice {
+            if !store.isPreparedComponentUnavailable, let notice = store.preparedComponentNotice {
                 Text(notice)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -77,6 +89,7 @@ struct PreparedComponentsView: View {
         .sheet(isPresented: $isAssembling) {
             ComponentMealView()
         }
+        .preparedFailureAlert($operationError)
         .overlay(alignment: .bottom) {
             if let toastMessage {
                 FeedbackToast(message: toastMessage, style: .success)
@@ -85,7 +98,14 @@ struct PreparedComponentsView: View {
     }
 
     private func consume(_ component: PreparedComponent) {
-        guard let previous = store.consumePreparedPortion(id: component.id) else { return }
+        let previous: PreparedComponent
+        switch store.consumePreparedPortion(id: component.id) {
+        case .success(let consumed): previous = consumed
+        case .failure(let error):
+            toastMessage = nil
+            operationError = error
+            return
+        }
         // No undo affordance: the app's toast carries a message only, and
         // building an undo stack for this is not worth a first version. The
         // message says plainly what happened instead.
@@ -101,6 +121,32 @@ struct PreparedComponentsView: View {
         Task {
             try? await Task.sleep(for: .seconds(2))
             if toastMessage == message { toastMessage = nil }
+        }
+    }
+}
+
+/// A read failure is distinct from an empty collection on every Prepared
+/// surface. Reload is non-destructive; a failed retry leaves this state visible.
+struct PreparedCollectionUnavailableView: View {
+    @EnvironmentObject private var store: KitchenStore
+    let identifierPrefix: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("备餐记录暂时无法读取")
+                .font(.headline)
+                .accessibilityIdentifier("\(identifierPrefix).unavailable")
+            Text(store.preparedComponentNotice ?? PreparedComponentMutationError.unavailable.localizedDescription)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button {
+                store.reloadPreparedComponents()
+            } label: {
+                Text("重新读取备餐")
+                    .frame(minHeight: AppTheme.minimumHitTarget)
+            }
+            .accessibilityIdentifier("\(identifierPrefix).reload")
         }
     }
 }
@@ -199,6 +245,8 @@ private struct PreparedComponentEditor: View {
     /// Once the user edits the date by hand, changing state or storage stops
     /// overwriting it — their judgement outranks the suggestion.
     @State private var hasEditedExpiry: Bool
+    @State private var draftID: UUID
+    @State private var saveError: PreparedComponentMutationError?
 
     init(component: PreparedComponent?) {
         existing = component
@@ -215,6 +263,7 @@ private struct PreparedComponentEditor: View {
                 state: initialState, storage: initialStorage, preparedAt: now
             ))
         _hasEditedExpiry = State(initialValue: component != nil)
+        _draftID = State(initialValue: component?.id ?? UUID())
     }
 
     private var isSaveEnabled: Bool {
@@ -283,6 +332,7 @@ private struct PreparedComponentEditor: View {
             .onChange(of: expiryDate) { old, new in
                 if old != new { hasEditedExpiry = true }
             }
+            .preparedFailureAlert($saveError)
         }
     }
 
@@ -298,7 +348,7 @@ private struct PreparedComponentEditor: View {
 
     private func save() {
         let component = PreparedComponent(
-            id: existing?.id ?? UUID(),
+            id: draftID,
             name: name,
             portionsRemaining: portions,
             state: state,
@@ -306,12 +356,15 @@ private struct PreparedComponentEditor: View {
             preparedAt: preparedAt,
             expiryDate: expiryDate
         )
-        if existing == nil {
-            store.addPreparedComponent(component)
-        } else {
-            store.updatePreparedComponent(component)
+        let outcome = existing == nil
+            ? store.addPreparedComponent(component)
+            : store.updatePreparedComponent(component, expected: existing)
+        switch outcome {
+        case .success:
+            dismiss()
+        case .failure(let error):
+            saveError = error
         }
-        dismiss()
     }
 }
 
