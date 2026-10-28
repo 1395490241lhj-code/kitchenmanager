@@ -40,3 +40,29 @@ final class UnavailableAccountService: AccountService {
         throw AccountServiceError.temporarilyUnavailable
     }
 }
+
+/// Production provider operations acknowledge this consumer before releasing admission.
+@MainActor
+protocol CoordinatedAuthService: AuthService {
+    func installConsumer(_ consumer: @escaping @MainActor (AuthProviderUpdate) async -> Void)
+    func signOut(expectedContext: UUID?, operationID: UUID) async throws
+    func reauthenticate(email: String, password: String, expectedContext: UUID?) async throws -> AuthSession
+}
+
+nonisolated struct AuthProviderUpdate: Sendable {
+    enum Phase: Sendable { case transition, settled, unavailable }
+    let phase: Phase
+    let session: AuthSession?
+    let context: UUID?
+    let operationID: UUID
+    let endingContext: UUID?
+    let isSignOut: Bool
+}
+
+nonisolated struct AuthSessionOwnership: Equatable {
+    var context: UUID?
+    var signOutOperationID: UUID?
+    var endingContext: UUID?
+    var isTransitioning = false
+    var isUnavailable = false
+}

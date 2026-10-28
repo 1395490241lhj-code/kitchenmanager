@@ -10,6 +10,10 @@ final class AuthStore: ObservableObject {
     @Published private(set) var accountMessage: String?
     @Published private(set) var confirmationEmail: String?
 
+    @Published private(set) var sessionOwnership = AuthSessionOwnership()
+    var isSessionUnavailable: Bool { sessionOwnership.isUnavailable }
+    private var coordinated: (any CoordinatedAuthService)? { authService as? any CoordinatedAuthService }
+
     private let authService: AuthService
     private let accountService: AccountService
     private var session: AuthSession?
@@ -24,6 +28,7 @@ final class AuthStore: ObservableObject {
         self.authService = authService
         self.accountService = accountService
         errorMessage = configurationMessage
+        coordinated?.installConsumer { [weak self] update in await self?.consume(update) }
     }
 
     deinit { observationTask?.cancel() }
@@ -31,16 +36,16 @@ final class AuthStore: ObservableObject {
     func start() async {
         guard !hasStarted else { return }
         hasStarted = true
-        observeAuthChanges()
+        if coordinated == nil { observeAuthChanges() }
         activity = .restoring
         do {
             if let restored = try await authService.restoreSession() {
-                await apply(restored)
-            } else {
+                if coordinated == nil { await applyFresh(restored) }
+            } else if coordinated == nil {
                 clearSession()
             }
         } catch {
-            clearSession()
+            if coordinated == nil { clearSession() }
             errorMessage = AuthenticationError.unavailable.localizedDescription
         }
         activity = .idle
@@ -54,7 +59,8 @@ final class AuthStore: ObservableObject {
         confirmationEmail = nil
         defer { activity = .idle }
         do {
-            await apply(try await authService.signIn(email: email, password: password))
+            let session = try await authService.signIn(email: email, password: password)
+            if coordinated == nil { await applyFresh(session) }
             return true
         } catch {
             errorMessage = safeMessage(for: error)
@@ -72,7 +78,7 @@ final class AuthStore: ObservableObject {
         do {
             switch try await authService.signUp(email: email, password: password) {
             case .signedIn(let session):
-                await apply(session)
+                if coordinated == nil { await applyFresh(session) }
                 return true
             case .confirmationRequired(let email):
                 confirmationEmail = email
@@ -84,16 +90,32 @@ final class AuthStore: ObservableObject {
         }
     }
 
-    func signOut() async {
-        guard activity != .submitting else { return }
+    func signOut() async { _ = await signOut(ifCurrent: { true }) }
+
+    /// A deletion can finish after another auth event. Never let its late result
+    /// clear a replacement session or write an error onto that account.
+    @discardableResult
+    func signOut(ifCurrent ownsContext: () -> Bool, operationID: UUID = UUID()) async -> Bool {
+        guard ownsContext(), activity != .submitting else { return false }
         activity = .submitting
         errorMessage = nil
         defer { activity = .idle }
         do {
-            try await authService.signOut()
-            clearSession()
+            if let coordinated {
+                try await coordinated.signOut(expectedContext: sessionOwnership.context, operationID: operationID)
+            } else {
+                let ending = sessionOwnership.context
+                try await authService.signOut()
+                guard ownsContext() else { return false }
+                sessionOwnership = AuthSessionOwnership(signOutOperationID: operationID, endingContext: ending)
+                clearSession(preservingOwnership: true)
+            }
+            guard ownsContext() else { return false }
+            return true
         } catch {
+            guard ownsContext() else { return false }
             errorMessage = safeMessage(for: error)
+            return false
         }
     }
 
@@ -114,7 +136,12 @@ final class AuthStore: ObservableObject {
         errorMessage = nil
         defer { activity = .idle }
         do {
-            await apply(try await authService.reauthenticate(email: email, password: password))
+            let session: AuthSession
+            if let coordinated {
+                session = try await coordinated.reauthenticate(email: email, password: password,
+                                                               expectedContext: sessionOwnership.context)
+            } else { session = try await authService.reauthenticate(email: email, password: password) }
+            if coordinated == nil { await applyFresh(session) }
             return true
         } catch {
             errorMessage = safeMessage(for: error)
@@ -124,10 +151,14 @@ final class AuthStore: ObservableObject {
 
     func refreshAccount() async {
         guard let session else { return }
+        let ownership = sessionOwnership.context
         do {
-            account = try await accountService.currentAccount(accessToken: session.accessToken)
+            let loaded = try await accountService.currentAccount(accessToken: session.accessToken)
+            guard sessionOwnership.context == ownership, self.session == session else { return }
+            account = loaded
             accountMessage = nil
         } catch {
+            guard sessionOwnership.context == ownership, self.session == session else { return }
             account = nil
             accountMessage = (error as? LocalizedError)?.errorDescription
                 ?? AccountServiceError.temporarilyUnavailable.localizedDescription
@@ -139,10 +170,35 @@ final class AuthStore: ObservableObject {
             for await change in authService.authStateChanges {
                 guard let self else { return }
                 switch change {
-                case .sessionUpdated(let session): await self.apply(session)
+                case .sessionUpdated(let session):
+                    if self.currentUserID != session.user.id || self.sessionOwnership.context == nil {
+                        await self.applyFresh(session)
+                    } else { await self.apply(session) }
                 case .signedOut: self.clearSession()
                 }
             }
+        }
+    }
+
+    private func applyFresh(_ newSession: AuthSession) async {
+        sessionOwnership = AuthSessionOwnership(context: UUID())
+        await apply(newSession)
+    }
+
+    private func consume(_ update: AuthProviderUpdate) async {
+        sessionOwnership = AuthSessionOwnership(context: update.context,
+            signOutOperationID: update.isSignOut ? update.operationID : nil,
+            endingContext: update.endingContext, isTransitioning: update.phase == .transition,
+            isUnavailable: update.phase == .unavailable)
+        switch update.phase {
+        case .transition: break
+        case .unavailable:
+            session = nil; account = nil
+            errorMessage = "登录状态暂时无法确认。请重新登录；本机厨房数据会保留。"
+        case .settled:
+            if let session = update.session {
+                if self.session != session { await apply(session) }
+            } else { clearSession(preservingOwnership: true) }
         }
     }
 
@@ -154,7 +210,8 @@ final class AuthStore: ObservableObject {
         await refreshAccount()
     }
 
-    private func clearSession() {
+    private func clearSession(preservingOwnership: Bool = false) {
+        if !preservingOwnership { sessionOwnership = AuthSessionOwnership() }
         session = nil
         status = .guest
         account = nil
@@ -189,7 +246,10 @@ final class AuthStore: ObservableObject {
     /// (`test/ios-native-guest-merge-phase2b1.test.mjs` enforces that no View
     /// file in this target calls this directly.) The session itself remains
     /// in Keychain-owned auth storage.
-    func currentAccessToken() -> String? { session?.accessToken }
+    func currentAccessToken() -> String? {
+        guard !sessionOwnership.isUnavailable, !sessionOwnership.isTransitioning else { return nil }
+        return session?.accessToken
+    }
 }
 
 extension AuthStore {

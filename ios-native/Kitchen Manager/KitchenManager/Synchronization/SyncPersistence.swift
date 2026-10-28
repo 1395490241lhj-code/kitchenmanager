@@ -3,7 +3,25 @@ import SwiftData
 
 nonisolated enum SyncPersistenceBehavior: Equatable, Sendable {
     case normal
+    #if DEBUG
     case failSavesForTesting
+    #endif
+}
+
+/// Process-lifetime permission for one account-deletion cleanup. Revocation and
+/// the synchronous persistence transaction share a lock; never hold it over await.
+nonisolated final class AccountDeletionCleanupAuthorization: @unchecked Sendable {
+    private let lock = NSLock()
+    private var valid = true
+    var isValid: Bool { lock.withLock { valid } }
+    func revoke() { lock.withLock { valid = false } }
+    func perform(_ operation: () throws -> Void) rethrows -> Bool {
+        try lock.withLock {
+            guard valid else { return false }
+            try operation()
+            return true
+        }
+    }
 }
 
 protocol SyncPersistenceProtocol: Actor {
@@ -84,7 +102,10 @@ protocol SyncPersistenceProtocol: Actor {
     /// resurrect a stale pending mutation against data that no longer exists
     /// server-side. Does not touch domain business data (inventory, recipes,
     /// etc.); callers pair this with `KitchenStore.clearAllLocalData()`.
-    func clearAllSyncState() throws
+    func clearAllSyncState() async throws
+    /// Checks the revocable account-deletion permission at the transaction,
+    /// not merely before the caller awaits entry to this actor.
+    func clearAllSyncState(authorizedBy authorization: AccountDeletionCleanupAuthorization) async throws -> Bool
 }
 
 @ModelActor
@@ -399,6 +420,10 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
         return try modelContext.fetch(descriptor).compactMap(\.value)
     }
 
+    func clearAllSyncState(authorizedBy authorization: AccountDeletionCleanupAuthorization) throws -> Bool {
+        try authorization.perform { try clearAllSyncState() }
+    }
+
     func clearAllSyncState() throws {
         for record in try modelContext.fetch(FetchDescriptor<SyncMetadataRecord>()) { modelContext.delete(record) }
         for record in try modelContext.fetch(FetchDescriptor<PendingMutationRecord>()) { modelContext.delete(record) }
@@ -566,7 +591,9 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
 
     private func commit() throws {
         do {
+            #if DEBUG
             if behavior == .failSavesForTesting { throw SyncError.persistence }
+            #endif
             try modelContext.save()
         } catch {
             modelContext.rollback()
@@ -601,4 +628,5 @@ actor FailingSyncPersistence: SyncPersistenceProtocol {
     func allMetadata(scope: SyncScope) throws -> [SyncMetadata] { throw SyncError.persistence }
     func allPendingMutations(scope: SyncScope) throws -> [PendingMutation] { throw SyncError.persistence }
     func clearAllSyncState() throws { throw SyncError.persistence }
+    func clearAllSyncState(authorizedBy authorization: AccountDeletionCleanupAuthorization) throws -> Bool { throw SyncError.persistence }
 }

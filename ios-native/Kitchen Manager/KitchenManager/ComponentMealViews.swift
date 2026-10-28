@@ -25,6 +25,7 @@ struct ComponentMealView: View {
     @EnvironmentObject private var store: KitchenStore
     @Environment(\.dismiss) private var dismiss
     @State private var toastMessage: String?
+    @State private var operationError: PreparedComponentMutationError?
 
     private var result: ComponentMealResult {
         ComponentMealPolicy.assemble(
@@ -37,7 +38,9 @@ struct ComponentMealView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    if let suggestion = result.suggestion {
+                    if store.isPreparedComponentUnavailable {
+                        PreparedCollectionUnavailableView(identifierPrefix: "componentMeal.prepared")
+                    } else if let suggestion = result.suggestion {
                         card(suggestion)
                     } else {
                         gapCard(result.gaps)
@@ -60,6 +63,7 @@ struct ComponentMealView: View {
                     FeedbackToast(message: toastMessage, style: .success)
                 }
             }
+            .preparedFailureAlert($operationError)
         }
     }
 
@@ -127,7 +131,14 @@ struct ComponentMealView: View {
     /// so `result` recomputes on its own — the plate is never patched by hand,
     /// and if the batch is gone the sheet falls to the gap wording.
     private func usePreparedPortion(_ id: UUID) {
-        guard let previous = store.consumePreparedPortion(id: id) else { return }
+        let previous: PreparedComponent
+        switch store.consumePreparedPortion(id: id) {
+        case .success(let consumed): previous = consumed
+        case .failure(let error):
+            toastMessage = nil
+            operationError = error
+            return
+        }
         showToast(
             previous.portionsRemaining > 1
                 ? "已使用 1 份\(previous.name)，还剩 \(previous.portionsRemaining - 1) 份"

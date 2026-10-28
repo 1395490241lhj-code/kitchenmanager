@@ -31,7 +31,9 @@ struct AccountDeletionView: View {
                 Text("这与退出登录不同")
             }
 
-            if controller.isLoadingPreview {
+            if controller.needsLocalCleanup {
+                localCleanupSection
+            } else if controller.isLoadingPreview {
                 Section { ProgressView("正在检查账号状态…") }
             } else if let preview = controller.preview {
                 previewSection(preview)
@@ -50,7 +52,10 @@ struct AccountDeletionView: View {
         }
         .navigationTitle("删除账号")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await controller.loadPreview(authStore: authStore) }
+        .task {
+            controller.refreshLocalCleanupOwnership(authStore: authStore, kitchenStore: kitchenStore)
+            await controller.loadPreview(authStore: authStore)
+        }
         .onChange(of: controller.didComplete) { _, completed in
             if completed { dismiss() }
         }
@@ -75,6 +80,33 @@ struct AccountDeletionView: View {
             }
         } message: {
             Text("身份已重新验证。确认后将永久删除账号，且无法恢复。")
+        }
+    }
+
+    private var localCleanupSection: some View {
+        Section {
+            Text(controller.localCleanupBlockedReason == nil
+                 ? "账号已删除，本机清理未完成" : "此前账号已删除，本机清理已暂停")
+                .font(.headline)
+                .accessibilityIdentifier(controller.localCleanupBlockedReason == nil
+                                         ? "account.delete.localCleanupPending" : "account.delete.localCleanupBlocked")
+            if let message = controller.errorMessage {
+                Text(message).foregroundStyle(.red)
+            }
+            Button {
+                Task { await controller.retryLocalCleanup(authStore: authStore, kitchenStore: kitchenStore) }
+            } label: {
+                HStack {
+                    if controller.isConfirming { ProgressView() }
+                    Text("重试本机清理")
+                }
+            }
+            .disabled(controller.isConfirming || controller.localCleanupBlockedReason != nil)
+            .accessibilityIdentifier("account.delete.retryLocalCleanup")
+        } footer: {
+            Text(controller.localCleanupBlockedReason == nil
+                 ? "只重试尚未完成的本机清理或退出登录，不会再次请求删除账号。菜谱库、收藏和常做记录会保留。"
+                 : "当前上下文不再属于此前的删除操作。当前账号和本机数据会保留，此处不会执行清理或退出登录。")
         }
     }
 

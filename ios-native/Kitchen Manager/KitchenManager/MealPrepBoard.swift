@@ -101,12 +101,19 @@ enum MealPrepBoard {
 /// prep plan here and this phase does not invent one.
 struct HomeMealPrepBoardSection: View {
     let entries: [MealPrepBoardEntry]
+    var isUnavailable = false
     let onAdd: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(spacing: 0) {
-                if entries.isEmpty {
+                if isUnavailable {
+                    Text("备餐记录暂时无法读取")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: AppTheme.minimumHitTarget, alignment: .leading)
+                        .accessibilityIdentifier("home.mealPrep.unavailable")
+                } else if entries.isEmpty {
                     Text("还没有备餐")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
