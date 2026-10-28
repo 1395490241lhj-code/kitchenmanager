@@ -1935,6 +1935,7 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(mutation?.baseVersion?.rawValue, "0")
     }
 
+    #if DEBUG
     func testTransactionFailureLeavesNoOrphanedMutation() async throws {
         let (kitchen, persistence) = try await enrolledStores(behavior: .failSavesForTesting)
         let newItem = InventoryItem(name: "香蕉", quantity: 2, unit: "根", expiryDate: nil)
@@ -1949,6 +1950,7 @@ final class GuestMergeTests: XCTestCase {
         let mutation = try await persistence.pendingMutationForEntity(entityType: .inventoryItem, entityId: newItem.id)
         XCTAssertNil(mutation, "a failed save must never leave an orphaned mutation")
     }
+    #endif
 
     // MARK: - Phase 2B-4: update + coalescing
 
@@ -2524,6 +2526,7 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertNil(finalMutation, "the retry resolves the same mutation; it must never create a second pending record for the same entity")
     }
 
+    #if DEBUG
     func testPullSucceedsButLocalSaveFailureNeverAdvancesCursor() async throws {
         let (kitchen, sharedPersistence) = try makeSharedStores(seedGuestInventory: false)
         try await sharedPersistence.saveEnrollment(InventorySyncEnrollment(
@@ -2545,6 +2548,7 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(cursorBefore, cursorAfter, "a local save failure while applying a pulled change must never advance the cursor")
         _ = kitchen
     }
+    #endif
 
     func testAppKillBeforePendingCleanupIsRecoveredAndDuplicateSafeOnNextLaunch() async throws {
         let (_, sharedPersistence) = try await enrolledStores()
@@ -3940,6 +3944,7 @@ final class GuestMergeTests: XCTestCase {
         XCTAssertEqual(controller.conflictChoiceErrorMessage, "无法找到这条冲突记录，请返回合并预览后重试。")
     }
 
+    #if DEBUG
     func testPersistenceFailureDuringEditShowsTheDedicatedSaveError() async throws {
         let (kitchen, shared) = try makeSharedStores(seedGuestInventory: false)
         let sharedId = UUID()
@@ -3963,6 +3968,7 @@ final class GuestMergeTests: XCTestCase {
         await failingController.resolveConflict(candidateId: sharedId, choice: .keepLocal)
         XCTAssertEqual(failingController.conflictChoiceErrorMessage, "无法保存处理方式，请重试。")
     }
+    #endif
 
     func testEditErrorIsScopedToTheCandidateThatProducedIt() async throws {
         let (kitchen, persistence) = try makeSharedStores(seedGuestInventory: false)

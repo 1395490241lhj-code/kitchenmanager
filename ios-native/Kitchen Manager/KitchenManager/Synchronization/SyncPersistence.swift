@@ -3,7 +3,9 @@ import SwiftData
 
 nonisolated enum SyncPersistenceBehavior: Equatable, Sendable {
     case normal
+    #if DEBUG
     case failSavesForTesting
+    #endif
 }
 
 /// Process-lifetime permission for one account-deletion cleanup. Revocation and
@@ -589,7 +591,9 @@ actor SwiftDataSyncPersistence: SyncPersistenceProtocol {
 
     private func commit() throws {
         do {
+            #if DEBUG
             if behavior == .failSavesForTesting { throw SyncError.persistence }
+            #endif
             try modelContext.save()
         } catch {
             modelContext.rollback()

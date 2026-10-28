@@ -60,11 +60,13 @@ struct AuthEntryView: View {
 
     private func submit() async {
         guard form.validate() else { return }
+        let didSignIn: Bool
         if form.mode == .signIn {
-            _ = await authStore.signIn(email: form.normalizedEmail, password: form.password)
+            didSignIn = await authStore.signIn(email: form.normalizedEmail, password: form.password)
         } else {
-            _ = await authStore.signUp(email: form.normalizedEmail, password: form.password)
+            didSignIn = await authStore.signUp(email: form.normalizedEmail, password: form.password)
         }
+        if didSignIn { dismiss() }
     }
 }
 
