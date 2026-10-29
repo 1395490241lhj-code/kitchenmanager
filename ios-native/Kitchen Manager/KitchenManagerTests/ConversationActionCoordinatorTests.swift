@@ -53,6 +53,7 @@ final class ConversationActionCoordinatorTests: XCTestCase {
         func tonightPlanContext(now: Date, calendar: Calendar) -> AITonightPlanContext { live.tonightPlanContext(now: now, calendar: calendar) }
         func plannerWeekContext(weekStart: Date, calendar: Calendar) -> AIPlannerWeekContext { live.plannerWeekContext(weekStart: weekStart, calendar: calendar) }
         func specialPlanContext(id: UUID) -> AISpecialPlanContext? { live.specialPlanContext(id: id) }
+        func recipeCandidatesContext(now: Date, calendar: Calendar) -> AIRecipeCandidatesContext { live.recipeCandidatesContext(now: now, calendar: calendar) }
         func resolveRecipe(query: String, recipeID: String?) -> Recipe? { live.resolveRecipe(query: query, recipeID: recipeID) }
         func plannedMeal(id: UUID) -> MealPlanItem? { live.plannedMeal(id: id) }
         func specialPlan(id: UUID) -> SpecialPlan? { live.specialPlan(id: id) }

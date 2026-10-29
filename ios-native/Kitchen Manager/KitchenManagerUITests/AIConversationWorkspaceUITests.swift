@@ -32,6 +32,15 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: "kitchenAI.taskContext").firstMatch
     }
 
+    /// A recipe card is one accessibility element whose summary label opens
+    /// with the dish title, so it is matched by that rather than by a
+    /// separate title text that VoiceOver no longer stops on.
+    private func recipeCard(_ app: XCUIApplication, titled title: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH 'kitchenAI.recipe.card.' AND label BEGINSWITH %@", title
+        )).firstMatch
+    }
+
     private func composerField(_ app: XCUIApplication) -> XCUIElement {
         let field = app.textViews["kitchenAI.composer"]
         if field.exists { return field }
@@ -218,7 +227,15 @@ final class AIConversationWorkspaceUITests: XCTestCase {
                     drag(app, from: 0.3, to: 0.98)
                     continue
                 }
-                drag(app, from: 0.4, to: 0.2)
+                // The transcript follows its newest content, so a target can
+                // also sit above the band — at accessibility sizes the
+                // 继续调整 suggestions push the last card up. Scroll back toward
+                // it in small steps; otherwise scroll on down.
+                if element.exists, element.frame.minY <= 140 {
+                    drag(app, from: 0.3, to: 0.45)
+                } else {
+                    drag(app, from: 0.4, to: 0.2)
+                }
             }
             XCTFail("Could not bring \(element) into view")
         }
@@ -235,11 +252,11 @@ final class AIConversationWorkspaceUITests: XCTestCase {
             "UITEST_AI_CONVERSATION_SEED_RECIPES"
         ], appearance: appearance, contentSize: size)
         send(app, "推荐两个菜")
-        XCTAssertTrue(app.staticTexts["家常豆腐"].waitForExistence(timeout: 8))
+        XCTAssertTrue(recipeCard(app, titled: "家常豆腐").waitForExistence(timeout: 8))
         capture(app, "Recipes")
         // The second, transient recipe sits below the fold at accessibility
         // sizes; capture it too so its card width is inspected, not assumed.
-        bringIntoView(app, app.staticTexts["家常豆腐"])
+        bringIntoView(app, recipeCard(app, titled: "家常豆腐"))
         capture(app, "RecipesDraft")
         app.terminate()
 
@@ -322,9 +339,9 @@ final class AIConversationWorkspaceUITests: XCTestCase {
     func test02_FourExactHomeStartersExist() {
         let app = launchApp(arguments: ["UITEST_AI_CONVERSATION_WORKSPACE_HOME"])
         let starters = [
+            "今晚吃什么",
             "用快过期的食材做饭",
             "今晚想吃清淡一点",
-            "看看现在能做什么",
             "帮我补一道菜"
         ]
         for starter in starters {
@@ -539,8 +556,13 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         composer.typeText("推荐两个菜")
         app.buttons["kitchenAI.send"].tap()
 
-        XCTAssertTrue(app.staticTexts["蒜蓉上海青"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["家常豆腐"].waitForExistence(timeout: 8))
+        let first = recipeCard(app, titled: "蒜蓉上海青")
+        let second = recipeCard(app, titled: "家常豆腐")
+        XCTAssertTrue(first.waitForExistence(timeout: 8))
+        XCTAssertTrue(second.waitForExistence(timeout: 8))
+        XCTAssertLessThan(first.frame.minY, second.frame.minY, "adjacent recipes stack in order")
+        XCTAssertTrue(app.descendants(matching: .any)["kitchenAI.recipe.group"].exists,
+                      "adjacent recipe blocks in one message form one group")
     }
 
     func test13_NonTransientRecipeUsesLiveRecipeStoreTruth() {
@@ -555,9 +577,13 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         composer.typeText("推荐")
         app.buttons["kitchenAI.send"].tap()
 
-        XCTAssertTrue(app.staticTexts["蒜蓉上海青"].waitForExistence(timeout: 8))
-        app.swipeDown()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '上海青 350 克'")).firstMatch.waitForExistence(timeout: 5))
+        let card = recipeCard(app, titled: "蒜蓉上海青")
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        // The block named only the id and title; time, difficulty and the
+        // ingredient-derived stock line come from the live library recipe.
+        XCTAssertTrue(card.label.contains("10 分钟"), card.label)
+        XCTAssertTrue(card.label.contains("简单"), card.label)
+        XCTAssertTrue(card.label.contains("还缺上海青、大蒜"), card.label)
         XCTAssertTrue(app.buttons["kitchenAI.recipe.view.rec-garlic-greens"].exists)
     }
 
@@ -575,7 +601,7 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         row.tap()
 
         // Still renders from block snapshot although rec-deleted is missing from RecipeStore
-        XCTAssertTrue(app.staticTexts["秘制红烧肉"].waitForExistence(timeout: 8))
+        XCTAssertTrue(recipeCard(app, titled: "秘制红烧肉").waitForExistence(timeout: 8))
 
         let viewButton = app.buttons["kitchenAI.recipe.view.rec-deleted"]
         XCTAssertTrue(viewButton.waitForExistence(timeout: 5))
@@ -598,7 +624,7 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         composer.typeText("推荐")
         app.buttons["kitchenAI.send"].tap()
 
-        XCTAssertTrue(app.staticTexts["蒜蓉上海青"].waitForExistence(timeout: 8))
+        XCTAssertTrue(recipeCard(app, titled: "蒜蓉上海青").waitForExistence(timeout: 8))
         // Tapped only to scroll the transcript to the top. Matched by position
         // rather than by title, because the title is now the conversation's own
         // task identity instead of the fixed product name.
@@ -724,6 +750,7 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         XCTAssertTrue(app.buttons["kitchenAI.contextChips"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["库存"].exists)
         XCTAssertTrue(app.staticTexts["今晚计划"].exists)
+        XCTAssertTrue(app.staticTexts["菜谱"].exists, "Home offers the library shortlist as its own source")
     }
 
     func test20_TogglingContextSourceExclusion() {
@@ -1429,7 +1456,7 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         composer.typeText("推荐")
         app.buttons["kitchenAI.send"].tap()
 
-        XCTAssertTrue(app.staticTexts["家常豆腐"].waitForExistence(timeout: 8))
+        XCTAssertTrue(recipeCard(app, titled: "家常豆腐").waitForExistence(timeout: 8))
         let viewRecipeButtons = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'kitchenAI.recipe.view.'"))
         let secondButton = viewRecipeButtons.element(boundBy: 1)
         XCTAssertTrue(secondButton.waitForExistence(timeout: 5))
@@ -1602,10 +1629,12 @@ final class AIConversationWorkspaceUITests: XCTestCase {
         app.buttons["kitchenAI.send"].tap()
 
         // Live recipe rec-garlic-greens has cookingTime = 10.
-        XCTAssertTrue(app.staticTexts["蒜蓉上海青"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["家常豆腐"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["10 分钟"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Optional(10) 分钟"].exists)
+        let live = recipeCard(app, titled: "蒜蓉上海青")
+        let transient = recipeCard(app, titled: "家常豆腐")
+        XCTAssertTrue(live.waitForExistence(timeout: 8))
+        XCTAssertTrue(transient.waitForExistence(timeout: 8))
+        XCTAssertTrue(live.label.contains("10 分钟"), live.label)
+        XCTAssertFalse(transient.label.contains("分钟"), "unknown time is omitted: \(transient.label)")
         assertNoOptionalDebugText(app, stage: "recipe cards")
 
         // Transient 家常豆腐 supplies no cookingTime; its snapshot detail must
@@ -1623,9 +1652,160 @@ final class AIConversationWorkspaceUITests: XCTestCase {
     }
 
     private func assertNoOptionalDebugText(_ app: XCUIApplication, stage: String) {
-        let leaked = app.staticTexts.matching(
+        // Any element type: a recipe card's summary is not a static text.
+        let leaked = app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@ OR label CONTAINS %@", "nil 分钟", "Optional(")
         )
         XCTAssertEqual(leaked.count, 0, "\(stage) exposed Optional/nil debug text: \(leaked.firstMatch.label)")
+    }
+
+    // MARK: - Tonight pilot (Phase 1a)
+
+    private func sendTonightShortlist(_ app: XCUIApplication) {
+        let starter = app.buttons["kitchenAI.starter.今晚吃什么"]
+        XCTAssertTrue(starter.waitForExistence(timeout: 5))
+        starter.tap()
+        XCTAssertEqual(composerField(app).value as? String, "今晚吃什么", "a starter only fills the composer")
+        app.buttons["kitchenAI.send"].tap()
+    }
+
+    /// The card's kitchen facts are the app's, read through RecipeStockMatch;
+    /// the model's reason stays a separate line above the card.
+    func testTonightShortlistCardsCarryDeterministicStockFacts() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_TONIGHT_SHORTLIST"
+        ])
+        sendTonightShortlist(app)
+
+        // One tomato for a two-tomato recipe: present, so nothing is 还缺, but
+        // presence is not quantity and the card must not claim it is enough.
+        let ready = recipeCard(app, titled: "番茄炒蛋")
+        XCTAssertTrue(ready.waitForExistence(timeout: 8))
+        XCTAssertTrue(ready.label.contains("家里有番茄、鸡蛋"), ready.label)
+        XCTAssertTrue(ready.label.contains("主要食材在库，用量与调料未核对"), ready.label)
+        XCTAssertFalse(ready.label.contains("可直接做"), ready.label)
+        XCTAssertTrue(ready.label.contains("可用掉临期鸡蛋"), ready.label)
+        XCTAssertFalse(ready.label.contains("15 分钟出锅"), "the model's reason is not part of the facts: \(ready.label)")
+        XCTAssertTrue(app.staticTexts["先用掉明天到期的鸡蛋，15 分钟出锅"].exists)
+
+        // 干辣椒 is filed as a seasoning by the recipe model, so it is not a
+        // core ingredient the stock rows judge.
+        // The scripted reason and the card's own facts must agree: the chicken
+        // thigh is expiring, so the reason may not call it fresh.
+        let short = recipeCard(app, titled: "宫保鸡丁")
+        XCTAssertTrue(short.label.contains("家里有鸡腿肉"), short.label)
+        XCTAssertTrue(short.label.contains("可用掉临期鸡腿肉"), short.label)
+        XCTAssertTrue(app.staticTexts["顺手用掉快到期的鸡腿肉，需要先补配料"].exists)
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "新鲜")).firstMatch.exists)
+        XCTAssertTrue(short.label.contains("还缺花生米、大葱、生姜、大蒜"),
+                      "VoiceOver hears every missing name: \(short.label)")
+        XCTAssertFalse(short.label.contains("主要食材在库"), short.label)
+
+        let draft = recipeCard(app, titled: "家常豆腐")
+        XCTAssertTrue(draft.label.contains("AI 推荐草稿"), draft.label)
+        XCTAssertTrue(draft.label.contains("还缺北豆腐、青椒"), draft.label)
+    }
+
+    /// Follow-up chips appear under a turn that recommended dishes and only
+    /// fill the composer; nothing is sent until the member sends it.
+    func testAdjustmentChipFillsComposerWithoutSending() {
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_TONIGHT_SHORTLIST"
+        ])
+        sendTonightShortlist(app)
+        XCTAssertTrue(recipeCard(app, titled: "家常豆腐").waitForExistence(timeout: 8))
+
+        let chip = app.buttons["kitchenAI.adjust.换清淡一点的菜"]
+        reveal(app, chip)
+        XCTAssertTrue(chip.waitForExistence(timeout: 5))
+        func count(_ label: String) -> Int {
+            app.staticTexts.matching(NSPredicate(format: "label == %@", label)).count
+        }
+        let askedRows = count("今晚吃什么")
+        let chipTexts = count("换清淡一点的菜")
+        chip.tap()
+
+        XCTAssertEqual(composerField(app).value as? String, "换清淡一点的菜")
+        XCTAssertFalse(app.buttons["kitchenAI.stop"].exists, "a chip never starts a turn")
+        XCTAssertEqual(count("换清淡一点的菜"), chipTexts, "no user message was added")
+        XCTAssertEqual(count("今晚吃什么"), askedRows)
+    }
+
+    func testTonightShortlistLightNormal() { captureTonightShortlist(dark: false, accessibility: false) }
+    func testTonightShortlistDarkNormal() { captureTonightShortlist(dark: true, accessibility: false) }
+    func testTonightShortlistLightAccessibilityXXXL() { captureTonightShortlist(dark: false, accessibility: true) }
+    func testTonightShortlistDarkAccessibilityXXXL() { captureTonightShortlist(dark: true, accessibility: true) }
+
+    /// Owner-review evidence for the three card states and the follow-up
+    /// chips. Presentation only: each capture waits on the element it shows.
+    private func captureTonightShortlist(dark: Bool, accessibility: Bool) {
+        let size = accessibility ? "UICTContentSizeCategoryAccessibilityXXXL" : "UICTContentSizeCategoryLarge"
+        let prefix = "Tonight-\(dark ? "Dark" : "Light")-\(accessibility ? "AXXXL" : "Normal")-"
+        let app = launchApp(arguments: [
+            "UITEST_AI_CONVERSATION_WORKSPACE_HOME",
+            "UITEST_AI_CONVERSATION_SCRIPT_TONIGHT_SHORTLIST"
+        ], appearance: dark ? .dark : .light, contentSize: size)
+        func capture(_ name: String) {
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = prefix + name
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        func drag(from start: CGFloat, to end: CGFloat) {
+            let window = app.windows.firstMatch
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: start))
+                .press(forDuration: 0.05, thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: end)))
+        }
+        // The transcript's visible band: below the task header, above the
+        // composer's context chips (which sit above the keyboard when it shows).
+        func visibleBand() -> (top: CGFloat, bottom: CGFloat) {
+            (taskContextHeader(app).frame.maxY, app.buttons["kitchenAI.contextChips"].frame.minY)
+        }
+        // A card that fits must be wholly inside the band. A card taller than
+        // the band — any card at AXXXL — must show its bottom edge in the lower
+        // half of the band, because its kitchen rows are its last lines; its
+        // title may then scroll off the top.
+        func isPresented(_ element: XCUIElement) -> Bool {
+            guard element.exists else { return false }
+            let (top, bottom) = visibleBand()
+            let frame = element.frame
+            if frame.height <= bottom - top - 8 {
+                return frame.minY >= top + 4 && frame.maxY <= bottom - 4
+            }
+            return frame.maxY <= bottom - 4 && frame.maxY >= bottom - (bottom - top) / 2
+        }
+        // Short drags so a narrow target band cannot be jumped over. Content
+        // moves up while the element sits low, down while it sits high.
+        func present(_ element: XCUIElement) {
+            var attempts = 0
+            while !isPresented(element) && attempts < 40 {
+                attempts += 1
+                let (top, bottom) = visibleBand()
+                let frame = element.frame
+                let tall = frame.height > bottom - top - 8
+                let isLow = tall ? frame.maxY > bottom - 4 : frame.maxY > bottom - 4 || frame.minY > top + (bottom - top) / 2
+                if !element.exists || isLow { drag(from: 0.55, to: 0.47) } else { drag(from: 0.47, to: 0.55) }
+            }
+            XCTAssertTrue(isPresented(element), "\(prefix): \(element) is not inside the visible transcript band")
+        }
+
+        capture("Starters")
+        sendTonightShortlist(app)
+        let draft = recipeCard(app, titled: "家常豆腐")
+        XCTAssertTrue(draft.waitForExistence(timeout: 8))
+        // Dismiss the keyboard: a drag that ends inside it puts the transcript in
+        // frame. Visibility is checked against the chips either way, which ride
+        // above the keyboard whenever one is shown.
+        drag(from: 0.3, to: 0.98)
+        present(recipeCard(app, titled: "番茄炒蛋"))
+        capture("CardReady")
+        present(recipeCard(app, titled: "宫保鸡丁"))
+        capture("CardShortfall")
+        present(draft)
+        capture("CardDraft")
+        present(app.buttons["kitchenAI.adjust.换清淡一点的菜"])
+        capture("Adjustments")
     }
 }

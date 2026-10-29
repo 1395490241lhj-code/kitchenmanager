@@ -1160,3 +1160,31 @@ test('/api/ai-conversation 流中途的失败没有 HTTP 状态时不记 status�
   assert.equal(entries[0].reason, 'server_error');
   assertNoSensitiveLog(logLines);
 });
+
+// iOS ConversationResponseInterpreter 接受单餐提案上的 plannedServings（1–12 的整数，
+// 越界判为无效）。schema 必须照实提供它，范围写在描述里；批量计划改动保留逐行份量。
+test('加入今晚与替换计划餐的 schema 提供 1–12 的可选份量，批量计划改动保留逐行份量', async () => {
+  loadServerWithStreams();
+  const { selectConversationTools } = require(resolve(root, 'src/server/services/ai-conversation.js'));
+  const byName = Object.fromEntries(selectConversationTools([
+    'propose_add_recipe_to_tonight',
+    'propose_replace_planned_meal',
+    'propose_apply_planner_changes'
+  ]).map((tool) => [tool.function.name, tool.function]));
+
+  for (const [name, required] of [
+    ['propose_add_recipe_to_tonight', ['recipe']],
+    ['propose_replace_planned_meal', ['planID', 'replacement']]
+  ]) {
+    const { parameters } = byName[name];
+    assert.equal(parameters.properties.plannedServings.type, 'integer', `${name} 提供整数份量`);
+    assert.match(parameters.properties.plannedServings.description, /1 到 12/, `${name} 写明客户端接受的范围`);
+    assert.deepEqual(parameters.required, required, `${name} 的份量是可选的`);
+    assert.equal(parameters.additionalProperties, false);
+  }
+  // 加入今晚是低风险、校验后直接执行的动作；描述不能再让模型以为会有确认步骤。
+  assert.doesNotMatch(byName.propose_add_recipe_to_tonight.description, /确认/);
+
+  const batchRow = byName.propose_apply_planner_changes.parameters.properties.changes.items;
+  assert.equal(batchRow.properties.plannedServings.type, 'integer', '批量改动的逐行份量是客户端支持的字段');
+});

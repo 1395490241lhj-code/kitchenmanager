@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AIConversationView: View {
     let entryContext: AIConversationEntryContext
@@ -44,6 +45,11 @@ struct AIConversationView: View {
                                 MessageRowView(message: message)
                                     .id(message.id)
                             }
+                            if !controller.adjustmentSuggestions.isEmpty {
+                                AdjustmentSuggestionsView(suggestions: controller.adjustmentSuggestions) {
+                                    controller.applyAdjustmentSuggestion($0)
+                                }
+                            }
                             Color.clear
                                 .frame(height: 1)
                                 .id("conversationBottomAnchor")
@@ -68,6 +74,12 @@ struct AIConversationView: View {
         // tab's Kitchen AI must not leave that tab's conversation on this page.
         .onAppear {
             controller.pageAppeared(pageID, entryContext: entryContext)
+        }
+        // Turn and action outcomes land below the fold and away from focus;
+        // VoiceOver hears them once, the moment the controller records them.
+        .onChange(of: controller.announcement) { _, announcement in
+            guard let announcement, UIAccessibility.isVoiceOverRunning else { return }
+            UIAccessibility.post(notification: .announcement, argument: announcement.text)
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             ComposerContainerView(
@@ -273,9 +285,9 @@ struct EmptyWorkspaceView: View {
         switch controller.activeEntryContext {
         case .home:
             return [
+                "今晚吃什么",
                 "用快过期的食材做饭",
                 "今晚想吃清淡一点",
-                "看看现在能做什么",
                 "帮我补一道菜"
             ]
         case .planner:
@@ -371,6 +383,70 @@ struct EmptyWorkspaceView: View {
             }
             .padding(.vertical, 32)
             .frame(minHeight: 560)
+        }
+    }
+}
+
+// MARK: - Adjustment Suggestions
+
+/// Follow-ups under a turn that recommended dishes. Each one only fills the
+/// composer; sending stays the member's own act. A horizontal row at ordinary
+/// sizes, a stack at accessibility sizes so no chip is clipped off-screen.
+struct AdjustmentSuggestionsView: View {
+    let suggestions: [String]
+    let onSelect: (String) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("继续调整")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(KitchenTheme.textSecondary)
+                .accessibilityAddTraits(.isHeader)
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) { chips }
+            } else {
+                // Scrolls edge to edge while the first chip still lines up
+                // with the transcript gutter.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) { chips }
+                }
+                .contentMargins(.horizontal, KitchenTheme.pageGutter, for: .scrollContent)
+                .padding(.horizontal, -KitchenTheme.pageGutter)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("kitchenAI.adjustments")
+    }
+
+    private var chips: some View {
+        ForEach(suggestions, id: \.self) { suggestion in
+            Button {
+                onSelect(suggestion)
+            } label: {
+                HStack(spacing: 6) {
+                    Text(suggestion)
+                        .font(.subheadline)
+                        .foregroundStyle(KitchenTheme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Image(systemName: "arrow.up.left")
+                        .font(.caption2)
+                        .foregroundStyle(KitchenTheme.textSecondary)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, 14)
+                .frame(minHeight: KitchenTheme.controlHeight)
+                .background(KitchenTheme.surface, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(KitchenTheme.separator.opacity(KitchenTheme.borderOpacity), lineWidth: 0.75)
+                )
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("填入输入框，不会直接发送")
+            .accessibilityIdentifier("kitchenAI.adjust.\(suggestion)")
         }
     }
 }
@@ -569,6 +645,9 @@ struct ContextChipsStripView: View {
             }
             Spacer()
         }
+        // Composer chrome keeps the repo's header cap: three source chips at
+        // AXXXL otherwise squeeze each other into one character per line.
+        .dynamicTypeSize(...ChromeMetrics.headerTypeLimit)
     }
 
     private var contextAccessibilityLabel: String {
@@ -640,7 +719,7 @@ struct ContextExclusionSheet: View {
         case .tonightPlan: return "今晚计划安排的菜品"
         case .plannerWeek: return "本周整周用餐计划"
         case .specialPlan: return "当前聚焦的聚餐活动计划"
-        case .recipe: return "菜谱库相关内容"
+        case .recipe: return "按库存排好的菜谱库候选"
         }
     }
 }
