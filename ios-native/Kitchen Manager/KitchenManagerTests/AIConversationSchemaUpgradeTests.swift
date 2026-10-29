@@ -159,7 +159,8 @@ final class AIConversationSchemaUpgradeTests: XCTestCase {
             weeklyPlan: nil,
             consumptionRecords: []
         )
-        XCTAssertEqual(payload.version, 1, "conversation history must not move the backup version")
+        XCTAssertEqual(payload.version, KitchenBackupValidator.supportedVersion,
+                       "conversation history must not change the supported backup version")
 
         let object = try JSONSerialization.jsonObject(
             with: try JSONEncoder().encode(payload)

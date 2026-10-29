@@ -1,0 +1,76 @@
+import XCTest
+import SwiftData
+@testable import KitchenManager
+
+/// One-use writer compiled before any PR2 record changes. Preserved as fixture provenance.
+@MainActor
+final class PreparedPrePR2FixtureWriterTests: XCTestCase {
+    private func id(_ n: Int) -> UUID { UUID(uuidString: String(format: "10000000-0000-0000-0000-%012d", n))! }
+
+    func testWriteGenuineOldStore() throws {
+        let directory = URL.documentsDirectory.appending(path: "km-pr2-old-fixture-20261028")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try seed(directory.appending(path: "legacy.store"))
+        print("PRE_PR2_FIXTURE=\(directory.path)")
+    }
+
+    private func seed(_ url: URL) throws {
+        let container = try KitchenPersistenceFactory.makeContainer(configuration: ModelConfiguration(url: url))
+        XCTAssertEqual(container.schema.entities.count, 18)
+        let preparedEntity = try XCTUnwrap(container.schema.entities.first { $0.name == "PreparedComponentRecord" })
+        XCTAssertFalse(preparedEntity.properties.contains { $0.name == "portionGroupingData" })
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let inventory = InventoryItem(id: id(1), name: "旧库存鸡肉", quantity: 8, unit: "份", expiryDate: date)
+        let shopping = KitchenShoppingItem(name: "旧牛奶", quantity: 2, unit: "盒")
+        let meal = MealPlanItem(recipeID: "old-recipe", recipeName: "旧餐次", plannedServings: 2)
+        context.insert(InventoryRecord(item: inventory))
+        context.insert(ShoppingItemRecord(item: shopping, sortIndex: 0))
+        context.insert(TodayPlanRecord(item: meal, sortIndex: 0))
+        context.insert(try ConsumptionRecordEntity(record: InventoryConsumptionRecord(
+            id: id(4), date: date, recipeID: "old-recipe", recipeName: "旧餐次", planIDs: [meal.id], items: [], isUndone: false
+        ), sortIndex: 0))
+        context.insert(try WeeklyPlanRecord(plan: WeeklyMealPlan(
+            startDate: date, days: [WeeklyMealPlanDay(dayIndex: 0, meals: [])],
+            shoppingItems: [], servings: 2, summary: "旧周计划", createdAt: date
+        )))
+        context.insert(try UserRecipeRecord(recipe: Recipe(id: "old-user-recipe", title: "旧菜谱", cookingTime: 20,
+            difficulty: "简单", tags: [], ingredients: ["鸡肉"], steps: ["做好"]), sortIndex: 0))
+        context.insert(RecipePreferenceRecord(recipeID: "old-user-recipe", isFavorite: true, isFrequent: true))
+        let scope = SyncScope(type: .household, id: id(80))
+        context.insert(SyncMetadataRecord(metadata: SyncMetadata(entityType: .inventoryItem, entityId: inventory.id,
+            scope: scope, remoteVersion: nil, state: .localOnly, lastSyncedAt: nil, lastErrorCode: nil,
+            lastErrorAt: nil, deletedAt: nil, updatedAt: date)))
+        context.insert(PendingMutationRecord(mutation: PendingMutation(mutationId: id(9), entityType: .inventoryItem,
+            entityId: inventory.id, scope: scope, operation: .upsert, baseVersion: nil, payloadData: Data("{}".utf8),
+            clientUpdatedAt: date, createdAt: date, attemptCount: 0, lastAttemptAt: nil, lastErrorCode: nil, status: .pending)))
+        context.insert(SyncCursorRecord(cursor: SyncCursor(scope: scope, value: .zero, updatedAt: date)))
+        context.insert(GuestMergeSessionRecord(session: GuestMergeSession(id: id(11), userId: id(81), householdId: scope.id,
+            entityType: .inventoryItem, status: .cancelled, createdAt: date, updatedAt: date, confirmedAt: nil,
+            completedAt: nil, cancelledAt: date, rollbackAvailableUntil: nil, localSnapshot: [], plan: nil,
+            plannedItemCount: 0, uploadedItemCount: 0, conflictCount: 0, failedCount: 0, lastErrorCode: nil,
+            createdEntityIds: [], mergeVersion: 1)))
+        context.insert(InventorySyncEnrollmentRecord(enrollment: .notEnrolled(userId: id(81), householdId: scope.id)))
+        for n in 13...14 {
+            let component = PreparedComponent(id: id(n), name: "同名旧备餐", portionsRemaining: n - 10,
+                state: n == 13 ? .prepped : .cooked, storage: n == 13 ? .frozen : .refrigerated,
+                preparedAt: date.addingTimeInterval(Double(n)), expiryDate: date.addingTimeInterval(Double(n * 100)))
+            context.insert(PreparedComponentRecord(component: component, sortIndex: 14 - n))
+        }
+        context.insert(try SpecialPlanRecord(plan: SpecialPlan(id: id(15), title: "旧聚餐", scheduledAt: date,
+            peopleCount: 4, createdAt: date, updatedAt: date)))
+        let conversation = AIConversation(id: id(16), createdAt: date, title: "旧对话", lastActivityAt: date, activeUntil: date)
+        context.insert(try ConversationRecord(conversation: conversation))
+        context.insert(try ConversationMessageRecord(message: AIConversationMessage(id: id(17), conversationID: conversation.id,
+            role: .user, createdAt: date, state: .completed, contentBlocks: [.text(.init(text: "合成迁移证据"))], turnID: id(90))))
+        context.insert(try ConversationActionRecord(action: AIConversationActionRecord(actionID: id(18),
+            conversationID: conversation.id, turnID: id(90), actionType: .addShoppingItems,
+            idempotencyKey: "synthetic-legacy", status: .failed, createdAt: date)))
+        context.insert(try ConversationContextSnapshotRecord(snapshot: AIContextSnapshot(id: id(19), turnID: id(90),
+            readAt: date, contextKinds: []), conversationID: conversation.id))
+        try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PreparedComponentRecord>()), 2)
+    }
+}

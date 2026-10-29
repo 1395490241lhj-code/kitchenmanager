@@ -85,12 +85,17 @@ struct KitchenManagerApp: App {
             persistence: persistence,
             recoverySnapshot: {
                 #if DEBUG
+                if PreparedPortionGroupingUIFixture.isEnabled { return PreparedPortionGroupingUIFixture.recovery }
                 if Self.isUnitTestHost || isConversationUITest || PreparedReliabilityFixture.isEnabled || AccountDeletionCleanupFixture.isEnabled { return .isolated() }
                 #endif
                 return .applicationSupport()
             }()
         )
         #if DEBUG
+        PreparedPortionGroupingUIFixture.stageRecoveryIfRequested(in: kitchenStoreInstance)
+        if PreparedPortionGroupingUIFixture.isEnabled {
+            PreparedProcessInterruptionFixture.runIfRequested(in: kitchenStoreInstance, persistence: persistence)
+        }
         // The generic account fixture resets local data and adds 测试库存 under a
         // fresh UUID on every launch. That is fine for single-launch tests, but
         // it makes a seeded merge plan stale on the next launch — the very thing

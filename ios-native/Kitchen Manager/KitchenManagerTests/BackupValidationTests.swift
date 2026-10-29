@@ -127,7 +127,7 @@ final class BackupValidationTests: XCTestCase {
     private var minimalV1Object: [String: Any] {
         [
             "format": KitchenBackupValidator.supportedFormat,
-            "version": KitchenBackupValidator.supportedVersion,
+            "version": 1,
             "inventory": [],
             "plans": [],
             "shoppingItems": [],
@@ -184,8 +184,8 @@ final class BackupValidationTests: XCTestCase {
     func testFutureVersionIsRefused() throws {
         seedKitchen()
         var object = minimalV1Object
-        object["version"] = 2
-        assertRefused(try json(object), .unsupportedVersion(2), "未来版本")
+        object["version"] = 3
+        assertRefused(try json(object), .unsupportedVersion(3), "未来版本")
     }
 
     func testObjectCarryingIdentityButNoRecognizedStructureIsRefused() throws {

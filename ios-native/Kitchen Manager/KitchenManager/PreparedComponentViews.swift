@@ -1,121 +1,93 @@
 import SwiftUI
 
-// MARK: - Prepared components UI (P1-B)
-//
-// A list of its own, reached from the 食材 tab's existing 更多食材操作 menu.
-// Deliberately never mixed into the ingredient list: a batch of 卤鸡腿 is not a
-// grocery, and showing them side by side is what would invite the confusion
-// between raw stock and finished food that this whole type exists to prevent.
-//
-// Native and light on purpose — no weekly planning, no charts, no nutrition.
-
+/// Prepared stays separate from Inventory; sections are projections of live group UUIDs.
 struct PreparedComponentsView: View {
     @EnvironmentObject private var store: KitchenStore
     @State private var editing: PreparedComponent?
+    @State private var splitting: PreparedComponent?
     @State private var isAdding = false
     @State private var isAssembling = false
     @State private var toastMessage: String?
     @State private var operationError: PreparedComponentMutationError?
 
+    private var sections: Result<[PreparedSourceSection], Error> {
+        Result { try PreparedSourceSection.make(store.preparedComponents) }
+    }
     var body: some View {
         List {
-            // Component Meal's only entry point. It lives here rather than on
-            // Home because a 主食 + 蛋白 + 蔬菜 plate is a meal structure, not a
-            // day rhythm — no DayType owns it and Home gains no section for it.
             Section {
                 Button("搭配一顿") { isAssembling = true }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(AppTheme.brand)
+                    .font(.subheadline.weight(.medium)).foregroundStyle(AppTheme.brand)
                     .frame(minHeight: ChromeMetrics.minimumRowHeight)
                     .accessibilityIdentifier("prepared.assemble")
                     .accessibilityHint("用现有食材配一份主食、蛋白和蔬菜")
             }
-
             if store.isPreparedComponentUnavailable {
                 PreparedCollectionUnavailableView(identifierPrefix: "prepared")
-            } else if store.preparedComponents.isEmpty {
-                ContentUnavailableView(
-                    "还没有备餐",
-                    systemImage: "takeoutbag.and.cup.and.straw",
-                    description: Text("提前做好或腌好的菜可以记在这里，每次取用一份。")
-                )
             } else {
-                ForEach(store.preparedComponents) { component in
-                    Button {
-                        editing = component
-                    } label: {
-                        PreparedComponentRow(component: component) {
-                            consume(component)
-                        }
+                switch sections {
+                case .failure:
+                    PreparedCollectionUnavailableView(identifierPrefix: "prepared")
+                case .success(let sections):
+                    if sections.isEmpty {
+                        ContentUnavailableView("还没有备餐", systemImage: "takeoutbag.and.cup.and.straw",
+                            description: Text("提前做好或腌好的菜可以记在这里，每次取用一份。"))
                     }
-                    .buttonStyle(.plain)
-                }
-                .onDelete { offsets in
-                    // Capture identities before any successful deletion shifts
-                    // the collection. Refuse the failed operation visibly.
-                    let ids = offsets.compactMap { index in
-                        store.preparedComponents.indices.contains(index) ? store.preparedComponents[index].id : nil
-                    }
-                    for id in ids {
-                        if case .failure(let error) = store.removePreparedComponent(id: id) {
-                            toastMessage = nil
-                            operationError = error
-                            return
+                    ForEach(sections) { section in
+                        Section {
+                            ForEach(section.components) { component in
+                                PreparedGroupedRow(component: component, groupLabel: section.groupLabel(for: component),
+                                    onEdit: { editing = component }, onConsume: { consume(component) },
+                                    onSplit: { splitting = component })
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) { remove(id: component.id) } label: {
+                                        Text(component.grouping == nil ? "删除" : "删除这组")
+                                    }
+                                    .accessibilityIdentifier("prepared.delete.\(component.id.uuidString)")
+                                    .accessibilityHint("仅移除这条记录，其余分组保留")
+                                }
+                            }
+                        } header: {
+                            if section.source != nil { PreparedSourceHeader(section: section) }
                         }
                     }
                 }
             }
-
             if !store.isPreparedComponentUnavailable, let notice = store.preparedComponentNotice {
-                Text(notice)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("prepared.notice")
+                Text(notice).font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("prepared.notice")
             }
         }
-        .navigationTitle("备餐")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("备餐").navigationBarTitleDisplayMode(.inline)
         .toolbar {
             Button("添加备餐", systemImage: "plus") { isAdding = true }
                 .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                .disabled(store.isPreparedComponentUnavailable)
                 .accessibilityIdentifier("prepared.add.button")
         }
-        .sheet(isPresented: $isAdding) {
-            PreparedComponentEditor(component: nil)
+        .sheet(isPresented: $isAdding) { PreparedComponentEditor(component: nil) }
+        .sheet(item: $editing) { PreparedComponentEditor(component: $0) }
+        .sheet(item: $splitting) { component in
+            PreparedPortionSplitEditor(component: component) { count in showToast("已分出\(count)份，其余份数留在原组") }
         }
-        .sheet(item: $editing) { component in
-            PreparedComponentEditor(component: component)
-        }
-        .sheet(isPresented: $isAssembling) {
-            ComponentMealView()
-        }
+        .sheet(isPresented: $isAssembling) { ComponentMealView() }
         .preparedFailureAlert($operationError)
         .overlay(alignment: .bottom) {
-            if let toastMessage {
-                FeedbackToast(message: toastMessage, style: .success)
-            }
+            if let toastMessage { FeedbackToast(message: toastMessage, style: .success) }
         }
     }
-
+    private func remove(id: UUID) {
+        switch store.removePreparedComponent(id: id) {
+        case .success: showToast("这条备餐记录已移除")
+        case .failure(let error): toastMessage = nil; operationError = error
+        }
+    }
     private func consume(_ component: PreparedComponent) {
-        let previous: PreparedComponent
         switch store.consumePreparedPortion(id: component.id) {
-        case .success(let consumed): previous = consumed
-        case .failure(let error):
-            toastMessage = nil
-            operationError = error
-            return
+        case .success(let previous):
+            showToast(PreparedPortionConsumptionFeedback.message(for: previous, context: .preparedList))
+        case .failure(let error): toastMessage = nil; operationError = error
         }
-        // No undo affordance: the app's toast carries a message only, and
-        // building an undo stack for this is not worth a first version. The
-        // message says plainly what happened instead.
-        showToast(
-            previous.portionsRemaining > 1
-                ? "已吃掉一份，还剩 \(previous.portionsRemaining - 1) 份"
-                : "「\(previous.name)」已吃完，记录已移除"
-        )
     }
-
     private func showToast(_ message: String) {
         toastMessage = message
         Task {
@@ -148,56 +120,6 @@ struct PreparedCollectionUnavailableView: View {
             }
             .accessibilityIdentifier("\(identifierPrefix).reload")
         }
-    }
-}
-
-private struct PreparedComponentRow: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    let component: PreparedComponent
-    let onConsume: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(component.name)
-                    .font(.headline)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                Spacer(minLength: 8)
-                Text(component.portionsText)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            Text("\(component.state.title) · \(component.storage.title) · \(expiryText)")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-
-            // The height belongs inside the label. Applied to the Button it
-            // leaves the hit target — and the accessibility frame — the size of
-            // the text, which measures 18pt; P1-D found the same shape on Home
-            // and this row had it too.
-            Button(action: onConsume) {
-                Text("吃掉一份")
-                    .font(.subheadline.weight(.medium))
-                    .frame(minHeight: AppTheme.minimumHitTarget)
-                    .contentShape(Rectangle())
-            }
-                .foregroundStyle(AppTheme.brand)
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("prepared.consume.\(component.id.uuidString)")
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(component.name)，\(component.portionsText)，\(component.state.title)，\(component.storage.title)")
-    }
-
-    /// Wording stays a plain date. It is the user's own note about when they
-    /// mean to finish the batch, not a safety claim the app is in a position
-    /// to make.
-    private var expiryText: String {
-        // Shared with the Home board so both read 8月31日 rather than Aug 31.
-        "建议 \(MealPrepBoard.dateText(for: component.expiryDate)) 前吃完"
     }
 }
 
@@ -234,145 +156,157 @@ enum PreparedComponentNameHint {
 private struct PreparedComponentEditor: View {
     @EnvironmentObject private var store: KitchenStore
     @Environment(\.dismiss) private var dismiss
-
-    private let existing: PreparedComponent?
-    @State private var name: String
-    @State private var portions: Int
-    @State private var state: PreparedComponentState
-    @State private var storage: PreparedStorage
-    @State private var preparedAt: Date
-    @State private var expiryDate: Date
-    /// Once the user edits the date by hand, changing state or storage stops
-    /// overwriting it — their judgement outranks the suggestion.
+    @State private var draft: PreparedComponentFormDraft
     @State private var hasEditedExpiry: Bool
-    @State private var draftID: UUID
     @State private var saveError: PreparedComponentMutationError?
+    @State private var hasSaveFailure = false
+    private enum Field: Hashable { case name, mass }
+    @FocusState private var focusedField: Field?
 
     init(component: PreparedComponent?) {
-        existing = component
-        let now = component?.preparedAt ?? Date()
-        let initialState = component?.state ?? .cooked
-        let initialStorage = component?.storage ?? .refrigerated
-        _name = State(initialValue: component?.name ?? "")
-        _portions = State(initialValue: component?.portionsRemaining ?? 4)
-        _state = State(initialValue: initialState)
-        _storage = State(initialValue: initialStorage)
-        _preparedAt = State(initialValue: now)
-        _expiryDate = State(initialValue: component?.expiryDate
-            ?? PreparedComponentExpirySuggestion.suggestedExpiryDate(
-                state: initialState, storage: initialStorage, preparedAt: now
-            ))
+        _draft = State(initialValue: PreparedComponentFormDraft(existing: component))
         _hasEditedExpiry = State(initialValue: component != nil)
-        _draftID = State(initialValue: component?.id ?? UUID())
     }
-
-    private var isSaveEnabled: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    private var grouped: PreparedPortionGrouping? { draft.expected?.grouping }
+    private var current: PreparedComponent? {
+        guard let id = draft.expected?.id else { return nil }
+        return store.preparedComponents.first { $0.id == id }
     }
-
     var body: some View {
         NavigationStack {
             Form {
+                if store.isPreparedComponentUnavailable {
+                    PreparedCollectionUnavailableView(identifierPrefix: "prepared.editor")
+                }
+                if hasSaveFailure && !store.isPreparedComponentUnavailable {
+                    Section("本次尚未保存") {
+                        Text("填写内容已保留。可以直接重试，或先重新读取备餐后核对。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("重新读取备餐，保留填写内容") {
+                            if case .failure(let error) = store.reloadPreparedComponents() { saveError = error }
+                        }
+                        .frame(minHeight: AppTheme.minimumHitTarget)
+                        .accessibilityIdentifier("prepared.editor.reload")
+                    }
+                }
                 Section {
-                    TextField("名称", text: $name)
+                    TextField("名称", text: $draft.name)
+                        .focused($focusedField, equals: .name)
                         .accessibilityIdentifier("prepared.editor.name")
-                    Stepper(value: $portions, in: PreparedComponent.portionRange) {
-                        LabeledContent("份数", value: "\(portions) 份")
+                    if grouped == nil {
+                        PreparedPortionCountControl(title: "份数", value: $draft.portions,
+                            range: PreparedComponent.portionRange, identifier: "prepared.editor.portions")
+                    } else {
+                        LabeledContent("本组份数", value: "\(draft.portions)份")
                     }
-                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
-                    .accessibilityIdentifier("prepared.editor.portions")
+                    if draft.expected == nil {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("总重量（g，可选）").font(.footnote).foregroundStyle(.secondary)
+                            TextField("不填写则按份记录", text: $draft.massText)
+                                .keyboardType(.decimalPad).focused($focusedField, equals: .mass)
+                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .accessibilityLabel("总重量，克，可选")
+                                .accessibilityIdentifier("prepared.editor.mass")
+                        }
+                    }
                 } footer: {
-                    // Advisory only — saving is never blocked, and no role is
-                    // guessed on the user's behalf. A name that places nowhere
-                    // simply will not turn up in 快手 or 搭配一顿, and saying so
-                    // here is cheaper than leaving them to notice the absence.
-                    if PreparedComponentNameHint.needsHint(for: name) {
-                        Text(PreparedComponentNameHint.message)
-                            .accessibilityIdentifier("prepared.editor.nameHint")
+                    if PreparedComponentNameHint.needsHint(for: draft.name) { Text(PreparedComponentNameHint.message).accessibilityIdentifier("prepared.editor.nameHint") }
+                }
+                if let grouping = grouped {
+                    Section("分装记录") {
+                        Text("每份\(PreparedMassInput.grams(grouping.massPerPortionDecigrams))")
+                        Text("原记\(grouping.source.name)，共\(PreparedMassInput.grams(grouping.source.initialMassDecigrams))、\(grouping.source.initialPortionCount)份")
+                        Text("重量、份数、状态和存放暂不支持更改；可以分出整份。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }.accessibilityIdentifier("prepared.editor.protected")
+                } else if let allocation = try? draft.allocation() {
+                    Section("实际分装") {
+                        Text(allocation.groups.map { "\(PreparedMassInput.grams($0.massPerPortionDecigrams)) × \($0.count)份" }.joined(separator: "；"))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("prepared.editor.allocation")
+                        Text("合计\(PreparedMassInput.grams(allocation.totalMassDecigrams)) · \(allocation.portionCount)份")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-
-                Section {
-                    Picker("状态", selection: $state) {
-                        ForEach(PreparedComponentState.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
-                    .accessibilityIdentifier("prepared.editor.state")
-
-                    Picker("存放", selection: $storage) {
-                        ForEach(PreparedStorage.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .frame(minHeight: ChromeMetrics.minimumRowHeight)
-                    .accessibilityIdentifier("prepared.editor.storage")
+                if let message = draft.validationMessage, !draft.name.isEmpty || !draft.massText.isEmpty {
+                    Text(message).font(.footnote).foregroundStyle(AppTheme.warningInk)
+                        .accessibilityIdentifier("prepared.editor.validation")
                 }
-
                 Section {
-                    DatePicker("做好时间", selection: $preparedAt, displayedComponents: .date)
-                    DatePicker("建议吃完", selection: $expiryDate, displayedComponents: .date)
+                    if grouped == nil {
+                        Picker("状态", selection: $draft.state) {
+                            ForEach(PreparedComponentState.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }.frame(minHeight: ChromeMetrics.minimumRowHeight).accessibilityIdentifier("prepared.editor.state")
+                        Picker("存放", selection: $draft.storage) {
+                            ForEach(PreparedStorage.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }.frame(minHeight: ChromeMetrics.minimumRowHeight).accessibilityIdentifier("prepared.editor.storage")
+                    } else {
+                        LabeledContent("状态", value: draft.state.title)
+                        LabeledContent("存放", value: draft.storage.title)
+                    }
+                }
+                Section {
+                    DatePicker("做好时间", selection: $draft.preparedAt, displayedComponents: .date)
+                        .accessibilityIdentifier("prepared.editor.preparedAt")
+                    DatePicker("建议吃完", selection: $draft.expiryDate, displayedComponents: .date)
                         .accessibilityIdentifier("prepared.editor.expiry")
-                } footer: {
-                    Text("默认日期只是根据状态和存放方式给的起点，可以按自己的判断修改。")
+                } footer: { Text("默认日期只是根据状态和存放方式给的起点，可以按自己的判断修改。") }
+                #if DEBUG
+                if PreparedPortionGroupingUIFixture.simulateStaleEdit, let expected = draft.expected {
+                    Button("模拟其他入口使用一份") { _ = store.consumePreparedPortion(id: expected.id) }
+                        .accessibilityIdentifier("prepared.editor.fixture.consume")
+                }
+                #endif
+                if let expected = draft.expected, !store.isPreparedComponentUnavailable {
+                    if let current, current != expected {
+                        Section("记录有更新") {
+                            Text("当前：\(current.name)，剩\(current.portionsRemaining)份，\(current.state.title) · \(current.storage.title)")
+                            Text("本次填写的名称和日期已保留，请核对当前记录后重试。")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            Button("保留填写内容，按当前记录核对") { _ = draft.acceptCurrent(current) }
+                                .frame(minHeight: AppTheme.minimumHitTarget)
+                                .accessibilityIdentifier("prepared.editor.recheck")
+                        }
+                    } else if current == nil {
+                        Text("这条记录已不存在；本次填写内容仍保留，不能重新添加为旧记录。")
+                            .font(.footnote).accessibilityIdentifier("prepared.editor.missing")
+                    }
                 }
             }
-            .navigationTitle(existing == nil ? "添加备餐" : "编辑备餐")
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(draft.expected == nil ? "添加备餐" : "编辑备餐")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
+                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }
-                        .disabled(!isSaveEnabled)
-                        .accessibilityIdentifier("prepared.editor.save")
+                    Button("保存") {
+                        switch draft.save(in: store) {
+                        case .success: dismiss()
+                        case .failure(let error): hasSaveFailure = true; saveError = error
+                        }
+                    }
+                    .disabled(draft.validationMessage != nil || store.isPreparedComponentUnavailable)
+                    .accessibilityIdentifier("prepared.editor.save")
+                }
+                ToolbarItem(placement: .keyboard) {
+                    Button("完成输入") { focusedField = nil }.accessibilityIdentifier("prepared.editor.keyboardDone")
                 }
             }
-            .onChange(of: state) { _, _ in refreshSuggestedExpiry() }
-            .onChange(of: storage) { _, _ in refreshSuggestedExpiry() }
-            .onChange(of: preparedAt) { _, _ in refreshSuggestedExpiry() }
-            .onChange(of: expiryDate) { old, new in
-                if old != new { hasEditedExpiry = true }
-            }
+            .onChange(of: draft.state) { _, _ in refreshSuggestedExpiry() }
+            .onChange(of: draft.storage) { _, _ in refreshSuggestedExpiry() }
+            .onChange(of: draft.preparedAt) { _, _ in refreshSuggestedExpiry() }
+            .onChange(of: draft.expiryDate) { old, new in if old != new { hasEditedExpiry = true } }
             .preparedFailureAlert($saveError)
         }
     }
-
     private func refreshSuggestedExpiry() {
         guard !hasEditedExpiry else { return }
-        let suggested = PreparedComponentExpirySuggestion.suggestedExpiryDate(
-            state: state, storage: storage, preparedAt: preparedAt
-        )
-        // Assigning also fires the expiry onChange, so clear the flag after.
-        expiryDate = suggested
+        draft.expiryDate = PreparedComponentExpirySuggestion.suggestedExpiryDate(
+            state: draft.state, storage: draft.storage, preparedAt: draft.preparedAt)
         hasEditedExpiry = false
-    }
-
-    private func save() {
-        let component = PreparedComponent(
-            id: draftID,
-            name: name,
-            portionsRemaining: portions,
-            state: state,
-            storage: storage,
-            preparedAt: preparedAt,
-            expiryDate: expiryDate
-        )
-        let outcome = existing == nil
-            ? store.addPreparedComponent(component)
-            : store.updatePreparedComponent(component, expected: existing)
-        switch outcome {
-        case .success:
-            dismiss()
-        case .failure(let error):
-            saveError = error
-        }
     }
 }
 
-// MARK: - Previews
-
 #Preview("备餐列表") {
-    NavigationStack {
-        PreparedComponentsView()
-            .environmentObject(KitchenStore())
-    }
+    NavigationStack { PreparedComponentsView().environmentObject(KitchenStore()) }
 }

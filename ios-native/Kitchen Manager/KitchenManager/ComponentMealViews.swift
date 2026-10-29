@@ -139,11 +139,7 @@ struct ComponentMealView: View {
             operationError = error
             return
         }
-        showToast(
-            previous.portionsRemaining > 1
-                ? "已使用 1 份\(previous.name)，还剩 \(previous.portionsRemaining - 1) 份"
-                : "\(previous.name)已用完"
-        )
+        showToast(PreparedPortionConsumptionFeedback.message(for: previous, context: .meal))
     }
 
     private func showToast(_ message: String) {
