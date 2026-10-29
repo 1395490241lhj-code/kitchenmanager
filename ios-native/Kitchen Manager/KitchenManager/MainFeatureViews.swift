@@ -1750,7 +1750,7 @@ private struct AddShoppingItemView: View {
                     Text("买什么")
                 } footer: {
                     if let lastAddedName {
-                        Text("已添加「\(lastAddedName)」，可以继续添加下一项。")
+                        Text("已添加「\(lastAddedName)」。")
                             .accessibilityIdentifier("shopping.add.continue.confirmation")
                     }
                 }
@@ -1873,13 +1873,12 @@ struct SettingsView: View {
     /// Kept as a named constant so the guest-mode UI test asserts the same string
     /// the screen renders, instead of a hand-copied duplicate.
     ///
-    /// Wording is deliberately byte-identical to the pre-UI-5A copy. UI-5A's
-    /// improvement is *hierarchy* — the mode, local-usability status, and action
-    /// moved into the row, and this qualification moved into the section footer —
-    /// not rewording. Two static contracts pin this exact string
-    /// (`test/ios-native-auth-phase1.test.mjs` and `GuestMergeUIPhase2B3UITests`),
-    /// and there is no user-facing gain in churning them for one word.
-    static let guestAccountFooter = "无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
+    /// UI-5A moved the mode, local-usability status, and action into the row and
+    /// this qualification into the section footer. The footer's old leading
+    /// "无需登录即可继续使用全部本机功能。" repeated the row's 本机功能已全部可用,
+    /// so it was dropped; the sync and inventory-merge wording is unchanged.
+    /// `GuestMergeUIPhase2B3UITests` pins this exact string.
+    static let guestAccountFooter = "登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
 
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
     @AppStorage("expiryNotificationsEnabled") private var notificationsEnabled = false
@@ -2049,7 +2048,7 @@ struct SettingsView: View {
                     Text("系统通知已关闭，提醒不会送达。在 iOS“设置”中允许 Kitchen Manager 发送通知后，这里会恢复你之前的选择。")
                         .accessibilityIdentifier("settings.notifications.denied")
                 } else {
-                    Text("首次开启提醒时，会请求系统通知权限。常备食材补货提醒会在早上 9 点送达。")
+                    Text("常备食材补货提醒会在早上 9 点送达。")
                 }
             }
             .task { await refreshNotificationAuthorization() }
@@ -2107,8 +2106,6 @@ struct SettingsView: View {
                             .accessibilityIdentifier("settings.aiDiagnostics.link")
                         } header: {
                             Text("故障排查")
-                        } footer: {
-                            Text("AI 无法使用时，可检查网络、登录状态和模型服务。")
                         }
                     }
                     .navigationTitle("AI 设置")
@@ -2124,7 +2121,7 @@ struct SettingsView: View {
             Section("关于") {
                 LabeledContent("版本", value: appVersion)
                     .accessibilityIdentifier("settings.about.version")
-                Text("联网功能会发送完成操作所需的数据。登录不会自动上传本机厨房数据。")
+                Text("联网功能会发送完成操作所需的数据。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -2139,14 +2136,12 @@ struct SettingsView: View {
                 .frame(minHeight: ChromeMetrics.minimumRowHeight)
                 .accessibilityIdentifier("settings.cleardata.button")
             } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    // Backups leave user recipes out, so this is the one place
-                    // they can be lost for good. Said here, before the tap.
-                    Label("厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(AppTheme.warningInk)
-                        .accessibilityIdentifier("settings.cleardata.recipeWarning")
-                    Text("此操作无法撤销，且不会影响远端菜谱库。")
-                }
+                // Backups leave user recipes out, so this is the one place
+                // they can be lost for good. Said here, before the tap; the
+                // confirmation alert carries the rest of the consequences.
+                Label("厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(AppTheme.warningInk)
+                    .accessibilityIdentifier("settings.cleardata.recipeWarning")
             }
 
             #if DEBUG

@@ -143,7 +143,7 @@ struct TodayRhythmSheet: View {
                         .frame(minHeight: ChromeMetrics.minimumRowHeight)
                         .accessibilityIdentifier("today.rhythm.reset.button")
                     } footer: {
-                        Text("恢复后，今天回到本周默认节奏，两餐回到照常，今晚的份量安排也一并清除。昨晚留给今天的份数不受影响。")
+                        Text("今天的节奏和两餐会回到默认，今晚的份量安排会清除；昨晚留给今天的份数不受影响。")
                     }
                 }
             }
@@ -246,7 +246,7 @@ struct WeeklyRhythmSettingsView: View {
                     .accessibilityIdentifier("settings.weeklyRhythm.\(weekday.rawValue).picker")
                 }
             } footer: {
-                Text("这是每周的默认安排。今天临时改动只影响当天，不会修改这里。")
+                Text("今天的临时改动只影响当天，不会修改这里。")
             }
         }
         .navigationTitle("每周用餐节奏")

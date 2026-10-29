@@ -452,7 +452,7 @@ struct RecordFoodSheet: View {
                 ContentUnavailableView(
                     "拍照识别小票",
                     systemImage: "camera.viewfinder",
-                    description: Text("保持小票平整、文字清晰，避免反光和阴影，并拍下完整内容。过长的小票可分段拍摄后分别导入。")
+                    description: Text("拍下完整、清晰的小票，避免反光；过长的小票可分段拍摄后分别导入。")
                 )
                 HStack {
                     Button("拍照", systemImage: "camera") { requestCamera() }

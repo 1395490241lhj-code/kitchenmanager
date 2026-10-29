@@ -25,11 +25,12 @@ final class GuestMergeUIPhase2B3UITests: XCTestCase {
         XCTAssertTrue(guestRow.label.contains("游客模式"), "账号入口应仍标明游客模式")
 
         // The explanatory copy must mention future sync prep AND inventory backup,
-        // matching the exact product copy — unchanged by UI-5A, which moved this
-        // text into the section footer without rewording it. No merge-specific UI
-        // (which requires a signed-in account) may ever appear here.
+        // matching the exact product copy. Its old leading "无需登录即可继续使用
+        // 全部本机功能。" was dropped because the row above already says
+        // 本机功能已全部可用. No merge-specific UI (which requires a signed-in
+        // account) may ever appear here.
         let explanation = app.staticTexts[
-            "无需登录即可继续使用全部本机功能。登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
+            "登录后可为未来跨设备同步做准备，并可选择将本机库存合并到家庭云端；购物清单、计划和菜谱仍只保存在本机。"
         ]
         XCTAssertTrue(explanation.waitForExistence(timeout: 3))
 
