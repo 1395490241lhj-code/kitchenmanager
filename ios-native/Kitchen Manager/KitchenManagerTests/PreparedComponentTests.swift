@@ -160,7 +160,7 @@ final class PreparedComponentTests: XCTestCase {
 
         let consumed = store.consumePreparedPortion(id: batch.id)
 
-        XCTAssertEqual(consumed?.portionsRemaining, 1, "the caller is told what it was before")
+        XCTAssertEqual((try? consumed.get())?.portionsRemaining, 1, "the caller is told what it was before")
         XCTAssertTrue(store.preparedComponents.isEmpty)
         XCTAssertTrue(makeStore(defaults, bundle).preparedComponents.isEmpty)
     }
@@ -186,7 +186,7 @@ final class PreparedComponentTests: XCTestCase {
         let store = makeStore(defaults, bundle)
         store.addPreparedComponent(component())
 
-        XCTAssertNil(store.consumePreparedPortion(id: UUID()))
+        XCTAssertEqual(store.consumePreparedPortion(id: UUID()), .failure(.missingRecord))
         XCTAssertEqual(store.preparedComponents.count, 1)
     }
 

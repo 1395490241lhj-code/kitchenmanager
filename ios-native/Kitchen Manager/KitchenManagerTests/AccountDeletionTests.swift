@@ -203,6 +203,27 @@ final class AccountDeletionControllerTests: XCTestCase {
         if case .guest = authStore.status {} else { XCTFail("must be signed out after a successful deletion") }
     }
 
+    func testUnreadablePreparedPreventsDeletionFromClaimingLocalCleanupSucceeded() async throws {
+        let (controller, authStore, _, _, service) = try await makeSignedInFixture()
+        service.previewResult = .success(samplePreview(canDelete: true))
+        service.confirmResult = .success(AccountDeletionConfirmResult(status: "completed"))
+        await controller.loadPreview(authStore: authStore)
+        let authenticated = await controller.reauthenticateForDeletion(password: "correct-password", authStore: authStore)
+        XCTAssertTrue(authenticated)
+        let kitchen = KitchenStore(
+            userDefaults: UserDefaults(suiteName: UUID().uuidString)!,
+            preparedComponentPersistence: FailingPreparedComponentPersistence(underlyingError: NSError(domain: "isolated-test", code: 1))
+        )
+        kitchen.addInventory(name: "保留的食材", quantity: 1, unit: "份", expiryDate: nil)
+        let completed = await controller.confirmDeletion(authStore: authStore, kitchenStore: kitchen)
+        XCTAssertFalse(completed)
+        XCTAssertFalse(controller.didComplete)
+        if case .signedIn = authStore.status {} else { XCTFail("must preserve the session when local cleanup is blocked") }
+        XCTAssertFalse(kitchen.inventory.isEmpty)
+        XCTAssertNotNil(controller.errorMessage)
+        XCTAssertEqual(service.confirmCallCount, 0, "reject before any external deletion when cleanup is known to be blocked")
+    }
+
     func test_confirmAuthDeletionPendingDoesNotClearLocalDataOrSignOut() async throws {
         let (controller, authStore, kitchenStore, _, service) = try await makeSignedInFixture()
         service.previewResult = .success(samplePreview(canDelete: true))

@@ -60,11 +60,13 @@ struct AuthEntryView: View {
 
     private func submit() async {
         guard form.validate() else { return }
+        let didSignIn: Bool
         if form.mode == .signIn {
-            _ = await authStore.signIn(email: form.normalizedEmail, password: form.password)
+            didSignIn = await authStore.signIn(email: form.normalizedEmail, password: form.password)
         } else {
-            _ = await authStore.signUp(email: form.normalizedEmail, password: form.password)
+            didSignIn = await authStore.signUp(email: form.normalizedEmail, password: form.password)
         }
+        if didSignIn { dismiss() }
     }
 }
 
@@ -76,6 +78,7 @@ struct AccountView: View {
     @EnvironmentObject private var guestMergeController: GuestMergeController
     @EnvironmentObject private var accountDeletionController: AccountDeletionController
     @State private var isConfirmingSignOut = false
+    @State private var isShowingSessionRecovery = false
 
     private var defaultHousehold: AccountHousehold? {
         authStore.account?.households.first(where: { $0.role == "owner" })
@@ -84,6 +87,13 @@ struct AccountView: View {
 
     var body: some View {
         Form {
+            if authStore.status == .guest && accountDeletionController.needsLocalCleanup {
+                Section {
+                    NavigationLink("账号删除的本机清理") {
+                        AccountDeletionView(controller: accountDeletionController)
+                    }
+                }
+            }
             if case .signedIn(let user) = authStore.status {
                 Section("账号") {
                     VStack(alignment: .leading, spacing: 4) {
@@ -96,6 +106,10 @@ struct AccountView: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("account.identity.summary")
 
+                    if authStore.isSessionUnavailable {
+                        Button("重新登录") { isShowingSessionRecovery = true }
+                            .accessibilityIdentifier("account.auth.recover")
+                    }
                     if let message = authStore.errorMessage {
                         Label(message, systemImage: "exclamationmark.triangle")
                             .foregroundStyle(.red)
@@ -162,6 +176,9 @@ struct AccountView: View {
                 )
             }
         }
+        .sheet(isPresented: $isShowingSessionRecovery) {
+            NavigationStack { AuthEntryView().environmentObject(authStore) }
+        }
         .navigationTitle("账号")
         .navigationBarTitleDisplayMode(.inline)
         .alert("退出登录？", isPresented: $isConfirmingSignOut) {
@@ -171,6 +188,7 @@ struct AccountView: View {
             Text("本机厨房数据会保留，并继续支持游客模式。")
         }
         .onChange(of: authStore.status) { _, status in
+            guard !accountDeletionController.needsLocalCleanup else { return }
             if status == .guest { dismiss() }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {

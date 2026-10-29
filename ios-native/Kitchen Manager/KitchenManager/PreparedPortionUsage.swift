@@ -1,5 +1,21 @@
 import SwiftUI
 
+extension View {
+    /// Each entry point owns its error, including a sheet above another sheet.
+    /// A shared native alert keeps failure feedback consistent without turning
+    /// the store's persistent notice into a global success/error event stream.
+    func preparedFailureAlert(_ error: Binding<PreparedComponentMutationError?>) -> some View {
+        alert("备餐操作未完成", isPresented: Binding(
+            get: { error.wrappedValue != nil },
+            set: { if !$0 { error.wrappedValue = nil } }
+        )) {
+            Button("好", role: .cancel) { error.wrappedValue = nil }
+        } message: {
+            Text(error.wrappedValue?.localizedDescription ?? "请稍后重试。")
+        }
+    }
+}
+
 // MARK: - Taking one portion off a prepared batch (P1-F)
 //
 // P1-D built this on Home's quick card. Component Meal needs exactly the same
@@ -21,7 +37,12 @@ struct PreparedPortionUsage: Equatable, Identifiable {
     let name: String
     let portionsRemaining: Int
 
+    var detailText: String? = nil
+    var spokenDetail: String? = nil
     var remainingText: String { "备餐剩 \(portionsRemaining) 份" }
+    var buttonLabel: String {
+        "使用 1 份\(name)" + (spokenDetail.map { "，" + $0 } ?? "")
+    }
 }
 
 extension PreparedPortionUsage {
@@ -36,6 +57,11 @@ extension PreparedPortionUsage {
         sources: [QuickMealCandidateSource],
         among preparedComponents: [PreparedComponent]
     ) -> [PreparedPortionUsage] {
+        // A corrupt collection must not manufacture consumable usage actions.
+        guard let sections = try? PreparedSourceSection.make(preparedComponents) else { return [] }
+        let sectionsByGroup = Dictionary(uniqueKeysWithValues: sections.flatMap { section in
+            section.components.map { ($0.id, section) }
+        })
         var seen = Set<UUID>()
         return sources.compactMap { source in
             guard case .preparedComponent(let id) = source,
@@ -43,11 +69,13 @@ extension PreparedPortionUsage {
                   // Matched by id, never by name: two batches can share a name.
                   let batch = preparedComponents.first(where: { $0.id == id })
             else { return nil }
-            return PreparedPortionUsage(
-                id: batch.id,
-                name: batch.name,
-                portionsRemaining: batch.portionsRemaining
-            )
+            var usage = PreparedPortionUsage(id: batch.id, name: batch.name, portionsRemaining: batch.portionsRemaining)
+            if let grouping = batch.grouping, let section = sectionsByGroup[batch.id] {
+                let group = section.groupLabel(for: batch)
+                usage.detailText = "\(group) · 每份\(PreparedMassInput.grams(grouping.massPerPortionDecigrams)) · \(batch.state.title) · \(batch.storage.title)"
+                usage.spokenDetail = "\(group.replacingOccurrences(of: " · ", with: "，"))，每份\(PreparedMassInput.spoken(grouping.massPerPortionDecigrams))，\(batch.state.title)，\(batch.storage.title)"
+            }
+            return usage
         }
     }
 }
@@ -59,30 +87,39 @@ extension PreparedPortionUsage {
 /// surfaces stay separately addressable in UI tests — Home's quick card keeps
 /// the identifiers it has had since P1-D.
 struct PreparedPortionUsageRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let usage: PreparedPortionUsage
     let identifierPrefix: String
     let onUse: (UUID) -> Void
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
-                label
-                Spacer(minLength: 8)
-                button
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                label
-                button
+        Group {
+            if usage.detailText != nil && dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) { label; button }
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) { label; Spacer(minLength: 8); button }
+                    VStack(alignment: .leading, spacing: 8) { label; button }
+                }
             }
         }
         .accessibilityElement(children: .contain)
     }
-
-    private var label: some View {
-        Text("\(usage.name) · \(usage.remainingText)")
-            .font(.footnote)
+    @ViewBuilder private var label: some View {
+        if let detail = usage.detailText {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(usage.name) · \(usage.remainingText)").font(.footnote)
+                Text(detail).font(.caption).fixedSize(horizontal: false, vertical: true)
+            }
             .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(usage.name)，\(usage.remainingText)，\(usage.spokenDetail ?? detail)")
             .accessibilityIdentifier("\(identifierPrefix).prepared.\(usage.id.uuidString)")
+        } else {
+            Text("\(usage.name) · \(usage.remainingText)")
+                .font(.footnote).foregroundStyle(.secondary)
+                .accessibilityIdentifier("\(identifierPrefix).prepared.\(usage.id.uuidString)")
+        }
     }
 
     private var button: some View {
@@ -101,7 +138,7 @@ struct PreparedPortionUsageRow: View {
             .foregroundStyle(AppTheme.brand)
             .buttonStyle(.plain)
             // Names the batch so it is unambiguous when a meal uses two.
-            .accessibilityLabel("使用 1 份\(usage.name)")
+            .accessibilityLabel(usage.buttonLabel)
             .accessibilityHint("\(usage.remainingText)")
             .accessibilityIdentifier("\(identifierPrefix).usePrepared.\(usage.id.uuidString)")
     }

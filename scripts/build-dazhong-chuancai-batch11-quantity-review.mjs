@@ -64,7 +64,16 @@ const outPath = path.join(
   repoRoot,
   'data/source-restoration/dazhong-chuancai-1979-promotion-batch11-quantity-review.v1.json',
 );
-fs.writeFileSync(outPath, `${JSON.stringify(output, null, 2)}\n`);
+// Concurrent test processes read the published artifact during regeneration.
+// Stage beside it, then rename so readers always see a complete JSON document.
+const stagingDir = fs.mkdtempSync(`${outPath}.tmp-`);
+try {
+  const stagingPath = path.join(stagingDir, 'quantity-review.json');
+  fs.writeFileSync(stagingPath, `${JSON.stringify(output, null, 2)}\n`);
+  fs.renameSync(stagingPath, outPath);
+} finally {
+  fs.rmSync(stagingDir, { recursive: true, force: true });
+}
 console.log(`Wrote ${outPath}`);
 console.log(`records: ${records.length}, units: ${JSON.stringify(unitCounts)}`);
 console.log(`verificationProblems: ${problems.length}`);

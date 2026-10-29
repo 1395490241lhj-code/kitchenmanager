@@ -1889,6 +1889,7 @@ struct SettingsView: View {
     @EnvironmentObject private var store: KitchenStore
     @EnvironmentObject private var recipeStore: RecipeStore
     @EnvironmentObject private var authStore: AuthStore
+    @EnvironmentObject private var accountDeletionController: AccountDeletionController
     #if DEBUG
     @EnvironmentObject private var syncSmokeController: SyncSmokeController
     #endif
@@ -1898,6 +1899,7 @@ struct SettingsView: View {
     @State private var notificationAuthorization: UNAuthorizationStatus?
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingClearDataAlert = false
+    @State private var clearDataError: String?
     #if DEBUG
     @State private var isShowingSyncSmokeConfirmation = false
     #endif
@@ -1941,6 +1943,19 @@ struct SettingsView: View {
                         )
                     }
                     .accessibilityIdentifier("settings.account.entry")
+                }
+
+                if accountDeletionController.needsLocalCleanup {
+                    NavigationLink {
+                        AccountDeletionView(controller: accountDeletionController)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("此前账号的本机清理未完成")
+                            Text("查看清理状态；当前数据保留")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityIdentifier("settings.account.localCleanupPending")
                 }
 
                 if let message = authStore.errorMessage {
@@ -2163,12 +2178,23 @@ struct SettingsView: View {
         }
         .alert("清除全部本地数据？", isPresented: $isShowingClearDataAlert) {
             Button("清除", role: .destructive) {
-                store.clearAllLocalData()
-                recipeStore.clearLocalData()
+                if store.clearAllLocalData() {
+                    recipeStore.clearLocalData()
+                } else {
+                    clearDataError = store.preparedComponentNotice ?? store.inventoryNotice ?? "厨房数据暂时无法清除，请稍后重试。"
+                }
             }
             Button("取消", role: .cancel) {}
         } message: {
             Text("这会删除本机的库存、常备设置、备餐、用餐与聚餐计划、每周菜单、买菜清单、消耗记录、用户菜谱、收藏和常做记录，无法撤销。注意：厨房备份不包含用户菜谱、收藏和常做记录，清除后无法从备份恢复。远端菜谱库不会被删除。")
+        }
+        .alert("未能清除本地数据", isPresented: Binding(
+            get: { clearDataError != nil },
+            set: { if !$0 { clearDataError = nil } }
+        )) {
+            Button("好", role: .cancel) { clearDataError = nil }
+        } message: {
+            Text(clearDataError ?? "请稍后重试。")
         }
         #if DEBUG
         .alert("Run Sync Smoke?", isPresented: $isShowingSyncSmokeConfirmation) {
@@ -2492,6 +2518,8 @@ private struct RestorePreviewSheet: View {
                             .accessibilityIdentifier("restorePreview.count." + domain.rawValue)
                     }
                 }
+
+                PreparedBackupGroupingPreview(components: payload.preparedComponents)
 
                 Section {
                     Button("替换本机数据", role: .destructive) { isConfirming = true }

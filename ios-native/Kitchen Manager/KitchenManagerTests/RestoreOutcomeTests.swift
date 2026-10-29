@@ -192,6 +192,29 @@ final class RestoreOutcomeTests: XCTestCase {
         for (key, script) in scripts { script.arm(replaceCalls: key == domain ? calls : []) }
     }
 
+    func testPreparedRemainsBlockedWhenUnsafeRecoveryAbortsBeforeItsRead() throws {
+        let data = try seedOriginalAndBuildCandidate()
+        var candidate = try JSONDecoder().decode(KitchenBackupPayload.self, from: data)
+        let imported = component(name: "导入备餐")
+        candidate.preparedComponents = [imported]
+        scripts[.preparedComponents]!.arm(replaceCalls: [2])
+        scripts[.specialPlans]!.arm(replaceCalls: [1])
+        scripts[.inventory]!.failLoad = true
+
+        XCTAssertThrowsError(try store.restoreBackupData(JSONEncoder().encode(candidate)))
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        XCTAssertEqual(store.addPreparedComponent(component(name: "后来添加")), .failure(.unavailable))
+        XCTAssertEqual(try base.preparedComponents.loadComponents(), [imported])
+
+        scripts[.preparedComponents]!.failLoad = true
+        XCTAssertThrowsError(try store.reloadPreparedComponents().get())
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        scripts[.preparedComponents]!.failLoad = false
+        try store.reloadPreparedComponents().get()
+        XCTAssertFalse(store.isPreparedComponentUnavailable)
+        XCTAssertEqual(store.preparedComponents, [imported])
+    }
+
     private func storedScope() throws -> KitchenBackupPayload {
         KitchenBackupPayload(
             inventory: try base.inventory.loadInventory(),
@@ -233,6 +256,85 @@ final class RestoreOutcomeTests: XCTestCase {
             preparedAt: Date(timeIntervalSince1970: 1_700_000_000),
             expiryDate: Date(timeIntervalSince1970: 1_700_300_000)
         )
+    }
+
+    private func seedLinkedOriginal() throws -> [PreparedComponent] {
+        let source = try PreparedSourceSnapshot(id: UUID(), name: "鸡肉", initialMassDecigrams: 1000, initialPortionCount: 3)
+        let allocation = try PreparedPortionAllocator.allocate(source: source, groupIDs: [UUID(), UUID()])
+        let rows = try allocation.groups.map { group in
+            PreparedComponent(id: group.id, name: source.name, portionsRemaining: group.count,
+                state: .cooked, storage: .frozen, preparedAt: Date(timeIntervalSince1970: 100),
+                expiryDate: Date(timeIntervalSince1970: 200), grouping: try PreparedPortionGrouping(
+                    source: source, massPerPortionDecigrams: group.massPerPortionDecigrams))
+        }
+        try base.preparedComponents.replaceComponents(with: rows)
+        try store.reloadPreparedComponents().get()
+        return rows
+    }
+
+    func testInvalidGroupedBackupsAreRejectedBeforeAllSevenDomainWritesOrRecoveryPreparation() throws {
+        let candidate = try seedOriginalAndBuildCandidate()
+        let rows = try seedLinkedOriginal()
+        let rowJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(rows)) as? [[String: Any]])
+        var valid = try XCTUnwrap(JSONSerialization.jsonObject(with: candidate) as? [String: Any])
+        valid["version"] = 2; valid["preparedComponents"] = rowJSON
+        var invalids = [[String: Any]]()
+        for value in [NSNull(), "bad", 1] as [Any] {
+            var invalid = valid; invalid["preparedComponents"] = value; invalids.append(invalid)
+        }
+        var missing = valid; missing.removeValue(forKey: "preparedComponents"); invalids.append(missing)
+        var duplicate = valid; duplicate["preparedComponents"] = rowJSON + rowJSON; invalids.append(duplicate)
+        var corrupt = valid; var badRows = rowJSON; badRows[0]["grouping"] = "bad"
+        corrupt["preparedComponents"] = badRows; invalids.append(corrupt)
+        var oversized = valid; badRows = rowJSON; badRows[0]["portionsRemaining"] = 2
+        oversized["preparedComponents"] = badRows; invalids.append(oversized)
+        var v1 = valid; v1["version"] = 1; invalids.append(v1)
+        var future = valid; future["version"] = 3; invalids.append(future)
+        let original = inMemoryScope()
+        for invalid in invalids {
+            for script in scripts.values { script.arm() }
+            XCTAssertThrowsError(try store.restoreBackupData(JSONSerialization.data(withJSONObject: invalid)))
+            XCTAssertEqual(store.lastRestoreOutcome, .validationFailed)
+            XCTAssertTrue(scripts.values.allSatisfy { $0.replaceCalls == 0 })
+            XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+            XCTAssertTrue(inMemoryScope().matchesBackupScope(of: original))
+            XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
+        }
+    }
+
+    func testFailureAfterPreparedRestoresEveryLinkedFieldAndResolvesCopyOnlyAfterReread() throws {
+        let candidate = try seedOriginalAndBuildCandidate(); let rows = try seedLinkedOriginal()
+        let original = inMemoryScope()
+        armFailure(at: .specialPlans)
+        XCTAssertThrowsError(try store.restoreBackupData(candidate))
+        XCTAssertEqual(scripts[.preparedComponents]?.replaceCalls, 2)
+        XCTAssertEqual(store.lastRestoreOutcome, .failedAndRecovered(.specialPlans))
+        XCTAssertEqual(store.preparedComponents, rows)
+        XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
+        XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+    }
+
+    func testFailedPreparedCompensationRetainsCompleteV2CopyForExplicitRecovery() throws {
+        let candidate = try seedOriginalAndBuildCandidate(); let rows = try seedLinkedOriginal()
+        let original = inMemoryScope()
+        armFailure(at: .specialPlans); scripts[.preparedComponents]!.arm(replaceCalls: [2])
+        XCTAssertThrowsError(try store.restoreBackupData(candidate))
+        XCTAssertEqual(store.lastRestoreOutcome, .failedUnsafe(.compensationFailed([.preparedComponents])))
+        XCTAssertTrue(snapshot.hasOutstandingSnapshot)
+        let copy = try KitchenBackupValidator.validate(XCTUnwrap(snapshot.outstandingSnapshot()))
+        XCTAssertEqual(copy.version, 2); XCTAssertEqual(copy.preparedComponents, rows)
+        XCTAssertTrue(copy.matchesBackupScope(of: original))
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        for script in scripts.values { script.arm() }
+        // Existing unsafe-recovery fence requires a verified reload before retry.
+        XCTAssertThrowsError(try store.restoreFromRecoverySnapshot())
+        XCTAssertTrue(snapshot.hasOutstandingSnapshot)
+        try store.reloadPreparedComponents().get()
+        try store.restoreFromRecoverySnapshot()
+        XCTAssertEqual(store.lastRestoreOutcome, .success)
+        XCTAssertEqual(store.preparedComponents, rows)
+        XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
+        XCTAssertFalse(snapshot.hasOutstandingSnapshot)
     }
 
     // MARK: - Success

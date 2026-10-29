@@ -98,7 +98,7 @@ final class ComponentMealUsageTests: XCTestCase {
 
         let previous = store.consumePreparedPortion(id: thigh.id)
 
-        XCTAssertEqual(previous?.portionsRemaining, 1)
+        XCTAssertEqual((try? previous.get())?.portionsRemaining, 1)
         XCTAssertTrue(store.preparedComponents.isEmpty)
         XCTAssertTrue(usages(store).isEmpty)
         // 红薯 + 西兰花 alone are not a plate, so the sheet falls to the gap.

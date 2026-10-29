@@ -23,6 +23,7 @@ private enum HomeSheet: Identifiable {
 }
 
 struct HomeView: View {
+    @State private var preparedOperationError: PreparedComponentMutationError?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
@@ -111,12 +112,15 @@ struct HomeView: View {
     /// by hand, and if the batch was the last portion the existing index clamp
     /// handles whatever the list becomes.
     private func usePreparedPortion(_ id: UUID) {
-        guard let previous = kitchenStore.consumePreparedPortion(id: id) else { return }
-        showToast(
-            previous.portionsRemaining > 1
-                ? "已使用 1 份\(previous.name)，还剩 \(previous.portionsRemaining - 1) 份"
-                : "\(previous.name)已用完"
-        )
+        let previous: PreparedComponent
+        switch kitchenStore.consumePreparedPortion(id: id) {
+        case .success(let consumed): previous = consumed
+        case .failure(let error):
+            toastMessage = nil
+            preparedOperationError = error
+            return
+        }
+        showToast(PreparedPortionConsumptionFeedback.message(for: previous, context: .meal))
     }
 
     private var moduleIssues: [HomeDashboardModuleIssue] {
@@ -330,6 +334,7 @@ struct HomeView: View {
         // confirmation, inventory deduction, markPlanCooked — is the same one
         // RecipeDetailView uses, not a second copy.
         .cookingFlow(request: $cookingRequest, session: cookingSession)
+        .preparedFailureAlert($preparedOperationError)
         .overlay(alignment: .bottom) {
             if let toastMessage {
                 FeedbackToast(message: toastMessage, style: toastStyle)
@@ -767,6 +772,9 @@ struct HomeView: View {
                 )
 
             case .quickMeal:
+                if kitchenStore.isPreparedComponentUnavailable {
+                    PreparedCollectionUnavailableView(identifierPrefix: "home.quickMeal.prepared")
+                }
                 let quickMeal = QuickMealAssemblyEngine.assemble(
                     inventory: kitchenStore.inventory,
                     preparedComponents: kitchenStore.preparedComponents
@@ -790,6 +798,7 @@ struct HomeView: View {
             case .mealPrepBoard:
                 HomeMealPrepBoardSection(
                     entries: MealPrepBoard.entries(from: kitchenStore.preparedComponents),
+                    isUnavailable: kitchenStore.isPreparedComponentUnavailable,
                     onAdd: { isShowingPreparedComponents = true }
                 )
             }

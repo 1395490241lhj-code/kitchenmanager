@@ -1,0 +1,129 @@
+{
+  "baseline": "cdcae1424fafba7ffbe82ccdb6c339a6d695f599",
+  "production_sources": [
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/PreparedComponent.swift",
+      "sha256": "8c826600eef714d7689fd792e09779e8b48c0eb77f8d99c3a48ce50a6f7ab717"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/SyncPersistence.swift",
+      "sha256": "70557f96c1cb31e4f848a5ec1e4b3140e448e3a5d5b88d33d9c2cc4a398b9db1"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/SyncPersistenceModels.swift",
+      "sha256": "e3063d47a4397e439fd6a47815ba63a6056100e404409dbb19a0747529ded6fa"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeModels.swift",
+      "sha256": "84f3be96507c95af44d5015f1d3238f020af833c81566339254db56fcbec8c06"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/InventorySyncEnrollment.swift",
+      "sha256": "7913b8999b5d7ad5d816ca7bca34ea92df2df1a2dbff35de045a79bdeda6b639"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/ConsumptionRecordEntity.swift",
+      "sha256": "c506ab1e5b573736b41c777818b5c6fcb78b9ca4e3892d3e2104a5ab114e301f"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/UserRecipeRecord.swift",
+      "sha256": "030e9189c7942d05b35b5a2a395a6c40ef8d81772e8000d24d35d4eedd5944ed"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/PreparedComponentRecord.swift",
+      "sha256": "a368708ab8643dc0ec5322ed88ae7b64081f04e87f277ca7a6c2354dd6c8f937"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/KitchenPersistenceFactory.swift",
+      "sha256": "8b4fea5a21e902ac475f0361418c23fb9e77d1e9e579a5886949a8c7881c48b4"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/InventoryPersistence.swift",
+      "sha256": "df55df4d07d54e955534cfd5bcea733cf0fc2d9013be72e04c5e1ce99d2755d9"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/ShoppingItemRecord.swift",
+      "sha256": "84172734acf55472706b2a2a750491fe3352d6efc65b974ffedeba94991bee47"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/ConversationRecords.swift",
+      "sha256": "d914ea1a28e8e8d7820d7171b4cbed551922e37a4462913fd8316c83f1333734"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/SpecialPlanRecord.swift",
+      "sha256": "237ed41fcebf97a563823ab29636d9b6fd325f87d29c09402f67957cecfbeca8"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/RecipePreferenceRecord.swift",
+      "sha256": "f1b0f1cdabdf4ed969a3956e1dc1af520bd4d3aa42c90bc9bb1913af2b418919"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/WeeklyPlanRecord.swift",
+      "sha256": "2e66bb511c942d9cfb9506972b7adfbc5d26145d60c489849b8fb096ef1c976d"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/TodayPlanRecord.swift",
+      "sha256": "f311879e886b53925c29706d019ad8f462ec73881198507bd3f2eaba27a9ddae"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/InventoryRecord.swift",
+      "sha256": "d2a186811b83d4f809c57c5a65e2f609a32429706ebf579a5f5dab9634465c13"
+    }
+  ],
+  "fixture_sha256": "9ae0140ab4e803d336bcad2f8bf124a02583cd7409660341983bfbdd8813bc2f",
+  "entity_hashes": {
+    "ConversationRecord": "c8d0e122ccb52a7b8d2d3d47bca55e72adc2ec675f5df63d6baac3ae98df013e",
+    "GuestMergeSessionRecord": "2e54903f11637bf189c945532402e9210e07f3f38456cb0fbfb74a465aba3957",
+    "InventorySyncEnrollmentRecord": "754132b71c71dfdf17079289ff9e696dda173b6d2c8f7e72e5e72c9a6e348e29",
+    "SyncCursorRecord": "57010b9b120c2c2496de6cccda35a2feb2c1cb0eb7a12665eca391ce67f42fc0",
+    "SyncMetadataRecord": "1295ddc5f72c7ca3406950326f31b1f1c930d2bcb611133ce0ffe7501016a9e8",
+    "InventoryRecord": "5df3c6285c9dbcf68806810de9760b3c09f5ba0a1ae13f728d6f8548b8f215ee",
+    "RecipePreferenceRecord": "eb988ed7594d830b098d6987621c527be470b7df5730c74c918c746c8c0cd2dd",
+    "PreparedComponentRecord": "7f3581a3540abef4347e889cba31b47e8ae1c5e72d6b1ee1d2446dfd3107ef5c",
+    "WeeklyPlanRecord": "434917859b6f020196b9cadcc1c38280988d16f62f74222225619787224f1a8a",
+    "ConversationActionRecord": "22b96b516aa47152a0d15fbed6cb18f0f66565ad256a49d82abae3466cb21ea1",
+    "TodayPlanRecord": "1f14826b34957cb60568de37286c90d432ee37c9b572e275f8a01673cdc425e8",
+    "ConsumptionRecordEntity": "b1b5df55852bf29a4c24afdb76afa4f8c003ffcd4728a6640c26e60ce5d4fa51",
+    "ShoppingItemRecord": "85f6a5f204eaaa9bef49b7ade43996c357a67a19dd2209dbf502f4e0fbe61a19",
+    "UserRecipeRecord": "cc1bb6301cee25b078d47914ae716e1a3017075944b6973992921a3b389ea4b7",
+    "ConversationContextSnapshotRecord": "69d85751896ba6e85899f5003f05962f0d2e88ea6743874deb85ca31eca310e3",
+    "PendingMutationRecord": "a30e1e6a08c238b4a6533466c4f20b5ea11ddf4fce24c26842d18e6dce4a72a9",
+    "SpecialPlanRecord": "26cde0a66d3edc734b0cc8b8256312e669a3b2e629792652896c81629decb30a",
+    "ConversationMessageRecord": "0bd90840d143644a56457f0710197bd86dc1a81d3b0c75766eef87b1e068299b"
+  },
+  "row_counts": {
+    "ZCONSUMPTIONRECORDENTITY": 1,
+    "ZCONVERSATIONACTIONRECORD": 1,
+    "ZCONVERSATIONCONTEXTSNAPSHOTRECORD": 1,
+    "ZCONVERSATIONMESSAGERECORD": 1,
+    "ZCONVERSATIONRECORD": 1,
+    "ZGUESTMERGESESSIONRECORD": 1,
+    "ZINVENTORYRECORD": 1,
+    "ZINVENTORYSYNCENROLLMENTRECORD": 1,
+    "ZPENDINGMUTATIONRECORD": 1,
+    "ZPREPAREDCOMPONENTRECORD": 2,
+    "ZRECIPEPREFERENCERECORD": 1,
+    "ZSHOPPINGITEMRECORD": 1,
+    "ZSPECIALPLANRECORD": 1,
+    "ZSYNCCURSORRECORD": 1,
+    "ZSYNCMETADATARECORD": 1,
+    "ZTODAYPLANRECORD": 1,
+    "ZUSERRECIPERECORD": 1,
+    "ZWEEKLYPLANRECORD": 1
+  },
+  "old_prepared_columns": [
+    "Z_PK",
+    "Z_ENT",
+    "Z_OPT",
+    "ZPORTIONSREMAINING",
+    "ZSORTINDEX",
+    "ZEXPIRYDATE",
+    "ZPREPAREDAT",
+    "ZNAME",
+    "ZSTATERAWVALUE",
+    "ZSTORAGERAWVALUE",
+    "ZID"
+  ],
+  "producer": "actual unchanged baseline app module + factory; one-use XCTest, separate old test process exited before resource copied",
+  "consolidation": "SQLite online backup from preserved closed old-store bytes, no schema/row changes"
+}

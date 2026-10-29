@@ -27,8 +27,14 @@ struct KitchenManagerApp: App {
     @StateObject private var sharedImportCoordinator = Self.makeSharedImportCoordinator()
     @AppStorage("appearance") private var appearanceRawValue = AppAppearance.system.rawValue
 
+    #if DEBUG
+    // The XCTest host must never start normal app services or open real data.
+    private static var isUnitTestHost: Bool { NSClassFromString("XCTestCase") != nil }
+    #endif
+
     private static func makeSharedImportCoordinator() -> SharedImportCoordinator {
         #if DEBUG
+        if Self.isUnitTestHost || PreparedReliabilityFixture.isEnabled || AccountDeletionCleanupFixture.isEnabled { return SharedImportCoordinator(queue: nil) }
         if let seeded = SharedImportUITestSeed.coordinatorIfRequested() { return seeded }
         #endif
         return SharedImportCoordinator(queue: SharedImportConfig.makeQueue())
@@ -40,11 +46,14 @@ struct KitchenManagerApp: App {
             || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_WORKSPACE_PLANNER")
             || ProcessInfo.processInfo.arguments.contains("UITEST_AI_CONVERSATION_FAKE")
             || AIConversationAcceptanceFixture.scenario != nil
-        let isolatedFixture = RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
+        let isolatedFixture = Self.isUnitTestHost || RecipeRegressionFixture.isEnabled || ShoppingRegressionFixture.isEnabled
             || KitchenMotionImportFixture.isEnabled
             || PlannerRegressionFixture.isEnabled || PlanPersistenceFailureFixture.failingWriteIndex != nil
-            || isConversationUITest
+            || isConversationUITest || PreparedReliabilityFixture.isEnabled || AccountDeletionCleanupFixture.isEnabled
         var persistence = isolatedFixture ? KitchenPersistenceFactory.isolatedInMemory() : KitchenPersistenceFactory.application()
+        if PreparedReliabilityFixture.isEnabled {
+            persistence = PreparedReliabilityFixture.configure(persistence)
+        }
         // UI-test-only: the Planner creation sheet's failure path has to be
         // driven through the real store and view, and a write can only be made
         // to fail at the persistence boundary.
@@ -76,12 +85,17 @@ struct KitchenManagerApp: App {
             persistence: persistence,
             recoverySnapshot: {
                 #if DEBUG
-                if isConversationUITest { return .isolated() }
+                if PreparedPortionGroupingUIFixture.isEnabled { return PreparedPortionGroupingUIFixture.recovery }
+                if Self.isUnitTestHost || isConversationUITest || PreparedReliabilityFixture.isEnabled || AccountDeletionCleanupFixture.isEnabled { return .isolated() }
                 #endif
                 return .applicationSupport()
             }()
         )
         #if DEBUG
+        PreparedPortionGroupingUIFixture.stageRecoveryIfRequested(in: kitchenStoreInstance)
+        if PreparedPortionGroupingUIFixture.isEnabled {
+            PreparedProcessInterruptionFixture.runIfRequested(in: kitchenStoreInstance, persistence: persistence)
+        }
         // The generic account fixture resets local data and adds 测试库存 under a
         // fresh UUID on every launch. That is fine for single-launch tests, but
         // it makes a seeded merge plan stale on the next launch — the very thing
@@ -527,7 +541,13 @@ struct KitchenManagerApp: App {
         // recommendation otherwise, so a suite that did not pin it would depend
         // on whatever the simulator had saved. Written before the first body
         // evaluation, and before `dayRhythmStore` is first read.
-        DayRhythmStore.applyUITestDayTypeIfRequested()
+        if Self.isUnitTestHost || PreparedReliabilityFixture.isEnabled || AccountDeletionCleanupFixture.isEnabled {
+            DayRhythmStore.applyUITestDayTypeIfRequested(userDefaults: recipeTestDefaults)
+            _dayRhythmStore = StateObject(wrappedValue: DayRhythmStore(userDefaults: recipeTestDefaults))
+            _mealPortionStore = StateObject(wrappedValue: MealPortionStore(userDefaults: recipeTestDefaults))
+        } else {
+            DayRhythmStore.applyUITestDayTypeIfRequested()
+        }
         #endif
     }
 
@@ -535,7 +555,11 @@ struct KitchenManagerApp: App {
         WindowGroup {
             Group {
                 #if DEBUG
-                if KitchenMotionImportFixture.isEnabled {
+                if Self.isUnitTestHost {
+                    Color.clear
+                } else if AccountDeletionCleanupFixture.isEnabled {
+                    AccountDeletionCleanupFixture()
+                } else if KitchenMotionImportFixture.isEnabled {
                     KitchenMotionImportFixture()
                 } else if PlannerRegressionFixture.isEnabled {
                     PlannerRegressionHost()
@@ -575,6 +599,9 @@ struct KitchenManagerApp: App {
                 // scheduler's own gate keeps it to one run per process even
                 // though `.task` can restart.
                 .task {
+                    #if DEBUG
+                    guard !Self.isUnitTestHost else { return }
+                    #endif
                     PantryRestockNotificationScheduler.syncInitialIfNeeded(
                         for: kitchenStore.inventory
                     )
@@ -934,7 +961,7 @@ struct ContentView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .task {
             #if DEBUG
-            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled else { return }
+            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled, !PreparedReliabilityFixture.isEnabled else { return }
             #endif
             await authStore.start()
         }
@@ -946,7 +973,7 @@ struct ContentView: View {
         // Both run concurrently now; neither reads the other's state.
         .task {
             #if DEBUG
-            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled, !RecipeUITestSeed.isolatesRecipeStore else { return }
+            guard !RecipeRegressionFixture.isEnabled, !ShoppingRegressionFixture.isEnabled, !RecipeUITestSeed.isolatesRecipeStore, !PreparedReliabilityFixture.isEnabled else { return }
             #endif
             if recipeStore.remoteRecipes.isEmpty {
                 await recipeStore.loadRecipes()

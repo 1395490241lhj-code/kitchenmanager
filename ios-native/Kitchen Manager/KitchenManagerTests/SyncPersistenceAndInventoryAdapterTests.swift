@@ -162,6 +162,7 @@ final class SyncPersistenceAndInventoryAdapterTests: XCTestCase {
         XCTAssertEqual(conflictMetadata?.state, .conflicted)
     }
 
+    #if DEBUG
     func testSingleSaveFailureRollsBackBusinessMetadataAndMutation() async throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -181,6 +182,7 @@ final class SyncPersistenceAndInventoryAdapterTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<SyncMetadataRecord>()).isEmpty)
         XCTAssertTrue(try context.fetch(FetchDescriptor<PendingMutationRecord>()).isEmpty)
     }
+    #endif
 
     // MARK: - Sync P3: preparation-kind round trip
 

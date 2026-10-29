@@ -974,7 +974,10 @@ final class KitchenStore: ObservableObject {
     /// Batches made ahead. A separate collection from `inventory` on purpose:
     /// restock, shopping matching and recipe recommendation all treat an
     /// `InventoryItem` as a purchasable raw ingredient, which these are not.
-    @Published var preparedComponents: [PreparedComponent] = [] { didSet { persistPreparedComponentsIfNeeded() } }
+    @Published private(set) var preparedComponents: [PreparedComponent] = []
+    /// A failed read is an unknown collection, never permission to replace it
+    /// with the empty placeholder. Only a successful explicit reload clears it.
+    @Published private(set) var isPreparedComponentUnavailable = false
     /// Event-level special plans (multi-dish events). A separate planning source
     /// from `plans`; `PlannerProjection` merges the two for the Planner surface.
     @Published var specialPlans: [SpecialPlan] = [] { didSet { persistSpecialPlansIfNeeded(previous: oldValue) } }
@@ -1028,7 +1031,6 @@ final class KitchenStore: ObservableObject {
     private var suppressPlanPersistence = false
     private var suppressConsumptionPersistence = false
     private var suppressWeeklyPlanPersistence = false
-    private var suppressPreparedComponentPersistence = false
     private var suppressSpecialPlanPersistence = false
     /// Defaults to the real app defaults so every existing call site (`KitchenStore()`)
     /// is unaffected; tests inject an isolated `UserDefaults(suiteName:)` instead.
@@ -1179,6 +1181,7 @@ final class KitchenStore: ObservableObject {
             preparedComponents = try self.preparedComponentPersistence.loadComponents()
         } catch {
             preparedComponents = []
+            isPreparedComponentUnavailable = true
             preparedComponentNotice = "备餐记录暂时无法读取，原始数据仍保留在设备上。"
             #if DEBUG
             print("[PreparedComponentPersistence] load failed: \(error)")
@@ -1411,7 +1414,14 @@ final class KitchenStore: ObservableObject {
         inventoryNotice = nil
     }
 
-    func clearAllLocalData() {
+    @discardableResult
+    func clearAllLocalData() -> Bool {
+        // Its rollback uses the published snapshot. An unreadable domain has
+        // no trustworthy snapshot to restore, so refuse before any deletion.
+        guard !isPreparedComponentUnavailable else {
+            preparedComponentNotice = PreparedComponentMutationError.unavailable.localizedDescription
+            return false
+        }
         let defaults = userDefaults
         let previousInventory = inventory
         let previousShoppingItems = shoppingItems
@@ -1434,13 +1444,18 @@ final class KitchenStore: ObservableObject {
             try? todayPlanPersistence.replacePlans(with: previousPlans)
             try? consumptionPersistence.replaceRecords(with: previousConsumptionRecords)
             try? weeklyPlanPersistence.replacePlan(with: previousWeeklyPlan)
-            try? preparedComponentPersistence.replaceComponents(with: previousPreparedComponents)
+            do {
+                try preparedComponentPersistence.replaceComponents(with: previousPreparedComponents)
+            } catch {
+                isPreparedComponentUnavailable = true
+                preparedComponentNotice = PreparedComponentMutationError.unavailable.localizedDescription
+            }
             try? specialPlanPersistence.replacePlans(with: previousSpecialPlans)
             inventoryNotice = "厨房数据暂时无法清除，请稍后重试。"
             #if DEBUG
             print("[KitchenPersistence] clear failed: \(error)")
             #endif
-            return
+            return false
         }
         publishDurableInventory([])
         suppressPlanPersistence = true
@@ -1455,9 +1470,8 @@ final class KitchenStore: ObservableObject {
         suppressConsumptionPersistence = true
         consumptionRecords = []
         suppressConsumptionPersistence = false
-        suppressPreparedComponentPersistence = true
         preparedComponents = []
-        suppressPreparedComponentPersistence = false
+        preparedComponentNotice = nil
         suppressSpecialPlanPersistence = true
         specialPlans = []
         suppressSpecialPlanPersistence = false
@@ -1472,6 +1486,7 @@ final class KitchenStore: ObservableObject {
         // The special-plan table was just emptied on purpose, so it is known again.
         specialPlanLoadFailed = false
         specialPlanNotice = nil
+        return true
     }
 
     // MARK: - Special plans
@@ -2608,7 +2623,8 @@ final class KitchenStore: ObservableObject {
     }
 
     func exportBackupData() throws -> Data {
-        try JSONEncoder().encode(currentBackupPayload())
+        guard !isPreparedComponentUnavailable else { throw KitchenBackupError.preparedComponentPersistenceFailed }
+        return try JSONEncoder().encode(currentBackupPayload())
     }
 
     /// Replaces the backup scope, and reports truthfully what happened.
@@ -2643,6 +2659,18 @@ final class KitchenStore: ObservableObject {
     }
 
     private func performRestore(_ data: Data, reusingOutstandingRecoveryCopy reusing: Bool) throws {
+        // Recovery must never compensate an unreadable collection with its
+        // empty placeholder. Reload it first; a failed reload stays locked.
+        guard !isPreparedComponentUnavailable else {
+            lastRestoreOutcome = .preparationFailed
+            // Preserve the existing recovery-copy refusal (and its UI route)
+            // without preparing a new snapshot from an unreadable placeholder.
+            if !reusing, recoverySnapshot.hasOutstandingSnapshot {
+                throw KitchenRecoverySnapshotError.outstandingSnapshotPresent
+            }
+            preparedComponentNotice = PreparedComponentMutationError.unavailable.localizedDescription
+            throw KitchenBackupError.preparedComponentPersistenceFailed
+        }
         // R1b — same reason as `applyConsumption`. A restore is a whole-table
         // replacement, so running it against a table a sync is concurrently
         // writing would discard the sync's rows outright. Nothing has been
@@ -2726,6 +2754,11 @@ final class KitchenStore: ObservableObject {
     /// be called recovered. Always throws: a restore that began and failed is
     /// never a success, whatever the recovery result.
     private func recover(to previous: KitchenBackupPayload, after failed: KitchenBackupDomain) throws {
+        // Any early read failure can otherwise leave Prepared's old published
+        // snapshot writable after its compensation failed. Hold the fence for
+        // the entire recovery, even when reconciliation stops in another domain.
+        isPreparedComponentUnavailable = true
+        preparedComponentNotice = PreparedComponentMutationError.unavailable.localizedDescription
         let compensationFailures = compensate(to: previous, before: failed)
 
         let stored: KitchenBackupPayload
@@ -2755,6 +2788,8 @@ final class KitchenStore: ObservableObject {
             throw failed.persistenceError
         }
         lastRestoreOutcome = .failedAndRecovered(failed)
+        isPreparedComponentUnavailable = false
+        preparedComponentNotice = nil
         // Proven, so the copy has done its job. Same reasoning as the success
         // path for a removal that itself fails.
         try? recoverySnapshot.resolve()
@@ -2805,7 +2840,11 @@ final class KitchenStore: ObservableObject {
         catch { throw KitchenBackupDomain.weeklyPlan }
         let loadedComponents: [PreparedComponent]
         do { loadedComponents = try preparedComponentPersistence.loadComponents() }
-        catch { throw KitchenBackupDomain.preparedComponents }
+        catch {
+            isPreparedComponentUnavailable = true
+            preparedComponentNotice = PreparedComponentMutationError.unavailable.localizedDescription
+            throw KitchenBackupDomain.preparedComponents
+        }
         let loadedSpecial: [SpecialPlan]
         do { loadedSpecial = try specialPlanPersistence.loadPlans() }
         catch { throw KitchenBackupDomain.specialPlans }
@@ -2836,9 +2875,7 @@ final class KitchenStore: ObservableObject {
         suppressConsumptionPersistence = true
         consumptionRecords = payload.consumptionRecords
         suppressConsumptionPersistence = false
-        suppressPreparedComponentPersistence = true
         preparedComponents = payload.preparedComponents
-        suppressPreparedComponentPersistence = false
         suppressSpecialPlanPersistence = true
         specialPlans = payload.specialPlans
         suppressSpecialPlanPersistence = false
@@ -3225,19 +3262,104 @@ final class KitchenStore: ObservableObject {
     // restock suggestions, the shopping list, or `InventoryConsumptionRecord`.
     // A batch is made, portions are taken from it, and it is gone.
 
-    func addPreparedComponent(_ component: PreparedComponent) {
-        guard !component.name.isEmpty else { return }
-        preparedComponents.append(component)
+    /// One allocation, one durable Prepared replacement, then one publication.
+    func addPreparedSource(draft: PreparedSourceDraft) -> Result<[PreparedComponent], PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        let occupied = preparedIdentityIDs
+        guard !occupied.contains(draft.sourceID), draft.groupIDs.allSatisfy({ !occupied.contains($0) }) else {
+            return preparedComponentFailure(.duplicateID)
+        }
+        do {
+            let source = try PreparedSourceSnapshot(id: draft.sourceID, name: draft.name,
+                initialMassDecigrams: draft.massDecigrams, initialPortionCount: draft.portionCount)
+            let allocation = try PreparedPortionAllocator.allocate(source: source, groupIDs: draft.groupIDs)
+            let rows = try allocation.groups.map { group in
+                PreparedComponent(id: group.id, name: source.name, portionsRemaining: group.count,
+                    state: draft.state, storage: draft.storage, preparedAt: draft.preparedAt,
+                    expiryDate: draft.expiryDate, grouping: try PreparedPortionGrouping(
+                        source: source, massPerPortionDecigrams: group.massPerPortionDecigrams))
+            }
+            return commitPreparedComponents(preparedComponents + rows, result: rows)
+        } catch PreparedPortionGroupingError.duplicateID {
+            return preparedComponentFailure(.duplicateID)
+        } catch {
+            return preparedComponentFailure(.invalidComponent)
+        }
     }
 
-    func updatePreparedComponent(_ component: PreparedComponent) {
-        guard let index = preparedComponents.firstIndex(where: { $0.id == component.id }),
-              !component.name.isEmpty else { return }
-        preparedComponents[index] = component
+    /// Separates whole physical portions; never changes mass, source or state.
+    func splitPreparedComponent(id: UUID, taking: Int, newGroupID: UUID, expected: PreparedComponent) -> Result<[PreparedComponent], PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else {
+            return preparedComponentFailure(.missingRecord)
+        }
+        let current = preparedComponents[index]
+        guard current == expected else { return preparedComponentFailure(.staleRecord) }
+        guard let grouping = current.grouping else { return preparedComponentFailure(.invalidComponent) }
+        guard !preparedIdentityIDs.contains(newGroupID) else { return preparedComponentFailure(.duplicateID) }
+        do {
+            let group = try PreparedAllocatedGroup(id: id, sourceID: grouping.source.id,
+                count: current.portionsRemaining, massPerPortionDecigrams: grouping.massPerPortionDecigrams)
+            let split = try PreparedPortionAllocator.split(group: group, taking: taking, newGroupID: newGroupID)
+            var remainder = current
+            remainder.portionsRemaining = split.remaining.count
+            var sibling = current
+            sibling.id = split.separated.id
+            sibling.portionsRemaining = split.separated.count
+            var proposed = preparedComponents
+            proposed.replaceSubrange(index...index, with: [remainder, sibling])
+            return commitPreparedComponents(proposed, result: [remainder, sibling])
+        } catch {
+            return preparedComponentFailure(.invalidComponent)
+        }
     }
 
-    func removePreparedComponent(id: UUID) {
-        preparedComponents.removeAll { $0.id == id }
+    private var preparedIdentityIDs: Set<UUID> {
+        Set(preparedComponents.map(\.id) + preparedComponents.compactMap { $0.grouping?.source.id })
+    }
+
+    @discardableResult
+    func addPreparedComponent(_ component: PreparedComponent) -> Result<PreparedComponent, PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard component.grouping == nil, !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
+        guard !preparedComponents.contains(where: { $0.id == component.id }) else {
+            return preparedComponentFailure(.duplicateID)
+        }
+        return commitPreparedComponents(preparedComponents + [component], result: component)
+    }
+
+    @discardableResult
+    func updatePreparedComponent(_ component: PreparedComponent, expected: PreparedComponent? = nil) -> Result<PreparedComponent, PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard let index = preparedComponents.firstIndex(where: { $0.id == component.id }) else {
+            return preparedComponentFailure(.missingRecord)
+        }
+        guard expected == nil || expected == preparedComponents[index] else {
+            return preparedComponentFailure(.staleRecord)
+        }
+        // Existing editors reconstruct values without grouping. Refuse that
+        // stale representation instead of silently detaching a linked row.
+        let current = preparedComponents[index]
+        guard component.grouping == current.grouping else { return preparedComponentFailure(.staleRecord) }
+        if current.grouping != nil {
+            guard expected == current, component.portionsRemaining == current.portionsRemaining,
+                  component.state == current.state, component.storage == current.storage else {
+                return preparedComponentFailure(.staleRecord)
+            }
+        }
+        guard !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
+        var proposed = preparedComponents
+        proposed[index] = component
+        return commitPreparedComponents(proposed, result: component)
+    }
+
+    @discardableResult
+    func removePreparedComponent(id: UUID) -> Result<PreparedComponent, PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard let previous = preparedComponents.first(where: { $0.id == id }) else {
+            return preparedComponentFailure(.missingRecord)
+        }
+        return commitPreparedComponents(preparedComponents.filter { $0.id != id }, result: previous)
     }
 
     /// Eating one portion. The last portion removes the batch rather than
@@ -3245,28 +3367,63 @@ final class KitchenStore: ObservableObject {
     /// exists in the kitchen, and inventory's habit of keeping depleted rows is
     /// exactly the behaviour this type is meant to avoid.
     ///
-    /// Returns the batch as it was, so a caller can describe what happened.
+    /// Success carries the batch as it was, only after the new state is durable.
     @discardableResult
-    func consumePreparedPortion(id: UUID) -> PreparedComponent? {
-        guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else { return nil }
-        let previous = preparedComponents[index]
-        if previous.portionsRemaining > 1 {
-            preparedComponents[index].portionsRemaining = previous.portionsRemaining - 1
-        } else {
-            preparedComponents.remove(at: index)
+    func consumePreparedPortion(id: UUID) -> Result<PreparedComponent, PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else {
+            return preparedComponentFailure(.missingRecord)
         }
-        return previous
+        let previous = preparedComponents[index]
+        var proposed = preparedComponents
+        if previous.portionsRemaining > 1 {
+            proposed[index].portionsRemaining = previous.portionsRemaining - 1
+        } else {
+            proposed.remove(at: index)
+        }
+        return commitPreparedComponents(proposed, result: previous)
     }
 
-    private func persistPreparedComponentsIfNeeded() {
-        guard !isLoading, !suppressPreparedComponentPersistence else { return }
+    /// The one non-destructive way out of an unreadable load. A transient read
+    /// failure can be retried without asking the owner to erase their kitchen.
+    @discardableResult
+    func reloadPreparedComponents() -> Result<Void, PreparedComponentMutationError> {
         do {
-            try preparedComponentPersistence.replaceComponents(with: preparedComponents)
+            let loaded = try preparedComponentPersistence.loadComponents()
+            preparedComponents = loaded
+            isPreparedComponentUnavailable = false
+            preparedComponentNotice = nil
+            return .success(())
         } catch {
-            preparedComponentNotice = "备餐记录保存失败，请稍后重试。"
-            #if DEBUG
-            print("[PreparedComponentPersistence] save failed: \(error)")
-            #endif
+            isPreparedComponentUnavailable = true
+            preparedComponentNotice = PreparedComponentMutationError.unavailable.localizedDescription
+            return .failure(.unavailable)
+        }
+    }
+
+    private func preparedComponentFailure<Value>(_ error: PreparedComponentMutationError) -> Result<Value, PreparedComponentMutationError> {
+        preparedComponentNotice = error.localizedDescription
+        return .failure(error)
+    }
+
+    private func commitPreparedComponents<Value>(_ proposed: [PreparedComponent], result: Value) -> Result<Value, PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        do {
+            try PreparedComponentCollectionValidator.validate(proposed)
+        } catch PreparedGroupingValidationError.duplicateID {
+            return preparedComponentFailure(.duplicateID)
+        } catch {
+            return preparedComponentFailure(.invalidComponent)
+        }
+        do {
+            try preparedComponentPersistence.replaceComponents(with: proposed)
+            // No didSet write-through: this publish describes an already
+            // committed replacement, and must never trigger a second write.
+            preparedComponents = proposed
+            preparedComponentNotice = nil
+            return .success(result)
+        } catch {
+            return preparedComponentFailure(.saveFailed)
         }
     }
 
@@ -3308,7 +3465,7 @@ final class KitchenStore: ObservableObject {
 
 struct KitchenBackupPayload: Codable {
     var format = "kitchen-manager-native-backup"
-    var version = 1
+    var version = 2
     var exportedAt = Date()
     var inventory: [InventoryItem]
     var plans: [MealPlanItem]

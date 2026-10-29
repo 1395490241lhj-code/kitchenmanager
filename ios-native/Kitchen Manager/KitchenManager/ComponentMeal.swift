@@ -84,9 +84,9 @@ struct ComponentMealResult: Equatable {
 }
 
 enum ComponentMealPolicy {
-    /// Strictly 1 carb + 1 protein + 1 vegetable, each a *different* record.
+    /// Strictly 1 carb + 1 protein + 1 vegetable, each a different selection identity.
     ///
-    /// The one-record-one-slot rule is not bookkeeping: 红薯 and 玉米 both carry
+    /// The one-source-one-slot rule is not bookkeeping: 红薯 and 玉米 both carry
     /// a staple role and a vegetable role, so without it a single sweet potato
     /// beside a chicken thigh would report itself as a complete three-part
     /// plate. Slots are filled staple first, and each one excludes what the
@@ -101,13 +101,13 @@ enum ComponentMealPolicy {
         )
         guard !usable.isEmpty else { return .nothingUsable }
 
-        var taken: Set<QuickMealCandidateSource> = []
+        var taken: Set<QuickMealSelectionIdentity> = []
 
         let carb = bestCarb(in: usable, excluding: taken)
-        if let carb { taken.insert(carb.source) }
+        if let carb { taken.insert(carb.selectionIdentity) }
 
         let protein = bestProtein(in: usable, excluding: taken)
-        if let protein { taken.insert(protein.source) }
+        if let protein { taken.insert(protein.selectionIdentity) }
 
         let vegetable = bestVegetable(in: usable, excluding: taken)
 
@@ -150,10 +150,10 @@ enum ComponentMealPolicy {
 
     private static func bestCarb(
         in usable: [QuickMealCandidate],
-        excluding taken: Set<QuickMealCandidateSource>
+        excluding taken: Set<QuickMealSelectionIdentity>
     ) -> QuickMealCandidate? {
         let pool = usable.filter { candidate in
-            !taken.contains(candidate.source)
+            !taken.contains(candidate.selectionIdentity)
                 && candidate.profile.has(.carb)
                 && isPlateBase(candidate)
         }
@@ -176,10 +176,10 @@ enum ComponentMealPolicy {
 
     private static func bestProtein(
         in usable: [QuickMealCandidate],
-        excluding taken: Set<QuickMealCandidateSource>
+        excluding taken: Set<QuickMealSelectionIdentity>
     ) -> QuickMealCandidate? {
         let pool = usable.filter { candidate in
-            !taken.contains(candidate.source)
+            !taken.contains(candidate.selectionIdentity)
                 && candidate.profile.has(.protein)
                 && !isStandaloneMeal(candidate)
         }
@@ -203,10 +203,10 @@ enum ComponentMealPolicy {
 
     private static func bestVegetable(
         in usable: [QuickMealCandidate],
-        excluding taken: Set<QuickMealCandidateSource>
+        excluding taken: Set<QuickMealSelectionIdentity>
     ) -> QuickMealCandidate? {
         let pool = usable.filter { candidate in
-            !taken.contains(candidate.source)
+            !taken.contains(candidate.selectionIdentity)
                 && candidate.profile.has(.vegetable)
                 && !isStandaloneMeal(candidate)
         }
