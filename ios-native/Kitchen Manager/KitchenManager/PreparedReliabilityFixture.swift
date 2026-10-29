@@ -5,10 +5,11 @@ import Foundation
 /// Normal launches and Release builds never enter this fixture.
 @MainActor
 enum PreparedReliabilityFixture {
-    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("UITEST_PREPARED_RELIABILITY") }
+    static var isEnabled: Bool { ProcessInfo.processInfo.arguments.contains("UITEST_PREPARED_RELIABILITY") || PreparedPortionGroupingUIFixture.isEnabled }
 
     static func configure(_ bundle: KitchenPersistenceBundle) -> KitchenPersistenceBundle {
         precondition(isEnabled)
+        if PreparedPortionGroupingUIFixture.isEnabled { return PreparedPortionGroupingUIFixture.configure() }
         let arguments = ProcessInfo.processInfo.arguments
         let quick = arguments.contains("UITEST_FORCE_QUICK_DAY")
         let now = Date()

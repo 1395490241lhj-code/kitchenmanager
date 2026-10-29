@@ -3262,10 +3262,66 @@ final class KitchenStore: ObservableObject {
     // restock suggestions, the shopping list, or `InventoryConsumptionRecord`.
     // A batch is made, portions are taken from it, and it is gone.
 
+    /// One allocation, one durable Prepared replacement, then one publication.
+    func addPreparedSource(draft: PreparedSourceDraft) -> Result<[PreparedComponent], PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        let occupied = preparedIdentityIDs
+        guard !occupied.contains(draft.sourceID), draft.groupIDs.allSatisfy({ !occupied.contains($0) }) else {
+            return preparedComponentFailure(.duplicateID)
+        }
+        do {
+            let source = try PreparedSourceSnapshot(id: draft.sourceID, name: draft.name,
+                initialMassDecigrams: draft.massDecigrams, initialPortionCount: draft.portionCount)
+            let allocation = try PreparedPortionAllocator.allocate(source: source, groupIDs: draft.groupIDs)
+            let rows = try allocation.groups.map { group in
+                PreparedComponent(id: group.id, name: source.name, portionsRemaining: group.count,
+                    state: draft.state, storage: draft.storage, preparedAt: draft.preparedAt,
+                    expiryDate: draft.expiryDate, grouping: try PreparedPortionGrouping(
+                        source: source, massPerPortionDecigrams: group.massPerPortionDecigrams))
+            }
+            return commitPreparedComponents(preparedComponents + rows, result: rows)
+        } catch PreparedPortionGroupingError.duplicateID {
+            return preparedComponentFailure(.duplicateID)
+        } catch {
+            return preparedComponentFailure(.invalidComponent)
+        }
+    }
+
+    /// Separates whole physical portions; never changes mass, source or state.
+    func splitPreparedComponent(id: UUID, taking: Int, newGroupID: UUID, expected: PreparedComponent) -> Result<[PreparedComponent], PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else {
+            return preparedComponentFailure(.missingRecord)
+        }
+        let current = preparedComponents[index]
+        guard current == expected else { return preparedComponentFailure(.staleRecord) }
+        guard let grouping = current.grouping else { return preparedComponentFailure(.invalidComponent) }
+        guard !preparedIdentityIDs.contains(newGroupID) else { return preparedComponentFailure(.duplicateID) }
+        do {
+            let group = try PreparedAllocatedGroup(id: id, sourceID: grouping.source.id,
+                count: current.portionsRemaining, massPerPortionDecigrams: grouping.massPerPortionDecigrams)
+            let split = try PreparedPortionAllocator.split(group: group, taking: taking, newGroupID: newGroupID)
+            var remainder = current
+            remainder.portionsRemaining = split.remaining.count
+            var sibling = current
+            sibling.id = split.separated.id
+            sibling.portionsRemaining = split.separated.count
+            var proposed = preparedComponents
+            proposed.replaceSubrange(index...index, with: [remainder, sibling])
+            return commitPreparedComponents(proposed, result: [remainder, sibling])
+        } catch {
+            return preparedComponentFailure(.invalidComponent)
+        }
+    }
+
+    private var preparedIdentityIDs: Set<UUID> {
+        Set(preparedComponents.map(\.id) + preparedComponents.compactMap { $0.grouping?.source.id })
+    }
+
     @discardableResult
     func addPreparedComponent(_ component: PreparedComponent) -> Result<PreparedComponent, PreparedComponentMutationError> {
         guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
-        guard !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
+        guard component.grouping == nil, !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
         guard !preparedComponents.contains(where: { $0.id == component.id }) else {
             return preparedComponentFailure(.duplicateID)
         }
@@ -3280,6 +3336,16 @@ final class KitchenStore: ObservableObject {
         }
         guard expected == nil || expected == preparedComponents[index] else {
             return preparedComponentFailure(.staleRecord)
+        }
+        // Existing editors reconstruct values without grouping. Refuse that
+        // stale representation instead of silently detaching a linked row.
+        let current = preparedComponents[index]
+        guard component.grouping == current.grouping else { return preparedComponentFailure(.staleRecord) }
+        if current.grouping != nil {
+            guard expected == current, component.portionsRemaining == current.portionsRemaining,
+                  component.state == current.state, component.storage == current.storage else {
+                return preparedComponentFailure(.staleRecord)
+            }
         }
         guard !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
         var proposed = preparedComponents
@@ -3335,13 +3401,20 @@ final class KitchenStore: ObservableObject {
         }
     }
 
-    private func preparedComponentFailure(_ error: PreparedComponentMutationError) -> Result<PreparedComponent, PreparedComponentMutationError> {
+    private func preparedComponentFailure<Value>(_ error: PreparedComponentMutationError) -> Result<Value, PreparedComponentMutationError> {
         preparedComponentNotice = error.localizedDescription
         return .failure(error)
     }
 
-    private func commitPreparedComponents(_ proposed: [PreparedComponent], result: PreparedComponent) -> Result<PreparedComponent, PreparedComponentMutationError> {
+    private func commitPreparedComponents<Value>(_ proposed: [PreparedComponent], result: Value) -> Result<Value, PreparedComponentMutationError> {
         guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        do {
+            try PreparedComponentCollectionValidator.validate(proposed)
+        } catch PreparedGroupingValidationError.duplicateID {
+            return preparedComponentFailure(.duplicateID)
+        } catch {
+            return preparedComponentFailure(.invalidComponent)
+        }
         do {
             try preparedComponentPersistence.replaceComponents(with: proposed)
             // No didSet write-through: this publish describes an already
@@ -3392,7 +3465,7 @@ final class KitchenStore: ObservableObject {
 
 struct KitchenBackupPayload: Codable {
     var format = "kitchen-manager-native-backup"
-    var version = 1
+    var version = 2
     var exportedAt = Date()
     var inventory: [InventoryItem]
     var plans: [MealPlanItem]

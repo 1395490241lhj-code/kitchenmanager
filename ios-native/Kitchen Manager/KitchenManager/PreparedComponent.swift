@@ -15,7 +15,7 @@ enum PreparedComponentMutationError: Error, Equatable, LocalizedError {
         case .unavailable:
             return "备餐记录暂时无法读取。为保护已有数据，修改已暂停，请重新读取后重试。"
         case .invalidComponent:
-            return "请填写备餐名称后重试。"
+            return "备餐名称或份量无效，请检查后重试。"
         case .duplicateID:
             return "这条备餐记录已存在，请重新打开后查看。"
         case .missingRecord:
@@ -94,6 +94,7 @@ struct PreparedComponent: Identifiable, Codable, Hashable {
     /// seeded from `PreparedComponentExpirySuggestion` and the user can change
     /// it whenever their own judgement differs.
     var expiryDate: Date
+    var grouping: PreparedPortionGrouping?
 
     init(
         id: UUID = UUID(),
@@ -102,15 +103,46 @@ struct PreparedComponent: Identifiable, Codable, Hashable {
         state: PreparedComponentState,
         storage: PreparedStorage,
         preparedAt: Date,
-        expiryDate: Date
+        expiryDate: Date,
+        grouping: PreparedPortionGrouping? = nil
     ) {
         self.id = id
         self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.portionsRemaining = Self.clampedPortions(portionsRemaining)
+        self.portionsRemaining = grouping == nil ? Self.clampedPortions(portionsRemaining) : portionsRemaining
         self.state = state
         self.storage = storage
         self.preparedAt = preparedAt
         self.expiryDate = expiryDate
+        self.grouping = grouping
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, portionsRemaining, state, storage, preparedAt, expiryDate, grouping
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        portionsRemaining = try c.decode(Int.self, forKey: .portionsRemaining)
+        state = try c.decode(PreparedComponentState.self, forKey: .state)
+        storage = try c.decode(PreparedStorage.self, forKey: .storage)
+        preparedAt = try c.decode(Date.self, forKey: .preparedAt)
+        expiryDate = try c.decode(Date.self, forKey: .expiryDate)
+        grouping = try c.decodeIfPresent(PreparedPortionGrouping.self, forKey: .grouping)
+        try PreparedComponentCollectionValidator.validate([self])
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encode(portionsRemaining, forKey: .portionsRemaining)
+        try c.encode(state, forKey: .state)
+        try c.encode(storage, forKey: .storage)
+        try c.encode(preparedAt, forKey: .preparedAt)
+        try c.encode(expiryDate, forKey: .expiryDate)
+        try c.encodeIfPresent(grouping, forKey: .grouping)
     }
 
     static func clampedPortions(_ portions: Int) -> Int {

@@ -13,107 +13,96 @@ protocol PreparedComponentPersistenceProtocol: AnyObject {
 @MainActor
 final class SwiftDataPreparedComponentPersistence: PreparedComponentPersistenceProtocol {
     let container: ModelContainer
-    private let context: ModelContext
+    /// Last observed durable values, never updated by a failed write/read.
+    private var lastSnapshot: [PreparedComponent]?
 
-    init(container: ModelContainer) {
-        self.container = container
-        context = ModelContext(container)
-    }
+    init(container: ModelContainer) { self.container = container }
 
-    func loadComponents() throws -> [PreparedComponent] {
-        let descriptor = FetchDescriptor<PreparedComponentRecord>(
+    private func rows(in context: ModelContext) throws -> [PreparedComponentRecord] {
+        try context.fetch(FetchDescriptor<PreparedComponentRecord>(
             sortBy: [SortDescriptor(\.sortIndex), SortDescriptor(\.expiryDate), SortDescriptor(\.name)]
-        )
-        return try context.fetch(descriptor).map(\.preparedComponent)
+        ))
+    }
+    private func decode(_ rows: [PreparedComponentRecord]) throws -> [PreparedComponent] {
+        let components = try rows.map { try $0.decodePreparedComponent() }
+        try PreparedComponentCollectionValidator.validate(components)
+        return components
+    }
+    func loadComponents() throws -> [PreparedComponent] {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let components = try decode(rows(in: context))
+        lastSnapshot = components
+        return components
     }
 
     #if DEBUG
-    /// One-shot deterministic save failure for the feature 005 context-hygiene
-    /// tests. Full rationale on `SwiftDataShoppingListPersistence`.
     var failNextReplaceSaveForTesting: Error?
+    var beforeReplaceSaveForTesting: (() -> Void)?
+    var afterReplaceSaveForTesting: (() -> Void)?
     #endif
 
-    private func saveReplacement() throws {
-        #if DEBUG
-        if let injected = failNextReplaceSaveForTesting {
-            failNextReplaceSaveForTesting = nil
-            throw injected
-        }
-        #endif
-        try context.save()
-    }
-
-    func replaceComponents(with components: [PreparedComponent]) throws {
-        // Rolls back on any failure, the contract
-        // `SwiftDataTodayPlanPersistence.replacePlans` and
-        // `SwiftDataWeeklyPlanPersistence.replacePlan` already use, and for the
-        // same reason. This type owns its `ModelContext` outright, so a failed
-        // write would otherwise leave that context holding this attempt's
-        // pending deletes and inserts. The very next call re-fetches, does not
-        // see a pending-deleted row, and inserts a fresh record under the same
-        // `@Attribute(.unique) id`, and the failed attempt stays readable
-        // through this context as though it had been saved. Rolling back makes
-        // what a reader observes match what is stored.
+    private func mutate(_ proposal: ([PreparedComponent]) throws -> [PreparedComponent]) throws {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
         do {
-            let indexed = components.enumerated().map { ($0.element.id, ($0.element, $0.offset)) }
-            let incomingByID = Dictionary(indexed, uniquingKeysWith: { _, latest in latest })
-            let existing = try context.fetch(FetchDescriptor<PreparedComponentRecord>())
-
+            let existing = try rows(in: context)
+            let current = try decode(existing)
+            guard lastSnapshot == nil || lastSnapshot == current else {
+                throw PreparedGroupingValidationError.staleSnapshot
+            }
+            let proposed = try proposal(current)
+            try PreparedComponentCollectionValidator.validate(proposed)
+            // Duplicate IDs were rejected before building this lookup.
+            let incoming = Dictionary(uniqueKeysWithValues: proposed.enumerated().map { ($0.element.id, ($0.element, $0.offset)) })
             for record in existing {
-                guard let (component, index) = incomingByID[record.id] else {
+                if let (component, index) = incoming[record.id] {
+                    try record.update(from: component, sortIndex: index)
+                } else {
                     context.delete(record)
-                    continue
                 }
-                record.update(from: component, sortIndex: index)
             }
-
             let existingIDs = Set(existing.map(\.id))
-            for (component, index) in incomingByID.values where !existingIDs.contains(component.id) {
-                context.insert(PreparedComponentRecord(component: component, sortIndex: index))
+            for (index, component) in proposed.enumerated() where !existingIDs.contains(component.id) {
+                context.insert(try PreparedComponentRecord(component: component, sortIndex: index))
             }
-            try saveReplacement()
+            #if DEBUG
+            if let error = failNextReplaceSaveForTesting {
+                failNextReplaceSaveForTesting = nil
+                throw error
+            }
+            beforeReplaceSaveForTesting?()
+            #endif
+            try context.save()
+            #if DEBUG
+            afterReplaceSaveForTesting?()
+            #endif
+            lastSnapshot = proposed
         } catch {
             context.rollback()
             throw error
         }
     }
-
+    func replaceComponents(with components: [PreparedComponent]) throws { try mutate { _ in components } }
     func upsert(_ component: PreparedComponent) throws {
-        let id = component.id
-        var descriptor = FetchDescriptor<PreparedComponentRecord>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        if let record = try context.fetch(descriptor).first {
-            record.update(from: component, sortIndex: record.sortIndex)
-        } else {
-            let lastIndex = try context.fetchCount(FetchDescriptor<PreparedComponentRecord>())
-            context.insert(PreparedComponentRecord(component: component, sortIndex: lastIndex))
+        try mutate { current in
+            var result = current
+            if let index = result.firstIndex(where: { $0.id == component.id }) {
+                result[index] = component
+            } else {
+                result.append(component)
+            }
+            return result
         }
-        try context.save()
     }
-
-    func delete(id: UUID) throws {
-        let targetID = id
-        let descriptor = FetchDescriptor<PreparedComponentRecord>(predicate: #Predicate { $0.id == targetID })
-        for record in try context.fetch(descriptor) {
-            context.delete(record)
-        }
-        try context.save()
-    }
-
-    func deleteAll() throws {
-        try context.delete(model: PreparedComponentRecord.self)
-        try context.save()
-    }
+    func delete(id: UUID) throws { try mutate { $0.filter { $0.id != id } } }
+    func deleteAll() throws { try mutate { _ in [] } }
 }
 
 @MainActor
 final class FailingPreparedComponentPersistence: PreparedComponentPersistenceProtocol {
     let underlyingError: Error
-
-    init(underlyingError: Error) {
-        self.underlyingError = underlyingError
-    }
-
+    init(underlyingError: Error) { self.underlyingError = underlyingError }
     func loadComponents() throws -> [PreparedComponent] { throw underlyingError }
     func replaceComponents(with components: [PreparedComponent]) throws { throw underlyingError }
     func upsert(_ component: PreparedComponent) throws { throw underlyingError }

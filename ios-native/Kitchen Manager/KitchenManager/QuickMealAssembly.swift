@@ -78,9 +78,10 @@ struct QuickMealSuggestion: Equatable {
     let template: QuickMealTemplate
     let components: [QuickMealComponent]
 
-    /// Identity for de-duplication. Keyed by the source rather than a bare UUID
-    /// so an inventory item and a prepared batch can never collide.
+    /// Action provenance stays keyed by domain and live row UUID.
     var componentSources: Set<QuickMealCandidateSource> { Set(components.map(\.source)) }
+    /// Eligibility and deduplication use linked source identity; actions use componentSources.
+    var selectionIdentities: Set<QuickMealSelectionIdentity> { Set(components.map(\.candidate.selectionIdentity)) }
 
     /// Derived from the components that were actually chosen, never from the
     /// template. A template only describes the shape of a meal; whether it is
@@ -207,7 +208,7 @@ enum QuickMealAssemblyEngine {
             guard let main = best(usable.filter { $0.profile.form == .dumpling || $0.profile.form == .wonton })
             else { return nil }
             var components = [component(.main, main)]
-            if let vegetable = best(vegetables(in: usable, excluding: [main.source])) {
+            if let vegetable = best(vegetables(in: usable, excluding: [main.selectionIdentity])) {
                 components.append(component(.vegetable, vegetable))
             }
             return QuickMealSuggestion(template: template, components: components)
@@ -218,7 +219,7 @@ enum QuickMealAssemblyEngine {
             // pairing it with a cooked dish is a noodle bowl, and `noodleBowl`
             // owns that case, so allowing it here only produced a near-duplicate
             // of the very same plate of food.
-            guard let carb = best(mealBaseCarbs(in: usable, excluding: [readyMade.source])) else { return nil }
+            guard let carb = best(mealBaseCarbs(in: usable, excluding: [readyMade.selectionIdentity])) else { return nil }
             return QuickMealSuggestion(
                 template: template,
                 components: [component(.readyMade, readyMade), component(.carb, carb)]
@@ -228,16 +229,16 @@ enum QuickMealAssemblyEngine {
             guard let rice = best(usable.filter {
                 $0.profile.form == .rice && $0.profile.preparationState == .cooked
             }) else { return nil }
-            let excluded: Set<QuickMealCandidateSource> = [rice.source]
+            let excluded: Set<QuickMealSelectionIdentity> = [rice.selectionIdentity]
             let topping = best(usable.filter {
-                !excluded.contains($0.source)
+                !excluded.contains($0.selectionIdentity)
                     && !isStandaloneMeal($0)
                     && ($0.profile.has(.protein) || $0.profile.form == .preparedDish)
             })
             guard let topping else { return nil }
             var components = [component(.carb, rice)]
             components.append(component(topping.profile.has(.protein) ? .protein : .readyMade, topping))
-            if let vegetable = best(vegetables(in: usable, excluding: [rice.source, topping.source])) {
+            if let vegetable = best(vegetables(in: usable, excluding: [rice.selectionIdentity, topping.selectionIdentity])) {
                 components.append(component(.vegetable, vegetable))
             }
             return QuickMealSuggestion(template: template, components: components)
@@ -246,16 +247,19 @@ enum QuickMealAssemblyEngine {
             guard let carb = best(usable.filter {
                 $0.profile.form == .noodle || $0.profile.form == .riceNoodle
             }) else { return nil }
-            let excluded: Set<QuickMealCandidateSource> = [carb.source]
+            let excluded: Set<QuickMealSelectionIdentity> = [carb.selectionIdentity]
             // The noodle itself must not satisfy the protein slot — 鸡蛋面 carries
             // a protein role, but a bowl of it is still just noodles.
             let protein = best(proteins(in: usable, excluding: excluded))
-            let vegetable = best(vegetables(in: usable, excluding: excluded.union(protein.map { [$0.source] } ?? [])))
             // A finished dish spooned over freshly boiled noodles is still a
             // noodle bowl; this is the case `preparedWithCarb` no longer takes.
             let readyMade = protein == nil
-                ? best(readyMadeDishes(in: usable).filter { !excluded.contains($0.source) })
+                ? best(readyMadeDishes(in: usable).filter { !excluded.contains($0.selectionIdentity) })
                 : nil
+            // Select the topping first so its linked source cannot also fill
+            // the vegetable slot, even when a sibling has a different name.
+            let toppingIdentity = (protein ?? readyMade).map { [$0.selectionIdentity] } ?? []
+            let vegetable = best(vegetables(in: usable, excluding: excluded.union(toppingIdentity)))
             guard protein != nil || vegetable != nil || readyMade != nil else { return nil }
             var components = [component(.carb, carb)]
             if let protein { components.append(component(.protein, protein)) }
@@ -267,9 +271,9 @@ enum QuickMealAssemblyEngine {
             guard let protein = best(usable.filter {
                 $0.profile.has(.protein) && $0.profile.preparationState == .prepped
             }) else { return nil }
-            guard let carb = best(mealBaseCarbs(in: usable, excluding: [protein.source])) else { return nil }
+            guard let carb = best(mealBaseCarbs(in: usable, excluding: [protein.selectionIdentity])) else { return nil }
             var components = [component(.protein, protein), component(.carb, carb)]
-            if let vegetable = best(vegetables(in: usable, excluding: [protein.source, carb.source])) {
+            if let vegetable = best(vegetables(in: usable, excluding: [protein.selectionIdentity, carb.selectionIdentity])) {
                 components.append(component(.vegetable, vegetable))
             }
             return QuickMealSuggestion(template: template, components: components)
@@ -282,9 +286,9 @@ enum QuickMealAssemblyEngine {
     /// cooked tuber the classifier learns to recognise later. Something that
     /// still has to be boiled is not a base — 大米 and 挂面 are both excluded,
     /// for different reasons that only the preparation axis can tell apart.
-    private static func mealBaseCarbs(in usable: [Candidate], excluding excluded: Set<QuickMealCandidateSource>) -> [Candidate] {
+    private static func mealBaseCarbs(in usable: [Candidate], excluding excluded: Set<QuickMealSelectionIdentity>) -> [Candidate] {
         usable.filter { candidate in
-            !excluded.contains(candidate.source)
+            !excluded.contains(candidate.selectionIdentity)
                 && candidate.profile.has(.carb)
                 && candidate.profile.preparationState == .cooked
                 && !isStandaloneMeal(candidate)
@@ -307,15 +311,15 @@ enum QuickMealAssemblyEngine {
         }
     }
 
-    private static func proteins(in usable: [Candidate], excluding excluded: Set<QuickMealCandidateSource>) -> [Candidate] {
+    private static func proteins(in usable: [Candidate], excluding excluded: Set<QuickMealSelectionIdentity>) -> [Candidate] {
         usable.filter {
-            !excluded.contains($0.source) && $0.profile.has(.protein) && !isStandaloneMeal($0)
+            !excluded.contains($0.selectionIdentity) && $0.profile.has(.protein) && !isStandaloneMeal($0)
         }
     }
 
-    private static func vegetables(in usable: [Candidate], excluding excluded: Set<QuickMealCandidateSource>) -> [Candidate] {
+    private static func vegetables(in usable: [Candidate], excluding excluded: Set<QuickMealSelectionIdentity>) -> [Candidate] {
         usable.filter {
-            !excluded.contains($0.source) && $0.profile.has(.vegetable) && !isStandaloneMeal($0)
+            !excluded.contains($0.selectionIdentity) && $0.profile.has(.vegetable) && !isStandaloneMeal($0)
         }
     }
 
@@ -346,19 +350,19 @@ enum QuickMealAssemblyEngine {
     ///    米饭" from riding alongside "米饭 + 卤牛肉 + 青菜"; a leaner option
     ///    survives only when it is genuinely less work.
     private static func dedupe(_ suggestions: [QuickMealSuggestion]) -> [QuickMealSuggestion] {
-        var byItems: [Set<QuickMealCandidateSource>: QuickMealSuggestion] = [:]
+        var byItems: [Set<QuickMealSelectionIdentity>: QuickMealSuggestion] = [:]
         for suggestion in suggestions {
-            if let existing = byItems[suggestion.componentSources],
+            if let existing = byItems[suggestion.selectionIdentities],
                existing.template.simplicityRank <= suggestion.template.simplicityRank {
                 continue
             }
-            byItems[suggestion.componentSources] = suggestion
+            byItems[suggestion.selectionIdentities] = suggestion
         }
         let candidates = Array(byItems.values)
         return candidates.filter { candidate in
             !candidates.contains { other in
-                other.componentSources != candidate.componentSources
-                    && candidate.componentSources.isSubset(of: other.componentSources)
+                other.selectionIdentities != candidate.selectionIdentities
+                    && candidate.selectionIdentities.isSubset(of: other.selectionIdentities)
                     && candidate.effort >= other.effort
             }
         }

@@ -2524,6 +2524,8 @@ private struct RestorePreviewSheet: View {
                     }
                 }
 
+                PreparedBackupGroupingPreview(components: payload.preparedComponents)
+
                 Section {
                     Button("替换本机数据", role: .destructive) { isConfirming = true }
                         .frame(minHeight: ChromeMetrics.minimumRowHeight)

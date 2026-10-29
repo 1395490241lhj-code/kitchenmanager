@@ -25,12 +25,37 @@ nonisolated enum QuickMealCandidateSource: Hashable {
     }
 }
 
+/// Eligibility identity is separate from the live row used by consumption.
+nonisolated enum QuickMealSelectionIdentity: Hashable {
+    case inventory(UUID)
+    case legacyPreparedComponent(UUID)
+    case preparedSource(UUID)
+}
+
 /// One thing in the kitchen that could take part in a quick meal.
 nonisolated struct QuickMealCandidate: Equatable {
     let source: QuickMealCandidateSource
     let name: String
     let profile: QuickFoodProfile
     let expiryDate: Date?
+
+    let selectionIdentity: QuickMealSelectionIdentity
+
+    init(source: QuickMealCandidateSource, name: String, profile: QuickFoodProfile,
+         expiryDate: Date?, selectionIdentity: QuickMealSelectionIdentity? = nil) {
+        self.source = source
+        self.name = name
+        self.profile = profile
+        self.expiryDate = expiryDate
+        if let selectionIdentity {
+            self.selectionIdentity = selectionIdentity
+        } else {
+            switch source {
+            case .inventory(let id): self.selectionIdentity = .inventory(id)
+            case .preparedComponent(let id): self.selectionIdentity = .legacyPreparedComponent(id)
+            }
+        }
+    }
 
     /// Mirrors `InventoryItem.expiryStatus`'s window — expired, today, or
     /// within three days. Defined once here so both domains are ranked by the
@@ -85,7 +110,9 @@ extension QuickMealCandidate {
                 for: component.name,
                 preparationState: component.state.quickMealPreparationState
             ),
-            expiryDate: component.expiryDate
+            expiryDate: component.expiryDate,
+            selectionIdentity: component.grouping.map { .preparedSource($0.source.id) }
+                ?? .legacyPreparedComponent(component.id)
         )
     }
 }

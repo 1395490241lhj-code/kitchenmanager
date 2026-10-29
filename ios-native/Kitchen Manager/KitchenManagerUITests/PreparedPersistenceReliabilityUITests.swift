@@ -43,9 +43,8 @@ final class PreparedPersistenceReliabilityUITests: XCTestCase {
     }
 
     private func listConsume(_ app: XCUIApplication) -> XCUIElement {
-        // SwiftUI also exposes the containing row button with the child's id.
-        app.buttons.matching(NSPredicate(format: "identifier == %@ AND label == %@",
-                                        "prepared.consume.\(batchID)", "吃掉一份")).firstMatch
+        // The consume control is now a sibling of edit, with one live UUID target.
+        app.buttons.matching(identifier: "prepared.consume.\(batchID)").firstMatch
     }
 
     private func dismissFailure(_ app: XCUIApplication, capture name: String) {
