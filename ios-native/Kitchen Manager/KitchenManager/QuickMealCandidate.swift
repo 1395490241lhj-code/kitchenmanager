@@ -134,9 +134,8 @@ extension PreparedComponentState {
 extension QuickMealCandidate {
     /// Everything that can take part, from both domains.
     ///
-    /// Inventory keeps its own availability rule (`quantity > 0`). A prepared
-    /// batch needs none: P1-B guarantees a stored batch always has at least one
-    /// portion, because eating the last one deletes the record.
+    /// Inventory keeps its own rule. Prepared eligibility is per group, before
+    /// either meal policy selects or deduplicates linked sources.
     static func pool(
         inventory: [InventoryItem],
         preparedComponents: [PreparedComponent]
@@ -144,7 +143,8 @@ extension QuickMealCandidate {
         let fromInventory = inventory
             .filter(\.isAvailable)
             .map(QuickMealCandidate.init(inventoryItem:))
-        let fromPrepared = preparedComponents.map(QuickMealCandidate.init(preparedComponent:))
+        let fromPrepared = preparedComponents.filter(PreparedMealAvailability.isEligible)
+            .map(QuickMealCandidate.init(preparedComponent:))
         // Inventory first so that, all else equal, the deterministic ordering
         // this pool feeds is unchanged from before prepared components existed.
         return (fromInventory + fromPrepared)

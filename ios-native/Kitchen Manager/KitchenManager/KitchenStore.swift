@@ -2624,7 +2624,7 @@ final class KitchenStore: ObservableObject {
 
     func exportBackupData() throws -> Data {
         guard !isPreparedComponentUnavailable else { throw KitchenBackupError.preparedComponentPersistenceFailed }
-        return try JSONEncoder().encode(currentBackupPayload())
+        return try KitchenBackupValidator.encodeV3(currentBackupPayload())
     }
 
     /// Replaces the backup scope, and reports truthfully what happened.
@@ -2698,7 +2698,7 @@ final class KitchenStore: ObservableObject {
         let previous = currentBackupPayload()
         if !reusing {
             do {
-                try recoverySnapshot.prepare(try JSONEncoder().encode(previous))
+                try recoverySnapshot.prepare(try KitchenBackupValidator.encodeV3(previous))
             } catch {
                 lastRestoreOutcome = .preparationFailed
                 throw error
@@ -2706,7 +2706,7 @@ final class KitchenStore: ObservableObject {
         }
 
         if let failure = writeBackupScope(backup) {
-            try recover(to: previous, after: failure)
+            try recover(to: previous, after: failure, reusingOutstandingRecoveryCopy: reusing)
         }
 
         publishBackupScope(backup)
@@ -2753,7 +2753,11 @@ final class KitchenStore: ObservableObject {
     /// Puts the pre-restore state back, then decides whether that can honestly
     /// be called recovered. Always throws: a restore that began and failed is
     /// never a success, whatever the recovery result.
-    private func recover(to previous: KitchenBackupPayload, after failed: KitchenBackupDomain) throws {
+    private func recover(
+        to previous: KitchenBackupPayload,
+        after failed: KitchenBackupDomain,
+        reusingOutstandingRecoveryCopy: Bool
+    ) throws {
         // Any early read failure can otherwise leave Prepared's old published
         // snapshot writable after its compensation failed. Hold the fence for
         // the entire recovery, even when reconciliation stops in another domain.
@@ -2790,9 +2794,10 @@ final class KitchenStore: ObservableObject {
         lastRestoreOutcome = .failedAndRecovered(failed)
         isPreparedComponentUnavailable = false
         preparedComponentNotice = nil
-        // Proven, so the copy has done its job. Same reasoning as the success
-        // path for a removal that itself fails.
-        try? recoverySnapshot.resolve()
+        // Compensation proves the current kitchen, not recovery of an older outstanding copy.
+        if !reusingOutstandingRecoveryCopy {
+            try? recoverySnapshot.resolve()
+        }
         throw failed.persistenceError
     }
 
@@ -3314,6 +3319,29 @@ final class KitchenStore: ObservableObject {
         }
     }
 
+    func transitionPreparedComponent(id: UUID, expected: PreparedComponent,
+        intent: PreparedLifecycleIntent) -> Result<PreparedComponent, PreparedComponentMutationError> {
+        guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
+        guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else {
+            return preparedComponentFailure(.missingRecord)
+        }
+        let current = preparedComponents[index]
+        guard current == expected else { return preparedComponentFailure(.staleRecord) }
+        do {
+            let change = try PreparedLifecycleTransition.propose(state: current.state, storage: current.storage,
+                lifecycle: current.lifecycle, expiryDate: current.expiryDate, intent: intent)
+            var row = current
+            row.state = change.state; row.storage = change.storage
+            row.lifecycle = change.lifecycle; row.expiryDate = change.expiryDate
+            var proposed = preparedComponents; proposed[index] = row
+            return commitPreparedComponents(proposed, result: row)
+        } catch PreparedLifecycleError.invalidExpiryReview {
+            return preparedComponentFailure(.expiryReviewRequired)
+        } catch {
+            return preparedComponentFailure(.invalidTransition)
+        }
+    }
+
     private var preparedIdentityIDs: Set<UUID> {
         Set(preparedComponents.map(\.id) + preparedComponents.compactMap { $0.grouping?.source.id })
     }
@@ -3321,7 +3349,7 @@ final class KitchenStore: ObservableObject {
     @discardableResult
     func addPreparedComponent(_ component: PreparedComponent) -> Result<PreparedComponent, PreparedComponentMutationError> {
         guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
-        guard component.grouping == nil, !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
+        guard component.grouping == nil, component.lifecycle == nil, !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
         guard !preparedComponents.contains(where: { $0.id == component.id }) else {
             return preparedComponentFailure(.duplicateID)
         }
@@ -3340,12 +3368,16 @@ final class KitchenStore: ObservableObject {
         // Existing editors reconstruct values without grouping. Refuse that
         // stale representation instead of silently detaching a linked row.
         let current = preparedComponents[index]
-        guard component.grouping == current.grouping else { return preparedComponentFailure(.staleRecord) }
-        if current.grouping != nil {
-            guard expected == current, component.portionsRemaining == current.portionsRemaining,
-                  component.state == current.state, component.storage == current.storage else {
+        guard component.grouping == current.grouping, component.lifecycle == current.lifecycle else {
+            return preparedComponentFailure(.staleRecord)
+        }
+        if current.grouping != nil || current.lifecycle != nil {
+            guard expected == current, component.state == current.state, component.storage == current.storage else {
                 return preparedComponentFailure(.staleRecord)
             }
+        }
+        if current.grouping != nil, component.portionsRemaining != current.portionsRemaining {
+            return preparedComponentFailure(.staleRecord)
         }
         guard !component.name.isEmpty else { return preparedComponentFailure(.invalidComponent) }
         var proposed = preparedComponents
@@ -3369,12 +3401,19 @@ final class KitchenStore: ObservableObject {
     ///
     /// Success carries the batch as it was, only after the new state is durable.
     @discardableResult
-    func consumePreparedPortion(id: UUID) -> Result<PreparedComponent, PreparedComponentMutationError> {
+    func consumePreparedPortion(id: UUID, expected: PreparedComponent? = nil,
+        context: PreparedConsumptionContext = .manual) -> Result<PreparedComponent, PreparedComponentMutationError> {
         guard !isPreparedComponentUnavailable else { return preparedComponentFailure(.unavailable) }
         guard let index = preparedComponents.firstIndex(where: { $0.id == id }) else {
             return preparedComponentFailure(.missingRecord)
         }
         let previous = preparedComponents[index]
+        guard expected == nil || expected == previous else { return preparedComponentFailure(.staleRecord) }
+        if context == .immediateMeal {
+            guard expected != nil, PreparedMealAvailability.isEligible(previous) else {
+                return preparedComponentFailure(.invalidTransition)
+            }
+        }
         var proposed = preparedComponents
         if previous.portionsRemaining > 1 {
             proposed[index].portionsRemaining = previous.portionsRemaining - 1
@@ -3465,7 +3504,7 @@ final class KitchenStore: ObservableObject {
 
 struct KitchenBackupPayload: Codable {
     var format = "kitchen-manager-native-backup"
-    var version = 2
+    var version = 3
     var exportedAt = Date()
     var inventory: [InventoryItem]
     var plans: [MealPlanItem]

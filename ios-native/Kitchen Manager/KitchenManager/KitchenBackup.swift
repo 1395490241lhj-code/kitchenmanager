@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import CoreFoundation
 
 struct KitchenBackupDocument: FileDocument {
     static var readableContentTypes: [UTType] { [.json] }
@@ -37,11 +38,19 @@ struct KitchenBackupDocument: FileDocument {
 /// keys every v1 file has always carried -- never on how many items they hold,
 /// because a kitchen that was empty when it was exported is a legitimate backup.
 /// V2 additionally requires an explicit Prepared array and validates linked
-/// allocation before preview or restore. New exports/recovery copies use v2;
-/// historical v1 stays readable only without grouping metadata.
+/// allocation before preview or restore. V3 requires an explicit lifecycle key
+/// in every Prepared row; old declarations must not contain that key.
 enum KitchenBackupValidator {
     static let supportedFormat = "kitchen-manager-native-backup"
-    static let supportedVersion = 2
+    static let supportedVersion = 3
+
+    static func encodeV3(_ payload: KitchenBackupPayload) throws -> Data {
+        var current = payload
+        current.version = supportedVersion
+        let data = try JSONEncoder().encode(current)
+        _ = try validateCandidate(data)
+        return data
+    }
 
     /// Present in every v1 file, including the two legacy fixtures the
     /// repository already pins. Deliberately excludes `exportedAt`,
@@ -78,10 +87,12 @@ enum KitchenBackupValidator {
         guard let format = object["format"] as? String, format == supportedFormat else {
             throw KitchenBackupError.unrecognizedBackup
         }
-        guard let version = object["version"] as? Int else {
+        guard let number = object["version"] as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              let version = object["version"] as? Int else {
             throw KitchenBackupError.unrecognizedBackup
         }
-        guard version == 1 || version == supportedVersion else {
+        guard [1, 2, supportedVersion].contains(version) else {
             // Unknown versions must never be partially read through known keys.
             throw KitchenBackupError.unsupportedVersion(version)
         }
@@ -90,10 +101,17 @@ enum KitchenBackupValidator {
         }
         // Check original bytes before the tolerant decoder (and preview's
         // re-encoder) can normalize a missing/null Prepared domain to empty.
-        if version == 2, !(object["preparedComponents"] is [Any]) {
+        if version >= 2, !(object["preparedComponents"] is [Any]) {
             throw KitchenBackupError.unrecognizedBackup
         }
-        let payload: KitchenBackupPayload
+        if let rows = object["preparedComponents"] as? [Any] {
+            for value in rows {
+                guard let row = value as? [String: Any] else { throw KitchenBackupError.invalidFile }
+                let hasLifecycle = row.keys.contains("lifecycle")
+                guard version == 3 ? hasLifecycle : !hasLifecycle else { throw KitchenBackupError.invalidFile }
+            }
+        }
+        var payload: KitchenBackupPayload
         do {
             payload = try JSONDecoder().decode(KitchenBackupPayload.self, from: data)
             guard version != 1 || payload.preparedComponents.allSatisfy({ $0.grouping == nil }) else {
@@ -110,7 +128,8 @@ enum KitchenBackupValidator {
             throw KitchenBackupError.invalidFile
         }
         // Only a key that is actually present counts as a real export date.
-        let exportedAt = object["exportedAt"] == nil ? nil : payload.exportedAt
+        let exportedAt = object["exportedAt"] == nil || object["exportedAt"] is NSNull ? nil : payload.exportedAt
+        payload.version = supportedVersion
         return Candidate(payload: payload, exportedAt: exportedAt, version: version)
     }
 

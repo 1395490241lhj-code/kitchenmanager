@@ -2,9 +2,8 @@ import Foundation
 import SwiftData
 
 /// SwiftData row for a prepared batch. Enums are stored as their raw strings,
-/// the same way `InventoryRecord` stores the staple enums, so an unknown value
-/// written by a future build degrades to a sensible default rather than
-/// failing the whole load.
+/// the same way `InventoryRecord` stores the staple enums. Legacy rows retain
+/// their enum fallbacks; lifecycle-bearing rows require known context.
 @Model
 final class PreparedComponentRecord {
     @Attribute(.unique) var id: UUID
@@ -18,6 +17,18 @@ final class PreparedComponentRecord {
     /// business model and the backup format stay unchanged by it.
     var sortIndex: Int
     var portionGroupingData: Data? = nil
+    var lifecycleData: Data? = nil
+
+    func decodeLifecycle() throws -> PreparedLifecycle? {
+        guard let lifecycleData else { return nil }
+        guard let state = PreparedComponentState(rawValue: stateRawValue),
+              let storage = PreparedStorage(rawValue: storageRawValue) else {
+            throw PreparedLifecycleError.invalidMetadata
+        }
+        let lifecycle = try JSONDecoder().decode(PreparedLifecycle.self, from: lifecycleData)
+        try lifecycle.validate(state: state, storage: storage)
+        return lifecycle
+    }
 
     init(component: PreparedComponent, sortIndex: Int) throws {
         id = component.id
@@ -28,10 +39,13 @@ final class PreparedComponentRecord {
         preparedAt = component.preparedAt
         expiryDate = component.expiryDate
         self.sortIndex = sortIndex
+        try PreparedComponentCollectionValidator.validate([component])
         portionGroupingData = try component.grouping.map { try JSONEncoder().encode($0) }
+        lifecycleData = try component.lifecycle.map { try JSONEncoder().encode($0) }
     }
 
     func decodePreparedComponent() throws -> PreparedComponent {
+        let lifecycle = try decodeLifecycle()
         guard PreparedComponent.portionRange.contains(portionsRemaining) else {
             throw PreparedGroupingValidationError.invalidComponent
         }
@@ -44,7 +58,8 @@ final class PreparedComponentRecord {
             storage: PreparedStorage(rawValue: storageRawValue) ?? .refrigerated,
             preparedAt: preparedAt,
             expiryDate: expiryDate,
-            grouping: grouping
+            grouping: grouping,
+            lifecycle: lifecycle
         )
         // Preserve the saved value exactly. Entry-time normalization must not
         // make a successful write differ from its subsequent stale-check read.
@@ -54,7 +69,14 @@ final class PreparedComponentRecord {
     }
 
     func update(from component: PreparedComponent, sortIndex: Int) throws {
-        let groupingData = try component.grouping.map { try JSONEncoder().encode($0) }
+        try PreparedComponentCollectionValidator.validate([component])
+        let existingGrouping = try portionGroupingData.map { try JSONDecoder().decode(PreparedPortionGrouping.self, from: $0) }
+        let existingLifecycle = try decodeLifecycle()
+        // Preserve unchanged recorded blobs, including original JSON key ordering.
+        let groupingData = try existingGrouping == component.grouping ? portionGroupingData
+            : component.grouping.map { try JSONEncoder().encode($0) }
+        let lifecycleData = try existingLifecycle == component.lifecycle ? self.lifecycleData
+            : component.lifecycle.map { try JSONEncoder().encode($0) }
         name = component.name
         portionsRemaining = component.portionsRemaining
         stateRawValue = component.state.rawValue
@@ -63,5 +85,6 @@ final class PreparedComponentRecord {
         expiryDate = component.expiryDate
         self.sortIndex = sortIndex
         portionGroupingData = groupingData
+        self.lifecycleData = lifecycleData
     }
 }

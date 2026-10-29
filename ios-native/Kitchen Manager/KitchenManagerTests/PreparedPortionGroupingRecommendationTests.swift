@@ -8,7 +8,7 @@ final class PreparedPortionGroupingRecommendationTests: XCTestCase {
         let source = try PreparedSourceSnapshot(id: UUID(), name: name, initialMassDecigrams: mass, initialPortionCount: count)
         let ids = (0..<(mass % Int64(count) == 0 ? 1 : 2)).map { _ in UUID() }
         return try PreparedPortionAllocator.allocate(source: source, groupIDs: ids).groups.map { group in
-            PreparedComponent(id: group.id, name: name, portionsRemaining: group.count, state: state, storage: .frozen,
+            PreparedComponent(id: group.id, name: name, portionsRemaining: group.count, state: state, storage: .refrigerated,
                 preparedAt: Date(timeIntervalSince1970: 100), expiryDate: Date(timeIntervalSince1970: 200),
                 grouping: try PreparedPortionGrouping(source: source, massPerPortionDecigrams: group.massPerPortionDecigrams))
         }
@@ -99,7 +99,7 @@ final class PreparedPortionGroupingRecommendationTests: XCTestCase {
         store.addInventory(name: "挂面", quantity: 1, unit: "份", expiryDate: nil)
         let later = Calendar.current.date(byAdding: .day, value: 20, to: Date())!
         let draft = PreparedSourceDraft(sourceID: UUID(), groupIDs: [UUID()], name: "剩菜", massDecigrams: 8000,
-            portionCount: 4, state: .cooked, storage: .frozen, preparedAt: Date(), expiryDate: later)
+            portionCount: 4, state: .cooked, storage: .refrigerated, preparedAt: Date(), expiryDate: later)
         let original = try XCTUnwrap(store.addPreparedSource(draft: draft).get().first)
         let pair = try store.splitPreparedComponent(id: original.id, taking: 1, newGroupID: UUID(), expected: original).get()
         var readyMade = pair[0]; readyMade.expiryDate = Date()
@@ -147,7 +147,7 @@ final class PreparedPortionGroupingRecommendationTests: XCTestCase {
         store.addInventory(name: "米饭", quantity: 2, unit: "份", expiryDate: nil)
         store.addInventory(name: "西兰花", quantity: 2, unit: "份", expiryDate: nil)
         let draft = PreparedSourceDraft(sourceID: UUID(), groupIDs: [UUID()], name: "鸡肉", massDecigrams: 8000,
-            portionCount: 4, state: .cooked, storage: .frozen, preparedAt: Date(),
+            portionCount: 4, state: .cooked, storage: .refrigerated, preparedAt: Date(),
             expiryDate: Calendar.current.date(byAdding: .day, value: 20, to: Date())!)
         let row = try XCTUnwrap(store.addPreparedSource(draft: draft).get().first)
         let pair = try store.splitPreparedComponent(id: row.id, taking: 1, newGroupID: UUID(), expected: row).get()

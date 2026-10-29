@@ -21,6 +21,7 @@ enum SafeRestoreFixture {
         case dated
         /// A real legacy v1 file with no exportedAt key at all.
         case legacy
+        case v2, mixedV3, missingLifecycleV3
     }
 
     static var state: State {
@@ -28,34 +29,43 @@ enum SafeRestoreFixture {
         return State(rawValue: String(raw?.dropFirst("SAFE_RESTORE_".count) ?? "")) ?? .dated
     }
 
-    /// Known, deliberately uneven domain counts, so a test can tell the preview
-    /// is reporting the candidate rather than the current kitchen.
-    static func candidateData() throws -> Data {
-        switch state {
-        case .dated:
-            return try JSONEncoder().encode(KitchenBackupPayload(
-                inventory: [
-                    InventoryItem(name: "备份番茄", quantity: 3, unit: "个", expiryDate: nil),
-                    InventoryItem(name: "备份鸡蛋", quantity: 6, unit: "个", expiryDate: nil)
-                ],
-                plans: [],
-                shoppingItems: [KitchenShoppingItem(name: "备份牛奶", quantity: 1, unit: "盒")],
-                weeklyPlan: nil,
-                consumptionRecords: [],
-                preparedComponents: [],
-                specialPlans: []
-            ))
+    /// Explicit malformed inputs are for rejection tests, never positive recovery seeding.
+    static func candidateData(state selected: State? = nil) throws -> Data {
+        let chosen = selected ?? state
+        if selected == nil && chosen == .missingLifecycleV3 { throw KitchenBackupError.invalidFile }
+        switch chosen {
         case .legacy:
-            // The shape of the oldest real v1 files: identity, the four keys
-            // that have always been present, and no exportedAt.
-            return try JSONSerialization.data(withJSONObject: [
-                "format": KitchenBackupValidator.supportedFormat,
-                "version": KitchenBackupValidator.supportedVersion,
-                "inventory": [],
-                "plans": [],
-                "shoppingItems": [],
-                "consumptionRecords": []
-            ])
+            return Data(#"{"format":"kitchen-manager-native-backup","version":1,"inventory":[],"plans":[],"shoppingItems":[],"consumptionRecords":[]}"#.utf8)
+        case .dated:
+            return Data(#"{"format":"kitchen-manager-native-backup","version":1,"exportedAt":700000000,"inventory":[{"id":"70000000-0000-0000-0000-000000000001","name":"备份番茄","quantity":3,"unit":"个"},{"id":"70000000-0000-0000-0000-000000000002","name":"备份鸡蛋","quantity":6,"unit":"个"}],"plans":[],"shoppingItems":[{"id":"70000000-0000-0000-0000-000000000003","name":"备份牛奶","quantity":1,"unit":"盒","source":"手动添加","isDone":false}],"consumptionRecords":[]}"#.utf8)
+        case .v2:
+            return Data(#"{"format":"kitchen-manager-native-backup","version":2,"exportedAt":700000000,"inventory":[],"plans":[],"shoppingItems":[],"consumptionRecords":[],"preparedComponents":[{"id":"70000000-0000-0000-0000-000000000004","name":"旧备餐","portionsRemaining":2,"state":"cooked","storage":"refrigerated","preparedAt":100,"expiryDate":1000000}]}"#.utf8)
+        case .mixedV3, .missingLifecycleV3:
+            let date = Date(timeIntervalSinceReferenceDate: 100)
+            let source = try PreparedSourceSnapshot(id: UUID(uuidString: "70000000-0000-0000-0000-000000000010")!,
+                name: "鸡肉", initialMassDecigrams: 8000, initialPortionCount: 4)
+            let grouping = try PreparedPortionGrouping(source: source, massPerPortionDecigrams: 2000)
+            let legacy = PreparedComponent(id: UUID(uuidString: "70000000-0000-0000-0000-000000000004")!,
+                name: "旧备餐", portionsRemaining: 2, state: .cooked, storage: .refrigerated,
+                preparedAt: date, expiryDate: date)
+            let thaw = PreparedComponent(id: UUID(uuidString: "70000000-0000-0000-0000-000000000011")!,
+                name: "鸡肉", portionsRemaining: 2, state: .prepped, storage: .refrigerated,
+                preparedAt: date, expiryDate: date, grouping: grouping,
+                lifecycle: PreparedLifecycle(version: 1, thawPhase: .thawing, thawStartedAt: date,
+                    thawCompletedAt: nil, cookedAt: nil))
+            var cooked = thaw; cooked.id = UUID(uuidString: "70000000-0000-0000-0000-000000000012")!
+            cooked.state = .cooked
+            cooked.lifecycle = PreparedLifecycle(version: 1, thawPhase: .inactive, thawStartedAt: date,
+                thawCompletedAt: date, cookedAt: date)
+            var payload = KitchenBackupPayload(inventory: [], plans: [], shoppingItems: [], weeklyPlan: nil,
+                consumptionRecords: [], preparedComponents: [legacy, thaw, cooked])
+            payload.exportedAt = Date(timeIntervalSinceReferenceDate: 700000000)
+            let valid = try KitchenBackupValidator.encodeV3(payload)
+            if chosen == .mixedV3 { return valid }
+            var root = try JSONSerialization.jsonObject(with: valid) as! [String: Any]
+            var rows = root["preparedComponents"] as! [[String: Any]]
+            rows[1].removeValue(forKey: "lifecycle"); root["preparedComponents"] = rows
+            return try JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
         }
     }
 }

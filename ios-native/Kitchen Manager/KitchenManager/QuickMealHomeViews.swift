@@ -132,7 +132,7 @@ struct HomeQuickMealSection: View {
     let onRotate: () -> Void
     /// Called with the batch's own id, so the store decrements exactly the
     /// record the user tapped — never one that merely shares a name.
-    var onUsePreparedPortion: (UUID) -> Void = { _ in }
+    var onUsePreparedPortion: (PreparedComponent) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

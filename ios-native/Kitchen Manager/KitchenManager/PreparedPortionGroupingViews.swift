@@ -27,6 +27,7 @@ struct PreparedGroupedRow: View {
     let onEdit: () -> Void
     let onConsume: () -> Void
     let onSplit: () -> Void
+    let onLifecycle: (PreparedLifecycleAction) -> Void
     private var context: String { component.grouping == nil ? component.name : "\(component.name)，\(groupLabel)" }
 
     var body: some View {
@@ -57,7 +58,8 @@ struct PreparedGroupedRow: View {
                     .accessibilityLabel("每份\(PreparedMassInput.spoken(grouping.massPerPortionDecigrams))")
                     .accessibilityIdentifier("prepared.mass.\(component.id.uuidString)")
             }
-            Text("\(component.state.title) · \(component.storage.title)").font(.footnote).foregroundStyle(.secondary)
+            Text(PreparedLifecyclePresentation.status(component)).font(.footnote).foregroundStyle(.secondary)
+                .accessibilityIdentifier("prepared.status.\(component.id.uuidString)")
             Text("建议 \(MealPrepBoard.dateText(for: component.expiryDate)) 前吃完")
                 .font(.footnote).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -65,6 +67,17 @@ struct PreparedGroupedRow: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 4) { actions }
             } else { HStack(spacing: 20) { actions } }
+            ForEach(PreparedLifecyclePresentation.actions(for: component), id: \.key) { action in
+                Button { onLifecycle(action) } label: {
+                    Text(action.title).font(.subheadline.weight(.medium))
+                        .frame(minWidth: AppTheme.minimumHitTarget, minHeight: AppTheme.minimumHitTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).foregroundStyle(AppTheme.brand)
+                .accessibilityLabel("\(action.title)，\(context)，\(component.portionsRemaining)份")
+                .accessibilityHint("操作整组；只处理部分份数请先分出整份")
+                .accessibilityIdentifier("prepared.lifecycle.\(action.key).\(component.id.uuidString)")
+            }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
@@ -212,7 +225,7 @@ struct PreparedPortionCountControl: View {
 struct PreparedBackupGroupingPreview: View {
     let components: [PreparedComponent]
     var body: some View {
-        if components.contains(where: { $0.grouping != nil }) {
+        if components.contains(where: { $0.grouping != nil || $0.lifecycle != nil }) {
             Section("备餐分装") {
                 switch Result(catching: { try PreparedSourceSection.make(components) }) {
                 case .failure:
@@ -223,10 +236,27 @@ struct PreparedBackupGroupingPreview: View {
                         Text(allocationText(section))
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("prepared.restore.allocations")
+                        ForEach(section.components) { row in
+                            Text("\(section.groupLabel(for: row))：\(PreparedLifecyclePresentation.status(row))")
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("prepared.restore.lifecycle.\(row.id.uuidString)")
+                            if row.lifecycle != nil {
+                                Text(PreparedLifecyclePresentation.events(row).joined(separator: "\n"))
+                                    .font(.footnote).foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                     }
                     if components.contains(where: { $0.grouping == nil }) {
                         Text("按份记录的备餐没有重量数据。")
                             .font(.footnote).foregroundStyle(.secondary)
+                    }
+                    ForEach(components.filter { $0.grouping == nil && $0.lifecycle != nil }) { row in
+                        Text("\(row.name)，\(row.portionsRemaining)份：\(PreparedLifecyclePresentation.status(row))")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("prepared.restore.lifecycle.\(row.id.uuidString)")
+                        Text(PreparedLifecyclePresentation.events(row).joined(separator: "\n"))
+                            .font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }

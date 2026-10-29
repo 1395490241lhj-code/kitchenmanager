@@ -178,4 +178,117 @@ final class SafeRestoreWorkflowUITests: XCTestCase {
 
         attach(app, "safe-restore-preview-axxxl")
     }
+
+    private func diskBackup(session: String, state: String? = nil) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = ["UITEST_PREPARED_GROUPING", "UITEST_GROUPED_SEED_LIFECYCLE", "UITEST_GROUPED_CAPTURE_REOPEN"]
+        if let state { app.launchArguments.append("UITEST_GROUPED_RECOVERY_STATE=" + state) }
+        app.launchEnvironment["PREPARED_GROUPING_SESSION"] = session
+        print("PR3_UI_SESSION=\(session)")
+        app.launch(); XCTAssertTrue(app.tabBars.buttons["我的"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["我的"].tap()
+        let row = app.descendants(matching: .any).matching(identifier: "settings.backup.link").firstMatch
+        for _ in 0..<12 where !(row.exists && row.isHittable) { app.swipeUp() }
+        row.tap(); XCTAssertTrue(app.buttons["backup.import.button"].waitForExistence(timeout: 5))
+        return app
+    }
+    func testQualifiedV1V2V3RecoveryPreviewConfirmationAndRestart() {
+        for (state, version) in [("legacy", 1), ("v2", 2), ("mixedV3", 3)] {
+            let session = UUID().uuidString
+            let app = diskBackup(session: session, state: state)
+            openPreview(app)
+            XCTAssertEqual(app.staticTexts["restorePreview.version"].label, "原文件版本：v\(version)")
+            if version == 1 { XCTAssertTrue(app.staticTexts["restorePreview.date"].label.contains("没有记录时间")) }
+            if version == 3 {
+                let detail = app.staticTexts["prepared.restore.lifecycle.70000000-0000-0000-0000-000000000011"]
+                for _ in 0..<10 where !(detail.exists && detail.isHittable) { app.swipeUp() }
+                XCTAssertTrue(detail.label.contains("解冻中")); attach(app, "recovery-v3-lifecycle-detail")
+            }
+            let confirm = app.buttons["restorePreview.confirm"]
+            for _ in 0..<10 where !(confirm.exists && confirm.isHittable) { app.swipeUp() }
+            attach(app, "recovery-original-v\(version)-preview")
+            openConfirmation(app).tap()
+            XCTAssertTrue(app.alerts["数据已恢复"].waitForExistence(timeout: 6))
+            app.alerts.buttons["好"].tap(); XCTAssertFalse(app.buttons["backup.recovery.restore"].exists)
+            app.terminate(); _ = diskBackup(session: session)
+            XCTAssertFalse(app.buttons["backup.recovery.restore"].exists)
+            print("PR3_RECOVERY_UI_CASE=\(version) session=\(session)")
+            attach(app, "recovery-v\(version)-fresh-process")
+        }
+    }
+    func testSeparateRecoveryExportUsesSystemSaveSheetWithoutResolvingOriginal() throws {
+        let session = UUID().uuidString
+        let app = diskBackup(session: session, state: "mixedV3")
+        app.buttons["backup.recovery.export"].tap()
+        let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["保存", "存储", "Save"])).firstMatch
+        guard save.waitForExistence(timeout: 5) else {
+            attach(app, "recovery-export-system-save-unavailable")
+            throw XCTSkip("A08 export HOLD: system save control not found by this automation target; save is unverified")
+        }
+        attach(app, "recovery-export-system-save")
+        if !save.isEnabled {
+            let cancel = app.buttons.matching(NSPredicate(format: "label IN %@", ["取消", "Cancel"])).firstMatch
+            if cancel.exists { cancel.tap() }
+            throw XCTSkip("A08 export HOLD: no writable system save location")
+        }
+        save.tap()
+        if app.buttons["替换"].waitForExistence(timeout: 1) {
+            app.buttons["取消"].firstMatch.tap()
+            throw XCTSkip("A08 export HOLD: existing filename collision retained without overwrite")
+        }
+        XCTAssertTrue(app.buttons["backup.recovery.restore"].waitForExistence(timeout: 5))
+        openPreview(app)
+        XCTAssertEqual(app.staticTexts["restorePreview.version"].label, "原文件版本：v3")
+        print("PR3_RECOVERY_EXPORT_UI_SESSION=\(session)")
+        attach(app, "recovery-original-remains-after-separate-export")
+    }
+    func testNormalSystemPickerOriginalBackupsAndMalformedV3() throws {
+        guard let base = ProcessInfo.processInfo.environment["PR3_PICKER_BASE_URL"] else {
+            throw XCTSkip("Normal picker requires the lease-scoped synthetic download server")
+        }
+        for version in ["v1", "v2", "v3", "malformed-v3"] {
+            let session = UUID().uuidString
+            let app = diskBackup(session: session)
+            let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari"); safari.launch()
+            let address = safari.textFields.firstMatch
+            guard address.waitForExistence(timeout: 5) else {
+                app.activate(); throw XCTSkip("A08 normal-import HOLD: supported Safari address entry unavailable")
+            }
+            address.tap(); address.typeText(base + "/PR3-Slice4-\(version).json\n")
+            let download = safari.buttons.matching(NSPredicate(format: "label IN %@", ["下载", "Download"])).firstMatch
+            if download.waitForExistence(timeout: 5) { download.tap() }
+            app.activate(); app.buttons["backup.import.button"].tap()
+            let name = "PR3-Slice4-" + version
+            var file = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
+            if !file.waitForExistence(timeout: 4), app.searchFields.firstMatch.exists {
+                app.searchFields.firstMatch.tap(); app.searchFields.firstMatch.typeText(name)
+                file = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", name)).firstMatch
+            }
+            guard file.waitForExistence(timeout: 5) else {
+                attach(app, "normal-import-system-picker-delivery-unavailable")
+                throw XCTSkip("A08 normal-import HOLD: downloaded synthetic JSON is unavailable in the supported system picker")
+            }
+            attach(app, "normal-import-picker-" + version)
+            let cell = app.cells.containing(.staticText, identifier: file.label).firstMatch
+            if cell.exists { cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)).tap() }
+            else { file.tap() }
+            let open = app.buttons.matching(NSPredicate(format: "label IN %@", ["打开", "Open"])).firstMatch
+            if open.waitForExistence(timeout: 1) { open.tap() }
+            if version == "malformed-v3" {
+                XCTAssertFalse(app.navigationBars.staticTexts["确认导入"].exists)
+                XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+                attach(app, "normal-import-original-v3-rejected")
+            } else {
+                XCTAssertTrue(app.navigationBars.staticTexts["确认导入"].waitForExistence(timeout: 5))
+                XCTAssertEqual(app.staticTexts["restorePreview.version"].label, "原文件版本：" + version)
+                attach(app, "normal-import-original-" + version + "-preview")
+                let confirm = app.buttons["restorePreview.confirm"]
+                for _ in 0..<10 where !(confirm.exists && confirm.isHittable) { app.swipeUp() }
+                openConfirmation(app).tap()
+                XCTAssertTrue(app.alerts["数据已恢复"].waitForExistence(timeout: 5))
+            }
+            app.terminate(); _ = diskBackup(session: session)
+            print("PR3_PICKER_UI_CASE=\(version) session=\(session)")
+        }
+    }
 }

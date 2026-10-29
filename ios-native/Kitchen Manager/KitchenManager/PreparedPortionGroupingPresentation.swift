@@ -114,7 +114,7 @@ struct PreparedComponentFormDraft {
             if let measured = try measuredDraft() { return store.addPreparedSource(draft: measured) }
             let row = PreparedComponent(id: legacyID, name: name, portionsRemaining: portions,
                 state: state, storage: storage, preparedAt: preparedAt, expiryDate: expiryDate,
-                grouping: expected?.grouping)
+                grouping: expected?.grouping, lifecycle: expected?.lifecycle)
             return (expected == nil ? store.addPreparedComponent(row)
                 : store.updatePreparedComponent(row, expected: expected)).map { [$0] }
         } catch { return .failure(.invalidComponent) }
@@ -123,8 +123,9 @@ struct PreparedComponentFormDraft {
     mutating func acceptCurrent(_ current: PreparedComponent) -> Bool {
         guard let previous = expected, previous.id == current.id else { return false }
         if current.grouping != nil || portions == previous.portionsRemaining { portions = current.portionsRemaining }
-        if current.grouping != nil || state == previous.state { state = current.state }
-        if current.grouping != nil || storage == previous.storage { storage = current.storage }
+        if current.grouping != nil || current.lifecycle != nil || state == previous.state { state = current.state }
+        if current.grouping != nil || current.lifecycle != nil || storage == previous.storage { storage = current.storage }
+        if expiryDate == previous.expiryDate { expiryDate = current.expiryDate }
         expected = current
         return true
     }

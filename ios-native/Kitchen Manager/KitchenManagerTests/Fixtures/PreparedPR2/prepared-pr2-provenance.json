@@ -1,0 +1,741 @@
+{
+  "baseline": "ef23d688c8e72107b60acff0c2e7755289994bd0",
+  "production_sources": [
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/PreparedComponent.swift",
+      "sha256": "c6d4acaaea9aed0a097f8b95ff4ee489f3f7ee0c3755d23af60d4b3b2ce8ea4a"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/SyncPersistence.swift",
+      "sha256": "70557f96c1cb31e4f848a5ec1e4b3140e448e3a5d5b88d33d9c2cc4a398b9db1"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/SyncPersistenceModels.swift",
+      "sha256": "e3063d47a4397e439fd6a47815ba63a6056100e404409dbb19a0747529ded6fa"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/GuestMergeModels.swift",
+      "sha256": "84f3be96507c95af44d5015f1d3238f020af833c81566339254db56fcbec8c06"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Synchronization/InventorySyncEnrollment.swift",
+      "sha256": "7913b8999b5d7ad5d816ca7bca34ea92df2df1a2dbff35de045a79bdeda6b639"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/ConsumptionRecordEntity.swift",
+      "sha256": "c506ab1e5b573736b41c777818b5c6fcb78b9ca4e3892d3e2104a5ab114e301f"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/UserRecipeRecord.swift",
+      "sha256": "030e9189c7942d05b35b5a2a395a6c40ef8d81772e8000d24d35d4eedd5944ed"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/PreparedComponentRecord.swift",
+      "sha256": "f6cf98d13ab8a07d353aa1acfe19cd95cb021457224e0a2721a71aab8783a82e"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/KitchenPersistenceFactory.swift",
+      "sha256": "8b4fea5a21e902ac475f0361418c23fb9e77d1e9e579a5886949a8c7881c48b4"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/InventoryPersistence.swift",
+      "sha256": "df55df4d07d54e955534cfd5bcea733cf0fc2d9013be72e04c5e1ce99d2755d9"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/ShoppingItemRecord.swift",
+      "sha256": "84172734acf55472706b2a2a750491fe3352d6efc65b974ffedeba94991bee47"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/ConversationRecords.swift",
+      "sha256": "d914ea1a28e8e8d7820d7171b4cbed551922e37a4462913fd8316c83f1333734"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/SpecialPlanRecord.swift",
+      "sha256": "237ed41fcebf97a563823ab29636d9b6fd325f87d29c09402f67957cecfbeca8"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/RecipePreferenceRecord.swift",
+      "sha256": "f1b0f1cdabdf4ed969a3956e1dc1af520bd4d3aa42c90bc9bb1913af2b418919"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/WeeklyPlanRecord.swift",
+      "sha256": "2e66bb511c942d9cfb9506972b7adfbc5d26145d60c489849b8fb096ef1c976d"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/TodayPlanRecord.swift",
+      "sha256": "f311879e886b53925c29706d019ad8f462ec73881198507bd3f2eaba27a9ddae"
+    },
+    {
+      "path": "ios-native/Kitchen Manager/KitchenManager/Persistence/InventoryRecord.swift",
+      "sha256": "d2a186811b83d4f809c57c5a65e2f609a32429706ebf579a5f5dab9634465c13"
+    }
+  ],
+  "all_baseline_inputs_manifest_sha256": "55aff2279839fbca3ade76fb1ac5377cbd1fce5836832877da0772b661289efb",
+  "fixture_sha256": "37d0e6d8199778ffa383dbbacf77441796ecaf48ff481d6ff90b10a0d9ab1692",
+  "entity_hashes": {
+    "ConversationRecord": "c8d0e122ccb52a7b8d2d3d47bca55e72adc2ec675f5df63d6baac3ae98df013e",
+    "GuestMergeSessionRecord": "2e54903f11637bf189c945532402e9210e07f3f38456cb0fbfb74a465aba3957",
+    "InventorySyncEnrollmentRecord": "754132b71c71dfdf17079289ff9e696dda173b6d2c8f7e72e5e72c9a6e348e29",
+    "SyncCursorRecord": "57010b9b120c2c2496de6cccda35a2feb2c1cb0eb7a12665eca391ce67f42fc0",
+    "SyncMetadataRecord": "1295ddc5f72c7ca3406950326f31b1f1c930d2bcb611133ce0ffe7501016a9e8",
+    "InventoryRecord": "5df3c6285c9dbcf68806810de9760b3c09f5ba0a1ae13f728d6f8548b8f215ee",
+    "RecipePreferenceRecord": "eb988ed7594d830b098d6987621c527be470b7df5730c74c918c746c8c0cd2dd",
+    "PreparedComponentRecord": "6c5aeb9bbfddfcf5d0fae31d7bb648e6012e647947af4ba81942ab8005ccf027",
+    "WeeklyPlanRecord": "434917859b6f020196b9cadcc1c38280988d16f62f74222225619787224f1a8a",
+    "ConversationActionRecord": "22b96b516aa47152a0d15fbed6cb18f0f66565ad256a49d82abae3466cb21ea1",
+    "TodayPlanRecord": "1f14826b34957cb60568de37286c90d432ee37c9b572e275f8a01673cdc425e8",
+    "ConsumptionRecordEntity": "b1b5df55852bf29a4c24afdb76afa4f8c003ffcd4728a6640c26e60ce5d4fa51",
+    "ShoppingItemRecord": "85f6a5f204eaaa9bef49b7ade43996c357a67a19dd2209dbf502f4e0fbe61a19",
+    "UserRecipeRecord": "cc1bb6301cee25b078d47914ae716e1a3017075944b6973992921a3b389ea4b7",
+    "ConversationContextSnapshotRecord": "69d85751896ba6e85899f5003f05962f0d2e88ea6743874deb85ca31eca310e3",
+    "PendingMutationRecord": "a30e1e6a08c238b4a6533466c4f20b5ea11ddf4fce24c26842d18e6dce4a72a9",
+    "SpecialPlanRecord": "26cde0a66d3edc734b0cc8b8256312e669a3b2e629792652896c81629decb30a",
+    "ConversationMessageRecord": "0bd90840d143644a56457f0710197bd86dc1a81d3b0c75766eef87b1e068299b"
+  },
+  "row_counts": {
+    "ZCONSUMPTIONRECORDENTITY": 1,
+    "ZCONVERSATIONACTIONRECORD": 1,
+    "ZCONVERSATIONCONTEXTSNAPSHOTRECORD": 1,
+    "ZCONVERSATIONMESSAGERECORD": 1,
+    "ZCONVERSATIONRECORD": 1,
+    "ZGUESTMERGESESSIONRECORD": 1,
+    "ZINVENTORYRECORD": 1,
+    "ZINVENTORYSYNCENROLLMENTRECORD": 1,
+    "ZPENDINGMUTATIONRECORD": 1,
+    "ZPREPAREDCOMPONENTRECORD": 6,
+    "ZRECIPEPREFERENCERECORD": 1,
+    "ZSHOPPINGITEMRECORD": 1,
+    "ZSPECIALPLANRECORD": 1,
+    "ZSYNCCURSORRECORD": 1,
+    "ZSYNCMETADATARECORD": 1,
+    "ZTODAYPLANRECORD": 1,
+    "ZUSERRECIPERECORD": 1,
+    "ZWEEKLYPLANRECORD": 1
+  },
+  "old_prepared_columns": [
+    "Z_PK",
+    "Z_ENT",
+    "Z_OPT",
+    "ZPORTIONSREMAINING",
+    "ZSORTINDEX",
+    "ZEXPIRYDATE",
+    "ZPREPAREDAT",
+    "ZNAME",
+    "ZSTATERAWVALUE",
+    "ZSTORAGERAWVALUE",
+    "ZID",
+    "ZPORTIONGROUPINGDATA"
+  ],
+  "producer": "actual exact merged PR2 app module and unchanged 18-model factory; separate XCTest producer finished, no running producer process before copy",
+  "producer_receipt_sha256": "d1fe4cc1ec6e242cab18f5bb7e966d22039fac9556e4a344afe02809d9925f91",
+  "writer_sha256": "08de4a4be9c2eb7d22619417dfe209c081c6540df5098fd92bde22ec0bcf9c91",
+  "closed_original_sidecars": {
+    "": {
+      "present": true,
+      "size": 233472,
+      "sha256": "fe03ee20f9c8ac4085e1721a72397dca0521caa2056d78521113a7457b2f87f0"
+    },
+    "-wal": {
+      "present": true,
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "-shm": {
+      "present": true,
+      "size": 32768,
+      "sha256": "f4e9260c5aaee5ea8431d4fe0dc10e5b2d742c6008d8fbda40f885413311fc69"
+    }
+  },
+  "consolidation": "SQLite backup on disposable copy after process exit; original store/WAL/SHM untouched; all raw user columns/rows equal before and after",
+  "expected_user_values": {
+    "ZCONSUMPTIONRECORDENTITY": {
+      "columns": [
+        "ZISUNDONE",
+        "ZSORTINDEX",
+        "ZDATE",
+        "ZRECIPEID",
+        "ZRECIPENAME",
+        "ZID",
+        "ZITEMSDATA",
+        "ZPLANIDSDATA"
+      ],
+      "rows": [
+        [
+          0,
+          0,
+          721692800,
+          "old-recipe",
+          "旧餐次",
+          {
+            "blob": "10000000000000000000000000000004"
+          },
+          {
+            "blob": "5b5d"
+          },
+          {
+            "blob": "7b22706c616e494473223a5b2231383145443630362d323835392d343339372d383135432d374131463744333545373836225d7d"
+          }
+        ]
+      ]
+    },
+    "ZCONVERSATIONACTIONRECORD": {
+      "columns": [
+        "ZCREATEDAT",
+        "ZIDEMPOTENCYKEY",
+        "ZSTATUSRAWVALUE",
+        "ZACTIONID",
+        "ZCONVERSATIONID",
+        "ZPAYLOADDATA"
+      ],
+      "rows": [
+        [
+          721692800,
+          "synthetic-legacy",
+          "failed",
+          {
+            "blob": "10000000000000000000000000000018"
+          },
+          {
+            "blob": "10000000000000000000000000000016"
+          },
+          {
+            "blob": "7b22616374696f6e54797065223a2261646453686f7070696e674974656d73222c2272656c61746564456e74697479494473223a5b5d2c227475726e4944223a2231303030303030302d303030302d303030302d303030302d303030303030303030303930222c226964656d706f74656e63794b6579223a2273796e7468657469632d6c6567616379222c22637265617465644174223a3732313639323830302c22636f6e766572736174696f6e4944223a2231303030303030302d303030302d303030302d303030302d303030303030303030303136222c22616374696f6e4944223a2231303030303030302d303030302d303030302d303030302d303030303030303030303138222c22737461747573223a226661696c6564227d"
+          }
+        ]
+      ]
+    },
+    "ZCONVERSATIONCONTEXTSNAPSHOTRECORD": {
+      "columns": [
+        "ZREADAT",
+        "ZCONVERSATIONID",
+        "ZID",
+        "ZTURNID",
+        "ZPAYLOADDATA"
+      ],
+      "rows": [
+        [
+          721692800,
+          {
+            "blob": "10000000000000000000000000000016"
+          },
+          {
+            "blob": "10000000000000000000000000000019"
+          },
+          {
+            "blob": "10000000000000000000000000000090"
+          },
+          {
+            "blob": "7b22726561644174223a3732313639323830302c22636f6e746578744b696e6473223a5b5d2c22736f7572636546696e6765727072696e7473223a5b5d2c227475726e4944223a2231303030303030302d303030302d303030302d303030302d303030303030303030303930222c226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030303139222c2272656c61746564456e74697479494473223a5b5d7d"
+          }
+        ]
+      ]
+    },
+    "ZCONVERSATIONMESSAGERECORD": {
+      "columns": [
+        "ZCREATEDAT",
+        "ZSTATERAWVALUE",
+        "ZCONVERSATIONID",
+        "ZID",
+        "ZPAYLOADDATA"
+      ],
+      "rows": [
+        [
+          721692800,
+          "completed",
+          {
+            "blob": "10000000000000000000000000000016"
+          },
+          {
+            "blob": "10000000000000000000000000000017"
+          },
+          {
+            "blob": "7b22636f6e74656e74426c6f636b73223a5b7b2274657874223a7b225f30223a7b2274657874223a22e59088e68890e8bf81e7a7bbe8af81e68dae222c226964223a2237413041443637442d373745312d343845322d413343382d323341433733433544313536227d7d7d5d2c22726f6c65223a2275736572222c227475726e4944223a2231303030303030302d303030302d303030302d303030302d303030303030303030303930222c226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030303137222c22637265617465644174223a3732313639323830302c227374617465223a22636f6d706c65746564222c22636f6e766572736174696f6e4944223a2231303030303030302d303030302d303030302d303030302d303030303030303030303136227d"
+          }
+        ]
+      ]
+    },
+    "ZCONVERSATIONRECORD": {
+      "columns": [
+        "ZISPINNED",
+        "ZACTIVEUNTIL",
+        "ZLASTACTIVITYAT",
+        "ZAFFINITYRAWVALUE",
+        "ZID",
+        "ZPAYLOADDATA"
+      ],
+      "rows": [
+        [
+          0,
+          721692800,
+          721692800,
+          "general",
+          {
+            "blob": "10000000000000000000000000000016"
+          },
+          {
+            "blob": "7b22726574656e74696f6e506f6c69637956657273696f6e223a312c226c61737441637469766974794174223a3732313639323830302c2273756d6d617279223a22222c226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030303136222c22656e747279416666696e697479223a2267656e6572616c222c22686173557365724564697465645469746c65223a66616c73652c226c6966656379636c6554797065223a2267656e6572616c222c227469746c65223a22e697a7e5afb9e8af9d222c22637265617465644174223a3732313639323830302c22616374697665556e74696c223a3732313639323830302c22697350696e6e6564223a66616c73657d"
+          }
+        ]
+      ]
+    },
+    "ZGUESTMERGESESSIONRECORD": {
+      "columns": [
+        "ZCONFLICTCOUNT",
+        "ZFAILEDCOUNT",
+        "ZMERGEVERSION",
+        "ZPLANNEDITEMCOUNT",
+        "ZUPLOADEDITEMCOUNT",
+        "ZCANCELLEDAT",
+        "ZCOMPLETEDAT",
+        "ZCONFIRMEDAT",
+        "ZCREATEDAT",
+        "ZROLLBACKAVAILABLEUNTIL",
+        "ZUPDATEDAT",
+        "ZENTITYTYPERAWVALUE",
+        "ZLASTERRORCODE",
+        "ZSESSIONKEY",
+        "ZSTATUSRAWVALUE",
+        "ZHOUSEHOLDID",
+        "ZID",
+        "ZUSERID",
+        "ZCREATEDENTITYIDSDATA",
+        "ZLOCALSNAPSHOTDATA",
+        "ZPLANDATA"
+      ],
+      "rows": [
+        [
+          0,
+          0,
+          1,
+          0,
+          0,
+          721692800,
+          null,
+          null,
+          721692800,
+          null,
+          721692800,
+          "inventory_item",
+          null,
+          "10000000-0000-0000-0000-000000000081:10000000-0000-0000-0000-000000000080:inventory_item",
+          "cancelled",
+          {
+            "blob": "10000000000000000000000000000080"
+          },
+          {
+            "blob": "10000000000000000000000000000011"
+          },
+          {
+            "blob": "10000000000000000000000000000081"
+          },
+          {
+            "blob": "5b5d"
+          },
+          {
+            "blob": "5b5d"
+          },
+          null
+        ]
+      ]
+    },
+    "ZINVENTORYRECORD": {
+      "columns": [
+        "ZAUTOSUGGESTRESTOCK",
+        "ZISSTAPLE",
+        "ZCREATEDAT",
+        "ZDEFAULTRESTOCKQUANTITY",
+        "ZEXPIRYDATE",
+        "ZLOWSTOCKTHRESHOLD",
+        "ZQUANTITY",
+        "ZUPDATEDAT",
+        "ZKINDRAWVALUE",
+        "ZNAME",
+        "ZSTAPLEAVAILABILITYSTATUSRAWVALUE",
+        "ZSTAPLECATEGORY",
+        "ZSTAPLENOTE",
+        "ZSTAPLETRACKINGMODERAWVALUE",
+        "ZUNIT",
+        "ZID"
+      ],
+      "rows": [
+        [
+          0,
+          0,
+          null,
+          null,
+          721692800,
+          null,
+          8.0,
+          null,
+          "ordinary",
+          "旧库存鸡肉",
+          "available",
+          null,
+          null,
+          "quantity",
+          "份",
+          {
+            "blob": "10000000000000000000000000000001"
+          }
+        ]
+      ]
+    },
+    "ZINVENTORYSYNCENROLLMENTRECORD": {
+      "columns": [
+        "ZSCHEMAVERSION",
+        "ZENROLLEDAT",
+        "ZUPDATEDAT",
+        "ZSTATUSRAWVALUE",
+        "ZUNIQUEKEY",
+        "ZHOUSEHOLDID",
+        "ZMERGESESSIONID",
+        "ZUSERID"
+      ],
+      "rows": [
+        [
+          1,
+          null,
+          814972490.990376,
+          "notEnrolled",
+          "10000000-0000-0000-0000-000000000081:10000000-0000-0000-0000-000000000080",
+          {
+            "blob": "10000000000000000000000000000080"
+          },
+          null,
+          {
+            "blob": "10000000000000000000000000000081"
+          }
+        ]
+      ]
+    },
+    "ZPENDINGMUTATIONRECORD": {
+      "columns": [
+        "ZATTEMPTCOUNT",
+        "ZCLIENTUPDATEDAT",
+        "ZCREATEDAT",
+        "ZLASTATTEMPTAT",
+        "ZBASEVERSION",
+        "ZENTITYTYPERAWVALUE",
+        "ZLASTERRORCODE",
+        "ZOPERATIONRAWVALUE",
+        "ZSCOPETYPERAWVALUE",
+        "ZSTATUSRAWVALUE",
+        "ZENTITYID",
+        "ZMUTATIONID",
+        "ZSCOPEID",
+        "ZPAYLOADDATA"
+      ],
+      "rows": [
+        [
+          0,
+          721692800,
+          721692800,
+          null,
+          null,
+          "inventory_item",
+          null,
+          "upsert",
+          "household",
+          "pending",
+          {
+            "blob": "10000000000000000000000000000001"
+          },
+          {
+            "blob": "10000000000000000000000000000009"
+          },
+          {
+            "blob": "10000000000000000000000000000080"
+          },
+          {
+            "blob": "7b7d"
+          }
+        ]
+      ]
+    },
+    "ZPREPAREDCOMPONENTRECORD": {
+      "columns": [
+        "ZPORTIONSREMAINING",
+        "ZSORTINDEX",
+        "ZEXPIRYDATE",
+        "ZPREPAREDAT",
+        "ZNAME",
+        "ZSTATERAWVALUE",
+        "ZSTORAGERAWVALUE",
+        "ZID",
+        "ZPORTIONGROUPINGDATA"
+      ],
+      "rows": [
+        [
+          3,
+          1,
+          721694100,
+          721692813,
+          "同名旧备餐",
+          "prepped",
+          "frozen",
+          {
+            "blob": "10000000000000000000000000000013"
+          },
+          null
+        ],
+        [
+          1,
+          5,
+          721779200,
+          721692800,
+          "红薯",
+          "prepped",
+          "refrigerated",
+          {
+            "blob": "10000000000000000000000000000023"
+          },
+          {
+            "blob": "7b226d617373506572506f7274696f6e446563696772616d73223a3333342c22736f75726365223a7b226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030313031222c22696e697469616c4d617373446563696772616d73223a313030302c22696e697469616c506f7274696f6e436f756e74223a332c226e616d65223a22e7baa2e896af227d2c2276657273696f6e223a317d"
+          }
+        ],
+        [
+          4,
+          0,
+          721694200,
+          721692814,
+          "同名旧备餐",
+          "cooked",
+          "refrigerated",
+          {
+            "blob": "10000000000000000000000000000014"
+          },
+          null
+        ],
+        [
+          1,
+          3,
+          721779200,
+          721692800,
+          "鸡肉",
+          "prepped",
+          "refrigerated",
+          {
+            "blob": "10000000000000000000000000000021"
+          },
+          {
+            "blob": "7b2276657273696f6e223a312c22736f75726365223a7b22696e697469616c506f7274696f6e436f756e74223a342c226e616d65223a22e9b8a1e88289222c22696e697469616c4d617373446563696772616d73223a383030302c226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030313030227d2c226d617373506572506f7274696f6e446563696772616d73223a323030307d"
+          }
+        ],
+        [
+          3,
+          2,
+          721779200,
+          721692800,
+          "鸡肉",
+          "prepped",
+          "frozen",
+          {
+            "blob": "10000000000000000000000000000020"
+          },
+          {
+            "blob": "7b226d617373506572506f7274696f6e446563696772616d73223a323030302c22736f75726365223a7b226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030313030222c22696e697469616c4d617373446563696772616d73223a383030302c22696e697469616c506f7274696f6e436f756e74223a342c226e616d65223a22e9b8a1e88289227d2c2276657273696f6e223a317d"
+          }
+        ],
+        [
+          2,
+          4,
+          721779200,
+          721692800,
+          "红薯",
+          "prepped",
+          "frozen",
+          {
+            "blob": "10000000000000000000000000000022"
+          },
+          {
+            "blob": "7b2276657273696f6e223a312c226d617373506572506f7274696f6e446563696772616d73223a3333332c22736f75726365223a7b22696e697469616c4d617373446563696772616d73223a313030302c226964223a2231303030303030302d303030302d303030302d303030302d303030303030303030313031222c226e616d65223a22e7baa2e896af222c22696e697469616c506f7274696f6e436f756e74223a337d7d"
+          }
+        ]
+      ]
+    },
+    "ZRECIPEPREFERENCERECORD": {
+      "columns": [
+        "ZISFAVORITE",
+        "ZISFREQUENT",
+        "ZRECIPEID"
+      ],
+      "rows": [
+        [
+          1,
+          1,
+          "old-user-recipe"
+        ]
+      ]
+    },
+    "ZSHOPPINGITEMRECORD": {
+      "columns": [
+        "ZISDONE",
+        "ZSORTINDEX",
+        "ZQUANTITY",
+        "ZNAME",
+        "ZREMARK",
+        "ZSOURCE",
+        "ZUNIT",
+        "ZID"
+      ],
+      "rows": [
+        [
+          0,
+          0,
+          2.0,
+          "旧牛奶",
+          null,
+          "手动添加",
+          "盒",
+          {
+            "blob": "aacef3d6ae114670b68dc1230f812eb6"
+          }
+        ]
+      ]
+    },
+    "ZSPECIALPLANRECORD": {
+      "columns": [
+        "ZPEOPLECOUNT",
+        "ZCREATEDAT",
+        "ZSCHEDULEDAT",
+        "ZUPDATEDAT",
+        "ZTITLE",
+        "ZID",
+        "ZPAYLOADDATA"
+      ],
+      "rows": [
+        [
+          4,
+          721692800,
+          721692800,
+          721692800,
+          "旧聚餐",
+          {
+            "blob": "10000000000000000000000000000015"
+          },
+          {
+            "blob": "7b22646973686573223a5b5d2c22636f6e73747261696e744e6f746573223a5b5d2c226e6f746573223a22222c227265717565737454657874223a22222c2275736573486f6d65496e76656e746f7279223a66616c73657d"
+          }
+        ]
+      ]
+    },
+    "ZSYNCCURSORRECORD": {
+      "columns": [
+        "ZUPDATEDAT",
+        "ZCURSOR",
+        "ZSCOPEKEY",
+        "ZSCOPETYPERAWVALUE",
+        "ZSCOPEID"
+      ],
+      "rows": [
+        [
+          721692800,
+          "0",
+          "household:10000000-0000-0000-0000-000000000080",
+          "household",
+          {
+            "blob": "10000000000000000000000000000080"
+          }
+        ]
+      ]
+    },
+    "ZSYNCMETADATARECORD": {
+      "columns": [
+        "ZDELETEDAT",
+        "ZLASTERRORAT",
+        "ZLASTSYNCEDAT",
+        "ZUPDATEDAT",
+        "ZENTITYTYPERAWVALUE",
+        "ZLASTERRORCODE",
+        "ZREMOTEVERSION",
+        "ZSCOPETYPERAWVALUE",
+        "ZSYNCSTATERAWVALUE",
+        "ZUNIQUEKEY",
+        "ZENTITYID",
+        "ZSCOPEID"
+      ],
+      "rows": [
+        [
+          null,
+          null,
+          null,
+          721692800,
+          "inventory_item",
+          null,
+          null,
+          "household",
+          "localOnly",
+          "inventory_item:10000000-0000-0000-0000-000000000001",
+          {
+            "blob": "10000000000000000000000000000001"
+          },
+          {
+            "blob": "10000000000000000000000000000080"
+          }
+        ]
+      ]
+    },
+    "ZTODAYPLANRECORD": {
+      "columns": [
+        "ZISCOOKED",
+        "ZPLANNEDSERVINGS",
+        "ZSORTINDEX",
+        "ZDATE",
+        "ZRECIPEID",
+        "ZRECIPENAME",
+        "ZID"
+      ],
+      "rows": [
+        [
+          0,
+          2,
+          0,
+          814972490.980826,
+          "old-recipe",
+          "旧餐次",
+          {
+            "blob": "181ed60628594397815c7a1f7d35e786"
+          }
+        ]
+      ]
+    },
+    "ZUSERRECIPERECORD": {
+      "columns": [
+        "ZSORTINDEX",
+        "ZCONTENTFINGERPRINT",
+        "ZID",
+        "ZNORMALIZEDSOURCEURL",
+        "ZRECIPEDATA"
+      ],
+      "rows": [
+        [
+          0,
+          "旧菜谱|鸡肉|做好",
+          "old-user-recipe",
+          null,
+          {
+            "blob": "7b22636f6f6b696e6754696d65223a32302c226964223a226f6c642d757365722d726563697065222c22736561736f6e696e6773223a5b5d2c227374657073223a5b22e5819ae5a5bd225d2c2274616773223a5b5d2c227469746c65223a22e697a7e88f9ce8b0b1222c22696e6772656469656e7473223a5b22e9b8a1e88289225d2c22646966666963756c7479223a22e7ae80e58d95227d"
+          }
+        ]
+      ]
+    },
+    "ZWEEKLYPLANRECORD": {
+      "columns": [
+        "ZSTARTDATE",
+        "ZID",
+        "ZPLANDATA"
+      ],
+      "rows": [
+        [
+          721692800,
+          {
+            "blob": "2785e533fb8c44c18bcf9c96add22b24"
+          },
+          {
+            "blob": "7b2273756d6d617279223a22e697a7e591a8e8aea1e58892222c22637265617465644174223a3732313639323830302c22737461727444617465223a3732313639323830302c2264617973223a5b7b22646179496e646578223a302c226964223a2236443043323444442d453444322d343842382d424338412d313039354330424437423335222c226d65616c73223a5b5d7d5d2c2273686f7070696e674974656d73223a5b5d2c2273657276696e6773223a327d"
+          }
+        ]
+      ]
+    }
+  }
+}

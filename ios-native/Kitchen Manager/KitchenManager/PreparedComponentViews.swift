@@ -5,6 +5,7 @@ struct PreparedComponentsView: View {
     @EnvironmentObject private var store: KitchenStore
     @State private var editing: PreparedComponent?
     @State private var splitting: PreparedComponent?
+    @State private var lifecycleDraft: PreparedLifecycleFormDraft?
     @State private var isAdding = false
     @State private var isAssembling = false
     @State private var toastMessage: String?
@@ -38,7 +39,8 @@ struct PreparedComponentsView: View {
                             ForEach(section.components) { component in
                                 PreparedGroupedRow(component: component, groupLabel: section.groupLabel(for: component),
                                     onEdit: { editing = component }, onConsume: { consume(component) },
-                                    onSplit: { splitting = component })
+                                    onSplit: { splitting = component },
+                                    onLifecycle: { lifecycleDraft = PreparedLifecycleFormDraft(expected: component, action: $0) })
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) { remove(id: component.id) } label: {
                                         Text(component.grouping == nil ? "删除" : "删除这组")
@@ -70,10 +72,18 @@ struct PreparedComponentsView: View {
             PreparedPortionSplitEditor(component: component) { count in showToast("已分出\(count)份，其余份数留在原组") }
         }
         .sheet(isPresented: $isAssembling) { ComponentMealView() }
+        .sheet(item: $lifecycleDraft) { draft in
+            PreparedLifecycleEditor(draft: draft, groupLabel: groupLabel(for: draft.expected), onSuccess: showToast)
+        }
         .preparedFailureAlert($operationError)
         .overlay(alignment: .bottom) {
             if let toastMessage { FeedbackToast(message: toastMessage, style: .success) }
         }
+    }
+    private func groupLabel(for row: PreparedComponent) -> String {
+        guard case .success(let sections) = sections,
+              let section = sections.first(where: { $0.components.contains(where: { $0.id == row.id }) }) else { return "所选分组" }
+        return section.groupLabel(for: row)
     }
     private func remove(id: UUID) {
         switch store.removePreparedComponent(id: id) {
@@ -168,6 +178,7 @@ private struct PreparedComponentEditor: View {
         _hasEditedExpiry = State(initialValue: component != nil)
     }
     private var grouped: PreparedPortionGrouping? { draft.expected?.grouping }
+    private var protected: Bool { grouped != nil || draft.expected?.lifecycle != nil }
     private var current: PreparedComponent? {
         guard let id = draft.expected?.id else { return nil }
         return store.preparedComponents.first { $0.id == id }
@@ -216,7 +227,7 @@ private struct PreparedComponentEditor: View {
                     Section("分装记录") {
                         Text("每份\(PreparedMassInput.grams(grouping.massPerPortionDecigrams))")
                         Text("原记\(grouping.source.name)，共\(PreparedMassInput.grams(grouping.source.initialMassDecigrams))、\(grouping.source.initialPortionCount)份")
-                        Text("重量、份数、状态和存放暂不支持更改；可以分出整份。")
+                        Text("重量和份数按原分装记录保留；可以分出整份。状态和存放通过这组的操作更改。")
                             .font(.footnote).foregroundStyle(.secondary)
                     }.accessibilityIdentifier("prepared.editor.protected")
                 } else if let allocation = try? draft.allocation() {
@@ -233,7 +244,7 @@ private struct PreparedComponentEditor: View {
                         .accessibilityIdentifier("prepared.editor.validation")
                 }
                 Section {
-                    if grouped == nil {
+                    if !protected {
                         Picker("状态", selection: $draft.state) {
                             ForEach(PreparedComponentState.allCases, id: \.self) { Text($0.title).tag($0) }
                         }.frame(minHeight: ChromeMetrics.minimumRowHeight).accessibilityIdentifier("prepared.editor.state")
@@ -243,6 +254,9 @@ private struct PreparedComponentEditor: View {
                     } else {
                         LabeledContent("状态", value: draft.state.title)
                         LabeledContent("存放", value: draft.storage.title)
+                        Text("状态和存放请使用这组的解冻或做熟操作更改。")
+                            .font(.footnote).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("prepared.editor.lifecycleProtected")
                     }
                 }
                 Section {

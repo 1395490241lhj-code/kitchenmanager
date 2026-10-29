@@ -53,7 +53,7 @@ final class PreparedPortionGroupingSchemaUpgradeTests: XCTestCase {
         var result: [String: [[String]]] = [:]
         for table in tables {
             let columns = try query(url, "PRAGMA table_info(\(table))").map { $0[1] }
-                .filter { !["Z_PK", "Z_OPT", "Z_ENT", "ZPORTIONGROUPINGDATA"].contains($0) }
+                .filter { !["Z_PK", "Z_OPT", "Z_ENT", "ZPORTIONGROUPINGDATA", "ZLIFECYCLEDATA"].contains($0) }
             result[table] = try query(url, "SELECT \(columns.joined(separator: ",")) FROM \(table) ORDER BY Z_PK")
         }
         return result

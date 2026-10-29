@@ -33,9 +33,10 @@ extension View {
 /// keeping `QuickMealCandidateSource` on every component was for, and it keeps
 /// the candidate free of one domain's fields.
 struct PreparedPortionUsage: Equatable, Identifiable {
-    let id: UUID
-    let name: String
-    let portionsRemaining: Int
+    let expected: PreparedComponent
+    var id: UUID { expected.id }
+    var name: String { expected.name }
+    var portionsRemaining: Int { expected.portionsRemaining }
 
     var detailText: String? = nil
     var spokenDetail: String? = nil
@@ -67,9 +68,10 @@ extension PreparedPortionUsage {
             guard case .preparedComponent(let id) = source,
                   seen.insert(id).inserted,
                   // Matched by id, never by name: two batches can share a name.
-                  let batch = preparedComponents.first(where: { $0.id == id })
+                  let batch = preparedComponents.first(where: { $0.id == id }),
+                  PreparedMealAvailability.isEligible(batch)
             else { return nil }
-            var usage = PreparedPortionUsage(id: batch.id, name: batch.name, portionsRemaining: batch.portionsRemaining)
+            var usage = PreparedPortionUsage(expected: batch)
             if let grouping = batch.grouping, let section = sectionsByGroup[batch.id] {
                 let group = section.groupLabel(for: batch)
                 usage.detailText = "\(group) · 每份\(PreparedMassInput.grams(grouping.massPerPortionDecigrams)) · \(batch.state.title) · \(batch.storage.title)"
@@ -90,7 +92,7 @@ struct PreparedPortionUsageRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let usage: PreparedPortionUsage
     let identifierPrefix: String
-    let onUse: (UUID) -> Void
+    let onUse: (PreparedComponent) -> Void
 
     var body: some View {
         Group {
@@ -128,7 +130,7 @@ struct PreparedPortionUsageRow: View {
         // the size of the text, which measured 18pt. Same shape as
         // `HomeDayRhythmRow`.
         Button {
-            onUse(usage.id)
+            onUse(usage.expected)
         } label: {
             Text("使用 1 份")
                 .font(.subheadline.weight(.medium))
