@@ -19,14 +19,17 @@ final class RestoreOutcomeTests: XCTestCase {
         var failReplaceCalls: Set<Int> = []
         var failLoad = false
         var replaceCalls = 0
+        var beforeReplace: (() -> Void)?
         func shouldFailReplace() -> Bool {
             replaceCalls += 1
+            beforeReplace?()
             return failReplaceCalls.contains(replaceCalls)
         }
         func arm(replaceCalls failing: Set<Int> = [], failLoad: Bool = false) {
             self.failReplaceCalls = failing
             self.failLoad = failLoad
             self.replaceCalls = 0
+            beforeReplace = nil
         }
     }
 
@@ -265,7 +268,9 @@ final class RestoreOutcomeTests: XCTestCase {
             PreparedComponent(id: group.id, name: source.name, portionsRemaining: group.count,
                 state: .cooked, storage: .frozen, preparedAt: Date(timeIntervalSince1970: 100),
                 expiryDate: Date(timeIntervalSince1970: 200), grouping: try PreparedPortionGrouping(
-                    source: source, massPerPortionDecigrams: group.massPerPortionDecigrams))
+                    source: source, massPerPortionDecigrams: group.massPerPortionDecigrams),
+                lifecycle: PreparedLifecycle(version: 1, thawPhase: .inactive, thawStartedAt: nil,
+                    thawCompletedAt: nil, cookedAt: Date(timeIntervalSince1970: 100)))
         }
         try base.preparedComponents.replaceComponents(with: rows)
         try store.reloadPreparedComponents().get()
@@ -277,7 +282,7 @@ final class RestoreOutcomeTests: XCTestCase {
         let rows = try seedLinkedOriginal()
         let rowJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(rows)) as? [[String: Any]])
         var valid = try XCTUnwrap(JSONSerialization.jsonObject(with: candidate) as? [String: Any])
-        valid["version"] = 2; valid["preparedComponents"] = rowJSON
+        valid["version"] = 3; valid["preparedComponents"] = rowJSON
         var invalids = [[String: Any]]()
         for value in [NSNull(), "bad", 1] as [Any] {
             var invalid = valid; invalid["preparedComponents"] = value; invalids.append(invalid)
@@ -289,7 +294,7 @@ final class RestoreOutcomeTests: XCTestCase {
         var oversized = valid; badRows = rowJSON; badRows[0]["portionsRemaining"] = 2
         oversized["preparedComponents"] = badRows; invalids.append(oversized)
         var v1 = valid; v1["version"] = 1; invalids.append(v1)
-        var future = valid; future["version"] = 3; invalids.append(future)
+        var future = valid; future["version"] = 4; invalids.append(future)
         let original = inMemoryScope()
         for invalid in invalids {
             for script in scripts.values { script.arm() }
@@ -314,7 +319,7 @@ final class RestoreOutcomeTests: XCTestCase {
         XCTAssertFalse(snapshot.hasOutstandingSnapshot)
     }
 
-    func testFailedPreparedCompensationRetainsCompleteV2CopyForExplicitRecovery() throws {
+    func testFailedPreparedCompensationRetainsCompleteV3CopyForExplicitRecovery() throws {
         let candidate = try seedOriginalAndBuildCandidate(); let rows = try seedLinkedOriginal()
         let original = inMemoryScope()
         armFailure(at: .specialPlans); scripts[.preparedComponents]!.arm(replaceCalls: [2])
@@ -322,7 +327,7 @@ final class RestoreOutcomeTests: XCTestCase {
         XCTAssertEqual(store.lastRestoreOutcome, .failedUnsafe(.compensationFailed([.preparedComponents])))
         XCTAssertTrue(snapshot.hasOutstandingSnapshot)
         let copy = try KitchenBackupValidator.validate(XCTUnwrap(snapshot.outstandingSnapshot()))
-        XCTAssertEqual(copy.version, 2); XCTAssertEqual(copy.preparedComponents, rows)
+        XCTAssertEqual(copy.version, 3); XCTAssertEqual(copy.preparedComponents, rows)
         XCTAssertTrue(copy.matchesBackupScope(of: original))
         XCTAssertTrue(store.isPreparedComponentUnavailable)
         for script in scripts.values { script.arm() }
@@ -335,6 +340,159 @@ final class RestoreOutcomeTests: XCTestCase {
         XCTAssertEqual(store.preparedComponents, rows)
         XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
         XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+    }
+
+    private func seedEveryDomainWithLifecycle() throws -> KitchenBackupPayload {
+        let row = try PreparedLifecycleBackupFixtures.tracked(
+            PreparedLifecycleBackupFixtures.row(state: .cooked, storage: .refrigerated),
+            PreparedLifecycleBackupFixtures.cooked)
+        let meal = MealPlanItem(recipeID: "migration", recipeName: "原餐次", date: row.preparedAt)
+        let original = KitchenBackupPayload(
+            inventory: [InventoryItem(name: "原库存", quantity: 3, unit: "份", expiryDate: nil)],
+            plans: [meal], shoppingItems: [KitchenShoppingItem(name: "原购物")],
+            weeklyPlan: WeeklyMealPlan(startDate: row.preparedAt,
+                days: [WeeklyMealPlanDay(dayIndex: 0, meals: [])], shoppingItems: [], servings: 2,
+                summary: "原周计划", createdAt: row.preparedAt),
+            consumptionRecords: [InventoryConsumptionRecord(id: UUID(), date: row.preparedAt,
+                recipeID: meal.recipeID, recipeName: meal.recipeName, planIDs: [meal.id], items: [])],
+            preparedComponents: [row], specialPlans: [specialPlan(title: "原聚餐")])
+        try store.restoreBackupData(KitchenBackupValidator.encodeV3(original))
+        return original
+    }
+
+    func testLifecycleSevenDomainCompensationAndV3CopyBeforeFirstWrite() throws {
+        let original = try seedEveryDomainWithLifecycle()
+        let candidate = KitchenBackupPayload(inventory: [], plans: [], shoppingItems: [], weeklyPlan: nil,
+            consumptionRecords: [], preparedComponents: [], specialPlans: [])
+        armFailure(at: .specialPlans)
+        scripts[.inventory]!.beforeReplace = {
+            let bytes = try! XCTUnwrap(self.snapshot.outstandingSnapshot())
+            let copy = try! KitchenBackupValidator.validateCandidate(bytes)
+            XCTAssertEqual(copy.version, 3)
+            XCTAssertTrue(copy.payload.matchesBackupScope(of: original))
+        }
+        defer { scripts[.inventory]!.beforeReplace = nil }
+        XCTAssertThrowsError(try store.restoreBackupData(KitchenBackupValidator.encodeV3(candidate)))
+        XCTAssertEqual(store.lastRestoreOutcome, .failedAndRecovered(.specialPlans))
+        XCTAssertEqual(scripts[.preparedComponents]!.replaceCalls, 2)
+        XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
+        XCTAssertTrue(inMemoryScope().matchesBackupScope(of: original))
+        XCTAssertEqual(store.preparedComponents[0].lifecycle, original.preparedComponents[0].lifecycle)
+        XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+    }
+
+    func testLifecycleCompensationFailureRetainsOriginalCopyAndExplicitRecovery() throws {
+        let original = try seedEveryDomainWithLifecycle()
+        armFailure(at: .specialPlans); scripts[.preparedComponents]!.arm(replaceCalls: [2])
+        XCTAssertThrowsError(try store.restoreBackupData(KitchenBackupValidator.encodeV3(PreparedLifecycleBackupFixtures.payload())))
+        XCTAssertEqual(store.lastRestoreOutcome, .failedUnsafe(.compensationFailed([.preparedComponents])))
+        let bytes = try XCTUnwrap(snapshot.outstandingSnapshot())
+        XCTAssertTrue(try KitchenBackupValidator.validate(bytes).matchesBackupScope(of: original))
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        XCTAssertThrowsError(try store.exportBackupData())
+        XCTAssertEqual(try snapshot.outstandingSnapshot(), bytes)
+        for script in scripts.values { script.arm() }
+        try store.reloadPreparedComponents().get()
+        XCTAssertThrowsError(try store.restoreBackupData(bytes), "normal import never consumes the outstanding asset")
+        XCTAssertEqual(try snapshot.outstandingSnapshot(), bytes)
+        try store.restoreFromRecoverySnapshot()
+        XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
+        XCTAssertTrue(inMemoryScope().matchesBackupScope(of: original))
+        XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+    }
+
+    func testFailedExplicitRecoveryKeepsOriginalV1V2V3CopyAfterProvenCompensation() throws {
+        let otherRow = try PreparedLifecycleBackupFixtures.tracked(
+            PreparedLifecycleBackupFixtures.row(storage: .refrigerated), PreparedLifecycleBackupFixtures.thaw)
+        for version in [1, 2, 3] {
+            try setUpWithError()
+            let current = try seedEveryDomainWithLifecycle()
+            let wanted = PreparedLifecycleBackupFixtures.fullPayload(version == 3 ? [otherRow] : [PreparedLifecycleBackupFixtures.row()])
+            let original = try version == 3 ? KitchenBackupValidator.encodeV3(wanted)
+                : PreparedLifecycleBackupFixtures.historical(wanted, version: version)
+            try snapshot.prepare(original)
+            let url = try XCTUnwrap(snapshot.snapshotURL)
+            let fileNumber = try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber
+            XCTAssertNotNil(fileNumber)
+            armFailure(at: .specialPlans)
+            XCTAssertThrowsError(try store.restoreFromRecoverySnapshot())
+            XCTAssertEqual(store.lastRestoreOutcome, .failedAndRecovered(.specialPlans))
+            XCTAssertTrue(try storedScope().matchesBackupScope(of: current))
+            XCTAssertTrue(inMemoryScope().matchesBackupScope(of: current))
+            XCTAssertTrue(snapshot.hasOutstandingSnapshot, "compensation is not successful recovery of the outstanding asset")
+            XCTAssertEqual(try snapshot.outstandingSnapshot(), original)
+            XCTAssertEqual(snapshot.snapshotURL, url)
+            XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber, fileNumber)
+            XCTAssertEqual(try KitchenRecoverySnapshotStore(directoryURL: url.deletingLastPathComponent()).outstandingSnapshot(), original)
+
+            for script in scripts.values { script.arm() }
+            XCTAssertThrowsError(try store.restoreBackupData(original))
+            XCTAssertEqual(store.lastRestoreOutcome, .preparationFailed)
+            XCTAssertTrue(scripts.values.allSatisfy { $0.replaceCalls == 0 })
+            XCTAssertEqual(try snapshot.outstandingSnapshot(), original)
+
+            try store.restoreFromRecoverySnapshot()
+            XCTAssertEqual(store.lastRestoreOutcome, .success)
+            XCTAssertTrue(try storedScope().matchesBackupScope(of: wanted))
+            XCTAssertTrue(inMemoryScope().matchesBackupScope(of: wanted))
+            XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+            XCTAssertNil(try snapshot.outstandingSnapshot())
+        }
+    }
+
+    func testUnsafeExplicitRecoveryRetainsOriginalV1V2V3Copy() throws {
+        for version in [1, 2, 3] {
+            for failRead in [false, true] {
+                try setUpWithError()
+                let current = try seedEveryDomainWithLifecycle()
+                let wanted = PreparedLifecycleBackupFixtures.fullPayload([PreparedLifecycleBackupFixtures.row()])
+                let original = try version == 3 ? KitchenBackupValidator.encodeV3(wanted)
+                    : PreparedLifecycleBackupFixtures.historical(wanted, version: version)
+                try snapshot.prepare(original)
+                let url = try XCTUnwrap(snapshot.snapshotURL)
+                let fileNumber = try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber
+                armFailure(at: .specialPlans)
+                if failRead {
+                    scripts[.preparedComponents]!.failLoad = true
+                } else {
+                    scripts[.preparedComponents]!.arm(replaceCalls: [2])
+                }
+
+                XCTAssertThrowsError(try store.restoreFromRecoverySnapshot())
+                XCTAssertEqual(store.lastRestoreOutcome, failRead
+                    ? .failedUnsafe(.reconciliationFailed(.preparedComponents))
+                    : .failedUnsafe(.compensationFailed([.preparedComponents])))
+                XCTAssertTrue(store.isPreparedComponentUnavailable)
+                XCTAssertTrue(snapshot.hasOutstandingSnapshot)
+                XCTAssertEqual(try snapshot.outstandingSnapshot(), original)
+                XCTAssertEqual(snapshot.snapshotURL, url)
+                XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? NSNumber, fileNumber)
+                if failRead { XCTAssertTrue(inMemoryScope().matchesBackupScope(of: current)) }
+
+                for script in scripts.values { script.arm() }
+                try store.reloadPreparedComponents().get()
+                try store.restoreFromRecoverySnapshot()
+                XCTAssertEqual(store.lastRestoreOutcome, .success)
+                XCTAssertTrue(try storedScope().matchesBackupScope(of: wanted))
+                XCTAssertTrue(inMemoryScope().matchesBackupScope(of: wanted))
+                XCTAssertFalse(snapshot.hasOutstandingSnapshot)
+            }
+        }
+    }
+
+    func testLifecycleRereadFailureKeepsCopyAndPreparedFence() throws {
+        let original = try seedEveryDomainWithLifecycle()
+        armFailure(at: .specialPlans); scripts[.preparedComponents]!.failLoad = true
+        XCTAssertThrowsError(try store.restoreBackupData(KitchenBackupValidator.encodeV3(PreparedLifecycleBackupFixtures.payload())))
+        XCTAssertEqual(store.lastRestoreOutcome, .failedUnsafe(.reconciliationFailed(.preparedComponents)))
+        XCTAssertTrue(store.isPreparedComponentUnavailable)
+        XCTAssertThrowsError(try store.exportBackupData())
+        let bytes = try XCTUnwrap(snapshot.outstandingSnapshot())
+        XCTAssertTrue(try KitchenBackupValidator.validate(bytes).matchesBackupScope(of: original))
+        XCTAssertEqual(store.addPreparedComponent(component(name: "拒绝占位写入")), .failure(.unavailable))
+        scripts[.preparedComponents]!.failLoad = false
+        XCTAssertTrue(try storedScope().matchesBackupScope(of: original))
+        XCTAssertEqual(try snapshot.outstandingSnapshot(), bytes)
     }
 
     // MARK: - Success

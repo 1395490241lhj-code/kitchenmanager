@@ -52,16 +52,16 @@ final class PreparedPortionGroupingBackupTests: XCTestCase {
     }
     private func data(_ object: [String: Any]) throws -> Data { try JSONSerialization.data(withJSONObject: object) }
 
-    func testV2ExportPreviewRestoreAndDiskRestartKeepAllSevenDomainsAndEveryGroupedField() throws {
+    func testV3ExportPreviewRestoreAndDiskRestartKeepAllSevenDomainsAndEveryGroupedField() throws {
         let original = try payload(); let b = try bundle(); let s = store(b)
         // This setup also exercises all seven production restore writers.
         try s.restoreBackupData(JSONEncoder().encode(original))
         let exported = try s.exportBackupData()
-        XCTAssertEqual(try object(JSONDecoder().decode(KitchenBackupPayload.self, from: exported))["version"] as? Int, 2)
+        XCTAssertEqual(try object(JSONDecoder().decode(KitchenBackupPayload.self, from: exported))["version"] as? Int, 3)
         let preview = try KitchenBackupValidator.validateCandidate(exported)
-        XCTAssertEqual(preview.version, 2)
+        XCTAssertEqual(preview.version, 3)
         XCTAssertTrue(preview.payload.matchesBackupScope(of: original))
-        let confirmed = try JSONEncoder().encode(preview.payload) // exact preview path
+        let confirmed = try KitchenBackupValidator.encodeV3(preview.payload) // exact preview path
         XCTAssertTrue(s.clearAllLocalData())
         try s.restoreBackupData(confirmed)
         let reopened = store(try bundle())
@@ -71,7 +71,7 @@ final class PreparedPortionGroupingBackupTests: XCTestCase {
         XCTAssertFalse(s.recoverySnapshot.hasOutstandingSnapshot)
     }
     func testV2RequiresExplicitPreparedArrayInOriginalBytesBeforePreviewCanNormalizeIt() throws {
-        var valid = try object(payload()); valid["version"] = 2
+        var valid = try XCTUnwrap(JSONSerialization.jsonObject(with: PreparedLifecycleBackupFixtures.historical(payload(), version: 2)) as? [String: Any])
         let invalidValues: [Any?] = [nil, NSNull(), "not-array", [:], 1]
         for invalid in invalidValues {
             var malformed = valid; malformed["preparedComponents"] = invalid
@@ -81,9 +81,9 @@ final class PreparedPortionGroupingBackupTests: XCTestCase {
         XCTAssertEqual(try KitchenBackupValidator.validateCandidate(data(valid)).payload.preparedComponents, [])
     }
     func testV1MissingNullAndLegacyPreparedRemainReadableWithoutInventedMass() throws {
-        var old = try object(payload()); old["version"] = 1
+        var old = try XCTUnwrap(JSONSerialization.jsonObject(with: PreparedLifecycleBackupFixtures.historical(payload(), version: 2)) as? [String: Any]); old["version"] = 1
         var legacy = try rows()[0]; legacy.grouping = nil
-        let legacyJSON = try JSONSerialization.jsonObject(with: JSONEncoder().encode([legacy]))
+        let legacyJSON = [try PreparedLifecycleBackupFixtures.originalRow(legacy, version: 1)]
         let cases: [(Any?, [PreparedComponent])] = [(nil, []), (NSNull(), []), ([], []), (legacyJSON, [legacy])]
         for (historical, expected) in cases {
             old["preparedComponents"] = historical
@@ -94,14 +94,14 @@ final class PreparedPortionGroupingBackupTests: XCTestCase {
         }
     }
     func testDeclaredV1CannotCarryNonnullGroupingEvenWhenOtherwiseValid() throws {
-        var old = try object(payload()); old["version"] = 1
+        var old = try XCTUnwrap(JSONSerialization.jsonObject(with: PreparedLifecycleBackupFixtures.historical(payload(), version: 2)) as? [String: Any]); old["version"] = 1
         XCTAssertThrowsError(try KitchenBackupValidator.validateCandidate(data(old)))
         var rows = try XCTUnwrap(old["preparedComponents"] as? [[String: Any]])
         rows = [rows[0]]; rows[0]["grouping"] = NSNull(); old["preparedComponents"] = rows
         XCTAssertNil(try KitchenBackupValidator.validate(data(old)).preparedComponents[0].grouping)
     }
     func testUnsupportedMetadataMalformedSourceDuplicateAndImpossibleOriginalBucketsAreRefused() throws {
-        var valid = try object(payload()); valid["version"] = 2
+        var valid = try XCTUnwrap(JSONSerialization.jsonObject(with: PreparedLifecycleBackupFixtures.historical(payload(), version: 2)) as? [String: Any])
         let originalRows = try XCTUnwrap(valid["preparedComponents"] as? [[String: Any]])
         var variants = [[[String: Any]]]()
         variants.append([originalRows[0], originalRows[0]])
@@ -132,7 +132,7 @@ final class PreparedPortionGroupingBackupTests: XCTestCase {
         var old = try payload(); old.version = 1
         old.preparedComponents = old.preparedComponents.filter { $0.grouping == nil }
         let s = store(try bundle())
-        try s.recoverySnapshot.prepare(JSONEncoder().encode(old))
+        try s.recoverySnapshot.prepare(PreparedLifecycleBackupFixtures.historical(old, version: 1))
         let reopened = store(try bundle())
         XCTAssertTrue(reopened.recoverySnapshot.hasOutstandingSnapshot)
         try reopened.restoreFromRecoverySnapshot()
@@ -142,12 +142,14 @@ final class PreparedPortionGroupingBackupTests: XCTestCase {
     }
     func testFrozenPR1GateAcceptsV1AndRejectsV2BeforeTolerantDecodeCanStripGrouping() throws {
         var candidate = try payload(); candidate.version = 1; candidate.preparedComponents = []
-        XCTAssertNoThrow(try FrozenPR1BackupValidator.validate(JSONEncoder().encode(candidate)))
+        XCTAssertNoThrow(try FrozenPR1BackupValidator.validate(PreparedLifecycleBackupFixtures.historical(candidate, version: candidate.version)))
         candidate.version = 2; candidate.preparedComponents = try rows()
-        XCTAssertThrowsError(try FrozenPR1BackupValidator.validate(JSONEncoder().encode(candidate))) { error in
+        XCTAssertThrowsError(try FrozenPR1BackupValidator.validate(PreparedLifecycleBackupFixtures.historical(candidate, version: candidate.version))) { error in
             guard case KitchenBackupError.unsupportedVersion(2) = error else { return XCTFail("\(error)") }
         }
         candidate.version = 3
+        XCTAssertNoThrow(try KitchenBackupValidator.validate(JSONEncoder().encode(candidate)))
+        candidate.version = 4
         XCTAssertThrowsError(try KitchenBackupValidator.validate(JSONEncoder().encode(candidate)))
     }
 }

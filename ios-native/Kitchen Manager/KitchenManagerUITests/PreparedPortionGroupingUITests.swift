@@ -374,7 +374,7 @@ final class PreparedPortionGroupingUITests: XCTestCase {
         let first = app.buttons["home.quickMeal.usePrepared." + firstID]
         XCTAssertTrue(first.waitForExistence(timeout: 10)); reach(app, first); assert44(first)
         XCTAssertTrue(first.label.contains("33.4克")); XCTAssertTrue(first.label.contains("第1组"))
-        XCTAssertTrue(first.label.contains("冷冻"))
+        XCTAssertTrue(first.label.contains("冷藏"))
         capture(app, "grouped-quick-usage-rounding-before")
         first.tap()
         assertSuccess(app, "这组已用完")

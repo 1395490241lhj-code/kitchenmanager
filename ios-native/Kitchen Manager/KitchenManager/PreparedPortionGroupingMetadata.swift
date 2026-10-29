@@ -76,6 +76,7 @@ nonisolated enum PreparedComponentCollectionValidator {
                   PreparedSourceSnapshot.portionRange.contains(component.portionsRemaining) else {
                 throw PreparedGroupingValidationError.invalidComponent
             }
+            try component.lifecycle?.validate(state: component.state, storage: component.storage)
             guard let grouping = component.grouping else { continue }
             let source = grouping.source
             guard !ids.contains(source.id) else { throw PreparedGroupingValidationError.duplicateID }

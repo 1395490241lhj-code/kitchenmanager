@@ -130,9 +130,9 @@ struct ComponentMealView: View {
     /// The same single store API Home uses. `preparedComponents` is published,
     /// so `result` recomputes on its own — the plate is never patched by hand,
     /// and if the batch is gone the sheet falls to the gap wording.
-    private func usePreparedPortion(_ id: UUID) {
+    private func usePreparedPortion(_ expected: PreparedComponent) {
         let previous: PreparedComponent
-        switch store.consumePreparedPortion(id: id) {
+        switch store.consumePreparedPortion(id: expected.id, expected: expected, context: .immediateMeal) {
         case .success(let consumed): previous = consumed
         case .failure(let error):
             toastMessage = nil

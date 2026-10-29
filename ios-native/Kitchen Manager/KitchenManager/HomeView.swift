@@ -111,9 +111,9 @@ struct HomeView: View {
     /// suggestions recompute on their own — the current one is never patched
     /// by hand, and if the batch was the last portion the existing index clamp
     /// handles whatever the list becomes.
-    private func usePreparedPortion(_ id: UUID) {
+    private func usePreparedPortion(_ expected: PreparedComponent) {
         let previous: PreparedComponent
-        switch kitchenStore.consumePreparedPortion(id: id) {
+        switch kitchenStore.consumePreparedPortion(id: expected.id, expected: expected, context: .immediateMeal) {
         case .success(let consumed): previous = consumed
         case .failure(let error):
             toastMessage = nil

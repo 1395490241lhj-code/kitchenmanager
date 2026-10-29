@@ -184,8 +184,8 @@ final class BackupValidationTests: XCTestCase {
     func testFutureVersionIsRefused() throws {
         seedKitchen()
         var object = minimalV1Object
-        object["version"] = 3
-        assertRefused(try json(object), .unsupportedVersion(3), "未来版本")
+        object["version"] = 4
+        assertRefused(try json(object), .unsupportedVersion(4), "未来版本")
     }
 
     func testObjectCarryingIdentityButNoRecognizedStructureIsRefused() throws {

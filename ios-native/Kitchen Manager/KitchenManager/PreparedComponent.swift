@@ -9,6 +9,8 @@ enum PreparedComponentMutationError: Error, Equatable, LocalizedError {
     case missingRecord
     case staleRecord
     case saveFailed
+    case invalidTransition
+    case expiryReviewRequired
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +24,10 @@ enum PreparedComponentMutationError: Error, Equatable, LocalizedError {
             return "这条备餐记录已不存在，这次操作没有保存。"
         case .staleRecord:
             return "这条备餐记录已变更，这次修改没有保存。请重新打开后查看。"
+        case .invalidTransition:
+            return "这组备餐暂时不能进行这项操作，请重新查看当前状态。"
+        case .expiryReviewRequired:
+            return "请核对这组备餐的建议吃完日期后重试。"
         case .saveFailed:
             return "备餐记录保存失败，请稍后重试。"
         }
@@ -95,6 +101,7 @@ struct PreparedComponent: Identifiable, Codable, Hashable {
     /// it whenever their own judgement differs.
     var expiryDate: Date
     var grouping: PreparedPortionGrouping?
+    var lifecycle: PreparedLifecycle?
 
     init(
         id: UUID = UUID(),
@@ -104,20 +111,22 @@ struct PreparedComponent: Identifiable, Codable, Hashable {
         storage: PreparedStorage,
         preparedAt: Date,
         expiryDate: Date,
-        grouping: PreparedPortionGrouping? = nil
+        grouping: PreparedPortionGrouping? = nil,
+        lifecycle: PreparedLifecycle? = nil
     ) {
         self.id = id
         self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.portionsRemaining = grouping == nil ? Self.clampedPortions(portionsRemaining) : portionsRemaining
+        self.portionsRemaining = grouping == nil && lifecycle == nil ? Self.clampedPortions(portionsRemaining) : portionsRemaining
         self.state = state
         self.storage = storage
         self.preparedAt = preparedAt
         self.expiryDate = expiryDate
         self.grouping = grouping
+        self.lifecycle = lifecycle
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, portionsRemaining, state, storage, preparedAt, expiryDate, grouping
+        case id, name, portionsRemaining, state, storage, preparedAt, expiryDate, grouping, lifecycle
     }
 
     init(from decoder: Decoder) throws {
@@ -130,10 +139,12 @@ struct PreparedComponent: Identifiable, Codable, Hashable {
         preparedAt = try c.decode(Date.self, forKey: .preparedAt)
         expiryDate = try c.decode(Date.self, forKey: .expiryDate)
         grouping = try c.decodeIfPresent(PreparedPortionGrouping.self, forKey: .grouping)
+        lifecycle = try c.decodeIfPresent(PreparedLifecycle.self, forKey: .lifecycle)
         try PreparedComponentCollectionValidator.validate([self])
     }
 
     func encode(to encoder: Encoder) throws {
+        try PreparedComponentCollectionValidator.validate([self])
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(name, forKey: .name)
@@ -143,6 +154,8 @@ struct PreparedComponent: Identifiable, Codable, Hashable {
         try c.encode(preparedAt, forKey: .preparedAt)
         try c.encode(expiryDate, forKey: .expiryDate)
         try c.encodeIfPresent(grouping, forKey: .grouping)
+        if let lifecycle { try c.encode(lifecycle, forKey: .lifecycle) }
+        else { try c.encodeNil(forKey: .lifecycle) }
     }
 
     static func clampedPortions(_ portions: Int) -> Int {

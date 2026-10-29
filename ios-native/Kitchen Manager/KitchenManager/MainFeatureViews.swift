@@ -2427,7 +2427,8 @@ struct BackupRestoreView: View {
     private func exportRecoveryCopy() {
         do {
             guard let data = try store.recoverySnapshot.outstandingSnapshot() else { return }
-            exportDocument = KitchenBackupDocument(data: data)
+            exportDocument = KitchenBackupDocument(data: try KitchenBackupValidator.encodeV3(
+                KitchenBackupValidator.validateCandidate(data).payload))
             exportFilename = "KitchenManager-导入前副本"
             isExporting = true
         } catch {
@@ -2443,7 +2444,7 @@ struct BackupRestoreView: View {
             if candidate.isRecoveryCopy {
                 try store.restoreFromRecoverySnapshot()
             } else {
-                try store.restoreBackupData(try JSONEncoder().encode(candidate.candidate.payload))
+                try store.restoreBackupData(try KitchenBackupValidator.encodeV3(candidate.candidate.payload))
             }
             presentResult(for: store.lastRestoreOutcome ?? .success, error: nil)
         } catch {
@@ -2500,6 +2501,8 @@ private struct RestorePreviewSheet: View {
         NavigationStack {
             Form {
                 Section {
+                    Text("原文件版本：v\(pending.candidate.version)")
+                        .accessibilityIdentifier("restorePreview.version")
                     LabeledContent("备份时间") {
                         if let exportedAt = pending.candidate.exportedAt {
                             Text(exportedAt.formatted(date: .abbreviated, time: .shortened))

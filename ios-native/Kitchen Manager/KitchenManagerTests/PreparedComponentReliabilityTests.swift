@@ -27,11 +27,12 @@ final class PreparedComponentReliabilityTests: XCTestCase {
     }
 
     private func store(_ bundle: KitchenPersistenceBundle,
-                       prepared: PreparedComponentPersistenceProtocol? = nil) -> KitchenStore {
+                       prepared: PreparedComponentPersistenceProtocol? = nil,
+                       weekly: WeeklyPlanPersistenceProtocol? = nil) -> KitchenStore {
         KitchenStore(userDefaults: UserDefaults(suiteName: suite)!,
                      inventoryPersistence: bundle.inventory, shoppingListPersistence: bundle.shoppingList,
                      todayPlanPersistence: bundle.todayPlan, consumptionPersistence: bundle.consumption,
-                     weeklyPlanPersistence: bundle.weeklyPlan,
+                     weeklyPlanPersistence: weekly ?? bundle.weeklyPlan,
                      preparedComponentPersistence: prepared ?? bundle.preparedComponents,
                      specialPlanPersistence: bundle.specialPlans)
     }
@@ -48,6 +49,25 @@ final class PreparedComponentReliabilityTests: XCTestCase {
         XCTAssertEqual(store.preparedComponents, expected, "published state", file: file, line: line)
         XCTAssertEqual(try persistence.loadComponents(), expected, "same persistence context", file: file, line: line)
         XCTAssertEqual(try self.store(bundle()).preparedComponents, expected, "fresh disk reopen", file: file, line: line)
+    }
+
+    private final class ClearFaultWeekly: WeeklyPlanPersistenceProtocol {
+        let wrapped: WeeklyPlanPersistenceProtocol
+        init(_ wrapped: WeeklyPlanPersistenceProtocol) { self.wrapped = wrapped }
+        func loadPlan() throws -> WeeklyMealPlan? { try wrapped.loadPlan() }
+        func replacePlan(with plan: WeeklyMealPlan?) throws { try wrapped.replacePlan(with: plan) }
+        func deleteAll() throws { throw Fault.injected }
+    }
+    func testClearFailureAfterPreparedDeletionRestoresExactLifecycle() throws {
+        let b = try bundle()
+        let row = try PreparedLifecycleBackupFixtures.tracked(
+            PreparedLifecycleBackupFixtures.row(storage: .refrigerated), PreparedLifecycleBackupFixtures.thaw)
+        try b.preparedComponents.replaceComponents(with: [row])
+        let s = store(b, weekly: ClearFaultWeekly(b.weeklyPlan))
+        XCTAssertFalse(s.clearAllLocalData())
+        try assertConsistent([row], store: s, persistence: b.preparedComponents)
+        XCTAssertEqual(s.preparedComponents[0].lifecycle, row.lifecycle)
+        XCTAssertFalse(s.isPreparedComponentUnavailable)
     }
 
     func testFailedAddKeepsMemoryAndDiskUnchanged() throws {

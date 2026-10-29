@@ -47,12 +47,14 @@ final class PreparedPortionGroupingUsageTests: XCTestCase {
         XCTAssertTrue(after[0].buttonLabel.contains("33.3克"))
         XCTAssertTrue(PreparedPortionUsage.resolve(sources: [.preparedComponent(draft.sourceID)], among: rows).isEmpty)
     }
-    func testLegacyUsageKeepsExistingLabelAndDoesNotInventMass() {
-        let row = PreparedComponent(name: "卤鸡腿", portionsRemaining: 3, state: .cooked, storage: .frozen,
+    func testLegacyUsageKeepsExistingLabelAndDoesNotInventMass() throws {
+        let row = PreparedComponent(name: "卤鸡腿", portionsRemaining: 3, state: .cooked, storage: .refrigerated,
             preparedAt: Date(), expiryDate: Date())
-        let usage = PreparedPortionUsage.resolve(sources: [.preparedComponent(row.id)], among: [row])[0]
+        let usage = try XCTUnwrap(PreparedPortionUsage.resolve(sources: [.preparedComponent(row.id)], among: [row]).first)
         XCTAssertNil(usage.detailText); XCTAssertNil(usage.spokenDetail)
         XCTAssertEqual(usage.remainingText, "备餐剩 3 份")
         XCTAssertEqual(usage.buttonLabel, "使用 1 份卤鸡腿")
+        var frozen = row; frozen.storage = .frozen
+        XCTAssertTrue(PreparedPortionUsage.resolve(sources: [.preparedComponent(frozen.id)], among: [frozen]).isEmpty)
     }
 }
