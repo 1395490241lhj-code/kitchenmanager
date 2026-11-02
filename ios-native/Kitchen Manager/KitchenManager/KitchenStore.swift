@@ -363,6 +363,10 @@ struct InventoryItem: Identifiable, Codable, Hashable {
         }
     }
 
+    /// Expired food is still in the fridge, so expiry alerts keep showing it,
+    /// but nothing may plan a dish around it.
+    var isExpired: Bool { expiryStatus == .expired }
+
     /// How much of the known storage lifetime has elapsed. Older records without a
     /// creation timestamp intentionally return nil instead of inventing a start date.
     var expiryProgress: Double? {
@@ -1213,19 +1217,19 @@ final class KitchenStore: ObservableObject {
 
     /// The ingredient candidate list every recipe-creation path must start
     /// from — AI generation, AI recommendation and the local ranking that
-    /// shares their pool. Ready-to-cook rows are dropped here, one layer
-    /// *above* any prompt or request payload, so no service is ever asked to
-    /// please-ignore them.
+    /// shares their pool. Ready-to-cook and expired rows are dropped here, one
+    /// layer *above* any prompt or request payload, so no service is ever
+    /// asked to please-ignore them.
     var recipeCreationInventory: [InventoryItem] {
-        availableInventory.filter(\.kind.canInspireRecipeCreation)
+        availableInventory.filter { $0.kind.canInspireRecipeCreation && !$0.isExpired }
     }
 
     /// The expiring subset of the same pool, for the "use this up first" hint
-    /// that travels with a recipe-creation request. Ready-to-cook food still
-    /// appears in the ordinary `expiringItems` alerts — it just cannot steer a
-    /// recipe that would be invented around it.
+    /// that travels with a recipe-creation request. Ready-to-cook and expired
+    /// food still appears in the ordinary `expiringItems` alerts — it just
+    /// cannot steer a recipe that would be invented around it.
     var recipeCreationExpiringItems: [InventoryItem] {
-        expiringItems.filter(\.kind.canInspireRecipeCreation)
+        expiringItems.filter { $0.kind.canInspireRecipeCreation && !$0.isExpired }
     }
     var sortedFreshInventory: [InventoryItem] {
         inventory

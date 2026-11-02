@@ -377,7 +377,85 @@ final class InventoryItemKindTests: XCTestCase {
         XCTAssertEqual(loaded.map(\.kind), items.sorted { $0.name < $1.name }.map(\.kind))
     }
 
+    // MARK: - 9. Expired food never steers a recipe-creation request
+    //
+    // `isExpiringSoon` deliberately includes expired rows, because the expiry
+    // alerts must keep showing them. The recipe-creation pools answer a
+    // different question — what may a dish be built around — and there an
+    // expired row must not count at all, let alone count as the most urgent.
+
+    func testRecipeCreationPoolExcludesExpiredItems() {
+        seedExpiryRange()
+
+        XCTAssertEqual(store.recipeCreationInventory.map(\.name), ["牛奶", "豆腐", "番茄"],
+                       "过期食材不能再作为做菜的候选，今天到期的仍然可以用")
+    }
+
+    func testRecipeCreationExpiringPoolKeepsTodayAndSoonButNotExpired() {
+        seedExpiryRange()
+
+        XCTAssertEqual(store.recipeCreationExpiringItems.map(\.name), ["牛奶", "豆腐"])
+        XCTAssertEqual(store.expiringItems.map(\.name), ["菠菜", "牛奶", "豆腐"],
+                       "过期提醒不变：过期的菠菜仍然需要处理")
+    }
+
+    func testHomeRankingDoesNotPromoteARecipeBuiltOnExpiredFood() {
+        seedExpiryRange()
+        store.inventory.append(InventoryItem(name: "鸡蛋", quantity: 6, unit: "个", expiryDate: daysFromNow(10)))
+        let spinach = Recipe(id: "spinach", title: "菠菜炒蛋", cookingTime: 10, difficulty: "简单",
+                             tags: [], ingredients: ["菠菜", "鸡蛋"], steps: ["炒熟"])
+        let tomato = Recipe(id: "tomato", title: "番茄炒蛋", cookingTime: 10, difficulty: "简单",
+                            tags: [], ingredients: ["番茄", "鸡蛋"], steps: ["炒熟"])
+
+        let recommendations = HomeRecommendationStore(aiService: InventoryCapturingRecommendationService())
+        recommendations.loadDefaultRecommendations(
+            recipes: [spinach, tomato],
+            inventory: store.recipeCreationInventory.map(\.name),
+            expiringIngredients: store.recipeCreationExpiringItems.map(\.name)
+        )
+
+        XCTAssertEqual(recommendations.recommendedRecipes.map(\.recipe.id), ["tomato", "spinach"],
+                       "用过期菠菜做的菜不能排在食材齐全的菜前面")
+    }
+
+    func testAIRecipeFormNeverPreselectsExpiredFood() {
+        seedExpiryRange()
+        let generator = AIRecipeGeneratorStore(generateDraft: { _ in throw CancellationError() })
+
+        generator.prepareInventory(store.inventory)
+
+        XCTAssertEqual(names(of: generator.selectedInventoryIDs), ["牛奶", "豆腐"])
+    }
+
+    func testSelectAllExpiringSkipsExpiredFood() {
+        seedExpiryRange()
+        let generator = AIRecipeGeneratorStore(generateDraft: { _ in throw CancellationError() })
+        generator.prepareInventory([])
+
+        generator.selectAllExpiring(store.inventory)
+
+        XCTAssertEqual(names(of: generator.selectedInventoryIDs), ["牛奶", "豆腐"])
+    }
+
     // MARK: - Helpers
+
+    private func daysFromNow(_ days: Int) -> Date {
+        Calendar.current.date(byAdding: .day, value: days, to: Date())!
+    }
+
+    /// One expired row, one due today, one due soon and one comfortably fresh.
+    private func seedExpiryRange() {
+        store.inventory = [
+            InventoryItem(name: "菠菜", quantity: 300, unit: "克", expiryDate: daysFromNow(-5), kind: .ordinary),
+            InventoryItem(name: "牛奶", quantity: 1, unit: "盒", expiryDate: daysFromNow(0), kind: .ordinary),
+            InventoryItem(name: "豆腐", quantity: 1, unit: "块", expiryDate: daysFromNow(2), kind: .ordinary),
+            InventoryItem(name: "番茄", quantity: 3, unit: "个", expiryDate: daysFromNow(6), kind: .ordinary)
+        ]
+    }
+
+    private func names(of ids: Set<InventoryItem.ID>) -> Set<String> {
+        Set(store.inventory.filter { ids.contains($0.id) }.map(\.name))
+    }
 
     private func seedOneOfEachKind() {
         store.inventory = [

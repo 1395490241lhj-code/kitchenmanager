@@ -773,6 +773,25 @@ final class ConversationDomainToolsTests: XCTestCase {
         )
     }
 
+    /// An expired row is still in the fridge, so the assistant may say so, but
+    /// it must not be offered as something to cook with — and certainly not as
+    /// the most urgent thing to use up.
+    func testInventoryContextSeparatesExpiredFoodFromWhatCanBeCooked() {
+        let store = makeStore()
+        let tools = makeTools(store, makeRecipeStore())
+        store.inventory = [
+            inventoryItem(name: "番茄", expiresInDays: 5),
+            inventoryItem(name: "鸡胸肉", expiresInDays: -5),
+            inventoryItem(name: "菠菜", expiresInDays: 1)
+        ]
+
+        let context = tools.inventoryContext(now: Date())
+
+        XCTAssertEqual(context.available.map(\.name), ["番茄", "菠菜"])
+        XCTAssertEqual(context.expiring.map(\.name), ["菠菜"])
+        XCTAssertEqual(context.expired.map(\.name), ["鸡胸肉"])
+    }
+
     /// Staples and ready-to-cook food are on hand and must be readable, but they
     /// are not the same kind of fact as an ordinary ingredient: one is stocked
     /// rather than dated, the other is already a dish. A context that flattened

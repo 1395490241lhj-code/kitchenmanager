@@ -4,7 +4,7 @@ import {
   guessKitchenUnit,
   isSmartIngredientMatch
 } from '../ingredients.js?v=237';
-import { isInventoryAvailable, remainingDays } from '../inventory.js?v=237';
+import { getCookableInventory, isInventoryAvailable, remainingDays } from '../inventory.js?v=237';
 import { normalizeText } from '../recipe-search.js?v=237';
 import { classifyRecipeIngredient } from './recipe-sanitizer.js?v=237';
 
@@ -281,6 +281,7 @@ export function buildVariantMethodDraft(variant) {
 }
 
 export function getRecipeVariantRecommendations(pack = {}, inv = [], options = {}) {
+  inv = getCookableInventory(inv);
   const limit = options.limit ?? 5;
   const perBaseLimit = options.perBaseLimit ?? 2;
   const invNames = getInventoryNames(inv);
@@ -352,6 +353,7 @@ export function getRecipeVariantRecommendations(pack = {}, inv = [], options = {
 }
 
 export function getGenericIngredientRecipeRecommendations(pack = {}, inv = [], options = {}) {
+  inv = getCookableInventory(inv);
   const limit = options.limit ?? 3;
   const perIngredientLimit = options.perIngredientLimit ?? 2;
   const targetNames = (options.targetNames || []).map(getCanonicalName).filter(Boolean);

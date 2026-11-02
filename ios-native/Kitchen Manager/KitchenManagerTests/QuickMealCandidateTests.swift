@@ -135,6 +135,27 @@ final class QuickMealCandidateTests: XCTestCase {
         XCTAssertTrue(pool.contains { $0.name == "卤牛肉" })
     }
 
+    /// Both meal policies rank `isExpiringSoon` first, and that window includes
+    /// expired rows, so expired stock must never reach the pool at all.
+    /// Prepared batches keep their own rule: their date is the member's
+    /// "finish by" plan, not a safety claim.
+    func testExpiredInventoryNeverEntersThePool() {
+        let pastPlan = PreparedComponent(
+            name: "卤鸡腿",
+            portionsRemaining: 3,
+            state: .cooked,
+            storage: .refrigerated,
+            preparedAt: Calendar.current.date(byAdding: .day, value: -4, to: Date())!,
+            expiryDate: Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        )
+        let pool = QuickMealCandidate.pool(
+            inventory: [item("上海青", expiringInDays: -2), item("菠菜", expiringInDays: 0), item("鸡腿", expiringInDays: -4)],
+            preparedComponents: [pastPlan]
+        )
+
+        XCTAssertEqual(pool.map(\.name), ["菠菜", "卤鸡腿"])
+    }
+
     func testSeasoningsAndUnclassifiedItemsAreStillExcluded() {
         let pool = QuickMealCandidate.pool(
             inventory: [item("盐"), item("神秘食材")],
