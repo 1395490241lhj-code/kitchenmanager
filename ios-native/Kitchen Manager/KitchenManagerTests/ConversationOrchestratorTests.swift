@@ -525,6 +525,98 @@ final class ConversationOrchestratorTests: XCTestCase {
         XCTAssertTrue(events.contains(.state(.awaitingConfirmation)))
     }
 
+    // MARK: Serving counts on single-meal proposals (server schema ↔ client)
+    //
+    // The server offers `plannedServings` on propose_add_recipe_to_tonight and
+    // propose_replace_planned_meal. These run a provider tool call through the
+    // real interpreter, coordinator and store, so the field the schema promises
+    // is the one that reaches the plan.
+
+    private func tonightServingsTurn(_ servingsJSON: String) async throws -> (TestEnv, [AIConversationTurnEvent]) {
+        let env = try TestEnv()
+        try env.recipeStore.saveUserRecipe(Recipe(id: "rec-tonight", title: "鸡蛋汤", cookingTime: 5, difficulty: "简单",
+                                                  tags: [], ingredients: ["鸡蛋"], steps: ["煮汤"]))
+        let arguments = #"{"recipe":{"recipeID":"rec-tonight","title":"鸡蛋汤"}"# + servingsJSON + "}"
+        let transport = ScriptedTransport(stepResponses: [[
+            .toolCall(id: "call-add", name: "propose_add_recipe_to_tonight", arguments: Data(arguments.utf8)),
+            .completed(finishReason: "stop")
+        ]])
+        // The orchestrator's turn task holds it weakly: it must outlive the
+        // stream, or the turn never finishes.
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        withExtendedLifetime(orchestrator) {}
+        return (env, events)
+    }
+
+    /// 今晚做四人份.
+    func testTonightForFourWritesFourServingsThroughTheWholeChain() async throws {
+        let (env, events) = try await tonightServingsTurn(#","plannedServings":4"#)
+        XCTAssertEqual(env.kitchenStore.plans.count, 1)
+        XCTAssertEqual(env.kitchenStore.plans.first?.plannedServings, 4)
+        XCTAssertTrue(events.contains(.state(.completed)))
+    }
+
+    /// No stated count keeps the existing rule: the plan carries none and the
+    /// recipe's own yield applies.
+    func testTonightWithoutAServingCountLeavesThePlanOnTheExistingRule() async throws {
+        for servingsJSON in ["", #","plannedServings":null"#] {
+            let (env, events) = try await tonightServingsTurn(servingsJSON)
+            XCTAssertEqual(env.kitchenStore.plans.count, 1, servingsJSON)
+            XCTAssertNil(env.kitchenStore.plans.first?.plannedServings, servingsJSON)
+            XCTAssertTrue(events.contains(.state(.completed)), servingsJSON)
+        }
+    }
+
+    /// A count the app cannot store refuses the whole action: no plan is written
+    /// and the turn fails rather than clamping or dropping the number.
+    func testAnUnrepresentableServingCountIsRefusedWithNoPlanWritten() async throws {
+        for servingsJSON in [#","plannedServings":0"#, #","plannedServings":13"#, #","plannedServings":2.5"#,
+                             #","plannedServings":"4""#] {
+            let (env, events) = try await tonightServingsTurn(servingsJSON)
+            XCTAssertTrue(env.kitchenStore.plans.isEmpty, servingsJSON)
+            XCTAssertTrue(events.contains(.state(.failed)), servingsJSON)
+            XCTAssertFalse(events.contains(.state(.completed)), servingsJSON)
+        }
+    }
+
+    /// 将已有菜品替换为四人份: previewed with the count, nothing written until the
+    /// member confirms, then the row carries four servings.
+    func testReplacingAMealForFourPreviewsTheCountAndWritesItOnConfirm() async throws {
+        let env = try TestEnv()
+        let oldRecipe = Recipe(id: "rec-old", title: "旧菜", cookingTime: 5, difficulty: "简单", tags: [], ingredients: ["菜"], steps: ["做"])
+        try env.recipeStore.saveUserRecipe(oldRecipe)
+        try env.recipeStore.saveUserRecipe(Recipe(id: "rec-new", title: "新菜", cookingTime: 5, difficulty: "简单",
+                                                  tags: [], ingredients: ["新菜"], steps: ["做"]))
+        guard case .saved(let plan) = env.kitchenStore.addPlan(recipe: oldRecipe, on: Date(), calendar: env.domainTools.calendar) else {
+            return XCTFail("seed plan")
+        }
+        let arguments = #"{"planID":"\#(plan.id.uuidString)","replacement":{"recipeID":"rec-new","title":"新菜"},"plannedServings":4}"#
+        let transport = ScriptedTransport(stepResponses: [[
+            .toolCall(id: "call-rep", name: "propose_replace_planned_meal", arguments: Data(arguments.utf8)),
+            .completed(finishReason: "stop")
+        ]])
+        let orchestrator = env.makeOrchestrator(transport: transport)
+        let events = try await collectEvents(from: orchestrator.runTurn(env.defaultInput))
+        withExtendedLifetime(orchestrator) {}
+
+        XCTAssertEqual(env.kitchenStore.plans.first?.recipeName, "旧菜", "nothing is written before confirmation")
+        let preview = events.compactMap { event -> AIPlannerPreviewBlock? in
+            if case let .appendBlock(.plannerPreview(preview)) = event { return preview }
+            return nil
+        }
+        XCTAssertTrue(preview.first?.changes.first?.after.contains("4 份") == true, "the preview names the count")
+        let pending = try XCTUnwrap(events.compactMap { event -> PreparedAIAction? in
+            if case let .pendingAction(action) = event { return action }
+            return nil
+        }.first)
+
+        _ = try env.coordinator.execute(pending)
+        let row = env.kitchenStore.plans.first { $0.id == plan.id }
+        XCTAssertEqual(row?.recipeName, "新菜")
+        XCTAssertEqual(row?.plannedServings, 4)
+    }
+
     // 9: High/bulk proposal exposes every preview row and zero mutation
     func testHighBulkProposalExposesEveryPreviewRowAndZeroMutation() async throws {
         let env = try TestEnv()

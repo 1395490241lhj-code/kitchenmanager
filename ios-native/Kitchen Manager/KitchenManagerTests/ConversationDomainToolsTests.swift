@@ -802,6 +802,148 @@ final class ConversationDomainToolsTests: XCTestCase {
         )
     }
 
+    // MARK: Tonight shortlist
+
+    /// The app ranks and the model only chooses: fewest missing first, then a
+    /// dish that uses something expiring, then library order.
+    func testRecipeCandidatesRankByMissingThenExpiring() throws {
+        let store = makeStore()
+        let recipes = makeRecipeStore()
+        let tools = makeTools(store, recipes)
+        store.inventory = [
+            inventoryItem(name: "鸡蛋"),
+            inventoryItem(name: "菠菜", expiresInDays: 1),
+            inventoryItem(name: "番茄")
+        ]
+        for candidate in [
+            recipe(id: "two-missing", title: "青椒牛柳", ingredients: ["牛肉 200 克", "青椒 2 个", "鸡蛋 1 个"]),
+            recipe(id: "ready", title: "番茄炒蛋", ingredients: ["番茄 2 个", "鸡蛋 3 个"]),
+            recipe(id: "ready-expiring", title: "菠菜炒蛋", ingredients: ["菠菜 300 克", "鸡蛋 2 个"]),
+            recipe(id: "one-missing", title: "番茄牛腩", ingredients: ["番茄 2 个", "牛腩 300 克"])
+        ] { try recipes.saveUserRecipe(candidate) }
+
+        let context = tools.recipeCandidatesContext(now: day(2026, 3, 19), calendar: calendar)
+
+        XCTAssertEqual(context.candidates.map(\.recipeID), ["ready-expiring", "ready", "one-missing", "two-missing"])
+        XCTAssertEqual(context.candidates.map(\.missingCount), [0, 0, 1, 2])
+        XCTAssertEqual(context.candidates.map(\.usesExpiring), [true, false, false, false])
+        XCTAssertEqual(context.candidates.first?.title, "菠菜炒蛋")
+    }
+
+    func testRecipeCandidateTiesKeepLibraryOrder() throws {
+        let store = makeStore()
+        let recipes = makeRecipeStore()
+        let tools = makeTools(store, recipes)
+        store.inventory = [inventoryItem(name: "鸡蛋"), inventoryItem(name: "番茄"), inventoryItem(name: "土豆")]
+        for (id, line) in [("a", "鸡蛋 2 个"), ("b", "番茄 2 个"), ("c", "土豆 2 个")] {
+            try recipes.saveUserRecipe(recipe(id: id, title: id, ingredients: [line]))
+        }
+
+        let context = tools.recipeCandidatesContext(now: day(2026, 3, 19), calendar: calendar)
+
+        XCTAssertEqual(context.candidates.map(\.recipeID), recipes.recipes.map(\.id))
+    }
+
+    /// Already on tonight's plan answers nothing, and a recipe with no usable
+    /// ingredient line cannot be judged against the kitchen at all.
+    func testRecipeCandidatesExcludeTonightAndUnjudgeableRecipes() throws {
+        let store = makeStore()
+        let recipes = makeRecipeStore()
+        let tools = makeTools(store, recipes)
+        store.inventory = [inventoryItem(name: "鸡蛋")]
+        let tonight = recipe(id: "tonight", title: "蒸蛋", ingredients: ["鸡蛋 3 个"])
+        for candidate in [
+            tonight,
+            recipe(id: "omelette", title: "煎蛋", ingredients: ["鸡蛋 2 个"]),
+            recipe(id: "empty", title: "空菜谱", ingredients: [])
+        ] { try recipes.saveUserRecipe(candidate) }
+        XCTAssertTrue(store.appendPlans(
+            [MealPlanItem(recipeID: tonight.id, recipeName: tonight.title, date: day(2026, 3, 19))],
+            calendar: calendar
+        ).didPersist)
+
+        let context = tools.recipeCandidatesContext(now: day(2026, 3, 19), calendar: calendar)
+
+        XCTAssertEqual(context.candidates.map(\.recipeID), ["omelette"])
+        // The same recipe on another evening is a candidate again.
+        XCTAssertTrue(tools.recipeCandidatesContext(now: day(2026, 3, 20), calendar: calendar)
+            .candidates.map(\.recipeID).contains("tonight"))
+    }
+
+    /// Architecture §11 / D-024: ranking is a recommendation path, so a dish
+    /// whose only match is ready-to-cook food is never promoted by it; but 还缺
+    /// is a missing-ingredient judgement over everything on hand, so that food
+    /// is not missing — the library's 还缺 N 样 says the same — and, being a
+    /// finished dish, it is not an expiring ingredient to use up either.
+    func testReadyToCookStockNeverPromotesADishYetIsNotMissing() throws {
+        let store = makeStore()
+        let recipes = makeRecipeStore()
+        let tools = makeTools(store, recipes)
+        store.inventory = [
+            inventoryItem(name: "鸡蛋"),
+            inventoryItem(name: "饺子", expiresInDays: 1, kind: .readyToCook)
+        ]
+        let steamedEgg = recipe(id: "steamed-egg", title: "蒸蛋", ingredients: ["鸡蛋 3 个"])
+        let dumplings = recipe(id: "dumplings", title: "煎饺", ingredients: ["饺子 10 个"])
+        // Saved last, so the dumplings lead library order: only the ranking can move them.
+        for candidate in [steamedEgg, dumplings] { try recipes.saveUserRecipe(candidate) }
+        XCTAssertEqual(recipes.recipes.map(\.id), ["dumplings", "steamed-egg"])
+
+        let context = tools.recipeCandidatesContext(now: day(2026, 3, 19), calendar: calendar)
+
+        XCTAssertEqual(context.candidates.map(\.recipeID), ["steamed-egg", "dumplings"])
+        let fried = try XCTUnwrap(context.candidates.last)
+        XCTAssertEqual(fried.missingCount, 0)
+        XCTAssertEqual(fried.missingCount, RecipeStockMatch.missingIngredients(in: dumplings, inventory: store.inventory).count)
+        XCTAssertFalse(fried.usesExpiring, "ready-to-cook food expires, but it is not an ingredient to use up")
+    }
+
+    /// The model and the member must never be told different things about the
+    /// same dish: every shortlist fact is the card's reading of that recipe.
+    func testShortlistFactsAreTheRecipeCardReading() throws {
+        let store = makeStore()
+        let recipes = makeRecipeStore()
+        let tools = makeTools(store, recipes)
+        store.inventory = [
+            inventoryItem(name: "鸡蛋", expiresInDays: 1),
+            inventoryItem(name: "番茄", quantity: 1),
+            inventoryItem(name: "饺子", expiresInDays: 1, kind: .readyToCook),
+            inventoryItem(name: "酱油", quantity: 1, unit: "瓶", kind: .staple)
+        ]
+        let library = [
+            recipe(id: "tomato-egg", title: "番茄炒蛋", ingredients: ["番茄 4 个", "鸡蛋 3 个"]),
+            recipe(id: "dumplings", title: "煎饺", ingredients: ["饺子 10 个", "酱油 1 勺"]),
+            recipe(id: "beef", title: "番茄牛腩", ingredients: ["番茄 2 个", "牛腩 300 克"])
+        ]
+        for candidate in library { try recipes.saveUserRecipe(candidate) }
+
+        let context = tools.recipeCandidatesContext(now: day(2026, 3, 19), calendar: calendar)
+        let reading = KitchenAIStockReading(store)
+
+        XCTAssertEqual(Set(context.candidates.map(\.recipeID)), Set(library.map(\.id)))
+        for candidate in context.candidates {
+            let recipe = try XCTUnwrap(recipes.recipe(id: candidate.recipeID))
+            let card = reading.summary(for: recipe)
+            XCTAssertEqual(candidate.missingCount, card.missing.count, recipe.title)
+            XCTAssertEqual(candidate.usesExpiring, !card.expiring.isEmpty, recipe.title)
+            XCTAssertEqual(card.missing, RecipeStockMatch.missingIngredients(in: recipe, inventory: store.inventory), recipe.title)
+        }
+    }
+
+    func testRecipeCandidatesAreCappedAtEight() throws {
+        let store = makeStore()
+        let recipes = makeRecipeStore()
+        let tools = makeTools(store, recipes)
+        for index in 0..<10 {
+            try recipes.saveUserRecipe(recipe(id: "r\(index)", title: "菜\(index)", ingredients: ["食材\(index) 1 个"]))
+        }
+
+        let context = tools.recipeCandidatesContext(now: day(2026, 3, 19), calendar: calendar)
+
+        XCTAssertEqual(KitchenConversationDomainTools.recipeCandidateLimit, 8)
+        XCTAssertEqual(context.candidates.count, 8)
+    }
+
     /// Tonight is today's ordinary schedule and nothing else. A Special Plan is
     /// its own event with its own reading — inferring a meal slot from its
     /// `scheduledAt` is exactly what the Home contract forbids.

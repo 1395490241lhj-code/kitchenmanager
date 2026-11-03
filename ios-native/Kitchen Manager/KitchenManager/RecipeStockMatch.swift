@@ -43,4 +43,47 @@ enum RecipeStockMatch {
         }
         return missing
     }
+
+    /// The same presence rule, prepared once so a caller ranking a whole
+    /// library does not renormalize every inventory name for every line.
+    struct Index {
+        private let keys: Set<String>
+
+        init(_ inventory: [InventoryItem]) {
+            keys = Set(inventory.filter(\.isAvailable).map { IngredientNormalizer.matchKey($0.name) })
+        }
+
+        func contains(_ ingredientName: String) -> Bool {
+            keys.contains(IngredientNormalizer.matchKey(ingredientName))
+        }
+    }
+
+    /// One recipe's core ingredients split by the presence rule, for a surface
+    /// that names both sides. `missing` is exactly `missingIngredients`;
+    /// `expiring` is the in-stock subset an expiring row also matches.
+    struct Summary: Equatable {
+        var inStock: [String] = []
+        var missing: [String] = []
+        var expiring: [String] = []
+    }
+
+    static func summary(for recipe: Recipe, inventory: [InventoryItem], expiring: [InventoryItem]) -> Summary {
+        summary(for: recipe, onHand: Index(inventory), expiring: Index(expiring))
+    }
+
+    static func summary(for recipe: Recipe, onHand: Index, expiring: Index) -> Summary {
+        var seen = Set<String>()
+        var result = Summary()
+        for line in recipe.ingredients {
+            guard let name = ingredientName(forLine: line),
+                  seen.insert(IngredientNormalizer.matchKey(name)).inserted else { continue }
+            if onHand.contains(name) {
+                result.inStock.append(name)
+                if expiring.contains(name) { result.expiring.append(name) }
+            } else {
+                result.missing.append(name)
+            }
+        }
+        return result
+    }
 }

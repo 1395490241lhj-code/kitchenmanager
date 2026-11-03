@@ -1,6 +1,38 @@
 import Foundation
 import Combine
 
+/// One VoiceOver announcement. A fresh id per event, so the same words said
+/// twice in a row (two turns that both recommend two dishes) are still heard.
+struct AIConversationAnnouncement: Equatable {
+    let id: UUID
+    let text: String
+}
+
+/// What a finished turn or action sounds like. Derived only from blocks the
+/// member can already see, so nothing is announced that the screen does not say.
+enum AIConversationAnnouncementText {
+    static let offline = "当前没有网络连接，联网后再发送。"
+
+    static func completed(_ message: AIConversationMessage?) -> String {
+        let blocks = message?.contentBlocks ?? []
+        var parts = ["Kitchen AI 已回复"]
+        let recipes = blocks.filter { if case .recipe = $0 { return true } else { return false } }.count
+        if recipes > 0 { parts.append("推荐了 \(recipes) 道菜") }
+        for case let .actionStatus(status) in blocks where !status.isFailure {
+            parts.append(status.message)
+        }
+        return parts.joined(separator: "，")
+    }
+
+    static let awaitingConfirmation = "Kitchen AI 已回复，有一项修改等待你确认"
+
+    static func failed(_ message: AIConversationMessage?) -> String {
+        let visibleError = (message?.contentBlocks ?? []).last { if case .error = $0 { return true } else { return false } }
+        guard case let .error(error)? = visibleError else { return "回复未完成" }
+        return "回复未完成：\(error.message)"
+    }
+}
+
 @MainActor
 final class AIConversationController: ObservableObject {
     @Published private(set) var currentConversation: AIConversation?
@@ -11,6 +43,9 @@ final class AIConversationController: ObservableObject {
     @Published private(set) var preparedAction: PreparedAIAction?
     @Published private(set) var actuallyUsedContextKinds: Set<AIContextKind> = []
     @Published private(set) var localErrorMessage: String?
+    /// The latest turn or action outcome for VoiceOver. The view posts it; the
+    /// controller only decides what happened.
+    @Published private(set) var announcement: AIConversationAnnouncement?
 
     var history: [AIConversation] { store.conversations }
     var currentConversationRequiresReactivation: Bool {
@@ -47,7 +82,7 @@ final class AIConversationController: ObservableObject {
     var likelyContextKinds: [AIContextKind] {
         switch entryContext {
         case .home:
-            return [.inventory, .tonightPlan]
+            return [.inventory, .tonightPlan, .recipe]
         case let .planner(_, specialPlanID):
             var kinds: [AIContextKind] = [.inventory, .plannerWeek]
             if specialPlanID != nil {
@@ -57,11 +92,30 @@ final class AIConversationController: ObservableObject {
         }
     }
 
+    /// Follow-ups offered under a Home turn that recommended dishes. Tapping one
+    /// only fills the composer: the member still decides whether to send it.
+    /// Each names the food it is about, so as a sent question it still reads
+    /// the kitchen (`ConversationContextAssembler.isMealQuestion`).
+    static let homeAdjustmentSuggestions = ["换清淡一点的菜", "换快手一点的菜", "只用家里有的食材做菜", "换一批菜"]
+
+    var adjustmentSuggestions: [String] {
+        guard case .home = entryContext, !isGenerating, canAcceptNewMessage,
+              let last = messages.last, last.role == .assistant, last.state == .completed,
+              last.contentBlocks.contains(where: { if case .recipe = $0 { return true } else { return false } })
+        else { return [] }
+        return Self.homeAdjustmentSuggestions
+    }
+
+    func applyAdjustmentSuggestion(_ suggestion: String) {
+        draftText = suggestion
+    }
+
     private let store: ConversationStore
     private let orchestrator: any ConversationOrchestrating
     private let actionCoordinator: ConversationActionCoordinator
     private let metadataService: ConversationMetadataService
     private let userDefaults: UserDefaults
+    private let network: any NetworkAvailabilityProviding
     private let now: () -> Date
     private let uuid: () -> UUID
 
@@ -84,6 +138,7 @@ final class AIConversationController: ObservableObject {
         actionCoordinator: ConversationActionCoordinator,
         metadataService: ConversationMetadataService,
         userDefaults: UserDefaults = .standard,
+        network: (any NetworkAvailabilityProviding)? = nil,
         now: @escaping () -> Date = Date.init,
         uuid: @escaping () -> UUID = UUID.init
     ) {
@@ -92,6 +147,9 @@ final class AIConversationController: ObservableObject {
         self.actionCoordinator = actionCoordinator
         self.metadataService = metadataService
         self.userDefaults = userDefaults
+        // Resolved here rather than as a default argument, which would be
+        // evaluated outside the main actor that owns the shared monitor.
+        self.network = network ?? PathMonitorNetworkAvailabilityProvider.shared
         self.now = now
         self.uuid = uuid
         self.storeCancellable = store.objectWillChange.sink { [weak self] _ in
@@ -194,6 +252,7 @@ final class AIConversationController: ObservableObject {
         // A pending provider choice is a setup state, not a failed turn: no
         // message is consumed and no conversation record is written.
         guard !needsConversationProviderSelection else { return }
+        guard !isExplicitlyOffline() else { return }
 
         if currentConversation == nil {
             currentConversation = store.createDraft(entryContext: entryContext)
@@ -276,6 +335,7 @@ final class AIConversationController: ObservableObject {
         guard let input = retryInput,
               currentConversation?.id == input.conversationID,
               turnState == .failed || turnState == .cancelled else { return }
+        guard !isExplicitlyOffline() else { return }
         let assistantCreatedAt = assistantCreatedAt(after: input.currentUserMessage)
         let assistant = AIConversationMessage(
             id: uuid(),
@@ -295,6 +355,23 @@ final class AIConversationController: ObservableObject {
         messages.append(assistant)
         start(input, assistantID: assistant.id)
         contentRevision += 1
+    }
+
+    /// Only a path that is known to be down stops a send; `.unknown` goes
+    /// ahead, so a monitoring gap never blocks a member who is online. Nothing
+    /// is consumed: the draft stays, no record is written, and the turn is not
+    /// rerouted to a device-local model the member did not choose (D-044).
+    private func isExplicitlyOffline() -> Bool {
+        guard network.currentAvailability.isExplicitlyOffline else { return false }
+        localErrorMessage = AIConversationAnnouncementText.offline
+        announce(AIConversationAnnouncementText.offline)
+        return true
+    }
+
+    /// Ephemeral presentation identity, so it never draws from the injected
+    /// generator that persisted ids come from.
+    private func announce(_ text: String) {
+        announcement = AIConversationAnnouncement(id: UUID(), text: text)
     }
 
     private func assistantCreatedAt(after userMessage: AIConversationMessage) -> Date {
@@ -333,9 +410,11 @@ final class AIConversationController: ObservableObject {
             appendToTurnAssistant(block, turnID: result.record.turnID)
             // The action is terminal now; a cached pending excerpt would contradict it.
             cachedExcerpts.removeValue(forKey: result.record.conversationID)
+            announce(messageText)
             contentRevision += 1
         } catch {
             localErrorMessage = safeMessage(error, fallback: "操作未完成。")
+            announce(localErrorMessage ?? "操作未完成。")
             contentRevision += 1
         }
     }
@@ -356,9 +435,11 @@ final class AIConversationController: ObservableObject {
                 if changed { try? store.saveMessage(messages[messageIndex]) }
             }
             cachedExcerpts.removeValue(forKey: result.record.conversationID)
+            announce(actionStatusMessage(for: result.record.actionType, isUndone: true))
             contentRevision += 1
         } catch {
             localErrorMessage = safeMessage(error, fallback: "无法撤销该操作。")
+            announce(localErrorMessage ?? "无法撤销该操作。")
             contentRevision += 1
         }
     }
@@ -563,11 +644,15 @@ final class AIConversationController: ObservableObject {
             if activeRunID == runID && !turnState.isTerminal && turnState != .awaitingConfirmation {
                 turnState = .failed
                 finishAssistant(id: assistantID, state: .failed)
+                announce(AIConversationAnnouncementText.failed(messages.first { $0.id == assistantID }))
             }
         } catch {
             guard activeRunID == runID else { return }
             turnState = Task.isCancelled ? .cancelled : .failed
             finishAssistant(id: assistantID, state: Task.isCancelled ? .cancelled : .failed)
+            if !Task.isCancelled {
+                announce(AIConversationAnnouncementText.failed(messages.first { $0.id == assistantID }))
+            }
         }
         guard activeRunID == runID else { return }
         activeRunID = nil
@@ -583,13 +668,17 @@ final class AIConversationController: ObservableObject {
             case .completed:
                 finishAssistant(id: assistantID, state: .completed)
                 retryInput = nil
+                announce(AIConversationAnnouncementText.completed(messages.first { $0.id == assistantID }))
             case .cancelled:
+                // The member pressed 停止; the visible 已停止 needs no announcement.
                 finishAssistant(id: assistantID, state: .cancelled)
             case .failed:
                 finishAssistant(id: assistantID, state: .failed)
+                announce(AIConversationAnnouncementText.failed(messages.first { $0.id == assistantID }))
             case .awaitingConfirmation:
                 finishAssistant(id: assistantID, state: .completed)
                 retryInput = nil
+                announce(AIConversationAnnouncementText.awaitingConfirmation)
             default:
                 break
             }
@@ -633,6 +722,7 @@ final class AIConversationController: ObservableObject {
                 turnState = .completed
                 finishAssistant(id: assistantID, state: .completed)
                 retryInput = nil
+                announce(AIConversationAnnouncementText.completed(messages.first { $0.id == assistantID }))
                 contentRevision += 1
             }
         }

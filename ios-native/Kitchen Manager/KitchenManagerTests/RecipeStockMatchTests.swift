@@ -44,6 +44,17 @@ final class RecipeStockMatchTests: XCTestCase {
         XCTAssertEqual(missing, [])
     }
 
+    func testSummaryAgreesWithMissingListAndMarksExpiringStock() {
+        let r = recipe(["番茄 2个", "鸡蛋 3个", "葱 1根", "番茄 1个"])
+        let tomato = item("番茄")
+        let inventory = [item("鸡蛋"), tomato, item("葱", quantity: 0)]
+        let summary = RecipeStockMatch.summary(for: r, inventory: inventory, expiring: [tomato])
+        XCTAssertEqual(summary.inStock, ["番茄", "鸡蛋"])
+        XCTAssertEqual(summary.missing, ["葱"])
+        XCTAssertEqual(summary.missing, RecipeStockMatch.missingIngredients(in: r, inventory: inventory))
+        XCTAssertEqual(summary.expiring, ["番茄"])
+    }
+
     func testPerLineAnswerMatchesListAnswer() {
         let r = recipe(["番茄 2个", "鸡蛋 3个"])
         let inventory = [item("鸡蛋")]
