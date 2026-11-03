@@ -149,9 +149,11 @@ final class InventoryConsumptionPlannerTests: XCTestCase {
         XCTAssertEqual(draft.unconvertibleStockText, "1 份")
         XCTAssertNil(draft.consumedQuantity, "no fabricated 0 deduction")
         XCTAssertNil(draft.resultingQuantity, "no fabricated 剩 0")
-        XCTAssertFalse(draft.isSelected, "the row stays out of the deduction")
+        XCTAssertFalse(draft.isSelected, "the row stays out of the deduction until switched on")
         XCTAssertTrue(draft.warning?.contains("单位不同") ?? false)
-        XCTAssertTrue(draft.warning?.contains("未扣减") ?? false)
+        // All of it is in 份, so the note says how to deduct it in 份 instead
+        // of sending the user to Inventory.
+        XCTAssertTrue(draft.warning?.contains("请填写用掉几份") ?? false)
     }
 
     func test_unconvertibleUnits_confirmLeavesThatStockUntouched() throws {

@@ -336,7 +336,7 @@ struct AddPantryStapleView: View {
                 ForEach(StapleTrackingMode.allCases) { Text($0.title).tag($0) }
             }
             if trackingMode == .quantity {
-                TextField("当前数量", value: $quantity, format: .number).keyboardType(.decimalPad)
+                DecimalQuantityField("当前数量", quantity: $quantity)
                 TextField("单位", text: $unit)
             } else {
                 Picker("当前状态", selection: $availabilityStatus) {
@@ -345,8 +345,8 @@ struct AddPantryStapleView: View {
             }
         }
         Section("补货规则") {
-            TextField("最低库存", value: $minimumQuantity, format: .number).keyboardType(.decimalPad)
-            TextField("默认补货数量（可选）", value: $defaultRestockQuantity, format: .number).keyboardType(.decimalPad)
+            DecimalQuantityField("最低库存", quantity: $minimumQuantity)
+            DecimalQuantityField("默认补货数量（可选）", quantity: $defaultRestockQuantity)
             Toggle("自动生成补货建议", isOn: $autoSuggest)
         }
         Section("其他") {

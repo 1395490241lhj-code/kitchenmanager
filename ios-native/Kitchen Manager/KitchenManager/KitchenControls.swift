@@ -393,3 +393,119 @@ struct KitchenMetadataText: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 }
+
+/// A decimal-pad quantity box. A `TextField(value:format:)` commits only on
+/// return or when focus leaves, and the decimal pad has no return key, so
+/// tapping 保存 straight after typing could save the old amount. This writes
+/// the amount through on every keystroke instead.
+struct DecimalQuantityField: View {
+    let title: LocalizedStringKey
+    @Binding var quantity: Double?
+    private let isRequired: Bool
+    @State private var text: String
+    /// The text the box last wrote from an amount, and that amount; `nil`
+    /// once the member has typed something else.
+    @State private var shown: Shown?
+    /// The amount when editing began (focus in, or an outside change). A
+    /// required box that is emptied or unreadable goes back to it, not to a
+    /// half-deleted number: backspacing 12 passes through 1.
+    @State private var amountBeforeEditing: Double? = nil
+    @FocusState private var isFocused: Bool
+
+    /// Empty or unreadable text writes `nil`: an optional amount is cleared.
+    init(_ title: LocalizedStringKey, quantity: Binding<Double?>) {
+        self.init(title, quantity: quantity, isRequired: false)
+    }
+
+    /// A required amount cannot be cleared: an empty or unreadable box writes
+    /// the amount from before editing, and leaving the box shows it again.
+    init(_ title: LocalizedStringKey, quantity: Binding<Double>) {
+        self.init(title, quantity: Self.keepingLastValue(quantity), isRequired: true)
+    }
+
+    private init(_ title: LocalizedStringKey, quantity: Binding<Double?>, isRequired: Bool) {
+        self.title = title
+        _quantity = quantity
+        self.isRequired = isRequired
+        let shown = Shown(amount: quantity.wrappedValue)
+        _shown = State(initialValue: shown)
+        _text = State(initialValue: shown.text)
+    }
+
+    /// Text the box wrote itself from `amount`, as opposed to text the member
+    /// typed.
+    struct Shown: Equatable {
+        let text: String
+        let amount: Double?
+
+        init(amount: Double?) {
+            self.amount = amount
+            text = DecimalQuantityField.text(for: amount)
+        }
+    }
+
+    /// Shows `amount`. `shown` is set first, so the text change it causes
+    /// writes `amount` back unchanged.
+    private func show(_ amount: Double?) {
+        let rendering = Shown(amount: amount)
+        shown = rendering
+        text = rendering.text
+    }
+
+    private var unreadableFallback: Double? { isRequired ? amountBeforeEditing : nil }
+
+    var body: some View {
+        TextField(title, text: $text)
+            .keyboardType(.decimalPad)
+            .focused($isFocused)
+            .onChange(of: isFocused) { _, focused in
+                if focused {
+                    amountBeforeEditing = quantity
+                } else if InventoryConsumptionDraft.enteredQuantity(from: text) != quantity {
+                    // Leaving an emptied or unreadable box shows what will be
+                    // saved. Readable text stays as typed (2.345, not 2.35).
+                    show(quantity)
+                }
+            }
+            .onChange(of: text) { _, typed in
+                quantity = Self.quantity(afterTyping: typed, shown: shown, whenUnreadable: unreadableFallback)
+                shown = Self.shown(shown, afterTyping: typed)
+            }
+            .onChange(of: quantity) { _, newValue in
+                guard Self.textAfterOutsideChange(to: newValue, shown: text, whenUnreadable: unreadableFallback) != nil else { return }
+                show(newValue)
+                amountBeforeEditing = newValue
+            }
+    }
+
+    static func text(for quantity: Double?) -> String {
+        quantity.map { $0.formatted(.number.precision(.fractionLength(0...2)).grouping(.never)) } ?? ""
+    }
+
+    /// What a keystroke writes. The text the box itself wrote, still
+    /// untouched, writes its amount back, so showing 0.125 as 0.12 does not
+    /// round it; text the member typed is read as typed (2.345 backspaced to
+    /// 2.34 is 2.34). Empty or unreadable text writes `fallback`.
+    static func quantity(afterTyping typed: String, shown: Shown?, whenUnreadable fallback: Double?) -> Double? {
+        typed == shown?.text ? shown?.amount : InventoryConsumptionDraft.enteredQuantity(from: typed) ?? fallback
+    }
+    /// The box's own rendering stops standing for its amount once the member
+    /// types anything else, so retyping 0.12 after editing writes 0.12.
+    static func shown(_ shown: Shown?, afterTyping typed: String) -> Shown? {
+        typed == shown?.text ? shown : nil
+    }
+
+    /// New text when the amount changed from outside the box (a picked batch,
+    /// a regenerated list); `nil` when the text already writes that amount,
+    /// including an emptied required box that went back to `fallback`.
+    static func textAfterOutsideChange(to quantity: Double?, shown: String, whenUnreadable fallback: Double?) -> String? {
+        (InventoryConsumptionDraft.enteredQuantity(from: shown) ?? fallback) == quantity ? nil : text(for: quantity)
+    }
+
+    static func keepingLastValue(_ quantity: Binding<Double>) -> Binding<Double?> {
+        Binding(
+            get: { quantity.wrappedValue },
+            set: { if let typed = $0 { quantity.wrappedValue = typed } }
+        )
+    }
+}

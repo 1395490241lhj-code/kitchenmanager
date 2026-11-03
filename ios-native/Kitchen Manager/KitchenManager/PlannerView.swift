@@ -817,17 +817,9 @@ struct PlannerView: View {
     @ViewBuilder
     private func plannedMealDestination(_ id: UUID) -> some View {
         if let plan = kitchenStore.plans.first(where: { $0.id == id }) {
-            if let recipe = recipeStore.recipe(id: plan.recipeID) {
-                RecipeDetailView(recipe: recipe, plan: plan)
-            } else {
-                // Same fallback Home and today's plan detail use: the plan
-                // survives a recipe that has gone missing.
-                ContentUnavailableView(
-                    "菜谱暂不可用",
-                    systemImage: "book.closed",
-                    description: Text(MealPlanItem.missingRecipeExplanation)
-                )
-            }
+            // Same destination Home uses, including its not-loaded and
+            // missing-recipe states.
+            PlannedMealRecipeDestination(plan: plan)
         } else {
             ContentUnavailableView("这一餐不存在", systemImage: "calendar.badge.exclamationmark")
         }

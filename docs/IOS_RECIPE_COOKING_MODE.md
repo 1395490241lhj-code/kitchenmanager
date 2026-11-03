@@ -20,8 +20,12 @@ The base serving count is the current Today Plan serving count when entered from
 a plan; otherwise it begins at one. A conservative parser scales the first
 numeric quantity (whole number, decimal, or common fraction) and leaves text
 such as `适量` unchanged. Timers can use an explicit `N 分钟` step hint or a
-manual common duration. They are reliable in the foreground only; no local
-notification, background task, or long-running background guarantee exists.
+manual common duration. A running timer schedules one local notification for
+its end. The first start asks for alert and sound permission while that choice
+is still undecided (never under a UI-test launch). The notification is kept
+when the timer ends on time, shown in the foreground only for the timer's own
+identifier, and removed on pause, cancel or leaving the page. There is no
+background task or Live Activity.
 
 ## Today Plan and inventory
 

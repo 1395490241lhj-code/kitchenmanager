@@ -602,6 +602,9 @@ struct KitchenManagerApp: App {
                     #if DEBUG
                     guard !Self.isUnitTestHost else { return }
                     #endif
+                    // After the first frame for the same Phase B3 reason, not
+                    // in `init`: lets a cooking timer ring while the app is open.
+                    CookingTimerNotificationDelegate.install()
                     PantryRestockNotificationScheduler.syncInitialIfNeeded(
                         for: kitchenStore.inventory
                     )

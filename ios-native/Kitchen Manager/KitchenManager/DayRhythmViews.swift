@@ -229,7 +229,7 @@ struct TodayRhythmSheet: View {
 // MARK: - Weekly settings page
 
 /// Settings → 每周用餐节奏. One row per weekday, Monday first, each a native
-/// menu picker — the same control 显示模式 and 菜谱库模式 already use.
+/// menu picker — the same control 显示模式 already uses.
 struct WeeklyRhythmSettingsView: View {
     @EnvironmentObject private var dayRhythmStore: DayRhythmStore
 

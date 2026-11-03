@@ -47,12 +47,19 @@ struct InventoryConsumptionDraft: Identifiable, Hashable {
     var sourceRecipeNames: [String]
     /// Stock that matched by name but whose unit cannot be converted to the
     /// recipe's, in the stock's own unit (for example "1 份"). Non-nil means
-    /// this row deducts nothing.
+    /// this row deducts nothing in the recipe's unit; it deducts only an
+    /// amount typed in `manualStockUnit`, when that is set.
     var unconvertibleStockText: String? = nil
     /// The status of a status-tracked staple that is the only stock matching
     /// this line (有货 / 快没了). Non-nil means this row deducts nothing: the
     /// staple holds a status, not a count.
     var statusStapleText: String? = nil
+    /// Set with `manualStockQuantity` when that unconvertible stock is all in
+    /// one unit (1 份 against 2 个): the row can be switched on and deducts the
+    /// amount typed in this unit. Nil for any other row.
+    var manualStockUnit: String? = nil
+    /// The stock held in `manualStockUnit`, summed across its batches.
+    var manualStockQuantity: Double? = nil
 }
 
 // MARK: - Planner
@@ -132,6 +139,13 @@ struct InventoryConsumptionPlanner {
                 draft.currentQuantity = Self.availableQuantity(for: draft, items: matched)
                 if draft.currentQuantity == nil, draft.requiredUnit != nil {
                     draft.unconvertibleStockText = Self.stockText(matched)
+                    // All of it in one unit: the user can say how much of that
+                    // unit was used. Several units would need one amount each.
+                    let units = Set(matched.map(\.unit))
+                    if units.count == 1, let unit = units.first, !unit.trimmingCharacters(in: .whitespaces).isEmpty {
+                        draft.manualStockUnit = unit
+                        draft.manualStockQuantity = matched.reduce(0) { $0 + $1.quantity }
+                    }
                 }
             } else if let staple = statusStaples.first {
                 // Still in stock for every presence reader (Home readiness counts
@@ -166,8 +180,11 @@ struct InventoryConsumptionPlanner {
             } else if let stock = draft.unconvertibleStockText {
                 // A count of 个 says nothing about how much of 1 份 it is. The
                 // row used to show 库存 - / 使用量 0 / 剩 0 and deduct nothing
-                // without saying so; it now says so and stays out of the deduction.
-                let mismatch = "库存是 \(stock)，和菜谱的单位不同，无法换算，未扣减；需要时请在库存中手动调整"
+                // without saying so; it now says so and stays out of the deduction
+                // unless the user switches it on and types an amount in the
+                // stock's own unit.
+                let mismatch = draft.manualStockUnit.map { "库存按「\($0)」记，和菜谱单位不同。要扣减，请填写用掉几\($0)。" }
+                    ?? "库存是 \(stock)，和菜谱的单位不同，无法换算，未扣减；需要时请在库存中手动调整"
                 draft.warning = draft.warning.map { "\($0)；\(mismatch)" } ?? mismatch
                 draft.consumedQuantity = nil
                 draft.resultingQuantity = nil
@@ -957,9 +974,10 @@ struct CookConsumptionConfirmationView: View {
                     }
                 }
             }
-            // Nothing to deduct in a unit the stock is not held in, nor from a
-            // staple that holds a status instead of a count.
-            .disabled(draft.wrappedValue.unconvertibleStockText != nil || draft.wrappedValue.statusStapleText != nil)
+            // Not for stock held in several units the recipe's cannot be
+            // converted to, nor for a staple that holds a status instead of a
+            // count (see `allowsSelection`).
+            .disabled(!draft.wrappedValue.allowsSelection)
 
             if let status = draft.wrappedValue.statusStapleText {
                 HStack {
@@ -983,10 +1001,32 @@ struct CookConsumptionConfirmationView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                Label("单位不同，未扣减", systemImage: "minus.circle")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("consumption.\(draft.wrappedValue.id).notDeducted")
+                if let unit = draft.wrappedValue.manualStockUnit {
+                    HStack {
+                        Text("使用量")
+                        DecimalQuantityField("数量", quantity: draft.consumedQuantity)
+                            .frame(maxWidth: 80)
+                        Text(unit)
+                    }
+                    .onChange(of: draft.wrappedValue.consumedQuantity) {
+                        draft.wrappedValue.noteConsumedQuantityEdited()
+                    }
+                }
+                switch draft.wrappedValue.unconvertibleRowNote {
+                case .remaining(let remaining):
+                    Text("扣减后剩 \(quantityText(remaining)) \(draft.wrappedValue.manualStockUnit ?? "")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .needsAmount:
+                    Label("填写使用量后扣减", systemImage: "square.and.pencil")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                case .notDeducted:
+                    Label("单位不同，未扣减", systemImage: "minus.circle")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("consumption.\(draft.wrappedValue.id).notDeducted")
+                }
             } else if draft.wrappedValue.matchedInventoryID != nil {
                 HStack {
                     Text("需要 \(quantityText(draft.wrappedValue.requiredQuantity)) \(draft.wrappedValue.requiredUnit ?? "")")
@@ -998,7 +1038,7 @@ struct CookConsumptionConfirmationView: View {
 
                 HStack {
                     Text("使用量")
-                    ConsumedQuantityField(quantity: draft.consumedQuantity)
+                    DecimalQuantityField("数量", quantity: draft.consumedQuantity)
                         .frame(maxWidth: 80)
                     Text(draft.wrappedValue.requiredUnit ?? "")
                     Spacer()
@@ -1098,44 +1138,60 @@ struct CookConsumptionConfirmationView: View {
 }
 
 extension InventoryConsumptionDraft {
+    /// The note under a row whose stock is in a unit the recipe's cannot be
+    /// converted to.
+    enum UnconvertibleRowNote: Equatable {
+        /// Switched off, or the stock is held in several units: 单位不同，未扣减.
+        case notDeducted
+        /// A manual-unit row switched on with no amount yet.
+        case needsAmount
+        /// A manual-unit row that deducts: what is left, in the stock's unit.
+        case remaining(Double)
+    }
+
+    var unconvertibleRowNote: UnconvertibleRowNote {
+        guard manualStockUnit != nil, isSelected else { return .notDeducted }
+        guard let consumed = consumedQuantity, consumed > 0, let remaining = remainingAfterDeduction else { return .needsAmount }
+        return .remaining(remaining)
+    }
+
+    /// A manual-unit row starts switched off. A positive amount typed into it
+    /// says the member means it, so the row switches on; clearing the amount
+    /// to retype leaves the switch as it is.
+    mutating func noteConsumedQuantityEdited() {
+        guard manualStockUnit != nil, let consumed = consumedQuantity, consumed > 0 else { return }
+        isSelected = true
+    }
+    /// Whether the row's toggle can be switched on. Not for a staple that
+    /// holds a status instead of a count, nor for unconvertible stock held in
+    /// several units: one typed amount cannot say how much of each was used.
+    var allowsSelection: Bool {
+        statusStapleText == nil && (unconvertibleStockText == nil || manualStockUnit != nil)
+    }
+
     /// What the row leaves in stock, from the amount on screen. `nil` when the
     /// amount is cleared: that row deducts nothing, so it must not keep showing
-    /// the remainder the planner originally estimated.
+    /// the remainder the planner originally estimated. A row typed in the
+    /// stock's own unit counts down that unit's stock.
     var remainingAfterDeduction: Double? {
-        guard let current = currentQuantity, let consumed = consumedQuantity else { return nil }
+        guard let current = currentQuantity ?? manualStockQuantity, let consumed = consumedQuantity else { return nil }
         return max(0, current - consumed)
     }
 
-    /// Reads a typed 使用量. Empty or unreadable text is "no amount" (`nil`);
-    /// a comma decimal separator is accepted as well as a point.
-    static func enteredQuantity(from text: String) -> Double? {
-        let cleaned = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+    /// Reads a typed amount. Empty or unreadable text is "no amount" (`nil`);
+    /// a comma decimal separator is accepted as well as a point. Where the
+    /// point is the decimal separator, a pasted grouped amount (1,000 or
+    /// 12,500.5) keeps its value, as the `TextField(value:format:)` boxes
+    /// this replaced read it.
+    static func enteredQuantity(from text: String, locale: Locale = .current) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let isGrouped = locale.decimalSeparator != ","
+            && trimmed.wholeMatch(of: /\d{1,3}(,\d{3})+(\.\d*)?/) != nil
+        let cleaned = isGrouped
+            ? trimmed.replacingOccurrences(of: ",", with: "")
+            : trimmed.replacingOccurrences(of: ",", with: ".")
         guard let value = Double(cleaned), value.isFinite, value >= 0 else { return nil }
         return value
-    }
-}
-
-/// The 使用量 field. A `TextField(value:format:)` commits only on return or
-/// when focus leaves, and the decimal pad has no return key, so tapping
-/// 更新冰箱 straight after typing could deduct the old amount. This writes the
-/// amount through on every keystroke instead.
-private struct ConsumedQuantityField: View {
-    @Binding var quantity: Double?
-    @State private var text: String
-
-    init(quantity: Binding<Double?>) {
-        _quantity = quantity
-        _text = State(initialValue: quantity.wrappedValue.map {
-            $0.formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
-        } ?? "")
-    }
-
-    var body: some View {
-        TextField("数量", text: $text)
-            .keyboardType(.decimalPad)
-            .onChange(of: text) { _, typed in
-                quantity = InventoryConsumptionDraft.enteredQuantity(from: typed)
-            }
     }
 }
 

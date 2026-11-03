@@ -96,14 +96,14 @@ final class HomeRecommendationStoreTests: XCTestCase {
         }
     }
 
-    private func recipe(_ id: String, title: String) -> Recipe {
+    private func recipe(_ id: String, title: String, ingredients: [String] = ["番茄"]) -> Recipe {
         Recipe(
             id: id,
             title: title,
             cookingTime: 20,
             difficulty: "简单",
             tags: [],
-            ingredients: ["番茄"],
+            ingredients: ingredients,
             seasonings: [],
             steps: ["完成"]
         )
@@ -403,5 +403,92 @@ final class HomeRecommendationStoreTests: XCTestCase {
         store.loadDefaultRecommendations(recipes: [recipe("lib-a", title: "宫保鸡丁")], inventory: [], expiringIngredients: [])
 
         XCTAssertEqual(store.recommendedRecipes.map(\.id), searched)
+    }
+
+    // MARK: Defaults follow the inventory
+
+    private var inventoryLibrary: [Recipe] {
+        [
+            recipe("greens", title: "清炒时蔬", ingredients: ["青菜"]),
+            recipe("eggs", title: "番茄炒蛋", ingredients: ["番茄", "鸡蛋"])
+        ]
+    }
+
+    /// A new member records food and comes back to Home. The defaults were
+    /// ranked against an empty kitchen, so they have to be ranked again.
+    func testUntouchedDefaultsAreRerankedWhenInventoryChanges() {
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["greens", "eggs"])
+
+        store.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: ["番茄", "鸡蛋"], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.first?.id, "eggs")
+
+        // Not once only: every later change re-ranks while nobody touched them,
+        // and the expiring names count as part of what changed.
+        store.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: ["番茄", "鸡蛋", "青菜"], expiringIngredients: ["青菜"])
+        XCTAssertEqual(store.recommendedRecipes.first?.id, "greens")
+    }
+
+    func testDefaultsAreNotRerankedWhenInventorySignatureIsUnchanged() {
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: ["番茄", "鸡蛋"], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["eggs", "greens"])
+
+        // Same food in another order and spacing. A re-rank would put the new
+        // recipe first, so an unchanged list proves nothing was recomputed.
+        let grown = [recipe("omelette", title: "番茄煎蛋", ingredients: ["鸡蛋", "番茄"])] + inventoryLibrary
+        store.loadDefaultRecommendations(recipes: grown, inventory: [" 鸡蛋", "番茄", "番茄"], expiringIngredients: [])
+
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["eggs", "greens"])
+    }
+
+    func testDefaultsStayWhenInventoryChangesAfterMemberActedOnThem() async {
+        let stocked = ["番茄", "鸡蛋"]
+
+        let browsed = HomeRecommendationStore()
+        browsed.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        browsed.noteRecommendationsBrowsed()
+        browsed.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
+        XCTAssertEqual(browsed.recommendedRecipes.map(\.id), ["greens", "eggs"], "opened or added to today")
+
+        let swiped = HomeRecommendationStore()
+        swiped.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        swiped.currentRecommendationIndex = 1
+        swiped.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
+        XCTAssertEqual(swiped.recommendedRecipes.map(\.id), ["greens", "eggs"])
+        XCTAssertEqual(swiped.currentRecommendationIndex, 1)
+
+        let removed = HomeRecommendationStore()
+        removed.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        removed.removeRecommendation(id: "greens")
+        removed.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
+        XCTAssertEqual(removed.recommendedRecipes.map(\.id), ["eggs"])
+
+        // The member erased the query by hand, so only the touched state
+        // keeps the search result on screen.
+        let searched = HomeRecommendationStore(aiService: StubAIRecommendationService(recommendations: []))
+        searched.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        searched.searchQuery = "清炒"
+        await searched.searchRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(searched.recommendedRecipes.map(\.id), ["greens"])
+        searched.searchQuery = ""
+        searched.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
+        XCTAssertEqual(searched.recommendedRecipes.map(\.id), ["greens"])
+
+        let cleared = HomeRecommendationStore(aiService: StubAIRecommendationService(recommendations: []))
+        cleared.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        cleared.searchQuery = "清炒"
+        await cleared.searchRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        cleared.clearSearch(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        cleared.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
+        XCTAssertEqual(cleared.recommendedRecipes.map(\.id), ["greens", "eggs"])
+
+        let generated = [RecipeRecommendation(recipe: recipe("ai-one", title: "AI 菜一"), reason: nil, source: .ai)]
+        let regenerated = HomeRecommendationStore(aiService: StubAIRecommendationService(recommendations: generated))
+        regenerated.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: [], expiringIngredients: [])
+        await regenerated.generateNewRecommendations(inventory: [], expiringIngredients: [])
+        regenerated.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
+        XCTAssertEqual(regenerated.recommendedRecipes.map(\.id), ["ai-one"], "换一批")
     }
 }

@@ -218,7 +218,8 @@ struct HomeView: View {
                                 recommendationStore.noteRecommendationsBrowsed()
                                 selectedRecipe = $0
                             },
-                            onRegenerate: regenerateHomeRecommendations
+                            onRegenerate: regenerateHomeRecommendations,
+                            onBrowse: recommendationStore.noteRecommendationsBrowsed
                         )
                     }
                 }
@@ -312,14 +313,10 @@ struct HomeView: View {
         }
         // An explicit selection + `navigationDestination(item:)`, never
         // `NavigationLink(value:)` — see the ExpirySheet note above for why
-        // that form is avoided here. The missing-recipe fallback keeps a
-        // plan whose recipe is gone intact instead of dead-ending.
+        // that form is avoided here. The destination keeps a plan whose
+        // recipe is not loaded or is gone intact instead of dead-ending.
         .navigationDestination(item: $selectedPlan) { plan in
-            if let recipe = recipeStore.recipe(id: plan.recipeID) {
-                RecipeDetailView(recipe: recipe, plan: plan)
-            } else {
-                ContentUnavailableView("菜谱暂不可用", systemImage: "book.closed", description: Text(MealPlanItem.missingRecipeExplanation))
-            }
+            PlannedMealRecipeDestination(plan: plan)
         }
         .navigationDestination(item: $selectedRecipe) { recipe in
             RecipeDetailView(recipe: recipe)
@@ -379,6 +376,12 @@ struct HomeView: View {
 #if DEBUG
             recommendationStore.applyHomeUITestStateIfRequested()
 #endif
+        }
+        // Food recorded while Home stays on screen (a sheet over it). Returning
+        // from another tab re-runs the task above; the store re-ranks only
+        // defaults the member has not touched.
+        .onChange(of: recommendationInventorySignature) {
+            loadDefaultRecommendationsIfNeeded()
         }
     }
 
@@ -616,6 +619,15 @@ struct HomeView: View {
         )
     }
 
+    /// The same names `loadDefaultRecommendationsIfNeeded` passes, in the
+    /// store's own normalized form.
+    private var recommendationInventorySignature: HomeRecommendationStore.InventorySignature {
+        HomeRecommendationStore.InventorySignature(
+            inventory: kitchenStore.recipeCreationInventory.map(\.name),
+            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
+        )
+    }
+
     private func regenerateHomeRecommendations() {
         Task {
             await recommendationStore.generateNewRecommendations(
@@ -646,6 +658,7 @@ struct HomeView: View {
     }
 
     private func addRecommendationToPlan(_ recipe: Recipe) {
+        recommendationStore.noteRecommendationsBrowsed()
         let outcome = HomeRecommendationPlanning.addToToday(
             recipe,
             recipeStore: recipeStore,
@@ -768,7 +781,8 @@ struct HomeView: View {
                         recommendationStore.noteRecommendationsBrowsed()
                         selectedRecipe = $0
                     },
-                    onRegenerate: regenerateHomeRecommendations
+                    onRegenerate: regenerateHomeRecommendations,
+                    onBrowse: recommendationStore.noteRecommendationsBrowsed
                 )
 
             case .quickMeal:
@@ -1389,6 +1403,10 @@ private struct HomeRecommendationSection: View {
     let onAddToToday: (Recipe) -> Void
     let onViewRecipe: (Recipe) -> Void
     let onRegenerate: () -> Void
+    /// The member moved the shelf past its first card.
+    var onBrowse: () -> Void = {}
+
+    @State private var shelfPosition: RecipeRecommendation.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1416,6 +1434,11 @@ private struct HomeRecommendationSection: View {
                 VStack(alignment: .leading, spacing: 12) {
                     ForEach(Array(recommendations.prefix(5))) { recommendation in
                         recommendationCard(recommendation)
+                            // Stacked cards are read by scrolling the page, so
+                            // a later card coming into view counts as browsing.
+                            .onScrollVisibilityChange(threshold: 0.5) { isVisible in
+                                if isVisible, recommendation.id != recommendations.first?.id { onBrowse() }
+                            }
                     }
                     regenerateButton
                 }
@@ -1438,6 +1461,12 @@ private struct HomeRecommendationSection: View {
                 }
                 .scrollIndicators(.hidden)
                 .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: $shelfPosition)
+                // A card the member scrolled to must not be re-ranked away
+                // under them when the inventory changes.
+                .onChange(of: shelfPosition) { _, position in
+                    if let position, position != recommendations.first?.id { onBrowse() }
+                }
                 .accessibilityIdentifier("home.recommendation.shelf")
             }
 
