@@ -10,6 +10,7 @@ import {
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=237';
 import {
   daysBetween,
+  getCookableInventory,
   getStockCoverageAnalysis,
   remainingDays
 } from './inventory.js?v=237';
@@ -166,6 +167,11 @@ function daysSince(date, today) {
   return Number.isFinite(days) ? Math.max(0, days) : null;
 }
 
+// 今天到期或 3 天内到期才算「要先用掉」；已过期的食材不再参与做菜的优先级。
+function isUseSoon(days) {
+  return days >= 0 && days <= 3;
+}
+
 function formatDaysText(days) {
   if (days < 0) return '已过期';
   if (days === 0) return '今天到期';
@@ -191,6 +197,7 @@ function explainMissingNames(missing, limit = 3) {
 }
 
 export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) {
+  inv = getCookableInventory(inv);
   const list = fallbackItems || explodeCombinedItems((pack.recipe_ingredients || {})[recipe.id] || []);
   // 用 fallbackItems（而非已展开的 list）取核心食材：默认路径才能命中按原始用料数组
   // 记忆化的缓存。两者推导出的核心食材完全一致（fallbackItems 为空时内部会展开同一份用料）。
@@ -213,7 +220,7 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
         const match = analysis.matchedItems[0];
         const days = remainingDays(match);
         matches.push({ recipeItem: ing.item, inventoryItem: match.name, days, item: ing });
-        if (days <= 3) {
+        if (isUseSoon(days)) {
           expiringMatches.push({
             name: match.name,
             recipeItem: ing.item,
@@ -225,7 +232,7 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
         const match = analysis.matchedItems[0];
         const days = remainingDays(match);
         matches.push({ recipeItem: ing.item, inventoryItem: match.name, days, item: ing });
-        if (days <= 3) {
+        if (isUseSoon(days)) {
           expiringMatches.push({
             name: match.name,
             recipeItem: ing.item,
@@ -236,7 +243,7 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
       } else {
         const match = analysis.matchedItems[0];
         const days = remainingDays(match);
-        if (days <= 3) {
+        if (isUseSoon(days)) {
           expiringMatches.push({
             name: match.name,
             recipeItem: ing.item,
@@ -255,7 +262,7 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
     } else if (analysis.confidence === 'unit-mismatch') {
       const match = analysis.matchedItems[0];
       const days = remainingDays(match);
-      if (days <= 3) {
+      if (isUseSoon(days)) {
         expiringMatches.push({
           name: match.name,
           recipeItem: ing.item,
@@ -277,7 +284,7 @@ export function analyzeRecipeInventory(recipe, pack, inv, fallbackItems = null) 
     } else if (analysis.confidence === 'status-only') {
       const match = analysis.matchedItems[0];
       const days = remainingDays(match);
-      if (days <= 3) {
+      if (isUseSoon(days)) {
         expiringMatches.push({
           name: match.name,
           recipeItem: ing.item,
@@ -762,7 +769,7 @@ export function scoreRecipe(recipe, pack, inv, context = {}) {
     scoreParts.uncertainBonus = (analysis.uncertain || []).length * 4;
     scoreParts.almostBonus = (analysis.matchCount > 0 || (analysis.uncertain && analysis.uncertain.length > 0)) && analysis.missing.length > 0 && analysis.missing.length <= 2 ? 8 : 0;
     scoreParts.expiringBonus = Math.min(54, analysis.expiringMatches.reduce((sum, item) => {
-      if (item.days <= 0) return sum + 24;
+      if (item.days === 0) return sum + 24;
       if (item.days === 1) return sum + 18;
       return sum + 12;
     }, 0));
@@ -1340,10 +1347,10 @@ export function getCleanFridgeRecommendations(pack, inv, context = {}) {
   };
   
   // 1. Find priority items
-  const priorityItems = (inv || []).filter(item => {
+  const priorityItems = getCookableInventory(inv).filter(item => {
     if ((item.kind || 'raw') !== 'dry') {
       const days = remainingDays(item);
-      if (days <= 3) return true;
+      if (isUseSoon(days)) return true;
     }
     if (item.stockStatus === 'low' && (+item.qty || 0) > 0) return true;
     if (item.opened || item.isOpened) return true;
@@ -1378,9 +1385,9 @@ export function getCleanFridgeRecommendations(pack, inv, context = {}) {
       const isDry = (pItem.kind || 'raw') === 'dry';
       const days = isDry ? 999 : remainingDays(pItem);
 
-      if (!isDry && days <= 0) {
+      if (!isDry && days === 0) {
         urgencyScore = 50;
-        reasonText = `${pItem.name}已过期或今日到期`;
+        reasonText = `${pItem.name}今日到期`;
       } else if (!isDry && days === 1) {
         urgencyScore = 40;
         reasonText = `${pItem.name} 1 天内到期`;
@@ -1405,7 +1412,7 @@ export function getCleanFridgeRecommendations(pack, inv, context = {}) {
 
     reasons.sort((a, b) => {
       const getPriority = r => {
-        if (r.reason.includes('已过期') || r.reason.includes('今日到期') || r.days <= 0) return 3;
+        if (r.days === 0) return 3;
         if (r.days <= 3) return 2;
         return 1;
       };
@@ -1414,7 +1421,7 @@ export function getCleanFridgeRecommendations(pack, inv, context = {}) {
 
     const primary = reasons[0];
     let expPart = '';
-    if (primary.days <= 0) {
+    if (primary.days === 0) {
       expPart = `${primary.name}今天到期`;
     } else if (primary.days === 2) {
       expPart = `${primary.name} 2 天后到期`;
@@ -1428,7 +1435,7 @@ export function getCleanFridgeRecommendations(pack, inv, context = {}) {
     const missingList = baseResult.missing;
     if (missingList.length === 1) {
       reasonText = `${expPart}，只缺${missingList[0].name}`;
-    } else if (primary.days <= 0) {
+    } else if (primary.days === 0) {
       reasonText = `${expPart}，建议优先使用`;
     } else {
       const matchedIngs = [

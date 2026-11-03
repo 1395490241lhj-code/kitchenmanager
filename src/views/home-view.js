@@ -2,7 +2,7 @@ import { S, todayISO } from '../storage.js?v=237';
 import { PLAN_COPY } from '../copy.js?v=237';
 import { getTodayPendingPlanRows } from '../plan-selectors.js?v=237';
 import { buildCatalog, getCanonicalName, explodeCombinedItems, guessKitchenUnit } from '../ingredients.js?v=237';
-import { isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=237';
+import { getCookableInventory, isInventoryAvailable, loadInventory, remainingDays, saveInventory } from '../inventory.js?v=237';
 import { addShoppingItem, loadShoppingItems } from '../shopping.js?v=237';
 import {
   addMissingRecipeIngredientsToShopping,
@@ -2412,7 +2412,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
       try {
         const draft = await withTimeout(callAiCreativeRecipeByIngredients({
           targets: targetNames,
-          inventoryNames: (inv || []).map(x => x && x.name).filter(Boolean),
+          inventoryNames: getCookableInventory(inv).map(x => x && x.name).filter(Boolean),
           localRecipeNames: localCards.map(c => c.name).filter(Boolean),
           preferredDishMode: nextMode.key,
           avoidedRecipeNames,
@@ -2441,7 +2441,7 @@ function createWeatherPanel(pack, inv, { onRoute = () => {}, inspirationCards = 
     if (regenerate) targetDishDraft = null;
     switchTab('recs');
     try {
-      const invNames = (inv || []).map(x => x && x.name).filter(Boolean).join('、');
+      const invNames = getCookableInventory(inv).map(x => x && x.name).filter(Boolean).join('、');
       const draft = await withTimeout(callAiSearchRecipe(query, invNames), 30000, 'AI 响应超时');
       if (requestId !== targetDishRequestId) return;
       targetDishDraft = draft;

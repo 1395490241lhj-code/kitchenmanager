@@ -322,7 +322,7 @@ final class AIRecipeGeneratorStore: ObservableObject {
         didPrepareInventory = true
         selectedInventoryIDs = Set(
             inventory
-                .filter { $0.isAvailable && ($0.remainingDays ?? 999) <= 3 }
+                .filter { $0.isAvailable && $0.isExpiringSoon && !$0.isExpired }
                 .map(\.id)
         )
     }
@@ -330,7 +330,7 @@ final class AIRecipeGeneratorStore: ObservableObject {
     func selectAllExpiring(_ inventory: [InventoryItem]) {
         selectedInventoryIDs.formUnion(
             inventory
-                .filter { $0.isAvailable && ($0.remainingDays ?? 999) <= 3 }
+                .filter { $0.isAvailable && $0.isExpiringSoon && !$0.isExpired }
                 .map(\.id)
         )
     }

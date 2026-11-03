@@ -42,10 +42,13 @@ nonisolated struct AIInventoryContext: Codable, Equatable, Sendable {
     /// When this read happened. Provenance for the turn, never a licence to
     /// reuse the payload on a later one.
     var readAt: Date
-    /// Everything currently on hand.
+    /// Everything currently on hand that can still be cooked with.
     var available: [AIInventoryItemContext]
-    /// The expiring subset, as the app itself defines expiring.
+    /// The subset due today or soon, as the app itself defines expiring.
     var expiring: [AIInventoryItemContext]
+    /// Still in the fridge but past its date: something to check or throw
+    /// away, never something to cook with.
+    var expired: [AIInventoryItemContext] = []
 }
 
 /// One ordinary planned meal. `planID` is the canonical `MealPlanItem.id`, which
@@ -251,10 +254,12 @@ final class KitchenConversationDomainTools: AIConversationDomainTooling {
     /// and a second threshold implemented here would drift from the one the user
     /// sees on the Inventory screen.
     func inventoryContext(now: Date) -> AIInventoryContext {
-        AIInventoryContext(
+        let onHand = kitchenStore.availableInventory
+        return AIInventoryContext(
             readAt: now,
-            available: kitchenStore.availableInventory.map(Self.itemContext),
-            expiring: kitchenStore.expiringItems.map(Self.itemContext)
+            available: onHand.filter { !$0.isExpired }.map(Self.itemContext),
+            expiring: kitchenStore.expiringItems.filter { !$0.isExpired }.map(Self.itemContext),
+            expired: onHand.filter(\.isExpired).map(Self.itemContext)
         )
     }
 

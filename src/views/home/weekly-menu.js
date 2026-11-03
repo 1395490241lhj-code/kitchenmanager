@@ -5,7 +5,7 @@
  */
 import { S, todayISO, addDaysISO } from '../../storage.js?v=237';
 import { getCanonicalName, guessKitchenUnit } from '../../ingredients.js?v=237';
-import { isInventoryAvailable, remainingDays } from '../../inventory.js?v=237';
+import { getCookableInventory, isInventoryAvailable, isUseSoonItem, remainingDays } from '../../inventory.js?v=237';
 import { addShoppingItem, loadShoppingItems } from '../../shopping.js?v=237';
 import { hasRecipeMethod, isFavoriteRecipe, rankRecipesForRecommendation } from '../../recommendations.js?v=237';
 import { classifyRecipeIngredient } from '../../utils/recipe-sanitizer.js?v=237';
@@ -1049,7 +1049,7 @@ function getWeeklyInventoryPayload(inv) {
       name: item.name || '',
       qty: item.qty ?? '',
       unit: item.unit || '',
-      expiring: isExpiryTracked(item) && remainingDays(item) <= 3,
+      expiring: isUseSoonItem(item),
       remainingDays: isExpiryTracked(item) ? remainingDays(item) : null
     }))
     .filter(item => item.name)
@@ -1108,6 +1108,7 @@ export function buildAiWeeklyMenuPlanPayload(pack, inv, {
 }) {
   const safeMealCount = normalizeWeeklyMealCount(mealCount, 4);
   const safeDishesPerMeal = normalizeWeeklyDishesPerMeal(dishesPerMeal, 2);
+  const cookable = getCookableInventory(inv);
   return {
     mealsCount: safeMealCount,
     dishesPerMeal: safeDishesPerMeal,
@@ -1121,10 +1122,10 @@ export function buildAiWeeklyMenuPlanPayload(pack, inv, {
       lunchboxFriendly: Boolean(priorities.lunchbox)
     },
     userRequest,
-    inventory: getWeeklyInventoryPayload(inv),
-    expiringItems: getWeeklyExpiringPayload(inv),
+    inventory: getWeeklyInventoryPayload(cookable),
+    expiringItems: getWeeklyExpiringPayload(cookable),
     favoriteRecipes: getWeeklyFavoriteRecipesPayload(pack),
-    localCandidateRecipes: getWeeklyCandidatePayload(pack, inv, safeMealCount, safeDishesPerMeal, priorities),
+    localCandidateRecipes: getWeeklyCandidatePayload(pack, cookable, safeMealCount, safeDishesPerMeal, priorities),
     existingPlan: getWeeklyExistingPlanPayload(pack)
   };
 }

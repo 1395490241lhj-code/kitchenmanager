@@ -34,6 +34,29 @@ export function isInventoryAvailable(item) {
   return item && item.stockStatus !== 'empty' && (+item.qty || 0) > 0;
 }
 
+// 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
+const EXPIRY_EXCLUDE_NAMES = new Set(['鸡蛋', '牛奶']);
+
+export function isExpiryTracked(item) {
+  return isInventoryAvailable(item) && !EXPIRY_EXCLUDE_NAMES.has(getCanonicalName(item.name || ''));
+}
+
+// 已过期的食材留给库存页提醒处理，不能再用来决定做什么菜。干货不按天数判过期。
+export function isExpiredItem(item) {
+  return isExpiryTracked(item) && (item.kind || 'raw') !== 'dry' && remainingDays(item) < 0;
+}
+
+export function isUseSoonItem(item) {
+  const days = remainingDays(item);
+  return isExpiryTracked(item) && days >= 0 && days <= 3;
+}
+
+// 能拿来做菜的库存：去掉已过期的行。菜谱覆盖、推荐和发给 AI 的库存都从这里取，
+// 与 iOS 的 recipeCreationInventory 口径一致。
+export function getCookableInventory(inv) {
+  return (inv || []).filter(item => !isExpiredItem(item));
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
  * 断货物资智能生命周期（TTL 自蒸发）
  *  - 任一会改变存量/档位的操作后调用 syncOutOfStockTimestamp：

@@ -343,13 +343,15 @@ final class ConversationContextAssemblerTests: XCTestCase {
     func testRealExpiringInventoryPreservesUrgencyOrder() throws {
         let (store, tools) = realTools()
         let today = Date()
-        store.inventory = [("a-later", 2), ("z-urgent", -2)].map { name, days in
+        store.inventory = [("a-later", 2), ("z-urgent", 0), ("x-gone", -2)].map { name, days in
             InventoryItem(name: name, quantity: 1, unit: "个",
                 expiryDate: Calendar.current.date(byAdding: .day, value: days, to: today))
         }
         XCTAssertEqual(tools.inventoryContext(now: now).expiring.map(\.name), ["z-urgent", "a-later"])
         let r = try prepare(tools)
         XCTAssertEqual(try rows(r, kind: .inventory, key: "expiring").compactMap { $0["name"] as? String }, ["z-urgent", "a-later"])
+        XCTAssertEqual(try rows(r, kind: .inventory, key: "expired").compactMap { $0["name"] as? String }, ["x-gone"],
+                       "expired food reaches the model only as something to deal with, not as the most urgent thing to cook")
         try assertUTF16Budgets(r)
     }
 
@@ -357,17 +359,20 @@ final class ConversationContextAssemblerTests: XCTestCase {
         let (store, tools) = realTools()
         let today = Date()
         let urgentNames = ["z-urgent", "y-next"] + (0..<18).map { "a-later-\($0)" }
-        // Deliberately store the least urgent first. Task4 supplies urgency order.
+        // Deliberately store the least urgent first. Task4 supplies urgency order:
+        // due today, then tomorrow, then the rest two or three days out.
         store.inventory = urgentNames.enumerated().reversed().map { index, name in
             InventoryItem(name: name, quantity: 1, unit: "个",
-                expiryDate: Calendar.current.date(byAdding: .day, value: index - 20, to: today))
+                expiryDate: Calendar.current.date(byAdding: .day, value: min(index, 3), to: today))
         }
-        XCTAssertEqual(tools.inventoryContext(now: now).expiring.map(\.name), urgentNames)
+        let domainOrder = tools.inventoryContext(now: now).expiring.map(\.name)
+        XCTAssertEqual(Set(domainOrder), Set(urgentNames))
+        XCTAssertEqual(Array(domainOrder.prefix(2)), ["z-urgent", "y-next"])
         let r = try prepare(tools)
         let included = try rows(r, kind: .inventory, key: "expiring").compactMap { $0["name"] as? String }
         XCTAssertGreaterThanOrEqual(included.count, 2)
         XCTAssertLessThan(included.count, urgentNames.count)
-        XCTAssertEqual(included, Array(urgentNames.prefix(included.count)))
+        XCTAssertEqual(included, Array(domainOrder.prefix(included.count)))
         XCTAssertEqual(Array(included.prefix(2)), ["z-urgent", "y-next"])
         XCTAssertTrue(r.liveContext.contains("\"partial\":true"))
         try assertUTF16Budgets(r)

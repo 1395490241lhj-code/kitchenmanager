@@ -2,6 +2,7 @@
 import { apiUrl as buildApiUrl, CUSTOM_AI } from './config.js?v=237';
 import { S } from './storage.js?v=237';
 import { getCanonicalName } from './ingredients.js?v=237';
+import { isExpiredItem } from './inventory.js?v=237';
 import { classifyRecipeIngredient } from './utils/recipe-sanitizer.js?v=237';
 import { splitMethodSteps } from './utils/method-steps.js?v=237';
 import {
@@ -188,11 +189,12 @@ export function normalizeAiIngredients(value) {
 
 // AI prompt 只接收稳定的库存食材名：优先复用小票/库存已有的标准化结果，
 // 避免把「青骨通菜」这类商品原始名直接拼进菜名。未能识别的普通名称再走
-// ingredients.js 的 canonical 别名，最后才保留原文作为兜底。
+// ingredients.js 的 canonical 别名，最后才保留原文作为兜底。已过期的库存行不算冰箱里能用的食材。
 export function normalizeAiInventoryNames(inventory = []) {
   const seen = new Set();
   const names = [];
   for (const item of (Array.isArray(inventory) ? inventory : [])) {
+    if (item && typeof item === 'object' && isExpiredItem(item)) continue;
     const raw = String(typeof item === 'string' ? item : item?.name || item?.item || '').trim();
     if (!raw) continue;
     const receipt = classifyReceiptCandidate({ name: raw, originalName: raw, rawText: raw });

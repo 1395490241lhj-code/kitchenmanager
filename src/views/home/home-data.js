@@ -3,19 +3,14 @@
  * 抽成共享模块：home-view 与 weekly-menu 都依赖它，若留在 home-view 会造成循环依赖。
  */
 import { S, todayISO } from '../../storage.js?v=237';
-import { getCanonicalName } from '../../ingredients.js?v=237';
-import { isInventoryAvailable, remainingDays } from '../../inventory.js?v=237';
+import { isUseSoonItem, remainingDays } from '../../inventory.js?v=237';
 
-// 到期提醒不统计鸡蛋、牛奶（它们按常备品状态管理，不看保质期）。
-const EXPIRY_EXCLUDE_NAMES = new Set(['鸡蛋', '牛奶']);
+export { isExpiryTracked } from '../../inventory.js?v=237';
 
-export function isExpiryTracked(item) {
-  return isInventoryAvailable(item) && !EXPIRY_EXCLUDE_NAMES.has(getCanonicalName(item.name || ''));
-}
-
+// 已过期的食材留给库存页提醒处理，不能再当作「要先用掉」去做菜。
 export function getExpiringItems(inv) {
   return [...(inv || [])]
-    .filter(item => isExpiryTracked(item) && remainingDays(item) <= 3)
+    .filter(isUseSoonItem)
     .sort((a, b) => remainingDays(a) - remainingDays(b))
     .slice(0, 4);
 }

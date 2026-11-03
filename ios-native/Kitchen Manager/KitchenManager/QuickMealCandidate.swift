@@ -134,14 +134,17 @@ extension PreparedComponentState {
 extension QuickMealCandidate {
     /// Everything that can take part, from both domains.
     ///
-    /// Inventory keeps its own rule. Prepared eligibility is per group, before
-    /// either meal policy selects or deduplicates linked sources.
+    /// Inventory keeps its own rule: in stock and not expired, because both
+    /// meal policies rank `isExpiringSoon` first and that window includes
+    /// expired rows. Prepared eligibility is per group, before either meal
+    /// policy selects or deduplicates linked sources; a batch's date is the
+    /// member's own finish-by plan, so it stays out of this rule.
     static func pool(
         inventory: [InventoryItem],
         preparedComponents: [PreparedComponent]
     ) -> [QuickMealCandidate] {
         let fromInventory = inventory
-            .filter(\.isAvailable)
+            .filter { $0.isAvailable && !$0.isExpired }
             .map(QuickMealCandidate.init(inventoryItem:))
         let fromPrepared = preparedComponents.filter(PreparedMealAvailability.isEligible)
             .map(QuickMealCandidate.init(preparedComponent:))
