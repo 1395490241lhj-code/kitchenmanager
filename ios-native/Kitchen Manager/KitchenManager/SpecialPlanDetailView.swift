@@ -73,7 +73,7 @@ struct SpecialPlanDetailView: View {
                 planSummary(plan)
                     .plannerRow()
             } footer: {
-                Text("时间、人数和要求由 AI 从你的描述里读出，没写到的会按常见情况补上；想改就重新描述一次。")
+                Text("由 AI 从你的描述里读出，没写到的按常见情况补上；想改就重新描述。")
                     .plannerFootnote()
             }
 
@@ -287,9 +287,6 @@ struct SpecialPlanDetailView: View {
             .plannerRow()
         } header: {
             KitchenSectionLabel(title: "菜单", count: plan.dishes.count, tint: KitchenTheme.textSecondary).plannerSectionHeader()
-        } footer: {
-            Text("菜品引用菜谱库，删除计划不会删除菜谱。")
-                .plannerFootnote()
         }
     }
 

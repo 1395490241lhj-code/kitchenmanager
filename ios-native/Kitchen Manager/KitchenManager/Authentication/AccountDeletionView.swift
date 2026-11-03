@@ -26,7 +26,7 @@ struct AccountDeletionView: View {
     var body: some View {
         Form {
             Section {
-                Text("删除账号会永久移除你的登录身份，并清除这台设备上的厨房数据，与「退出登录」不同——退出登录不会删除任何数据，仍可随时重新登录。")
+                Text("删除账号会永久移除你的登录身份，并清除这台设备上的厨房数据。退出登录则不会删除任何数据，仍可随时重新登录。")
             } header: {
                 Text("这与退出登录不同")
             }

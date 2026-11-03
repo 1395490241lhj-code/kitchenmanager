@@ -264,7 +264,7 @@ private struct PreparedComponentEditor: View {
                         .accessibilityIdentifier("prepared.editor.preparedAt")
                     DatePicker("建议吃完", selection: $draft.expiryDate, displayedComponents: .date)
                         .accessibilityIdentifier("prepared.editor.expiry")
-                } footer: { Text("默认日期只是根据状态和存放方式给的起点，可以按自己的判断修改。") }
+                }
                 #if DEBUG
                 if PreparedPortionGroupingUIFixture.simulateStaleEdit, let expected = draft.expected {
                     Button("模拟其他入口使用一份") { _ = store.consumePreparedPortion(id: expected.id) }

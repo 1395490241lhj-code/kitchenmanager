@@ -216,6 +216,10 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
             assertFullText(footer, contains: "清除后无法从备份恢复", variant, "clear-data footer")
             let tabBar = app.tabBars.firstMatch
             if tabBar.exists {
+                // `reveal` stops 40pt above the window edge, which can still be
+                // behind the taller tab bar; keep scrolling so the page end has
+                // to carry the footer clear of it.
+                for _ in 0..<3 where footer.frame.maxY > tabBar.frame.minY + 1 { app.swipeUp() }
                 XCTAssertLessThanOrEqual(footer.frame.maxY, tabBar.frame.minY + 1,
                                          "\(variant.name): footer \(footer.frame) under tab bar \(tabBar.frame)")
             }

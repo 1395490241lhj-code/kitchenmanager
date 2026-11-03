@@ -63,6 +63,14 @@ final class GuestMergeSummaryUI5B2BB2AUITests: XCTestCase {
         return target.label
     }
 
+    /// The supporting line sits under the confirm button, and a lazy Form only
+    /// builds it once it scrolls on screen, so reaching the button is not enough.
+    private func supportingCopy(_ app: XCUIApplication) -> String? {
+        let copy = element(app, "guestMergeConfirmSupportingCopy")
+        _ = scrollTo(app, copy, maxSwipes: 6)
+        return copy.exists ? copy.label : nil
+    }
+
     private func group(_ app: XCUIApplication, _ name: String) -> XCUIElement {
         element(app, "guestMergeReviewGroup-\(name)")
     }
@@ -287,7 +295,7 @@ final class GuestMergeSummaryUI5B2BB2AUITests: XCTestCase {
         let app = launchSummary("UITEST_MERGE_SUMMARY_ALL_SKIP")
         XCTAssertEqual(confirmButton(app).label, "完成，不上传任何条目")
         XCTAssertEqual(
-            value(app, "guestMergeConfirmSupportingCopy"),
+            supportingCopy(app),
             "本次不会上传任何库存；家庭和本机数据保持现在的样子。"
         )
         XCTAssertFalse(confirmButton(app).label.contains("确认合并库存"))
@@ -311,7 +319,7 @@ final class GuestMergeSummaryUI5B2BB2AUITests: XCTestCase {
         XCTAssertEqual(value(app, "guestMergeSummaryStillNeedsDecision"), "仍待处理, 2 条")
         XCTAssertEqual(confirmButton(app).label, "先合并其余 3 条")
         XCTAssertEqual(
-            value(app, "guestMergeConfirmSupportingCopy"),
+            supportingCopy(app),
             "还有 2 条待处理，本次不会上传这些条目。"
         )
         attach(app, named: "summary-unresolved")
@@ -323,7 +331,7 @@ final class GuestMergeSummaryUI5B2BB2AUITests: XCTestCase {
         XCTAssertEqual(title, "确认当前处理结果")
         XCTAssertFalse(title.contains("0 条"), "不得出现“先合并其余 0 条”：\(title)")
         XCTAssertEqual(
-            value(app, "guestMergeConfirmSupportingCopy"),
+            supportingCopy(app),
             "目前没有可上传条目；确认后仍有 2 条冲突需要处理。"
         )
         attach(app, named: "summary-zero-upload-unresolved")
@@ -332,10 +340,10 @@ final class GuestMergeSummaryUI5B2BB2AUITests: XCTestCase {
     func testOrdinaryMergeCopyDoesNotRegress() throws {
         let app = launchSummary("UITEST_MERGE_SUMMARY_NO_CONFLICT")
         XCTAssertEqual(confirmButton(app).label, "确认合并库存")
-        XCTAssertEqual(value(app, "guestMergeConfirmSupportingCopy"), "计划新增 2 条、计划更新 1 条。")
-        // The long-standing preview footnotes are untouched.
+        XCTAssertEqual(supportingCopy(app), "计划新增 2 条、计划更新 1 条。")
+        // The preview's trust footnotes stay in place.
         XCTAssertTrue(app.staticTexts["只合并库存，不会上传购物清单、计划或菜谱。"].exists)
-        XCTAssertTrue(app.staticTexts["可以随时取消，也可以稍后处理。"].exists)
+        XCTAssertTrue(app.staticTexts["本步骤不会写入云端；确认后如有冲突不会自动覆盖，需要逐条选择。"].exists)
         // No unresolved conflicts, so no 仍待处理 row.
         XCTAssertFalse(element(app, "guestMergeSummaryStillNeedsDecision").exists)
     }
@@ -402,7 +410,7 @@ final class GuestMergeSummaryUI5B2BB2AUITests: XCTestCase {
         // must not reuse the definite first-pass wording nor invent a remaining
         // count.
         XCTAssertEqual(confirmButton(app).label, "确认当前处理计划")
-        let copy = try XCTUnwrap(value(app, "guestMergeConfirmSupportingCopy"))
+        let copy = try XCTUnwrap(supportingCopy(app))
         XCTAssertEqual(copy, "当前页面汇总本次会话的整体计划，系统会根据当前同步状态继续处理。")
         for banned in ["计划新增", "先合并其余", "尚未上传", "已经上传", "已上传", "已经合并", "已合并",
                        "不会上传任何库存", "文案", "重新定义"] {
