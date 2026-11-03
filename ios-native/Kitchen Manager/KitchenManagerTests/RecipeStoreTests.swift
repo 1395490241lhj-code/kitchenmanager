@@ -204,6 +204,107 @@ final class RecipeStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - Recipe library mode (DATA-1 / ONB-9)
+    //
+    // The 菜谱库模式 picker is gone: the full pack has no method for most
+    // dishes and lacks IDs that plans point at, so iOS only loads the curated
+    // library. A member who once picked the full library browses the curated
+    // one, but the plans, 收藏 and 常做 they made there still resolve.
+
+    private static let curatedPackJSON = #"{"recipes": [{"id": "1", "name": "番茄炒蛋"}], "recipe_ingredients": {}}"#
+    private static let fullPackJSON = #"""
+    {"recipes": [
+        {"id": "1", "name": "番茄炒蛋（完整库）"},
+        {"id": "ex--c5d9eac5", "name": "兰花田鸡"},
+        {"id": "ex--514e3fd8", "name": "收藏的老菜"}
+    ], "recipe_ingredients": {
+        "ex--c5d9eac5": [{"item": "田鸡", "qty": "500", "unit": "克"}]
+    }}
+    """#
+
+    private func storeWithMockedLibrary(choseFull: Bool, fullPackFails: Bool = false) -> RecipeStore {
+        let curatedPack = Data(Self.curatedPackJSON.utf8)
+        let fullPack = Data(Self.fullPackJSON.utf8)
+        MockURLProtocol.install { request in
+            guard request.url?.lastPathComponent == "sichuan-recipes.json" else {
+                return .init(statusCode: 200, data: curatedPack)
+            }
+            return fullPackFails
+                ? .init(error: URLError(.notConnectedToInternet))
+                : .init(statusCode: 200, data: fullPack)
+        }
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        if choseFull { defaults.set("full", forKey: "recipeLibraryMode") }
+        return RecipeStore(
+            userDefaults: defaults,
+            service: RecipeService(apiClient: APIClient(environment: .production, session: .mocked(), defaultTimeout: 60))
+        )
+    }
+
+    /// The stored choice stays, so a relaunch still resolves the old dishes.
+    func test_libraryMode_memberWhoChoseFull_browsesCuratedAndKeepsTheMark() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        defaults.set("full", forKey: "recipeLibraryMode")
+
+        let store = RecipeStore(userDefaults: defaults)
+
+        XCTAssertEqual(store.libraryMode, .curated)
+        XCTAssertEqual(defaults.string(forKey: "recipeLibraryMode"), "full", "旧选择要保留，重启后仍能找到完整库里的菜")
+    }
+
+    func test_loadRecipes_memberWhoNeverChoseFull_requestsOnlyTheCuratedPack() async {
+        defer { MockURLProtocol.reset() }
+        let store = storeWithMockedLibrary(choseFull: false)
+
+        await store.loadRecipes()
+
+        XCTAssertEqual(MockURLProtocol.capturedRequests().map { $0.url?.lastPathComponent }, ["sichuan-recipes.curated.json"])
+    }
+
+    func test_loadRecipes_memberWhoChoseFull_requestsCuratedThenTheFullPackForLookups() async {
+        defer { MockURLProtocol.reset() }
+        let store = storeWithMockedLibrary(choseFull: true)
+
+        await store.loadRecipes()
+
+        XCTAssertEqual(
+            MockURLProtocol.capturedRequests().map { $0.url?.lastPathComponent },
+            ["sichuan-recipes.curated.json", "sichuan-recipes.json"]
+        )
+    }
+
+    /// DATA1 / F2: a plan for 兰花田鸡 (only in the full pack) still opens and
+    /// can be deducted; a favorited full-only dish stays in 收藏; other
+    /// full-only dishes are not offered for browsing; curated wins on shared IDs.
+    func test_loadRecipes_memberWhoChoseFull_stillResolvesDishesOnlyTheFullPackHas() async {
+        defer { MockURLProtocol.reset() }
+        let store = storeWithMockedLibrary(choseFull: true)
+        store.toggleFavorite("ex--514e3fd8")
+
+        await store.loadRecipes()
+
+        XCTAssertEqual(store.recipe(id: "ex--c5d9eac5")?.title, "兰花田鸡", "完整库里的计划菜仍能打开")
+        XCTAssertEqual(store.recipe(id: "ex--c5d9eac5")?.ingredients, ["田鸡 500 克"], "做完仍能扣库存")
+        XCTAssertEqual(store.recipe(id: "1")?.title, "番茄炒蛋", "同一 ID 以精简库为准")
+        XCTAssertEqual(store.recipes.map(\.id), ["1", "ex--514e3fd8"], "收藏的老菜留在菜谱里，其它完整库菜不出现")
+        XCTAssertEqual(store.plannedRecipeAvailability, .missing, "两个库都加载了，真的没有才算缺失")
+    }
+
+    /// The full pack failing must not make an old plan claim its dish was
+    /// never saved: the member is offered 重试 instead.
+    func test_loadRecipes_memberWhoChoseFull_fullPackFailing_isLoadFailedNotMissing() async {
+        defer { MockURLProtocol.reset() }
+        let store = storeWithMockedLibrary(choseFull: true, fullPackFails: true)
+
+        await store.loadRecipes()
+
+        XCTAssertNil(store.recipe(id: "ex--c5d9eac5"))
+        XCTAssertEqual(store.recipe(id: "1")?.title, "番茄炒蛋")
+        XCTAssertFalse(store.isShowingSampleFallback)
+        XCTAssertNil(store.errorMessage, "精简库已加载，不显示加载失败横幅")
+        XCTAssertEqual(store.plannedRecipeAvailability, .loadFailed)
+    }
+
     // MARK: - Batch save for generated recipes
     //
     // Weekly materialization prepares every recipe a menu needs before it writes

@@ -38,6 +38,23 @@ enum InventoryFocus: Equatable {
 
     /// Every case, in the order a filter control offers them.
     static let filterOrder: [InventoryFocus] = [.all, .expiringSoon, .expired, .lowStock]
+
+    /// The rows of `items` this filter shows, in their given order. A used-up
+    /// (0) batch has nothing left to spoil, so it is never 已过期 or 临期, the
+    /// same as Home's counts; 全部 still lists it, and it still counts under
+    /// 缺货 (KITCHEN_DESIGN_LANGUAGE.md, Phase A).
+    func rows(of items: [InventoryItem]) -> [InventoryItem] {
+        switch self {
+        case .all:
+            return items
+        case .expired:
+            return items.filter { $0.isAvailable && $0.expiryStatus == .expired }
+        case .expiringSoon:
+            return items.filter { $0.isAvailable && ($0.expiryStatus == .today || $0.expiryStatus == .soon) }
+        case .lowStock:
+            return items.filter { $0.stapleStatus == .low || $0.stapleStatus == .outOfStock }
+        }
+    }
 }
 
 /// Stable, user-facing Inventory notice text shared by the store and the
@@ -631,8 +648,9 @@ nonisolated struct MealPlanItem: Identifiable, Codable, Hashable {
 }
 
 extension MealPlanItem {
-    /// Shown where a plan names a recipe the library cannot resolve. Retrying
-    /// never brings such a recipe back, so the copy says what the member can do
+    /// Shown where a plan names a recipe that a successfully loaded library
+    /// does not contain (see `PlannedRecipeAvailability`). Retrying never
+    /// brings such a recipe back, so the copy says what the member can do
     /// instead.
     static let missingRecipeExplanation = "这道菜没有保存在菜谱库里，无法查看做法或开始烹饪。计划仍然保留，可以移出后重新添加。"
 }
@@ -1227,10 +1245,13 @@ final class KitchenStore: ObservableObject {
     var recipeCreationExpiringItems: [InventoryItem] {
         expiringItems.filter(\.kind.canInspireRecipeCreation)
     }
+    /// Used-up (0) batches sink below every stocked one, so an emptied batch
+    /// with an old date no longer heads the list as 已过期.
     var sortedFreshInventory: [InventoryItem] {
         inventory
             .filter { !$0.isStaple }
             .sorted { lhs, rhs in
+                if lhs.isAvailable != rhs.isAvailable { return lhs.isAvailable }
                 let lhsPriority = lhs.expiryStatus.sortPriority
                 let rhsPriority = rhs.expiryStatus.sortPriority
                 if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
@@ -2180,6 +2201,9 @@ final class KitchenStore: ObservableObject {
                         && IngredientNormalizer.matchKey(updatedInventory[$0].name) == IngredientNormalizer.matchKey(draft.ingredientName)
                 }
                 .sorted { (updatedInventory[$0].remainingDays ?? 9999) < (updatedInventory[$1].remainingDays ?? 9999) }
+            // An amount typed in the stock's own unit (1 份 against a recipe's
+            // 个) is counted in that unit, so it only reaches batches held in it.
+            let deductionUnit = draft.manualStockUnit ?? draft.requiredUnit
 
             for index in matchingIndices {
                 guard remaining > 0 else { break }
@@ -2189,8 +2213,8 @@ final class KitchenStore: ObservableObject {
                 // was never counted for this line, so it is left untouched rather
                 // than deducted as if the numbers shared a unit.
                 let convertedAvailable: Double
-                if let requiredUnit = draft.requiredUnit {
-                    guard let converted = UnitConverter.convert(item.quantity, from: item.unit, to: requiredUnit) else { continue }
+                if let deductionUnit {
+                    guard let converted = UnitConverter.convert(item.quantity, from: item.unit, to: deductionUnit) else { continue }
                     convertedAvailable = converted
                 } else {
                     convertedAvailable = item.quantity
@@ -2198,7 +2222,7 @@ final class KitchenStore: ObservableObject {
                 guard convertedAvailable > 0 else { continue }
 
                 let consumeFromThisBatch = min(remaining, convertedAvailable)
-                let consumeInItemUnit = draft.requiredUnit
+                let consumeInItemUnit = deductionUnit
                     .flatMap { UnitConverter.convert(consumeFromThisBatch, from: $0, to: item.unit) }
                     ?? consumeFromThisBatch
 

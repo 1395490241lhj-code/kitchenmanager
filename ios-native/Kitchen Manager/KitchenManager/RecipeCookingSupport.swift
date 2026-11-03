@@ -156,7 +156,14 @@ struct CookingTimerState: Equatable {
 
 @MainActor
 private enum CookingTimerNotificationScheduler {
-    private static let identifier = "native-km-cooking-timer"
+    private static let identifier = CookingTimerNotificationDelegate.timerNotificationIdentifier
+
+    /// Asked from a timer start while the choice is still open, so the first
+    /// timer can ring. Alert and sound only: the timer never sets a badge.
+    static func requestAuthorization() async {
+        guard CookingTimerController.asksForNotificationPermission(launchArguments: ProcessInfo.processInfo.arguments) else { return }
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+    }
 
     static func schedule(at endDate: Date) async {
         let center = UNUserNotificationCenter.current()
@@ -192,12 +199,20 @@ private enum CookingTimerNotificationScheduler {
 @MainActor
 final class CookingTimerController: ObservableObject {
     @Published private(set) var state = CookingTimerState()
+    private let notificationAuthorizationStatus: @MainActor () async -> UNAuthorizationStatus
+    private let requestNotificationAuthorization: @MainActor () async -> Void
     private let scheduleNotification: @MainActor (Date) async -> Void
     private let cancelNotification: @MainActor () -> Void
     private var tickTask: Task<Void, Never>?
     private var notificationTask: Task<Void, Never>?
 
     init(
+        notificationAuthorizationStatus: @escaping @MainActor () async -> UNAuthorizationStatus = {
+            await ExpiryNotificationScheduler.currentAuthorizationStatus()
+        },
+        requestNotificationAuthorization: @escaping @MainActor () async -> Void = {
+            await CookingTimerNotificationScheduler.requestAuthorization()
+        },
         scheduleNotification: @escaping @MainActor (Date) async -> Void = { endDate in
             await CookingTimerNotificationScheduler.schedule(at: endDate)
         },
@@ -205,6 +220,8 @@ final class CookingTimerController: ObservableObject {
             CookingTimerNotificationScheduler.cancel()
         }
     ) {
+        self.notificationAuthorizationStatus = notificationAuthorizationStatus
+        self.requestNotificationAuthorization = requestNotificationAuthorization
         self.scheduleNotification = scheduleNotification
         self.cancelNotification = cancelNotification
     }
@@ -214,9 +231,19 @@ final class CookingTimerController: ObservableObject {
         notificationTask?.cancel()
     }
 
+    /// No UI test handles the system permission alert, and it would cover the
+    /// timer they capture, so a UI-test launch never raises it.
+    static func asksForNotificationPermission(launchArguments: [String]) -> Bool {
+        #if DEBUG
+        return !launchArguments.contains { $0.hasPrefix("UITEST_") }
+        #else
+        return true
+        #endif
+    }
+
     func start(seconds: Int, now: Date = .now) {
         state.start(seconds: seconds, now: now)
-        scheduleRunningTimer()
+        scheduleRunningTimer(askingForPermission: true)
     }
 
     func pause() {
@@ -236,7 +263,10 @@ final class CookingTimerController: ObservableObject {
 
     func refresh(now: Date = .now) {
         guard state.refresh(now: now) else { return }
-        stopScheduling()
+        // Finished on time: the pending notification is due now and is what
+        // rings, so only the ticks stop. Pause, cancel and leaving the page
+        // still remove it.
+        stopTicks()
     }
 
     private func scheduleTicks() {
@@ -251,22 +281,72 @@ final class CookingTimerController: ObservableObject {
         }
     }
 
-    private func scheduleRunningTimer() {
+    private func scheduleRunningTimer(askingForPermission: Bool = false) {
         scheduleTicks()
         notificationTask?.cancel()
         cancelNotification()
         guard let endDate = state.endDate else { return }
         notificationTask = Task {
+            // Only while undecided: a member who already said no is not asked again.
+            if askingForPermission, await notificationAuthorizationStatus() == .notDetermined {
+                // Paused or cancelled while the status was read: no prompt
+                // for a timer that is no longer running.
+                guard !Task.isCancelled else { return }
+                await requestNotificationAuthorization()
+                guard !Task.isCancelled else { return }
+            }
             await scheduleNotification(endDate)
         }
     }
 
-    private func stopScheduling() {
+    private func stopTicks() {
         tickTask?.cancel()
         tickTask = nil
+    }
+
+    private func stopScheduling() {
+        stopTicks()
         notificationTask?.cancel()
         notificationTask = nil
         cancelNotification()
+    }
+}
+
+/// Lets the cooking timer's notification ring while the app is open. With no
+/// delegate iOS shows nothing in the foreground, so a timer ending on the
+/// cooking screen was silent. Expiry and restock reminders keep that
+/// behaviour: only the timer is presented.
+final class CookingTimerNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    /// `UNUserNotificationCenter` holds its delegate weakly.
+    static let shared = CookingTimerNotificationDelegate()
+
+    /// Shared with the scheduler. Pending requests from earlier builds use it.
+    nonisolated static let timerNotificationIdentifier = "native-km-cooking-timer"
+
+    /// Called from the app root's post-first-frame `.task`; running it again
+    /// is harmless.
+    static func install() {
+        UNUserNotificationCenter.current().delegate = shared
+    }
+
+    nonisolated static func presentationOptions(forNotificationIdentifier identifier: String) -> UNNotificationPresentationOptions {
+        identifier == timerNotificationIdentifier ? [.banner, .sound, .list] : []
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler(Self.presentationOptions(forNotificationIdentifier: notification.request.identifier))
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        completionHandler()
     }
 }
 

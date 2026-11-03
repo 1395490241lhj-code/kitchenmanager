@@ -343,7 +343,7 @@ final class PR31VisualAcceptanceUITests: XCTestCase {
 
             revealLabel(app, identifier: NSPredicate(format: "identifier ENDSWITH %@", ".notDeducted"),
                         containing: "单位不同，未扣减", variant)
-            assertFullText(text(app, containing: "和菜谱的单位不同"), contains: "未扣减", variant, "unit mismatch note")
+            assertFullText(text(app, containing: "和菜谱单位不同"), contains: "请填写用掉几盒", variant, "unit mismatch note")
             capture(app, variant, "Consumption-UnitMismatch")
 
             reveal(app.buttons["更新冰箱"], in: app, variant)

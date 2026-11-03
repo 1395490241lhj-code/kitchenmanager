@@ -63,26 +63,13 @@ struct InventoryView: View {
     /// count that does not match the list it labels is the same lie the hidden
     /// filter was, moved somewhere new.
     private func freshInventory(for focus: InventoryFocus) -> [InventoryItem] {
-        switch focus {
-        case .all:
-            store.sortedFreshInventory
-        case .expired:
-            store.sortedFreshInventory.filter { $0.expiryStatus == .expired }
-        case .expiringSoon:
-            store.sortedFreshInventory.filter {
-                $0.expiryStatus == .today || $0.expiryStatus == .soon
-            }
-        case .lowStock:
-            store.sortedFreshInventory.filter {
-                $0.stapleStatus == .low || $0.stapleStatus == .outOfStock
-            }
-        }
+        focus.rows(of: store.sortedFreshInventory)
     }
 
     private func staples(for focus: InventoryFocus) -> [InventoryItem] {
         let staples = store.pantryStaples.filter(stapleFilter.includes)
         guard focus == .lowStock else { return staples }
-        return staples.filter { $0.stapleStatus == .low || $0.stapleStatus == .outOfStock }
+        return focus.rows(of: staples)
     }
 
     private var focusedFreshInventory: [InventoryItem] {
@@ -1983,15 +1970,10 @@ struct SettingsView: View {
                 .accessibilityIdentifier("settings.appearance.picker")
             }
 
-            Section("菜谱") {
-                Picker("菜谱库模式", selection: Binding(
-                    get: { recipeStore.libraryMode },
-                    set: { mode in Task { await recipeStore.reload(mode: mode) } }
-                )) {
-                    ForEach(RecipeLibraryMode.allCases) { Text($0.title).tag($0) }
-                }
-                .accessibilityIdentifier("settings.recipeLibrary.picker")
-                if let message = recipeStore.errorMessage {
+            // No library choice any more (iOS loads only the curated library),
+            // so the section appears only to report a recipe-store error.
+            if let message = recipeStore.errorMessage {
+                Section("菜谱") {
                     Text(message)
                         .font(.footnote)
                         .foregroundStyle(.secondary)

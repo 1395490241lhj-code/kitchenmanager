@@ -22,6 +22,20 @@ final class ConsumedQuantityEntryTests: XCTestCase {
         XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "1500"), 1500)
     }
 
+    /// DS-2: the boxes this field replaced read 1,000 as a thousand. A pasted
+    /// grouped amount must not become 1, while a decimal comma still reads.
+    func testAGroupedAmountIsReadAsGroupedWhereThePointIsTheDecimal() {
+        let zh = Locale(identifier: "zh_CN")
+        XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "1,000", locale: zh), 1000)
+        XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "12,500.5", locale: zh), 12500.5)
+        XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "1,000,000", locale: zh), 1_000_000)
+        XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "0,5", locale: zh), 0.5, "not grouped: a decimal comma")
+        XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "1,25", locale: zh), 1.25)
+        let de = Locale(identifier: "de_DE")
+        XCTAssertEqual(InventoryConsumptionDraft.enteredQuantity(from: "1,000", locale: de), 1,
+                       "where the comma is the decimal separator, 1,000 is one")
+    }
+
     func testEmptyOrUnreadableTextIsNoAmount() {
         XCTAssertNil(InventoryConsumptionDraft.enteredQuantity(from: ""))
         XCTAssertNil(InventoryConsumptionDraft.enteredQuantity(from: "  "))

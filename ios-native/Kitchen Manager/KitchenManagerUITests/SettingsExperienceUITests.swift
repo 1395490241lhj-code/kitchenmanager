@@ -138,7 +138,6 @@ final class SettingsExperienceUITests: XCTestCase {
 
         // Ordinary settings remain reachable on the same screen.
         XCTAssertTrue(app.staticTexts["显示模式"].exists)
-        XCTAssertTrue(app.staticTexts["菜谱库模式"].exists)
 
         attachScreenshot(of: app, named: "settings-guest-standard")
     }
@@ -148,9 +147,10 @@ final class SettingsExperienceUITests: XCTestCase {
     func testCoreSettingsEntriesRemainReachable() throws {
         let app = launchSettings()
 
-        // Appearance and recipe-library preferences.
+        // Appearance preference. The 菜谱库模式 picker was removed: iOS only
+        // loads the curated library.
         XCTAssertTrue(app.buttons["settings.appearance.picker"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["settings.recipeLibrary.picker"].exists)
+        XCTAssertFalse(app.buttons["settings.recipeLibrary.picker"].exists)
 
         // Reminder controls.
         for identifier in ["settings.expiryNotifications.toggle", "settings.stapleNotifications.toggle"] {

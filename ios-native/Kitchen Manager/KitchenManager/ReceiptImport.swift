@@ -645,8 +645,7 @@ struct RecordFoodSheet: View {
     }
 
     private func manualQuantityField(_ draft: Binding<ManualInventoryDraft>) -> some View {
-        TextField("数量", value: draft.quantity, format: .number)
-            .keyboardType(.decimalPad)
+        DecimalQuantityField("数量", quantity: draft.quantity)
             .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? AppTheme.minimumHitTarget : nil)
             .accessibilityIdentifier("manualInventoryQuantity")
     }
@@ -819,8 +818,7 @@ private struct ReceiptIngredientCompactRow: View {
     @ViewBuilder
     private var quantityFields: some View {
         HStack(spacing: 8) {
-            TextField("数量", value: $item.quantity, format: .number)
-                .keyboardType(.decimalPad)
+            DecimalQuantityField("数量", quantity: $item.quantity)
                 .frame(minWidth: 64, alignment: .leading)
             TextField("单位", text: $item.unit)
                 .frame(minWidth: 56, alignment: .leading)

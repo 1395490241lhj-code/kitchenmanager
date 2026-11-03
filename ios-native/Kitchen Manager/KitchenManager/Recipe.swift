@@ -244,6 +244,37 @@ nonisolated struct RecipeSourceMetadata: Hashable, Codable {
     let author: String?
 }
 
+/// Why a planned meal's recipe cannot be opened yet. Only a library that
+/// actually loaded may say the dish is not in it: while it is still loading,
+/// or after the online load failed, the recipe may well exist.
+nonisolated enum PlannedRecipeAvailability: Equatable {
+    /// Loading, or no load has finished yet (a cold start before the first
+    /// request resolves).
+    case loading
+    /// The online library did not load; samples or nothing are showing.
+    case loadFailed
+    /// The library loaded and this recipe is not in it.
+    case missing
+
+    static func classify(
+        isLoading: Bool,
+        hasRemoteRecipes: Bool,
+        isShowingSampleFallback: Bool,
+        errorMessage: String?,
+        retiredLibraryFailed: Bool = false
+    ) -> PlannedRecipeAvailability {
+        // A retry keeps the samples installed while it runs, so loading is
+        // checked before the fallback.
+        if isLoading { return .loading }
+        if isShowingSampleFallback { return .loadFailed }
+        // Not samples, so this is a library an earlier load really returned,
+        // even if a later refresh failed. For a member who used 完整菜谱库,
+        // the dish may be in that pack, which has not loaded yet.
+        if hasRemoteRecipes { return retiredLibraryFailed ? .loadFailed : .missing }
+        return errorMessage == nil ? .loading : .loadFailed
+    }
+}
+
 @MainActor
 final class RecipeStore: ObservableObject {
     @Published private(set) var remoteRecipes: [Recipe] = []
@@ -253,24 +284,34 @@ final class RecipeStore: ObservableObject {
     @Published private(set) var favoriteRecipeIDs: Set<String> = []
     @Published private(set) var frequentRecipeIDs: Set<String> = []
     /// True only when `remoteRecipes` holds the built-in `Recipe.samples`
-    /// because an online load failed. The curated-library fallback is a real
-    /// library, not samples, so it deliberately does not set this.
+    /// because an online load failed.
     @Published private(set) var isShowingSampleFallback = false
+    /// Dishes only the retired 完整菜谱库 has, loaded for a member who once
+    /// picked it so the plans, 收藏 and 常做 made there still resolve. Only
+    /// the 收藏 / 常做 ones join `recipes`; the rest are lookups.
+    @Published private(set) var retiredFullLibraryRecipes: [Recipe] = []
+    /// That pack has never loaded, so a dish missing from the curated
+    /// library may still be in it.
+    @Published private(set) var retiredFullLibraryFailed = false
 
-    private let service = RecipeService()
+    private let service: RecipeService
     private let userRecipePersistence: UserRecipePersistenceProtocol
     private let recipePreferencePersistence: RecipePreferencePersistenceProtocol
     /// Existing `RecipeStore()` call sites use the application store. Tests that
     /// inject an isolated defaults suite receive an isolated in-memory container.
     private let userDefaults: UserDefaults
-    var libraryMode: RecipeLibraryMode {
-        get { RecipeLibraryMode(rawValue: userDefaults.string(forKey: "recipeLibraryMode") ?? "") ?? .curated }
-        set { userDefaults.set(newValue.rawValue, forKey: "recipeLibraryMode") }
-    }
+    /// Where the removed 菜谱库模式 picker stored its choice. A stored `full`
+    /// is kept: it marks a member whose plans may point at full-only dishes.
+    private static let libraryModeKey = "recipeLibraryMode"
+    private let resolvesRetiredFullLibrary: Bool
+    /// Always the curated library. The full pack has no method for most dishes
+    /// and lacks IDs that plans point at, so iOS no longer offers it.
+    var libraryMode: RecipeLibraryMode { .curated }
 
     var recipes: [Recipe] {
         let userIDs = Set(userRecipes.map(\.id))
-        return userRecipes + remoteRecipes.filter { !userIDs.contains($0.id) }
+        let kept = retiredFullLibraryRecipes.filter { favoriteRecipeIDs.contains($0.id) || frequentRecipeIDs.contains($0.id) }
+        return userRecipes + (remoteRecipes + kept).filter { !userIDs.contains($0.id) }
     }
 
     /// The single fallback surface every screen reads, replacing the
@@ -286,7 +327,20 @@ final class RecipeStore: ObservableObject {
     var isDisplayingSamples: Bool { isShowingSampleFallback }
 
     func recipe(id: String) -> Recipe? {
-        recipes.first { $0.id == id } ?? Recipe.samples.first { $0.id == id }
+        recipes.first { $0.id == id }
+            ?? retiredFullLibraryRecipes.first { $0.id == id }
+            ?? Recipe.samples.first { $0.id == id }
+    }
+
+    /// What a planned meal shows when `recipe(id:)` finds nothing.
+    var plannedRecipeAvailability: PlannedRecipeAvailability {
+        .classify(
+            isLoading: isLoading,
+            hasRemoteRecipes: !remoteRecipes.isEmpty,
+            isShowingSampleFallback: isShowingSampleFallback,
+            errorMessage: errorMessage,
+            retiredLibraryFailed: retiredFullLibraryFailed
+        )
     }
 
     /// The library's current version of a recipe a screen captured earlier:
@@ -302,9 +356,12 @@ final class RecipeStore: ObservableObject {
     init(
         userDefaults: UserDefaults = .standard,
         userRecipePersistence: UserRecipePersistenceProtocol? = nil,
-        recipePreferencePersistence: RecipePreferencePersistenceProtocol? = nil
+        recipePreferencePersistence: RecipePreferencePersistenceProtocol? = nil,
+        service: RecipeService = RecipeService()
     ) {
         self.userDefaults = userDefaults
+        self.service = service
+        resolvesRetiredFullLibrary = userDefaults.string(forKey: Self.libraryModeKey) == RecipeLibraryMode.full.rawValue
         if let userRecipePersistence, let recipePreferencePersistence {
             self.userRecipePersistence = userRecipePersistence
             self.recipePreferencePersistence = recipePreferencePersistence
@@ -368,16 +425,10 @@ final class RecipeStore: ObservableObject {
             #endif
             remoteRecipes = try await service.fetchRecipes(mode: libraryMode)
             isShowingSampleFallback = false
+            if resolvesRetiredFullLibrary { await loadRetiredFullLibrary() }
         } catch is CancellationError {
             return
         } catch {
-            if libraryMode == .full,
-               let fallback = try? await service.fetchRecipes(mode: .curated) {
-                remoteRecipes = fallback
-                isShowingSampleFallback = false
-                errorMessage = "完整菜谱库暂时无法加载，已回退到精简日常菜谱库。"
-                return
-            }
             if remoteRecipes.isEmpty {
                 remoteRecipes = Recipe.samples
                 isShowingSampleFallback = true
@@ -390,14 +441,20 @@ final class RecipeStore: ObservableObject {
         }
     }
 
-    func add(_ recipe: Recipe) {
-        try? saveUserRecipe(recipe)
+    /// Runs after the curated library loaded. A failure keeps an earlier
+    /// lookup, and is reported only while no lookup ever loaded.
+    private func loadRetiredFullLibrary() async {
+        do {
+            let curatedIDs = Set(remoteRecipes.map(\.id))
+            retiredFullLibraryRecipes = try await service.fetchRecipes(mode: .full).filter { !curatedIDs.contains($0.id) }
+            retiredFullLibraryFailed = false
+        } catch {
+            retiredFullLibraryFailed = retiredFullLibraryRecipes.isEmpty
+        }
     }
 
-    func reload(mode: RecipeLibraryMode) async {
-        libraryMode = mode
-        remoteRecipes = []
-        await loadRecipes()
+    func add(_ recipe: Recipe) {
+        try? saveUserRecipe(recipe)
     }
 
     func replaceUserRecipe(_ recipe: Recipe) throws {

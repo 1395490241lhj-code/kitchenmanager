@@ -967,8 +967,7 @@ struct ShoppingListGenerationView: View {
                 TextField("食材名称", text: item.displayName)
                     .font(.subheadline.weight(.semibold))
                 HStack {
-                    TextField("数量", value: item.missingQuantity, format: .number)
-                        .keyboardType(.decimalPad)
+                    DecimalQuantityField("数量", quantity: item.missingQuantity)
                         .frame(maxWidth: 80)
                     TextField(
                         "单位",

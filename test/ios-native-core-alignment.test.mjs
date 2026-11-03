@@ -156,8 +156,12 @@ test("pantry supports status and quantity modes without a second store", () => {
 
 test("recipe library mode, filters, matching, and user override priority are wired", () => {
   assert.match(service, /case curated[\s\S]*case full/);
-  assert.match(recipeModel, /remoteRecipes\.filter \{ !userIDs\.contains\(\$0\.id\) \}/);
+  // User recipes override every library dish with the same ID, including the
+  // retired 完整菜谱库 dishes kept for members who once chose it.
+  assert.match(recipeModel, /userRecipes \+ \(remoteRecipes \+ kept\)\.filter \{ !userIDs\.contains\(\$0\.id\) \}/);
   assert.match(recipes, /case favorites[\s\S]*case frequent[\s\S]*case cookable[\s\S]*case nearlyCookable/);
   assert.match(recipes, /missingCoreIngredientCount/);
-  assert.match(features, /Picker\("菜谱库模式"/);
+  // iOS browses only the curated library; the 菜谱库模式 picker is gone.
+  assert.match(recipeModel, /var libraryMode: RecipeLibraryMode \{ \.curated \}/);
+  assert.doesNotMatch(features, /菜谱库模式/);
 });

@@ -1396,12 +1396,6 @@ final class WeeklyMenuPlannerStore: ObservableObject {
         generatedPlan = plan
     }
 
-    func removeShoppingItems(at offsets: IndexSet) {
-        guard var plan = generatedPlan else { return }
-        plan.shoppingItems.remove(atOffsets: offsets)
-        generatedPlan = plan
-    }
-
     // MARK: - Materialization
     //
     // The whole point of the feature: turning the generated menu into the meals
@@ -2174,6 +2168,46 @@ nonisolated enum WeeklyStaleDraftCopy {
     }
 }
 
+/// What the result page says is in stock and what is missing.
+///
+/// One check behind each dish's 有 N 样在库 / 还缺 N 样 and the menu's
+/// 还缺食材, so a dish can never show something missing while the menu
+/// counts nothing missing. The AI's own `shoppingItems` are not read: the
+/// page used to count them and disagreed with its own dish rows. The check is
+/// by name only (amounts and expiry are left to the review page's generator).
+nonisolated enum WeeklyMenuInventoryCoverage {
+    private static func isInStock(_ ingredient: String, inventoryNames: [String]) -> Bool {
+        inventoryNames.contains { ingredient.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// One dish's 有 N 样在库 / 还缺 N 样.
+    static func coverage(of ingredients: [String], inventoryNames: [String]) -> (uses: Int, missing: Int) {
+        let uses = ingredients.filter { isInStock($0, inventoryNames: inventoryNames) }.count
+        return (uses, max(0, ingredients.count - uses))
+    }
+
+    /// The whole menu's missing foods, each once and in menu order. "鸡蛋 3 个"
+    /// in one dish and "鸡蛋 2 个" in another are one food, named and keyed
+    /// the way the shopping generator names and merges lines.
+    static func missingFoods(in plan: WeeklyMealPlan, inventoryNames: [String]) -> [String] {
+        var seen: Set<String> = []
+        var foods: [String] = []
+        for day in plan.days {
+            for meal in day.meals {
+                for recipe in meal.recipes {
+                    for line in recipe.ingredients where !isInStock(line, inventoryNames: inventoryNames) {
+                        let food = IngredientNormalizer.normalizedName(IngredientParser.parse(line).displayName)
+                        let key = IngredientNormalizer.matchKey(food)
+                        guard !key.isEmpty, seen.insert(key).inserted else { continue }
+                        foods.append(food)
+                    }
+                }
+            }
+        }
+        return foods
+    }
+}
+
 /// The four things that can interrupt adding a menu to the meal plan, kept out
 /// of the result view's own modifier chain so each stays type-checkable.
 private struct WeeklyMaterializationAlerts: ViewModifier {
@@ -2273,6 +2307,7 @@ struct WeeklyMenuResultView: View {
     var body: some View {
         List {
             if let plan = store.generatedPlan {
+                let missingFoods = WeeklyMenuInventoryCoverage.missingFoods(in: plan, inventoryNames: inventoryNames)
                 if store.isGenerating {
                     // The menu below is still the member's draft while its
                     // replacement is being prepared, so it stays on screen and
@@ -2287,7 +2322,7 @@ struct WeeklyMenuResultView: View {
                         )
                     }
                 }
-                overviewSection(plan)
+                overviewSection(plan, missingFoodCount: missingFoods.count)
                 ForEach(plan.days) { day in
                     Section {
                         ForEach(day.meals) { meal in
@@ -2298,9 +2333,7 @@ struct WeeklyMenuResultView: View {
                         Text(dayTitle(day, startDate: plan.startDate)).plannerSectionTitle()
                     }
                 }
-                if !plan.shoppingItems.isEmpty {
-                    shoppingSection(plan)
-                }
+                shoppingSection(missingFoods)
             } else {
                 ContentUnavailableView("还没有生成菜单", systemImage: "calendar")
             }
@@ -2406,9 +2439,9 @@ struct WeeklyMenuResultView: View {
         }
     }
 
-    private func overviewSection(_ plan: WeeklyMealPlan) -> some View {
+    private func overviewSection(_ plan: WeeklyMealPlan, missingFoodCount: Int) -> some View {
         Section {
-            overviewRows(plan)
+            overviewRows(plan, missingFoodCount: missingFoodCount)
             materializationControl(plan)
         } header: {
             Text("菜单概览").plannerSectionTitle()
@@ -2419,15 +2452,17 @@ struct WeeklyMenuResultView: View {
     }
 
     @ViewBuilder
-    private func overviewRows(_ plan: WeeklyMealPlan) -> some View {
+    private func overviewRows(_ plan: WeeklyMealPlan, missingFoodCount: Int) -> some View {
         let meals: String = "\(totalMeals(plan)) 顿"
         let dishes: String = "\(totalDishes(plan)) 道"
-        let purchases: String = "\(plan.shoppingItems.count) 项"
+        // A presence count in the dish rows' 样, not a purchase count: the
+        // review page compares amounts and may still list more to buy.
+        let missing: String = "\(missingFoodCount) 样"
         LabeledContent("日期", value: dateRangeText(plan))
             .accessibilityIdentifier("weekly.result.range")
         LabeledContent("共计", value: meals)
         LabeledContent("菜品", value: dishes)
-        LabeledContent("预计新增采购", value: purchases)
+        LabeledContent("还缺食材", value: missing)
     }
 
     // MARK: - Adding the menu to the meal plan
@@ -2488,19 +2523,25 @@ struct WeeklyMenuResultView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
         case .notStarted, .pending:
+            // The page's landing action (D-041), so it carries the primary
+            // treatment; 核对后加入买菜清单 below is secondary to it.
             Button {
                 runMaterialization()
             } label: {
-                if store.isMaterializing {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                        Text("正在加入…")
+                Group {
+                    if store.isMaterializing {
+                        HStack(spacing: 8) {
+                            ProgressView().tint(AppTheme.onCookingAction)
+                            Text("正在加入…")
+                        }
+                    } else {
+                        Text("加入用餐计划")
                     }
-                } else {
-                    Text("加入用餐计划")
                 }
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
             }
-            .tint(AppTheme.brand)
+            .buttonStyle(KitchenButtonStyle(role: .primary))
             .disabled(store.isMaterializing || plan.dishCount == 0)
             .accessibilityIdentifier("weekly.result.materialize")
         }
@@ -2659,7 +2700,7 @@ struct WeeklyMenuResultView: View {
                             .font(.caption2).foregroundStyle(AppTheme.successInk)
                     }
                     if coverage.missing > 0 {
-                        Label("缺 \(coverage.missing) 样", systemImage: "cart.badge.plus")
+                        Label("还缺 \(coverage.missing) 样", systemImage: "cart.badge.plus")
                             .font(.caption2).foregroundStyle(AppTheme.warningInk)
                     }
                 }
@@ -2727,36 +2768,32 @@ struct WeeklyMenuResultView: View {
         .padding(.vertical, 4)
     }
 
-    private func shoppingSection(_ plan: WeeklyMealPlan) -> some View {
+    /// A read-only summary of what the dish rows say is missing. The AI's
+    /// own list stays stored on the menu but is no longer shown or counted.
+    /// Shown even with nothing missing: that check ignores amounts, so only
+    /// the review page can say there is nothing to buy.
+    private func shoppingSection(_ missingFoods: [String]) -> some View {
         Section {
-            ForEach(plan.shoppingItems) { item in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name)
-                        if let reason = item.reason, !reason.isEmpty {
-                            Text(reason).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    Spacer()
-                    Text([item.quantityText, item.unit].compactMap { $0 }.joined(separator: " "))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .onDelete { offsets in
-                store.removeShoppingItems(at: offsets)
+            if !missingFoods.isEmpty {
+                Text(missingFoods.joined(separator: "、"))
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("weekly.result.shopping.missing")
             }
 
             // The same review-then-add sheet as ⋯ → 生成购物清单, built from the
             // menu's recipes by the deterministic generator. Adding the AI's
             // own list here used to drop any food with some stock, read
             // "1,500" as 1, and stack on every repeated tap.
-            Button("核对后加入买菜清单") {
+            Button {
                 isShowingShoppingGeneration = true
+            } label: {
+                Text("核对后加入买菜清单")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(KitchenButtonStyle(role: .secondary))
             .accessibilityIdentifier("weekly.result.shopping.review")
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.managementActionFill)
-            .foregroundStyle(AppTheme.onManagementAction)
         } header: {
             Text("需要购买").plannerSectionTitle()
         }
@@ -2800,12 +2837,12 @@ struct WeeklyMenuResultView: View {
         )
     }
 
+    private var inventoryNames: [String] {
+        kitchenStore.recipeCreationInventory.map(\.name)
+    }
+
     private func inventoryCoverage(for recipe: WeeklyMealPlanRecipe) -> (uses: Int, missing: Int) {
-        let names = kitchenStore.recipeCreationInventory.map(\.name)
-        let uses = recipe.ingredients.filter { ingredient in
-            names.contains { ingredient.localizedCaseInsensitiveContains($0) }
-        }.count
-        return (uses, max(0, recipe.ingredients.count - uses))
+        WeeklyMenuInventoryCoverage.coverage(of: recipe.ingredients, inventoryNames: inventoryNames)
     }
 
     private func otherDayIndices(excluding dayIndex: Int) -> [Int] {

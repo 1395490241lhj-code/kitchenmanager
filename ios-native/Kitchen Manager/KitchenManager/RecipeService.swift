@@ -1,11 +1,12 @@
 import Foundation
 
-nonisolated enum RecipeLibraryMode: String, CaseIterable, Identifiable {
+/// iOS browses only `.curated` (see `RecipeStore.libraryMode`). `.full` is the
+/// value an old 菜谱库模式 choice stored, and is fetched only for that member,
+/// to resolve the dishes their plans and favorites point at.
+nonisolated enum RecipeLibraryMode: String {
     case curated
     case full
 
-    var id: String { rawValue }
-    var title: String { self == .curated ? "精简日常菜谱库" : "完整菜谱库" }
     var filename: String { self == .curated ? "sichuan-recipes.curated.json" : "sichuan-recipes.json" }
 }
 

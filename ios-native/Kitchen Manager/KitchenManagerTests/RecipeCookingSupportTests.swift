@@ -1,8 +1,15 @@
 import XCTest
+import UserNotifications
 @testable import KitchenManager
 
 @MainActor
 final class RecipeCookingSupportTests: XCTestCase {
+    /// The controller schedules on its own `Task`. The fakes below never
+    /// suspend, so a few yields let that task run to the end.
+    private func drainNotificationTask() async {
+        for _ in 0..<5 { await Task.yield() }
+    }
+
     func testServingScalerHandlesFractionsDecimalsAndFreeText() {
         XCTAssertEqual(RecipeServingScaler.scaledText("番茄 1/2 个", multiplier: 2), "番茄 1 个")
         XCTAssertEqual(RecipeServingScaler.scaledText("油 1.5 汤匙", multiplier: 2), "油 3 汤匙")
@@ -56,6 +63,8 @@ final class RecipeCookingSupportTests: XCTestCase {
     func testTimerControllerResolvesFinishedWhenForegroundRefreshFindsPassedEndDate() {
         let start = Date(timeIntervalSince1970: 2_000)
         let controller = CookingTimerController(
+            notificationAuthorizationStatus: { .denied },
+            requestNotificationAuthorization: {},
             scheduleNotification: { _ in },
             cancelNotification: {}
         )
@@ -71,17 +80,151 @@ final class RecipeCookingSupportTests: XCTestCase {
     func testTimerControllerCancelsBeforeCancelAndRestartScheduling() async {
         var events: [String] = []
         let controller = CookingTimerController(
+            notificationAuthorizationStatus: { .authorized },
+            requestNotificationAuthorization: { events.append("authorize") },
             scheduleNotification: { _ in events.append("schedule") },
             cancelNotification: { events.append("cancel") }
         )
 
         controller.start(seconds: 60)
-        await Task.yield()
+        await drainNotificationTask()
         controller.cancel()
         controller.start(seconds: 60)
-        await Task.yield()
+        await drainNotificationTask()
 
         XCTAssertEqual(events, ["cancel", "schedule", "cancel", "cancel", "schedule"])
+    }
+
+    func testTimerControllerAsksForNotificationsOnStartWhileUndecided() async {
+        var events: [String] = []
+        let controller = CookingTimerController(
+            notificationAuthorizationStatus: { .notDetermined },
+            requestNotificationAuthorization: { events.append("authorize") },
+            scheduleNotification: { _ in events.append("schedule") },
+            cancelNotification: { events.append("cancel") }
+        )
+
+        controller.start(seconds: 60)
+        await drainNotificationTask()
+
+        // Asked first, so the notification is scheduled under the answer.
+        XCTAssertEqual(events, ["cancel", "authorize", "schedule"])
+    }
+
+    /// Cancelling before the status answer arrives must not raise a prompt
+    /// for a timer that no longer exists.
+    func testTimerControllerDoesNotAskAfterTheTimerWasCancelled() async {
+        var events: [String] = []
+        let controller = CookingTimerController(
+            notificationAuthorizationStatus: { .notDetermined },
+            requestNotificationAuthorization: { events.append("authorize") },
+            scheduleNotification: { _ in events.append("schedule") },
+            cancelNotification: { events.append("cancel") }
+        )
+
+        controller.start(seconds: 60)
+        controller.cancel()
+        await drainNotificationTask()
+
+        XCTAssertFalse(events.contains("authorize"), "取消后不再弹权限请求")
+        XCTAssertFalse(events.contains("schedule"))
+    }
+
+    /// No UI test handles the system permission alert, so a UI-test launch
+    /// never raises it; it would cover the timer screenshots.
+    func testUITestLaunchesNeverRaiseTheNotificationPrompt() {
+        XCTAssertFalse(CookingTimerController.asksForNotificationPermission(launchArguments: ["UITEST_SEED_RECIPE_COOKING"]))
+        XCTAssertTrue(CookingTimerController.asksForNotificationPermission(launchArguments: ["-AppleLanguages", "(zh-Hans)"]))
+    }
+
+    func testTimerControllerDoesNotAskAgainOnceNotificationsWereDecided() async {
+        for status in [UNAuthorizationStatus.denied, .authorized, .provisional] {
+            var events: [String] = []
+            let controller = CookingTimerController(
+                notificationAuthorizationStatus: { status },
+                requestNotificationAuthorization: { events.append("authorize") },
+                scheduleNotification: { _ in events.append("schedule") },
+                cancelNotification: { events.append("cancel") }
+            )
+
+            controller.start(seconds: 60)
+            await drainNotificationTask()
+
+            XCTAssertEqual(events, ["cancel", "schedule"], "authorization status \(status.rawValue)")
+        }
+    }
+
+    func testTimerControllerKeepsTheDueNotificationWhenTheTimerFinishesNaturally() async {
+        let start = Date(timeIntervalSince1970: 3_000)
+        var events: [String] = []
+        let controller = CookingTimerController(
+            notificationAuthorizationStatus: { .authorized },
+            requestNotificationAuthorization: { events.append("authorize") },
+            scheduleNotification: { _ in events.append("schedule") },
+            cancelNotification: { events.append("cancel") }
+        )
+
+        controller.start(seconds: 30, now: start)
+        await drainNotificationTask()
+        events.removeAll()
+
+        controller.refresh(now: start.addingTimeInterval(31))
+
+        XCTAssertEqual(controller.state.status, .finished)
+        XCTAssertEqual(events, [], "the pending notification is the alarm; finishing must not remove it")
+
+        // Leaving the page afterwards still clears it, as before.
+        controller.cancel()
+        XCTAssertEqual(events, ["cancel"])
+    }
+
+    func testTimerControllerStillCancelsTheNotificationOnPauseAndCancel() async {
+        var events: [String] = []
+        let controller = CookingTimerController(
+            notificationAuthorizationStatus: { .notDetermined },
+            requestNotificationAuthorization: { events.append("authorize") },
+            scheduleNotification: { _ in events.append("schedule") },
+            cancelNotification: { events.append("cancel") }
+        )
+
+        controller.start(seconds: 60)
+        await drainNotificationTask()
+        events.removeAll()
+
+        controller.pause()
+        XCTAssertEqual(controller.state.status, .paused)
+        XCTAssertEqual(events, ["cancel"])
+
+        // Only a start asks for permission; resuming just reschedules.
+        controller.resume()
+        await drainNotificationTask()
+        XCTAssertEqual(events, ["cancel", "cancel", "schedule"])
+
+        events.removeAll()
+        controller.cancel()
+        XCTAssertEqual(events, ["cancel"])
+    }
+
+    func testOnlyTheCookingTimerNotificationIsPresentedInTheForeground() {
+        // Pending requests from earlier builds use this identifier.
+        XCTAssertEqual(CookingTimerNotificationDelegate.timerNotificationIdentifier, "native-km-cooking-timer")
+        XCTAssertEqual(
+            CookingTimerNotificationDelegate.presentationOptions(forNotificationIdentifier: "native-km-cooking-timer"),
+            [.banner, .sound, .list]
+        )
+        // Expiry and restock reminders keep their current foreground behaviour:
+        // nothing is shown while the app is open.
+        for identifier in [
+            "expiry-\(UUID().uuidString)-\(ExpiryNotificationLeadTime.dayOf.rawValue)",
+            "staple-restock-\(UUID().uuidString)",
+            ""
+        ] {
+            XCTAssertEqual(
+                CookingTimerNotificationDelegate.presentationOptions(forNotificationIdentifier: identifier),
+                [],
+                identifier
+            )
+        }
     }
 
     func testStepTimerSuggestionAcceptsBoundedMinuteTextOnly() {

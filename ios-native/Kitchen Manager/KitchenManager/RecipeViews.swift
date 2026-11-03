@@ -72,6 +72,46 @@ struct SampleFallbackNotice: View {
     }
 }
 
+/// Where Home and the Planner open a planned meal. The recipe is resolved in
+/// this view's own body, so a library that finishes loading after the member
+/// tapped the meal swaps the waiting state for the real recipe. When nothing
+/// resolves, `PlannedRecipeAvailability` decides whether that is loading, a
+/// failed load, or a recipe that really is not in the library.
+struct PlannedMealRecipeDestination: View {
+    @EnvironmentObject private var recipeStore: RecipeStore
+
+    let plan: MealPlanItem
+
+    var body: some View {
+        if let recipe = recipeStore.recipe(id: plan.recipeID) {
+            RecipeDetailView(recipe: recipe, plan: plan)
+        } else {
+            switch recipeStore.plannedRecipeAvailability {
+            case .loading:
+                ProgressView("正在加载菜谱")
+                    .accessibilityIdentifier("plannedRecipe.loading")
+            case .loadFailed:
+                ContentUnavailableView {
+                    Label("菜谱暂时没加载出来", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text("可能是网络问题，计划仍然保留。")
+                } actions: {
+                    Button("重试") { Task { await recipeStore.loadRecipes() } }
+                        .buttonStyle(KitchenButtonStyle(role: .secondary))
+                        .accessibilityIdentifier("plannedRecipe.retry")
+                }
+            case .missing:
+                // The plan survives a recipe that has gone missing.
+                ContentUnavailableView(
+                    "菜谱暂不可用",
+                    systemImage: "book.closed",
+                    description: Text(MealPlanItem.missingRecipeExplanation)
+                )
+            }
+        }
+    }
+}
+
 /// 难度 and 烹饪时间 for the library. The built-in recipes state neither, so a
 /// strict match removed every one of them and the library looked as if it had
 /// no easy or quick dishes. A recipe that does not state the field is kept —
