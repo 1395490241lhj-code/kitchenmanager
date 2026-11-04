@@ -164,6 +164,25 @@ actor UITestAIConversationTransport: AIConversationRuntimeTransport {
             return
         }
 
+        if args.contains("UITEST_AI_CONVERSATION_SCRIPT_INCREMENTAL_STREAM") {
+            // A long reply that keeps arriving in small pieces for about ten
+            // seconds, so a UI test can scroll up mid-stream and check the
+            // transcript stays where the member put it.
+            continuation.yield(.textDelta("先说结论：按下锅顺序备料最省时间。\n\n"))
+            for index in 1...40 {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                if Task.isCancelled {
+                    continuation.finish()
+                    return
+                }
+                continuation.yield(.textDelta("第 \(index) 段：把食材分好类，按下锅顺序摆放，边做边收拾台面。\n\n"))
+            }
+            continuation.yield(.textDelta("全部说完。"))
+            continuation.yield(.completed(finishReason: "stop"))
+            continuation.finish()
+            return
+        }
+
         if args.contains("UITEST_AI_CONVERSATION_SCRIPT_ERROR") {
             if requestCount == 1 {
                 continuation.yield(.error(code: "service_unavailable", message: "暂时无法连接服务，请重试。"))
