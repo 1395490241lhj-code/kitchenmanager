@@ -457,6 +457,7 @@ struct InventoryItemDetailView: View {
                                 ),
                                 displayedComponents: .date
                             )
+                            .kitchenDateLocale()
                             LabeledContent("状态", value: store.inventory[index].expiryStatusText)
                         } else {
                             Text("未设置保质期")

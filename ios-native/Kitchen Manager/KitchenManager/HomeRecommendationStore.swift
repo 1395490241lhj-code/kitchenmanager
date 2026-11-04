@@ -419,12 +419,20 @@ final class HomeRecommendationStore: ObservableObject {
             : nil
     }
 
+    /// `resolvesRecipe` answers whether a recipe still exists anywhere the app
+    /// can open it from (`RecipeStore.recipe(id:)`), which is wider than the
+    /// ranking source: a retired 完整菜谱库 dish leaves `recipes` when it is
+    /// un-starred but still opens.
     func loadDefaultRecommendations(
         recipes: [Recipe],
         inventory: [String],
-        expiringIngredients: [String]
+        expiringIngredients: [String],
+        resolvesRecipe: ((String) -> Bool)? = nil
     ) {
         refreshRecommendationSessionIfNeeded()
+        // Before the guard below: a card with no recipe behind it leaves even
+        // while a search is up or a request is in flight.
+        dropRecommendationsMissing(from: recipes, resolvesRecipe: resolvesRecipe)
         let isSampleSource = Self.isSampleLibrary(recipes)
         let signature = InventorySignature(inventory: inventory, expiringIngredients: expiringIngredients)
         let reranksDefaults = hasLoadedRecommendationsForSession
@@ -629,6 +637,48 @@ final class HomeRecommendationStore: ObservableObject {
         defaultsAreUntouched = false
         recommendedRecipes.removeAll { $0.id == id }
         repairIndex()
+    }
+
+    /// A local card is a recipe the library handed in. When that recipe has
+    /// left the library (the member deleted it, or cleared local data) the
+    /// card has nothing behind it, so it leaves whatever list it is on.
+    /// Nothing else moves: the other cards keep their order and the member
+    /// stays on the card they were looking at.
+    ///
+    /// Only `.local` cards can go. An AI card was never in the library, and
+    /// the built-in samples always resolve through `RecipeStore.recipe(id:)`.
+    /// A list emptied this way starts the day's defaults again from the
+    /// library as it is now, rather than leaving an empty shelf.
+    private func dropRecommendationsMissing(from recipes: [Recipe], resolvesRecipe: ((String) -> Bool)?) {
+        let available = Set(recipes.map(\.id)).union(Self.sampleRecipeIDs)
+        let isKept: (RecipeRecommendation) -> Bool = {
+            $0.source != .local || available.contains($0.id) || resolvesRecipe?($0.id) == true
+        }
+        let kept = recommendedRecipes.filter(isKept)
+        guard kept.count < recommendedRecipes.count else { return }
+        let lookedAt = currentRecommendation?.id
+        // Cards that stay and sat in front of the one on screen.
+        let ahead = recommendedRecipes.prefix(currentRecommendationIndex).filter(isKept).count
+        // A card the member moved to would otherwise slide to index 0 and
+        // lose the protection its position gave it.
+        if currentRecommendationIndex > 0 { defaultsAreUntouched = false }
+        recommendedRecipes = kept
+        if let lookedAt, let index = kept.firstIndex(where: { $0.id == lookedAt }) {
+            currentRecommendationIndex = index
+        } else {
+            // The card on screen left: the next card that stays takes its place.
+            currentRecommendationIndex = kept.isEmpty ? 0 : min(ahead, kept.count - 1)
+        }
+        if kept.isEmpty {
+            hasLoadedRecommendationsForSession = false
+            // Nothing is left to browse, so an error shown earlier must not
+            // keep offering local recommendations.
+            if let message = recommendationError, message.hasSuffix(Self.localBrowsingTail) {
+                recommendationError = message == Self.recommendationUnavailableMessage(hasLocalResults: true)
+                    ? Self.recommendationUnavailableMessage(hasLocalResults: false)
+                    : String(message.dropLast(Self.localBrowsingTail.count))
+            }
+        }
     }
 
     /// Points a card at the library recipe it was just saved as, so 已加入,

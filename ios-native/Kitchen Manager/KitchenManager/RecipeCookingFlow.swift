@@ -119,7 +119,7 @@ private struct CookingFlowModifier: ViewModifier {
             // outside a plan supplies the recipe instead.
             recipe: active.plan == nil ? active.recipe : nil,
             servings: session.servings
-        ) {
+        ) { _ in
             if let plan = active.plan { kitchenStore.markPlanCooked(plan) }
         }
     }

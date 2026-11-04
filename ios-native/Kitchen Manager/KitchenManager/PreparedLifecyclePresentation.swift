@@ -30,7 +30,7 @@ enum PreparedLifecyclePresentation {
     static func events(_ row: PreparedComponent) -> [String] {
         [("开始解冻记录", row.lifecycle?.thawStartedAt), ("解冻完成记录", row.lifecycle?.thawCompletedAt),
          ("做熟记录", row.lifecycle?.cookedAt)].compactMap { title, date in
-            date.map { "\(title)：\($0.formatted(date: .abbreviated, time: .shortened))" }
+            date.map { "\(title)：\($0.formatted(KitchenDateStyle.dayTime))" }
         }
     }
 }

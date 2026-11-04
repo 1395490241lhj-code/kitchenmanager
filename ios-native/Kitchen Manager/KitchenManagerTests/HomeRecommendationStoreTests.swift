@@ -491,4 +491,159 @@ final class HomeRecommendationStoreTests: XCTestCase {
         regenerated.loadDefaultRecommendations(recipes: inventoryLibrary, inventory: stocked, expiringIngredients: [])
         XCTAssertEqual(regenerated.recommendedRecipes.map(\.id), ["ai-one"], "换一批")
     }
+
+    // MARK: - Recipes that left the library
+
+    /// Found on the simulator: after 清除全部本地数据 Home kept recommending the
+    /// deleted user recipe and 查看菜谱 still opened it.
+    func testARecipeRemovedFromTheLibraryLeavesTheDefaults() {
+        let gone = recipe("ui-test-recipe-cooking-01", title: "UI 测试家常菜 1")
+        let kept = recipe("lib-a", title: "宫保鸡丁")
+
+        let untouched = HomeRecommendationStore()
+        untouched.loadDefaultRecommendations(recipes: [gone, kept], inventory: [], expiringIngredients: [])
+        untouched.loadDefaultRecommendations(recipes: [kept], inventory: [], expiringIngredients: [])
+        XCTAssertEqual(untouched.recommendedRecipes.map(\.id), ["lib-a"])
+
+        // Opening a card protects it from re-ranking, not from deletion.
+        let opened = HomeRecommendationStore()
+        opened.loadDefaultRecommendations(recipes: [gone, kept], inventory: [], expiringIngredients: [])
+        opened.noteRecommendationsBrowsed()
+        opened.loadDefaultRecommendations(recipes: [kept], inventory: [], expiringIngredients: [])
+        XCTAssertEqual(opened.recommendedRecipes.map(\.id), ["lib-a"])
+        XCTAssertEqual(opened.currentRecommendationIndex, 0)
+    }
+
+    /// Store contract: dropping a card ahead of the one on screen keeps the
+    /// member on that card, and its moving to index 0 does not expose it to a
+    /// re-rank it was protected from.
+    func testRemovingACardBeforeTheOneOnScreenKeepsTheMemberOnIt() {
+        let gone = recipe("gone", title: "麻婆豆腐", ingredients: ["豆腐"])
+        let greens = recipe("greens", title: "清炒时蔬", ingredients: ["青菜"])
+        let eggs = recipe("eggs", title: "番茄炒蛋", ingredients: ["鸡蛋"])
+
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: [gone, greens, eggs], inventory: [], expiringIngredients: [])
+        store.currentRecommendationIndex = 1
+        store.loadDefaultRecommendations(recipes: [greens, eggs], inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["greens", "eggs"])
+        XCTAssertEqual(store.currentRecommendation?.id, "greens")
+
+        store.loadDefaultRecommendations(recipes: [greens, eggs], inventory: ["鸡蛋"], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["greens", "eggs"], "the card moved to stays put")
+
+        // The card on screen itself is the one deleted: the next card takes over.
+        let onDeleted = HomeRecommendationStore()
+        onDeleted.loadDefaultRecommendations(recipes: [greens, gone, eggs], inventory: [], expiringIngredients: [])
+        onDeleted.currentRecommendationIndex = 1
+        onDeleted.loadDefaultRecommendations(recipes: [greens, eggs], inventory: [], expiringIngredients: [])
+        XCTAssertEqual(onDeleted.recommendedRecipes.map(\.id), ["greens", "eggs"])
+        XCTAssertEqual(onDeleted.currentRecommendation?.id, "eggs")
+    }
+
+    /// Several cards ahead of the one on screen leave at once (清除全部本地数据
+    /// removes every user recipe): the next card that stays takes over, not one
+    /// further down.
+    func testWhenTheCardOnScreenAndThoseAheadLeaveTheNextKeptCardTakesOver() {
+        let mine = (1...3).map { recipe("mine-\($0)", title: "UI 测试家常菜 \($0)") }
+        let library = ["a", "b", "c"].map { recipe("lib-\($0)", title: "菜\($0)") }
+
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: mine + library, inventory: [], expiringIngredients: [])
+        store.currentRecommendationIndex = 2
+        XCTAssertEqual(store.currentRecommendation?.id, "mine-3")
+
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["lib-a", "lib-b", "lib-c"])
+        XCTAssertEqual(store.currentRecommendation?.id, "lib-a")
+    }
+
+    /// A retired 完整菜谱库 dish leaves the ranking source when it is un-starred
+    /// but still opens, so its card stays.
+    func testACardWhoseRecipeStillResolvesStays() {
+        let retired = recipe("retired-full", title: "老菜谱")
+        let library = [recipe("lib-a", title: "宫保鸡丁")]
+
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: [retired] + library, inventory: [], expiringIngredients: [])
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [],
+                                         resolvesRecipe: { $0 == "retired-full" })
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["retired-full", "lib-a"])
+    }
+
+    /// A search left empty by a deletion must not keep saying the member can
+    /// browse local recommendations.
+    func testAnEmptiedSearchDropsTheLocalBrowsingPromise() async {
+        let gate = Gate()
+        gate.release()
+        let store = HomeRecommendationStore(aiService: SuspendingAIRecommendationService(gate: gate))
+        let mine = recipe("mine", title: "UI 测试家常菜 1")
+        let library = [recipe("lib-a", title: "宫保鸡丁", ingredients: ["鸡肉"])]
+        store.loadDefaultRecommendations(recipes: [mine] + library, inventory: [], expiringIngredients: [])
+        store.searchQuery = "家常菜"
+        await store.searchRecommendations(recipes: [mine] + library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["mine"])
+        XCTAssertEqual(store.recommendationError, "AI 推荐暂时不可用，仍可以继续浏览本地推荐。")
+
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), [])
+        XCTAssertEqual(store.recommendationError, "AI 推荐暂时不可用。")
+        XCTAssertEqual(store.searchQuery, "家常菜")
+    }
+
+    func testWhenEveryCardIsGoneTheDefaultsStartAgainFromTheLibrary() {
+        let mine = (1...8).map { recipe("mine-\($0)", title: "UI 测试家常菜 \($0)") }
+        let library = [recipe("lib-a", title: "宫保鸡丁")]
+
+        let store = HomeRecommendationStore()
+        store.loadDefaultRecommendations(recipes: mine + library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), mine.map(\.id))
+        store.noteRecommendationsBrowsed()
+
+        // 清除全部本地数据 removed every user recipe on the shelf.
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["lib-a"])
+    }
+
+    /// The drop runs even while 换一批 is in flight, but the reload waits for
+    /// the request: a failure must still be shown, not wiped by new defaults.
+    func testAListEmptiedDuringANewBatchStartsTheDefaultsAgainOnceTheRequestEnds() async {
+        let gate = Gate()
+        let store = HomeRecommendationStore(aiService: SuspendingAIRecommendationService(gate: gate))
+        let mine = recipe("mine", title: "UI 测试家常菜 1")
+        let library = [recipe("lib-a", title: "宫保鸡丁")]
+        store.loadDefaultRecommendations(recipes: [mine], inventory: [], expiringIngredients: [])
+
+        let generation = Task { await store.generateNewRecommendations(inventory: [], expiringIngredients: []) }
+        for _ in 0..<200 where !store.isGeneratingRecommendations {
+            await Task.yield()
+        }
+        XCTAssertTrue(store.isGeneratingRecommendations, "the AI request must be active")
+
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), [], "the deleted card leaves during the wait")
+
+        gate.release()
+        await generation.value
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), [])
+        XCTAssertNotNil(store.recommendationError, "the failure must still surface")
+
+        store.loadDefaultRecommendations(recipes: library, inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["lib-a"])
+    }
+
+    /// Only local cards can lose their recipe: AI cards were never in the
+    /// library, and samples always resolve.
+    func testAICardsAndSamplesStayWhenTheLibraryChanges() async {
+        let generated = [RecipeRecommendation(recipe: recipe("ai-one", title: "AI 菜一"), reason: nil, source: .ai)]
+        let store = HomeRecommendationStore(aiService: StubAIRecommendationService(recommendations: generated))
+        store.loadDefaultRecommendations(recipes: [recipe("lib-a", title: "宫保鸡丁")], inventory: [], expiringIngredients: [])
+        await store.generateNewRecommendations(inventory: [], expiringIngredients: [])
+
+        // Saving the AI card points it at a library copy; deleting that copy
+        // leaves an in-memory AI card that can be saved again.
+        store.replaceRecommendationRecipe(id: "ai-one", with: recipe("home-ai-fixed", title: "AI 菜一"))
+        store.loadDefaultRecommendations(recipes: [recipe("lib-b", title: "鱼香肉丝")], inventory: [], expiringIngredients: [])
+        XCTAssertEqual(store.recommendedRecipes.map(\.id), ["home-ai-fixed"])
+    }
 }

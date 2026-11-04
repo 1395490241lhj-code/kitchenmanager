@@ -101,7 +101,27 @@ struct KitchenStatusRail: View {
     }
 }
 
+/// Every date the product shows is zh_Hans_CN (D-018). The bundle is localized
+/// only in English, so `Locale.current` is English and `.formatted(date:time:)`
+/// or an unpinned DatePicker rendered "Nov 7, 2026" in an otherwise Chinese
+/// screen. test/ios-native-date-locale.test.mjs keeps every date pinned.
+nonisolated enum KitchenDateStyle {
+    static let locale = Locale(identifier: "zh_Hans_CN")
+    /// 2026年11月7日
+    static let day = Date.FormatStyle(date: .abbreviated, time: .omitted, locale: locale)
+    /// 2026年11月7日 18:30
+    static let dayTime = Date.FormatStyle(date: .abbreviated, time: .shortened, locale: locale)
+    static let dayTimeSeconds = Date.FormatStyle(date: .abbreviated, time: .standard, locale: locale)
+}
+
 extension View {
+    /// Pins a DatePicker to `KitchenDateStyle.locale`. Per picker rather than
+    /// at the app root, so number fields keep reading decimals the device
+    /// region's way.
+    func kitchenDateLocale() -> some View {
+        environment(\.locale, KitchenDateStyle.locale)
+    }
+
     func kitchenUtilityButton(tint: Color) -> some View {
         buttonStyle(KitchenButtonStyle(role: .utility, tint: tint))
     }
@@ -159,27 +179,26 @@ private struct KitchenHomeSurface: ViewModifier {
         let radius = KitchenTheme.featureRadius
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         content
+            // The vertical lighting belongs to the surface, beneath the
+            // content. Drawn over it, it washed 加入今天 under white text to
+            // ~2.9:1 and greyed the card's text.
+            .background(
+                LinearGradient(
+                    colors: [
+                        .white.opacity(colorScheme == .dark ? 0.018 : (task ? 0.045 : 0.34)),
+                        task
+                            ? .clear
+                            : KitchenTheme.elevatedSurface.opacity(colorScheme == .dark ? 0.10 : 0.32)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                in: shape
+            )
             .background(
                 task ? KitchenTheme.surface : AppTheme.adaptive(light: 0xF9FAFC, dark: 0x24272E),
                 in: shape
             )
-            .overlay {
-                shape
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(colorScheme == .dark ? 0.018 : (task ? 0.045 : 0.34)),
-                                task
-                                    ? .clear
-                                    : KitchenTheme.elevatedSurface.opacity(colorScheme == .dark ? 0.10 : 0.32)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
             .overlay(alignment: .top) {
                 if !task && colorScheme == .light {
                     Capsule()

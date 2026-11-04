@@ -518,13 +518,73 @@ enum CookConsumptionCompletionOutcome: Equatable {
     case dishStateSaveFailed(message: String)
 }
 
+/// What one confirmation did to stock, read from the receipt it wrote, so the
+/// copy cannot disagree with `KitchenStore.applyConsumption`. A receipt with no
+/// items is still written (it stops a second deduction, D-047 §6), so success
+/// alone does not mean anything was deducted: most library recipes carry no
+/// quantities, and every row of one then reads 这一行不扣减.
+enum CookConsumptionStockResult: Equatable {
+    /// No new receipt: an earlier one already covers this target.
+    /// `stockChanged` says whether that earlier receipt deducted anything.
+    case alreadyRecorded(stockChanged: Bool)
+    /// Counted per row the member saw.
+    case recorded(deducted: Int, notDeducted: Int)
+
+    /// A row counts as deducted when it was set to deduct and the receipt holds
+    /// stock matched to it, by the key `applyConsumption` matches batches with.
+    /// Known edge: two rows of one food in different units (鸡蛋 2 个 and a bare
+    /// 鸡蛋 1) are both credited when the first used up the shared stock; the
+    /// receipt does not record which row each batch was taken for.
+    init(drafts: [InventoryConsumptionDraft], record: InventoryConsumptionRecord) {
+        let consumed = Set(record.items.map { IngredientNormalizer.matchKey($0.ingredientName) })
+        let deducted = drafts.filter {
+            $0.isSelected && ($0.consumedQuantity ?? 0) > 0
+                && consumed.contains(IngredientNormalizer.matchKey($0.ingredientName))
+        }.count
+        self = .recorded(deducted: deducted, notDeducted: drafts.count - deducted)
+    }
+
+    /// Whether this confirmation, or the earlier one it found, changed stock.
+    var stockChanged: Bool {
+        switch self {
+        case .alreadyRecorded(let changed): changed
+        case .recorded(let deducted, _): deducted > 0
+        }
+    }
+
+    var headline: String {
+        switch self {
+        case .alreadyRecorded(true): "食材消耗之前已记录，库存没有再次扣减"
+        case .alreadyRecorded(false): "已记录过这次做饭，库存没有变化"
+        case .recorded(0, _): "已记录这次做饭，库存没有变化"
+        case .recorded(_, 0): "已记录消耗，库存已更新"
+        case .recorded(let deducted, let notDeducted): "已扣减 \(deducted) 样食材，\(notDeducted) 样未扣减"
+        }
+    }
+
+    /// Green only for stock this confirmation actually changed.
+    var headlineStyle: AppFeedbackStyle {
+        if case .recorded(let deducted, _) = self, deducted > 0 { return .success }
+        return .informational
+    }
+
+    /// D-047 §5's stock line when the dish state failed to save: 库存已更新
+    /// only when stock really changed, now or at the earlier confirmation.
+    var savedStockLine: String { stockChanged ? "库存已更新" : "库存没有变化" }
+
+    var savedStockStyle: AppFeedbackStyle { stockChanged ? .success : .informational }
+}
+
 @MainActor
 final class CookConsumptionStore: ObservableObject {
     // Not private(set): the confirmation view binds directly to individual drafts
     // (Toggle/TextField edits) via `$store.drafts`.
     @Published var drafts: [InventoryConsumptionDraft] = []
     @Published private(set) var restockSuggestions: [RestockSuggestion] = []
-    @Published private(set) var didConfirm = false
+    /// Set on every successful confirmation and only then, so a confirmed
+    /// sheet always has a result to show.
+    @Published private(set) var stockResult: CookConsumptionStockResult? = nil
+    var didConfirm: Bool { stockResult != nil }
     @Published private(set) var completionOutcome: CookConsumptionCompletionOutcome? = nil
     @Published private(set) var unresolvedPlanNames: [String] = []
 
@@ -701,7 +761,9 @@ final class CookConsumptionStore: ObservableObject {
             )
         case .specialPlanDish(let planID, let dishID, let titleSnapshot, _):
             if kitchenStore.hasConsumedSpecialPlanDish(planID: planID, dishID: dishID) {
-                didConfirm = true
+                stockResult = .alreadyRecorded(stockChanged: kitchenStore.consumptionRecords.contains {
+                    !$0.isUndone && $0.specialPlanID == planID && $0.specialPlanDishID == dishID && !$0.items.isEmpty
+                })
                 return true
             }
             guard case .specialPlanDish(_, _, _, let recipe) = target, recipe != nil else {
@@ -726,7 +788,7 @@ final class CookConsumptionStore: ObservableObject {
                 recipeStore: recipeStore,
                 justConsumed: record.items
             )
-            didConfirm = true
+            stockResult = CookConsumptionStockResult(drafts: drafts, record: record)
             return true
         }
     }
@@ -749,7 +811,9 @@ final class CookConsumptionStore: ObservableObject {
         guard Set(planIDs) == preparedPlanIDs,
               planIDs.allSatisfy({ id in kitchenStore.plans.contains { $0.id == id } }) else { return false }
         if allTargetsAlreadySatisfied(planIDs, kitchenStore: kitchenStore) {
-            didConfirm = true
+            stockResult = .alreadyRecorded(stockChanged: kitchenStore.consumptionRecords.contains {
+                !$0.isUndone && !Set($0.planIDs).isDisjoint(with: planIDs) && !$0.items.isEmpty
+            })
             return true
         }
         let unconsumedPlanIDs = planIDs.filter { !kitchenStore.hasConsumedPlan($0) }
@@ -782,7 +846,7 @@ final class CookConsumptionStore: ObservableObject {
             justConsumed: record.items,
             excludingPlanIDs: Set(planIDs)
         )
-        didConfirm = true
+        stockResult = CookConsumptionStockResult(drafts: drafts, record: record)
         return true
     }
 }
@@ -807,7 +871,9 @@ struct CookConsumptionConfirmationView: View {
     var servings = 1
     var target: CookConsumptionTarget? = nil
     var onConfirmWithOutcome: (@MainActor (@escaping (CookConsumptionCompletionOutcome) -> Void) -> Void)? = nil
-    var onConfirm: (() -> Void)? = nil
+    /// Called with what the confirmation did to stock, for any copy the
+    /// caller shows after the sheet (the Planner toast).
+    var onConfirm: ((CookConsumptionStockResult) -> Void)? = nil
 
     init(
         title: String,
@@ -816,7 +882,7 @@ struct CookConsumptionConfirmationView: View {
         recipeName: String,
         recipe: Recipe? = nil,
         servings: Int = 1,
-        onConfirm: @escaping () -> Void
+        onConfirm: @escaping (CookConsumptionStockResult) -> Void
     ) {
         self.title = title
         self.planIDs = planIDs
@@ -925,8 +991,8 @@ struct CookConsumptionConfirmationView: View {
                                 onConfirmWithOutcome({ outcome in
                                     store.setCompletionOutcome(outcome)
                                 })
-                            } else if let onConfirm {
-                                onConfirm()
+                            } else if let onConfirm, let result = store.stockResult {
+                                onConfirm(result)
                             }
                         }
                     }
@@ -951,9 +1017,9 @@ struct CookConsumptionConfirmationView: View {
     }
 
     private var confirmedOrPendingTitle: String {
-        if store.didConfirm {
+        if let result = store.stockResult {
             if case .dishStateSaveFailed = store.completionOutcome {
-                return "库存已更新"
+                return result.savedStockLine
             }
             return "已完成"
         }
@@ -1077,12 +1143,19 @@ struct CookConsumptionConfirmationView: View {
 
     @ViewBuilder
     private var confirmedSection: some View {
+        let result = store.stockResult ?? .alreadyRecorded(stockChanged: false)
         if case .dishStateSaveFailed(let message) = store.completionOutcome {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("库存已更新", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(AppTheme.successInk)
-                        .font(.subheadline.weight(.medium))
+                    // The identifier sits on the title: on a Label it can land
+                    // on the icon instead (seen on iOS 26.5).
+                    Label {
+                        Text(result.savedStockLine).accessibilityIdentifier("consumption.result")
+                    } icon: {
+                        Image(systemName: result.savedStockStyle.systemImage)
+                    }
+                    .foregroundStyle(result.savedStockStyle.ink)
+                    .font(.subheadline.weight(.medium))
                     Label(message, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(AppTheme.warningInk)
                         .font(.footnote)
@@ -1091,8 +1164,12 @@ struct CookConsumptionConfirmationView: View {
             }
         } else {
             Section {
-                Label("已记录消耗，库存已更新", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(AppTheme.successInk)
+                Label {
+                    Text(result.headline).accessibilityIdentifier("consumption.result")
+                } icon: {
+                    Image(systemName: result.headlineStyle.systemImage)
+                }
+                .foregroundStyle(result.headlineStyle.ink)
             }
         }
         if !store.restockSuggestions.isEmpty {
@@ -1246,7 +1323,7 @@ struct RecentConsumptionView: View {
                             Text(record.recipeName)
                         }
                     } footer: {
-                        Text(record.date.formatted(date: .abbreviated, time: .shortened))
+                        Text(record.date.formatted(KitchenDateStyle.dayTime))
                     }
                 }
             }

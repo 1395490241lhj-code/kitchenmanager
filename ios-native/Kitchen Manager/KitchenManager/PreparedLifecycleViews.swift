@@ -52,8 +52,9 @@ struct PreparedLifecycleEditor: View {
                     }
                 }
                 Section {
-                    Text("原日期：\(draft.expected.expiryDate.formatted(date: .abbreviated, time: .omitted))")
+                    Text("原日期：\(draft.expected.expiryDate.formatted(KitchenDateStyle.day))")
                     DatePicker("确认后建议吃完", selection: Binding(get: { draft.expiryDate }, set: { draft.selectExpiry($0) }), displayedComponents: .date)
+                        .kitchenDateLocale()
                         .accessibilityIdentifier("prepared.lifecycle.expiry")
                     Toggle(isOn: $draft.expiryReviewed) {
                         Text("我已核对这组的建议吃完日期").fixedSize(horizontal: false, vertical: true)
@@ -82,7 +83,7 @@ struct PreparedLifecycleEditor: View {
                     Section("记录有更新") {
                         Text("当前：\(current.name)，\(current.portionsRemaining)份，\(PreparedLifecyclePresentation.status(current))")
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("当前建议吃完：\(current.expiryDate.formatted(date: .abbreviated, time: .omitted))。重新核对后，需要再次确认日期。")
+                        Text("当前建议吃完：\(current.expiryDate.formatted(KitchenDateStyle.day))。重新核对后，需要再次确认日期。")
                             .font(.footnote).foregroundStyle(.secondary)
                         Button("按当前记录重新核对") { draft.recheck(current); reviewFocused = true }
                             .frame(minHeight: AppTheme.minimumHitTarget)

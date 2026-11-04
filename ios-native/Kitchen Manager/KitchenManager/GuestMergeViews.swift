@@ -793,6 +793,7 @@ struct InventoryMergeConflictView: View {
 
     private func expiryText(_ date: Date) -> String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
         formatter.dateStyle = .medium
         return "保质期至 \(formatter.string(from: date))"
     }

@@ -261,8 +261,10 @@ private struct PreparedComponentEditor: View {
                 }
                 Section {
                     DatePicker("做好时间", selection: $draft.preparedAt, displayedComponents: .date)
+                        .kitchenDateLocale()
                         .accessibilityIdentifier("prepared.editor.preparedAt")
                     DatePicker("建议吃完", selection: $draft.expiryDate, displayedComponents: .date)
+                        .kitchenDateLocale()
                         .accessibilityIdentifier("prepared.editor.expiry")
                 } footer: { Text("默认日期只是根据状态和存放方式给的起点，可以按自己的判断修改。") }
                 #if DEBUG

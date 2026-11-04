@@ -89,12 +89,7 @@ struct PlannerMealFormView: View {
                     recipeRow
 
                     DatePicker("日期", selection: $date, displayedComponents: .date)
-                        // Every other date in the product is pinned to
-                        // zh_Hans_CN (PlannerDateText, HomeDatePresentation,
-                        // MealPrepBoard). Without this the picker inherits the
-                        // device locale and renders "Sep 10, 2026" in a form
-                        // that is Chinese everywhere else.
-                        .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
+                        .kitchenDateLocale()
                         .accessibilityIdentifier("planner.mealForm.date")
                 }
 

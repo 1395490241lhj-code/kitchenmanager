@@ -58,7 +58,7 @@ private struct InventorySyncDiagnosticsScreen: View {
                     }
                     LabeledContent("上次结果", value: snapshot.lastSyncResult ?? "无")
                     if let completed = snapshot.lastSyncCompletedAt {
-                        LabeledContent("上次完成时间", value: completed.formatted(date: .abbreviated, time: .shortened))
+                        LabeledContent("上次完成时间", value: completed.formatted(KitchenDateStyle.dayTime))
                     }
                     if let mergeState = snapshot.activeMergeSessionState {
                         LabeledContent("合并会话", value: mergeState)

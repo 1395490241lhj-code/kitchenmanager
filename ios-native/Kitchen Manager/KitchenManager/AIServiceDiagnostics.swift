@@ -298,7 +298,7 @@ struct AIServiceDiagnosticsView: View {
                     if let code = failure.upstreamCode { LabeledContent("上游 Code", value: code) }
                     if let message = failure.upstreamMessage { LabeledContent("上游错误", value: message) }
                     if let code = failure.statusCode { LabeledContent("HTTP", value: "\(code)") }
-                    LabeledContent("时间", value: failure.date.formatted(date: .abbreviated, time: .standard))
+                    LabeledContent("时间", value: failure.date.formatted(KitchenDateStyle.dayTimeSeconds))
                 }
             }
         }
@@ -332,7 +332,7 @@ struct AIServiceDiagnosticsView: View {
             if let latency = result.latency { LabeledContent("Latency", value: "\(Int(latency * 1000)) ms") }
             if let message = result.message { Text(message).font(.footnote).foregroundStyle(.secondary) }
             if let requestID = result.requestID { LabeledContent("Request ID", value: requestID) }
-            if let date = result.date { LabeledContent("时间", value: date.formatted(date: .abbreviated, time: .standard)) }
+            if let date = result.date { LabeledContent("时间", value: date.formatted(KitchenDateStyle.dayTimeSeconds)) }
         }
     }
 }

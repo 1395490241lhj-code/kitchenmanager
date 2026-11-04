@@ -604,6 +604,7 @@ struct RecordFoodSheet: View {
 
     private func datePicker(_ draft: Binding<ManualInventoryDraft>) -> some View {
         DatePicker("保质期", selection: draft.expiryDate, displayedComponents: .date)
+            .kitchenDateLocale()
             .accessibilityLabel("保质期")
             .accessibilityIdentifier("manualInventoryExpiryDatePicker")
             .onChange(of: draft.wrappedValue.expiryDate) { _, _ in
@@ -837,6 +838,7 @@ private struct ReceiptIngredientCompactRow: View {
                     selection: Binding(get: { expiryDate }, set: { item.expiryDate = $0 }),
                     displayedComponents: .date
                 )
+                .kitchenDateLocale()
                 .labelsHidden()
                 .datePickerStyle(.compact)
                 .fixedSize()
