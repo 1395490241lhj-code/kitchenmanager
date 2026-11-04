@@ -358,6 +358,12 @@ extension SpecialPlanMenuUITests {
         XCTAssertTrue(updateFridgeBtn.waitForExistence(timeout: 5))
         updateFridgeBtn.tap()
 
+        // Only 嫩豆腐 is stocked for 麻婆豆腐: the result names the partial
+        // deduction instead of claiming every ingredient was updated.
+        let partial = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "已扣减 1 样食材，")).firstMatch
+        XCTAssertTrue(partial.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["已记录消耗，库存已更新"].exists)
+
         // Sheet confirms and finishes
         let finishBtn = app.buttons["完成"]
         XCTAssertTrue(finishBtn.waitForExistence(timeout: 5))

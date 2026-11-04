@@ -370,12 +370,12 @@ struct PlannerView: View {
                                 planIDs: [plan.id],
                                 recipeID: plan.recipeID,
                                 recipeName: plan.recipeName
-                            ) {
+                            ) { result in
                                 kitchenStore.markPlanCooked(plan)
                                 let token = UUID()
                                 toastToken = token
                                 withAnimation {
-                                    toast = (message: "已记录消耗，库存已更新", style: .success, removable: false)
+                                    toast = (message: result.headline, style: result.headlineStyle, removable: false)
                                 }
                                 scheduleUndoExpiry(token: token)
                             }

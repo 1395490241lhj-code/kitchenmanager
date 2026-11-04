@@ -19,7 +19,8 @@ nonisolated enum InventoryTonightLinkage {
     ) -> [String: String] {
         var dishesByIngredient: [String: [String]] = [:]
 
-        for plan in plans {
+        // A dish already cooked needs nothing more from the kitchen.
+        for plan in plans where !plan.isCooked {
             guard let recipe = recipes(plan.recipeID) else { continue }
             // A dish is credited to an ingredient once, however many lines of
             // the recipe mention it.

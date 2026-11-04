@@ -615,7 +615,8 @@ struct HomeView: View {
         recommendationStore.loadDefaultRecommendations(
             recipes: sourceRecipes,
             inventory: kitchenStore.recipeCreationInventory.map(\.name),
-            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
+            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name),
+            resolvesRecipe: { recipeStore.recipe(id: $0) != nil }
         )
     }
 
@@ -2621,7 +2622,8 @@ struct RecipeRecommendationBrowserView: View {
         recommendationStore.loadDefaultRecommendations(
             recipes: sourceRecipes,
             inventory: kitchenStore.recipeCreationInventory.map(\.name),
-            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name)
+            expiringIngredients: kitchenStore.recipeCreationExpiringItems.map(\.name),
+            resolvesRecipe: { recipeStore.recipe(id: $0) != nil }
         )
     }
 

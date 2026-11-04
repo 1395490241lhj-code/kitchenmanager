@@ -1046,8 +1046,11 @@ struct ContentView: View {
             )
             if ProcessInfo.processInfo.arguments.contains("UITEST_SEED_SPECIAL_PLAN_WITH_INVENTORY") {
                 let now = Date()
+                // 嫩豆腐 is what 麻婆豆腐 asks for (豆腐 does not match it), so
+                // completing that dish really deducts and 库存已更新 is true.
                 kitchenStore.importInventory([
                     InventoryImportItem(name: "豆腐", quantity: 5, unit: "块", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now)),
+                    InventoryImportItem(name: "嫩豆腐", quantity: 2, unit: "块", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now)),
                     InventoryImportItem(name: "番茄", quantity: 5, unit: "个", expiryDate: Calendar.current.date(byAdding: .day, value: 5, to: now))
                 ])
             }

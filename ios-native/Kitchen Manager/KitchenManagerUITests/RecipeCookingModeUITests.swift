@@ -81,6 +81,12 @@ final class RecipeCookingModeUITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars.staticTexts["确认本次食材消耗"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["更新冰箱"].exists)
+
+        // The seed's kitchen is empty, so nothing can be deducted: the result
+        // must say stock did not change rather than claim it was updated.
+        app.buttons["更新冰箱"].tap()
+        XCTAssertTrue(app.staticTexts["已记录这次做饭，库存没有变化"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["已记录消耗，库存已更新"].exists)
     }
 
     func testRecipeSearchShowsAQuietNoResultsState() throws {

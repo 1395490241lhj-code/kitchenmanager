@@ -2110,7 +2110,7 @@ struct WeeklyMenuPlannerView: View {
     /// "10月19日 – 10月25日", or one day when only one is planned.
     private var generationRangeText: String {
         let range = store.nextGenerationDateRange(preferredStart: preferredStartDate)
-        let style = Date.FormatStyle().month(.defaultDigits).day()
+        let style = Date.FormatStyle(locale: KitchenDateStyle.locale).month(.defaultDigits).day()
         let start = range.start.formatted(style)
         return range.start == range.end ? start : "\(start) – \(range.end.formatted(style))"
     }
@@ -2357,7 +2357,7 @@ struct WeeklyMenuResultView: View {
                         Button("复制到 7 天后", systemImage: "doc.on.doc") {
                             if let copy = kitchenStore.duplicateWeeklyPlanForNextWeek(from: store.generatedPlan) {
                                 store.generatedPlan = copy
-                                showToast("已复制，从\(copy.startDate.formatted(.dateTime.month().day()))开始")
+                                showToast("已复制，从\(copy.startDate.formatted(.dateTime.month().day().locale(KitchenDateStyle.locale)))开始")
                             }
                         }
                         Button("删除这份菜单", systemImage: "trash", role: .destructive) {

@@ -2487,7 +2487,7 @@ private struct RestorePreviewSheet: View {
                         .accessibilityIdentifier("restorePreview.version")
                     LabeledContent("备份时间") {
                         if let exportedAt = pending.candidate.exportedAt {
-                            Text(exportedAt.formatted(date: .abbreviated, time: .shortened))
+                            Text(exportedAt.formatted(KitchenDateStyle.dayTime))
                         } else {
                             // The oldest real v1 files carry no export date. The
                             // tolerant decoder substitutes one; showing that as
